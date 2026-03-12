@@ -9,6 +9,7 @@ import { ClaudeCodeStreamService } from './executors/claude-code-stream.service'
 import { OpenClawModule } from '../openclaw/openclaw.module';
 import { ActionModule } from '../action/action.module';
 import { LlmModule } from '../infra/llm/llm.module';
+import { QueueModule } from '../infra/queue';
 import { CapabilityRegistry } from '../action/capability-registry.service';
 import { DevAgentOrchestrator } from './dev-agent.orchestrator';
 import { DevTaskPlanner } from './planning/dev-task-planner';
@@ -27,7 +28,7 @@ import { DevReminderService } from './dev-reminder.service';
 import { DevReminderSchedulerService } from './dev-reminder.scheduler.service';
 
 @Module({
-  imports: [OpenClawModule, ActionModule, LlmModule],
+  imports: [OpenClawModule, ActionModule, LlmModule, QueueModule],
   controllers: [DevAgentController],
   providers: [
     DevAgentService,

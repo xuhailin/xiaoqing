@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { DevRunStatus } from '@prisma/client';
 import type { DevTaskResult } from './dev-agent.types';
 import { DevSessionRepository } from './dev-session.repository';
 import { DevRunRunnerService } from './dev-runner.service';
@@ -57,9 +58,9 @@ export class DevAgentService {
       };
     }
 
-    const terminalStatuses = ['success', 'failed', 'canceled'];
+    const terminalStatuses: string[] = [DevRunStatus.success, DevRunStatus.failed, DevRunStatus.cancelled];
     const alreadyTerminal =
-      terminalStatuses.includes(run.status) && run.status !== 'canceled';
+      terminalStatuses.includes(run.status) && run.status !== DevRunStatus.cancelled;
 
     if (alreadyTerminal) {
       return {

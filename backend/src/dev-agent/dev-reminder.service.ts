@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import { type Prisma, DevRunStatus, ReminderScope } from '@prisma/client';
 import { CronJob, validateCronExpression } from 'cron';
 import { PrismaService } from '../infra/prisma.service';
 import { DevRunRunnerService } from './dev-runner.service';
@@ -8,6 +8,7 @@ import { DevSessionRepository } from './dev-session.repository';
 export interface CreateDevReminderInput {
   sessionId?: string;
   conversationId?: string;
+  scope?: 'dev' | 'system' | 'chat';
   title?: string;
   message: string;
   cronExpr?: string;
@@ -37,8 +38,8 @@ export class DevReminderService {
     const runAt = this.parseRunAt(input.runAt);
     this.assertScheduleInput(cronExpr, runAt, input.timezone);
 
+    const scope = (input.scope as ReminderScope) ?? ReminderScope.dev;
     const enabled = input.enabled !== false;
-    const session = await this.resolveSession(input.sessionId, input.conversationId);
     const now = new Date();
     const nextRunAt = enabled
       ? this.computeNextRunAt({ cronExpr, runAt, timezone: input.timezone }, now)
@@ -48,9 +49,24 @@ export class DevReminderService {
       throw new BadRequestException('runAt must be in the future');
     }
 
+    // dev scope 必须有 session；其他 scope 可选
+    let sessionId: string | null = null;
+    if (scope === ReminderScope.dev) {
+      const session = await this.resolveSession(input.sessionId, input.conversationId);
+      sessionId = session.id;
+    } else if (input.sessionId) {
+      // 非 dev scope 也可以关联 session（可选）
+      const existing = await this.sessions.getSession(input.sessionId);
+      if (!existing) {
+        throw new NotFoundException('session not found');
+      }
+      sessionId = existing.id;
+    }
+
     return this.prisma.devReminder.create({
       data: {
-        sessionId: session.id,
+        sessionId,
+        scope,
         title: input.title?.trim() || null,
         message,
         cronExpr: cronExpr || null,
@@ -184,7 +200,7 @@ export class DevReminderService {
     reminderId: string,
     now: Date,
     forced = false,
-  ): Promise<{ runId: string; sessionId: string } | null> {
+  ): Promise<{ runId: string; sessionId: string | null } | null> {
     const txResult = await this.prisma.$transaction(async (tx) => {
       const reminder = await tx.devReminder.findUnique({
         where: { id: reminderId },
@@ -199,39 +215,64 @@ export class DevReminderService {
       }
 
       const scheduleNext = this.computeNextAfterTrigger(reminder, now);
-      const run = await tx.devRun.create({
-        data: {
-          sessionId: reminder.sessionId,
-          userInput: reminder.message,
-          status: 'queued',
-          result: this.buildReminderQueuedResult(reminder.id, reminder.message, forced),
-        },
-        select: { id: true, sessionId: true },
-      });
 
+      // dev scope: 创建 DevRun 并入队执行
+      if (reminder.scope === ReminderScope.dev) {
+        if (!reminder.sessionId) {
+          this.logger.warn(`Dev-scope reminder ${reminderId} has no sessionId, skipping`);
+          return null;
+        }
+        const run = await tx.devRun.create({
+          data: {
+            sessionId: reminder.sessionId,
+            userInput: reminder.message,
+            status: DevRunStatus.queued,
+            result: this.buildReminderQueuedResult(reminder.id, reminder.message, forced),
+          },
+          select: { id: true, sessionId: true },
+        });
+
+        await tx.devReminder.update({
+          where: { id: reminder.id },
+          data: {
+            enabled: scheduleNext.enabled,
+            nextRunAt: scheduleNext.nextRunAt,
+            lastTriggeredAt: now,
+            lastRunId: run.id,
+            lastError: null,
+          },
+        });
+
+        return { runId: run.id, sessionId: run.sessionId, scope: reminder.scope };
+      }
+
+      // system / chat scope: 记录触发，不创建 DevRun
       await tx.devReminder.update({
         where: { id: reminder.id },
         data: {
           enabled: scheduleNext.enabled,
           nextRunAt: scheduleNext.nextRunAt,
           lastTriggeredAt: now,
-          lastRunId: run.id,
           lastError: null,
         },
       });
 
-      return run;
+      return { runId: reminder.id, sessionId: reminder.sessionId, scope: reminder.scope };
     });
 
     if (!txResult) {
       return null;
     }
 
-    this.runner.startRun(txResult.id, txResult.sessionId);
+    // 只有 dev scope 才入队执行
+    if (txResult.scope === ReminderScope.dev) {
+      this.runner.startRun(txResult.runId, txResult.sessionId!);
+    }
+
     this.logger.log(
-      `Reminder triggered: reminder=${reminderId} run=${txResult.id} session=${txResult.sessionId}`,
+      `Reminder triggered: reminder=${reminderId} scope=${txResult.scope} run=${txResult.runId} session=${txResult.sessionId}`,
     );
-    return { runId: txResult.id, sessionId: txResult.sessionId };
+    return { runId: txResult.runId, sessionId: txResult.sessionId };
   }
 
   private parseRunAt(value?: string | Date): Date | undefined {

@@ -2,7 +2,12 @@ import { Module } from '@nestjs/common';
 import { ConversationController } from './conversation.controller';
 import { ConversationService } from './conversation.service';
 import { AssistantOrchestrator } from './assistant-orchestrator.service';
+import { ChatCompletionEngine } from './chat-completion.engine';
+import { ChatCompletionRunner } from './chat-completion-runner.service';
 import { TurnContextAssembler } from './turn-context-assembler.service';
+import { ToolPolicyResolver } from './tool-policy-resolver.service';
+import { SummarizeTriggerService } from './summarize-trigger.service';
+import { FeatureFlagConfig } from './feature-flag.config';
 import { LlmModule } from '../../infra/llm/llm.module';
 import { PromptRouterModule } from '../prompt-router/prompt-router.module';
 import { MemoryModule } from '../memory/memory.module';
@@ -24,7 +29,12 @@ import { PostTurnPipeline } from '../post-turn/post-turn.pipeline';
   providers: [
     ConversationService,
     AssistantOrchestrator,
+    ChatCompletionEngine,
+    ChatCompletionRunner,
     TurnContextAssembler,
+    ToolPolicyResolver,
+    SummarizeTriggerService,
+    FeatureFlagConfig,
     PostTurnPipeline,
     MetaLayerService,
   ],

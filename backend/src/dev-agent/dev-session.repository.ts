@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import { type Prisma, DevRunStatus, DevSessionStatus } from '@prisma/client';
 import { PrismaService } from '../infra/prisma.service';
 
 @Injectable()
@@ -10,13 +10,13 @@ export class DevSessionRepository {
     // 如果有关联的 conversationId，尝试复用活跃 session
     if (conversationId) {
       const existing = await this.prisma.devSession.findFirst({
-        where: { conversationId, status: 'active' },
+        where: { conversationId, status: DevSessionStatus.active },
         orderBy: { createdAt: 'desc' },
       });
       if (existing) return existing;
     }
     return this.prisma.devSession.create({
-      data: { conversationId, status: 'active' },
+      data: { conversationId, status: DevSessionStatus.active },
     });
   }
 
@@ -29,7 +29,7 @@ export class DevSessionRepository {
       data: {
         sessionId,
         userInput,
-        status: 'queued',
+        status: DevRunStatus.queued,
         result:
           initialResult ??
           ({
@@ -56,10 +56,10 @@ export class DevSessionRepository {
     const claimed = await this.prisma.devRun.updateMany({
       where: {
         id: runId,
-        status: { in: ['queued', 'pending'] },
+        status: { in: [DevRunStatus.queued, DevRunStatus.pending] },
       },
       data: {
-        status: 'running',
+        status: DevRunStatus.running,
         startedAt,
         finishedAt: null,
         error: null,
@@ -76,7 +76,7 @@ export class DevSessionRepository {
     });
   }
 
-  async listRunsByStatuses(statuses: string[]) {
+  async listRunsByStatuses(statuses: DevRunStatus[]) {
     if (statuses.length === 0) {
       return [];
     }
@@ -110,10 +110,10 @@ export class DevSessionRepository {
     return this.prisma.devRun.updateMany({
       where: {
         id: runId,
-        status: 'running',
+        status: DevRunStatus.running,
       },
       data: {
-        status: 'failed',
+        status: DevRunStatus.failed,
         error: message,
         finishedAt: new Date(),
       },
@@ -124,10 +124,10 @@ export class DevSessionRepository {
     return this.prisma.devRun.updateMany({
       where: {
         id: runId,
-        status: 'running',
+        status: DevRunStatus.running,
       },
       data: {
-        status: 'queued',
+        status: DevRunStatus.queued,
         error: message,
         startedAt: null,
         finishedAt: null,
@@ -141,33 +141,34 @@ export class DevSessionRepository {
     });
     if (!existing) return null;
 
-    if (['success', 'failed', 'canceled'].includes(existing.status)) {
+    const terminalStatuses: DevRunStatus[] = [DevRunStatus.success, DevRunStatus.failed, DevRunStatus.cancelled];
+    if (terminalStatuses.includes(existing.status) && existing.status !== DevRunStatus.cancelled) {
       return existing;
     }
 
-    const canceledAt = new Date().toISOString();
+    const cancelledAt = new Date().toISOString();
     const nextResult: Prisma.InputJsonValue =
       existing.result &&
       typeof existing.result === 'object' &&
       !Array.isArray(existing.result)
         ? ({
             ...(existing.result as Record<string, unknown>),
-            phase: 'canceled',
+            phase: 'cancelled',
             cancelReason: reason,
-            canceledAt,
-            updatedAt: canceledAt,
+            cancelledAt,
+            updatedAt: cancelledAt,
           } as Prisma.InputJsonValue)
         : ({
-            phase: 'canceled',
+            phase: 'cancelled',
             cancelReason: reason,
-            canceledAt,
-            updatedAt: canceledAt,
+            cancelledAt,
+            updatedAt: cancelledAt,
           } as Prisma.InputJsonValue);
 
     return this.prisma.devRun.update({
       where: { id: runId },
       data: {
-        status: 'canceled',
+        status: DevRunStatus.cancelled,
         error: reason,
         finishedAt: new Date(),
         result: nextResult,
@@ -178,7 +179,7 @@ export class DevSessionRepository {
   async updateRunStatus(
     runId: string,
     update: {
-      status?: string;
+      status?: DevRunStatus;
       executor?: string;
       plan?: Prisma.InputJsonValue;
       result?: Prisma.InputJsonValue;

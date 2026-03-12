@@ -46,7 +46,7 @@ export interface DevPlan {
 export interface DevPlanStep {
   index: number;
   description: string;
-  executor: 'shell' | 'openclaw';
+  executor: 'shell' | 'openclaw' | 'claude-code';
   command: string;
 }
 

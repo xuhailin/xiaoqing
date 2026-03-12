@@ -1,6 +1,7 @@
 import type { PersonaDto, ExpressionFields } from '../persona/persona.service';
 import type { UserProfileDto } from '../persona/user-profile.service';
 import type { AnchorDto } from '../identity-anchor/identity-anchor.service';
+import type { TraceStep } from '../../infra/trace/trace.types';
 import type {
   BoundaryPromptContext,
   ClaimSignal,
@@ -10,6 +11,11 @@ import type {
 } from '../cognitive-pipeline/cognitive-pipeline.types';
 import type { DialogueIntentState } from '../intent/intent.types';
 import type { WorldState } from '../../infra/world-state/world-state.types';
+import type {
+  DailyMomentRecord,
+  DailyMomentSuggestion,
+} from '../daily-moment/daily-moment.types';
+import type { LocalSkillRunResult } from '../../action/local-skills/local-skill.types';
 
 export interface MemoryRecallPlan {
   candidatesCount: number;
@@ -46,6 +52,13 @@ export interface TurnContext {
   world: {
     storedWorldState: WorldState | null;
     defaultWorldState: WorldState | null;
+    fullWorldState: WorldState | null;
+  };
+  memory: {
+    injectedMemories: Array<{ id: string; type: string; content: string }>;
+    candidatesCount: number;
+    needDetail: boolean;
+    memoryBudgetTokens: number;
   };
   growth: {
     growthContext: PersistedGrowthContext;
@@ -65,6 +78,40 @@ export interface TurnContext {
     cognitiveState?: CognitiveTurnState;
     boundaryPrompt?: BoundaryPromptContext | null;
   };
+}
+
+export interface SendMessageResult {
+  userMessage: { id: string; role: string; content: string; createdAt: Date };
+  assistantMessage: { id: string; role: string; content: string; createdAt: Date };
+  injectedMemories: Array<{ id: string; type: string; content: string }>;
+  openclawUsed?: boolean;
+  localSkillUsed?: 'weather' | 'book_download' | 'general_action' | 'timesheet';
+  dailyMoment?: {
+    mode: 'entry' | 'suggestion';
+    record?: DailyMomentRecord;
+    suggestion?: DailyMomentSuggestion;
+  };
+  meta?: {
+    localSkillRun?: LocalSkillRunResult;
+  };
+  debugMeta?: Record<string, unknown>;
+  trace?: TraceStep[];
+}
+
+export type ChatCompletionResult = SendMessageResult;
+
+export type ToolPolicyAction =
+  | 'chat'
+  | 'ask_missing'
+  | 'run_local_weather'
+  | 'run_local_book_download'
+  | 'run_local_general_action'
+  | 'run_local_timesheet'
+  | 'run_openclaw';
+
+export interface ToolPolicyDecision {
+  action: ToolPolicyAction;
+  reason: string;
 }
 
 export type TurnDecision =

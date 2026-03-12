@@ -42,6 +42,17 @@ import {
             @if (lastResult()!.run.executor) {
               <span class="executor-tag">{{ lastResult()!.run.executor }}</span>
             }
+            <span class="result-actions-spacer"></span>
+            @if (isRunCancellable(lastResult()!.run.status) && lastResult()!.run.id) {
+              <button
+                type="button"
+                class="cancel-btn"
+                (click)="cancelCurrentRun()"
+                [disabled]="cancellingRunId() === lastResult()!.run.id"
+              >
+                {{ cancellingRunId() === lastResult()!.run.id ? '取消中...' : '取消任务' }}
+              </button>
+            }
           </div>
           <div class="reply">{{ lastResult()!.reply }}</div>
           @if (lastResult()!.run.plan) {
@@ -244,6 +255,30 @@ import {
       color: var(--color-text-secondary);
     }
 
+    .result-actions-spacer {
+      flex: 1;
+    }
+
+    .cancel-btn {
+      border: 1px solid #e74c3c;
+      background: rgba(231, 76, 60, 0.08);
+      color: #c0392b;
+      border-radius: var(--radius-sm);
+      padding: 2px var(--space-2);
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-weight-medium);
+      cursor: pointer;
+    }
+
+    .cancel-btn:hover:not(:disabled) {
+      background: rgba(231, 76, 60, 0.16);
+    }
+
+    .cancel-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
     .reply {
       font-size: var(--font-size-sm);
       line-height: 1.6;
@@ -410,7 +445,8 @@ import {
       background: #e74c3c;
     }
 
-    .status-dot.canceled {
+    .status-dot.canceled,
+    .status-dot.cancelled {
       background: #7f8c8d;
     }
 
@@ -505,7 +541,7 @@ import {
   `],
 })
 export class DevAgentComponent implements OnInit, OnDestroy {
-  private static readonly TERMINAL_STATUSES = new Set(['success', 'failed', 'canceled']);
+  private static readonly TERMINAL_STATUSES = new Set(['success', 'failed', 'cancelled']);
   private static readonly POLL_INTERVAL_MS = 1500;
 
   sessions = signal<DevSession[]>([]);
@@ -514,6 +550,7 @@ export class DevAgentComponent implements OnInit, OnDestroy {
   expandedSession = signal<string | null>(null);
   selectedSessionId = signal<string | null>(null);
   selectedRunId = signal<string | null>(null);
+  cancellingRunId = signal<string | null>(null);
   inputText = '';
 
   /** 默认使用一个固定的 conversationId 做 dev 通道 */
@@ -637,6 +674,45 @@ export class DevAgentComponent implements OnInit, OnDestroy {
     });
   }
 
+  cancelCurrentRun() {
+    const current = this.lastResult();
+    if (!current) return;
+
+    const runId = current.run.id;
+    if (!runId || !this.isRunCancellable(current.run.status)) return;
+    if (this.cancellingRunId() === runId) return;
+
+    this.cancellingRunId.set(runId);
+
+    this.devAgent.cancelRun(runId, '用户主动取消任务').subscribe({
+      next: (result) => {
+        if (!result.ok) {
+          this.cancellingRunId.set(null);
+          return;
+        }
+        this.devAgent.getRun(runId).subscribe({
+          next: (run) => {
+            if (run) {
+              this.lastResult.set(this.mapRunToTaskResult(run));
+              this.selectedRunId.set(run.id);
+              this.loadSessions(run.sessionId);
+            }
+            this.clearRunPolling();
+            this.cancellingRunId.set(null);
+          },
+          error: () => {
+            this.clearRunPolling();
+            this.loadSessions(current.session.id || undefined);
+            this.cancellingRunId.set(null);
+          },
+        });
+      },
+      error: () => {
+        this.cancellingRunId.set(null);
+      },
+    });
+  }
+
   private pollRun(runId: string, sessionId: string) {
     this.clearRunPolling();
     const pollOnce = () => {
@@ -675,6 +751,10 @@ export class DevAgentComponent implements OnInit, OnDestroy {
 
   private isTerminalStatus(status: string): boolean {
     return DevAgentComponent.TERMINAL_STATUSES.has(status);
+  }
+
+  isRunCancellable(status: string): boolean {
+    return status === 'queued' || status === 'pending' || status === 'running';
   }
 
   private pickActiveSession(
@@ -739,7 +819,7 @@ export class DevAgentComponent implements OnInit, OnDestroy {
     if (status === 'success') {
       return options.stopReason ?? '任务执行完成。';
     }
-    if (status === 'canceled') {
+    if (status === 'cancelled') {
       return options.runError ?? '任务已取消。';
     }
     return options.runError ?? options.stopReason ?? '任务执行失败。';
@@ -857,7 +937,7 @@ export class DevAgentComponent implements OnInit, OnDestroy {
     const executor = step['executor'];
     return typeof step['index'] === 'number'
       && typeof step['description'] === 'string'
-      && (executor === 'shell' || executor === 'openclaw')
+      && (executor === 'shell' || executor === 'openclaw' || executor === 'claude-code')
       && typeof step['command'] === 'string';
   }
 }

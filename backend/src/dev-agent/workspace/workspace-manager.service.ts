@@ -1,7 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { resolve } from 'path';
-import { mkdir, rm, access } from 'fs/promises';
+import { mkdir, rm, readdir, access } from 'fs/promises';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 
@@ -30,7 +30,7 @@ export interface WorkspaceInfo {
  * 每个 DevSession 可拥有独立 workspace，避免并发任务冲突。
  */
 @Injectable()
-export class WorkspaceManager {
+export class WorkspaceManager implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(WorkspaceManager.name);
   private readonly projectRoot: string;
   private readonly strategy: WorkspaceStrategy;
@@ -43,6 +43,22 @@ export class WorkspaceManager {
     this.projectRoot = config.get('CLAUDE_CODE_PROJECT_ROOT') || process.cwd();
     this.strategy = (config.get('CLAUDE_CODE_WORKSPACE_STRATEGY') || 'shared') as WorkspaceStrategy;
     this.workspacesDir = resolve(__dirname, '../../../../data/dev-workspaces');
+  }
+
+  async onModuleInit(): Promise<void> {
+    if (this.strategy !== 'worktree') return;
+    await this.cleanupOrphanedWorktrees();
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    const sessions = [...this.activeWorkspaces.keys()];
+    for (const sessionId of sessions) {
+      try {
+        await this.release(sessionId);
+      } catch (err) {
+        this.logger.warn(`Failed to release workspace on shutdown: session=${sessionId} err=${String(err)}`);
+      }
+    }
   }
 
   /**
@@ -163,6 +179,37 @@ export class WorkspaceManager {
       } catch {
         // ignore
       }
+    }
+  }
+
+  /**
+   * 启动时扫描 workspacesDir，清理上次进程残留的孤立 worktree 目录。
+   */
+  private async cleanupOrphanedWorktrees(): Promise<void> {
+    try {
+      await access(this.workspacesDir);
+    } catch {
+      return; // 目录不存在，无需清理
+    }
+
+    try {
+      const entries = await readdir(this.workspacesDir);
+      if (entries.length === 0) return;
+
+      this.logger.warn(`Found ${entries.length} orphaned workspace(s), cleaning up...`);
+
+      for (const entry of entries) {
+        const worktreePath = resolve(this.workspacesDir, entry);
+        const branch = `dev-agent/${entry}`;
+        try {
+          await this.removeWorktree({ cwd: worktreePath, strategy: 'worktree', branch, needsCleanup: true });
+          this.logger.log(`Cleaned up orphaned worktree: ${entry}`);
+        } catch (err) {
+          this.logger.warn(`Failed to cleanup orphaned worktree ${entry}: ${String(err)}`);
+        }
+      }
+    } catch (err) {
+      this.logger.warn(`Failed to scan workspaces dir for cleanup: ${String(err)}`);
     }
   }
 

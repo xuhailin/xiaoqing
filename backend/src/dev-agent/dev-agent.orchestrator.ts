@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { DevRunStatus } from '@prisma/client';
 import { resolve } from 'path';
 import { SkillRunner } from '../action/local-skills/skill-runner.service';
 import { createTaskContext, type DevTaskContext } from './dev-task-context';
@@ -31,10 +32,10 @@ interface DevRunExecutionInput {
   };
 }
 
-class DevRunCanceledError extends Error {
+class DevRunCancelledError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'DevRunCanceledError';
+    this.name = 'DevRunCancelledError';
   }
 }
 
@@ -64,10 +65,10 @@ export class DevAgentOrchestrator {
 
     try {
       await this.sessions.updateRunStatus(input.run.id, {
-        status: 'running',
+        status: DevRunStatus.running,
         startedAt: new Date(),
       });
-      await this.throwIfCanceled(input.run.id);
+      await this.throwIfCancelled(input.run.id);
 
       const skillName = this.parseLocalSkillCommand(input.run.userInput);
       if (skillName) {
@@ -96,7 +97,7 @@ export class DevAgentOrchestrator {
 
       roundLoop:
       for (let round = 1; round <= MAX_PLAN_ROUNDS; round++) {
-        await this.throwIfCanceled(input.run.id);
+        await this.throwIfCancelled(input.run.id);
 
         const plan = await this.planner.planTask(input.run.userInput, taskContext, {
           round,
@@ -131,7 +132,7 @@ export class DevAgentOrchestrator {
         }
 
         for (let i = 0; i < roundSteps.length; i++) {
-          await this.throwIfCanceled(input.run.id);
+          await this.throwIfCancelled(input.run.id);
 
           const step = roundSteps[i];
           const stepId = `${round}.${step.index}`;
@@ -142,7 +143,7 @@ export class DevAgentOrchestrator {
             step,
             stepId,
           );
-          await this.throwIfCanceled(input.run.id);
+          await this.throwIfCancelled(input.run.id);
 
           taskContext.stepResults.push(result);
           taskContext.stepLogs.push(log);
@@ -253,7 +254,7 @@ export class DevAgentOrchestrator {
         summary: resultSummary,
       });
 
-      await this.throwIfCanceled(input.run.id);
+      await this.throwIfCancelled(input.run.id);
       const reply = await this.finalReportGenerator.generateReport(input.run.userInput, {
         taskId: taskContext.taskId,
         allSuccess,
@@ -263,9 +264,9 @@ export class DevAgentOrchestrator {
         suggestion: resultSummary.suggestion,
       });
 
-      const finalStatus = allSuccess ? 'success' : 'failed';
+      const finalStatus = allSuccess ? DevRunStatus.success : DevRunStatus.failed;
       const executors = [...new Set(taskContext.stepResults.map((s) => s.executor))].join(',');
-      await this.throwIfCanceled(input.run.id);
+      await this.throwIfCancelled(input.run.id);
       await this.sessions.updateRunStatus(input.run.id, {
         status: finalStatus,
         executor: executors,
@@ -297,20 +298,20 @@ export class DevAgentOrchestrator {
         reply,
       };
     } catch (err) {
-      if (err instanceof DevRunCanceledError) {
-        const canceledReason = err.message || '任务已取消';
+      if (err instanceof DevRunCancelledError) {
+        const cancelledReason = err.message || '任务已取消';
         await this.sessions.updateRunStatus(input.run.id, {
-          status: 'canceled',
-          error: canceledReason,
+          status: DevRunStatus.cancelled,
+          error: cancelledReason,
           result: JSON.parse(
             JSON.stringify({
-              phase: 'canceled',
+              phase: 'cancelled',
               taskId: taskContext?.taskId ?? input.run.id,
               goal: taskContext?.goal ?? input.run.userInput,
               steps: taskContext?.stepResults ?? [],
               stepLogs: taskContext?.stepLogs ?? [],
               errors: taskContext?.errors ?? [],
-              cancelReason: canceledReason,
+              cancelReason: cancelledReason,
               updatedAt: new Date().toISOString(),
             }),
           ),
@@ -321,7 +322,7 @@ export class DevAgentOrchestrator {
           session: { id: input.session.id, status: input.session.status },
           run: {
             id: input.run.id,
-            status: 'canceled',
+            status: DevRunStatus.cancelled,
             executor: null,
             plan: lastPlan,
             result: taskContext
@@ -333,10 +334,10 @@ export class DevAgentOrchestrator {
                   errors: taskContext.errors,
                 }
               : null,
-            error: canceledReason,
+            error: cancelledReason,
             artifactPath: null,
           },
-          reply: `任务已取消：${canceledReason}`,
+          reply: `任务已取消：${cancelledReason}`,
         };
       }
 
@@ -344,7 +345,7 @@ export class DevAgentOrchestrator {
       this.logger.error(`DevAgent run failed: run=${input.run.id} err=${errorMsg}`);
 
       await this.sessions.updateRunStatus(input.run.id, {
-        status: 'failed',
+        status: DevRunStatus.failed,
         error: errorMsg,
         result: JSON.parse(
           JSON.stringify({
@@ -364,7 +365,7 @@ export class DevAgentOrchestrator {
         session: { id: input.session.id, status: input.session.status },
         run: {
           id: input.run.id,
-          status: 'failed',
+          status: DevRunStatus.failed,
           executor: null,
           plan: lastPlan,
           result: taskContext
@@ -425,7 +426,7 @@ export class DevAgentOrchestrator {
     userInput: string;
     skillName: string;
   }): Promise<DevTaskResult> {
-    await this.throwIfCanceled(params.run.id);
+    await this.throwIfCancelled(params.run.id);
     await this.sessions.updateRunStatus(params.run.id, {
       result: JSON.parse(
         JSON.stringify({
@@ -445,14 +446,14 @@ export class DevAgentOrchestrator {
       turnId: params.run.id,
       userInput: params.userInput,
     });
-    await this.throwIfCanceled(params.run.id);
+    await this.throwIfCancelled(params.run.id);
     await this.transcriptWriter.write(params.runDir, {
       phase: 'skill',
       localSkillRun,
     });
 
     const artifactPath = `dev-runs/${params.run.id}`;
-    const runStatus = localSkillRun.success ? 'success' : 'failed';
+    const runStatus = localSkillRun.success ? DevRunStatus.success : DevRunStatus.failed;
     await this.sessions.updateRunStatus(params.run.id, {
       status: runStatus,
       executor: `local-skill:${localSkillRun.skill}`,
@@ -485,10 +486,10 @@ export class DevAgentOrchestrator {
     };
   }
 
-  private async throwIfCanceled(runId: string): Promise<void> {
+  private async throwIfCancelled(runId: string): Promise<void> {
     const run = await this.sessions.getRun(runId);
-    if (run?.status === 'canceled') {
-      throw new DevRunCanceledError(run.error ?? '用户取消任务');
+    if (run?.status === DevRunStatus.cancelled) {
+      throw new DevRunCancelledError(run.error ?? '用户取消任务');
     }
   }
 }

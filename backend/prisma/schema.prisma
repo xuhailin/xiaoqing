@@ -336,57 +336,81 @@ model TimesheetRecord {
 
 // ── DevAgent ─────────────────────────────────────────────────
 
+enum DevSessionStatus {
+  active
+  completed
+  failed
+  cancelled
+}
+
+enum DevRunStatus {
+  queued
+  pending
+  running
+  success
+  failed
+  cancelled
+}
+
 // 开发代理会话：一次"帮我改代码"对话
 model DevSession {
-  id             String    @id @default(uuid())
-  conversationId String?   // 可选：关联发起的聊天会话
+  id             String           @id @default(uuid())
+  conversationId String?          // 可选：关联发起的聊天会话
   title          String?
-  status         String    @default("active") // active | completed | failed | cancelled
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  status         DevSessionStatus @default(active)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
   runs           DevRun[]
   reminders      DevReminder[]
 }
 
 // 开发代理执行记录：一次具体的执行动作
 model DevRun {
-  id           String    @id @default(uuid())
+  id           String       @id @default(uuid())
   sessionId    String
-  session      DevSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  userInput    String    @db.Text
+  session      DevSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userInput    String       @db.Text
   plan         Json?
-  status       String    @default("pending") // queued | pending | running | success | failed | canceled
-  executor     String?   // shell | openclaw | codex
+  status       DevRunStatus @default(pending)
+  executor     String?      // shell | openclaw | codex
   result       Json?
-  error        String?   @db.Text
+  error        String?      @db.Text
   artifactPath String?
   startedAt    DateTime?
   finishedAt   DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   @@index([sessionId, createdAt])
   @@index([status])
 }
 
-// 开发代理提醒任务：一次性提醒或 cron 周期任务
+enum ReminderScope {
+  dev
+  system
+  chat
+}
+
+// 提醒任务：一次性提醒或 cron 周期任务（scope 决定归属）
 model DevReminder {
-  id              String     @id @default(uuid())
-  sessionId       String
-  session         DevSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  id              String        @id @default(uuid())
+  sessionId       String?       // 可选：dev scope 需绑定 session
+  session         DevSession?   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  scope           ReminderScope @default(dev)
   title           String?
-  message         String     @db.Text
+  message         String        @db.Text
   cronExpr        String?
   runAt           DateTime?
   timezone        String?
-  enabled         Boolean    @default(true)
+  enabled         Boolean       @default(true)
   nextRunAt       DateTime?
   lastTriggeredAt DateTime?
   lastRunId       String?
-  lastError       String?    @db.Text
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  lastError       String?       @db.Text
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   @@index([sessionId, createdAt])
   @@index([enabled, nextRunAt])
+  @@index([scope])
 }
