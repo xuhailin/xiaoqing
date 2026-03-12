@@ -430,6 +430,119 @@ The roadmap includes:
 
 ---
 
+## 中文快速开始
+
+### 环境准备
+
+- Node.js 18+
+- 本地 PostgreSQL 实例
+- 一个兼容 OpenAI 接口的 API Key（可选；如果不配置，会走 mock，方便离线开发）
+
+### 1. 克隆与安装依赖
+
+```bash
+git clone https://github.com/your-username/xiaoqing.git
+cd xiaoqing
+npm run install:all
+```
+
+### 2. 配置与初始化数据库
+
+```bash
+cp backend/.env.example backend/.env
+# 编辑 backend/.env，至少配置：
+#   DATABASE_URL="postgresql://postgres:postgres@localhost:5432/chat?schema=public"
+#   OPENAI_API_KEY=sk-xxx  # 可选，不配则使用 mock
+
+cd backend && npx prisma migrate dev
+```
+
+### 3. 启动服务
+
+```bash
+# 终端 1 — 启动后端 (http://localhost:3000)
+npm run backend
+
+# 终端 2 — 启动前端 (http://localhost:4200)
+npm run frontend
+```
+
+打开浏览器访问 `http://localhost:4200`，就可以和小晴开始对话。
+
+---
+
+## 中文架构总览
+
+从高层看，小晴由三部分组成：
+
+- **Angular 前端**：聊天界面、记忆与人格配置面板、DevAgent 控制台、调试信息视图等。
+- **NestJS 后端**：统一 Gateway 入口、聊天管道、DevAgent、记忆系统、人格与 Claim 引擎、工具与执行器。
+- **PostgreSQL 数据层**：存储会话、记忆、人格、用户 Claim、DevAgent Session/Run、提醒等。
+
+消息的生命周期大致是：
+
+1. 前端发送 `POST /conversations/:id/messages`。
+2. 后端 `GatewayController → DispatcherService → MessageRouterService` 判断这是**聊天**还是 **dev 任务**：
+   - 显式 `mode='dev'`
+   - `/dev`、`/task` 前缀
+   - 或 LLM 意图分类
+3. 聊天路径会走：
+   - 意图识别 → world state 更新；
+   - 记忆召回（层级记忆 + token 预算 + LLM 精排）；
+   - Prompt 组装与 LLM 回复；
+   - Post-turn（总结、印象、进化建议等）。
+4. Dev 路径会走 DevAgent：
+   - 入口服务 `DevAgentService` 创建/复用 `DevSession`，创建一次 `DevRun`；
+   - 通过队列后台异步执行（串行保证同一 session 不并发踩 workspace）；
+   - 执行过程写入 `transcript.jsonl`，最终生成面向用户的自然语言报告。
+
+架构图在英文部分已经给出，这里不再重复，只需要记住两点：
+
+- **Chat 与 Dev 完全隔离**：DevAgent 的运行不会写入聊天记忆、总结与成长。
+- **一切都可追踪**：从意图识别、记忆召回到工具调用、DevAgent 步骤，都可以通过 trace/ transcript 还原。
+
+---
+
+## DevAgent（开发助手）概览（中文）
+
+DevAgent 是一个专门帮你做「开发相关任务」的子系统，例如：
+
+- 在当前项目里跑命令（测试、lint、构建等）；
+- 小步修改代码并给出报告（通过 Claude Code / OpenClaw / Shell 执行器）；
+- 记录整个执行过程为 `transcript.jsonl`，便于回放和诊断；
+- 通过提醒（reminder）在未来某个时间自动触发 DevRun。
+
+其关键特性：
+
+- **统一入口**：仍然是 `POST /conversations/:id/messages`，只是 `mode='dev'` 或使用 `/dev` 前缀。你始终是「对小晴说话」，由系统决定走 Chat 还是 Dev 通路。
+- **异步执行**：Dev 任务提交后立即返回 `runId`，实际执行在后台队列中完成，可查询 / 取消 / 恢复。
+- **安全执行**：
+  - Shell 命令有白名单、黑名单和高风险语法拦截；
+  - 输出有大小与超时限制；
+  - 工作目录通过 `WorkspaceManager` 严格绑定，支持 shared/worktree 模式。
+- **多执行器协同**：
+  - `ShellExecutor`：跑命令、查看文件、简单编辑；
+  - `OpenClawExecutor`：委派到 OpenClaw 的任务执行；
+  - `ClaudeCodeExecutor`：调用 Claude Code 做更复杂的代码修改。
+
+更细节的设计与目录说明，请参考 `docs/dev-agent-architecture.md`。
+
+---
+
+## 文档导航（中文说明）
+
+本仓库的设计/需求文档分布在 `docs/` 目录下，几个核心文件如下：
+
+| 文档 | 作用 |
+|------|------|
+| `docs/PROJECT-SUMMARY.md` | 项目整体概览与主要 API 列表 |
+| `docs/dev-agent-architecture.md` | DevAgent 的架构、目录结构、路由与执行流程 |
+| `docs/debug-trace-design.md` | Debug 溯源/trace 模式的数据结构与前后端设计 |
+| `docs/context-boundary.md` | Chat / Dev / Tool 之间的上下文与能力边界 |
+| `docs/architecture-design.md` | 更完整的总体架构与设计权衡 |
+
+如果你要进一步深入某个部分（比如记忆系统、人格进化、DevAgent），建议先阅读对应的设计文档，再看实际代码实现。
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit issues and pull requests.

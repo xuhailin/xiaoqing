@@ -1,250 +1,167 @@
-# LongMemory AI Companion — CLAUDE.md
+## XiaoQing / DevAgent 项目说明（给 Claude）
 
-## 项目概述
-
-**项目代号**：LongMemory AI Companion
-一个具备长期记忆的对话式 AI 伙伴系统，支持人格可控进化（双池约束），面向个人长期使用。
-
-**核心原则**：
-- 纯聊天，不参与写代码
-- 记忆必须可查、可编、可回溯
-- 人格进化受双池约束，必须人工确认后才写入
-- 所有自动化必须在规则控制下，不可自主决策
+> 本文件用于指导你（Claude）在本仓库内工作的方式，与人类协作者保持一致的约定与边界。
 
 ---
 
-## 技术栈
+### 1. 项目概览（你在做什么）
 
-| 层 | 技术 |
-|---|---|
-| 后端 | NestJS 11 + Prisma 7 + TypeScript |
-| 前端 | Angular 21 + TypeScript |
-| 数据库 | PostgreSQL（本地） |
-| LLM | OpenAI API（未配置时使用 Mock） |
+- **项目定位**：小晴（XiaoQing）是一个长期陪伴型 AI，包含「聊天陪伴 + 记忆系统 + 人格进化 + DevAgent 开发助手 + 桌宠」等能力。
+- **技术栈**：
+  - 后端：NestJS + TypeScript（目录在 `backend/`）
+  - 前端：Angular 21 SPA（目录在 `frontend/`）
+  - ORM & 数据库：Prisma + PostgreSQL
+  - DevAgent：在 `backend/src/dev-agent/`，负责开发类任务的规划 / 执行 / 报告
+  - 桌宠：Tauri + PixiJS + Live2D（目录在 `desktop/`）
+- **高层架构**：统一入口 `Gateway → MessageRouter`，将请求路由到：
+  - Chat 通路：`backend/src/xiaoqing/**`
+  - Dev 通路：`backend/src/dev-agent/**`
+  - 工具与执行器：`backend/src/action/**`、`backend/src/dev-agent/executors/**`
 
----
-
-## 目录结构
-
-```
-chat/                        # 单仓根目录
-├── backend/                 # NestJS 后端
-│   ├── src/
-│   │   ├── gateway/         # 统一消息入口 + 路由（显式/前缀/LLM 意图）
-│   │   ├── xiaoqing/        # 小晴聊天代理（按域分组）
-│   │   │   ├── conversation/    # 对话 CRUD + orchestrator
-│   │   │   ├── cognitive-pipeline/  # 认知管线
-│   │   │   ├── memory/         # 记忆管理（mid/long + decay）
-│   │   │   ├── summarizer/     # 总结模块
-│   │   │   ├── intent/         # 意图识别（含 dev_task）
-│   │   │   ├── claim-engine/   # 用户画像 claim
-│   │   │   ├── prompt-router/  # Prompt 路由
-│   │   │   ├── persona/        # 人格 + 进化
-│   │   │   ├── identity-anchor/ # 身份锚定
-│   │   │   ├── post-turn/      # 后处理管线
-│   │   │   ├── daily-moment/   # 日记
-│   │   │   ├── pet/            # 桌宠状态同步
-│   │   │   └── reading/        # 读物摄入
-│   │   ├── dev-agent/       # 开发代理（plan→execute→report）
-│   │   │   └── executors/       # shell + openclaw 执行器
-│   │   ├── action/          # 统一执行层
-│   │   │   ├── tools/           # 工具（browser/file/general-action）
-│   │   │   └── skills/          # 技能（weather/book-download/timesheet）
-│   │   ├── infra/           # 基础设施
-│   │   │   ├── llm/             # LLM 调用封装
-│   │   │   ├── prisma.service.ts
-│   │   │   ├── token-estimator.ts
-│   │   │   ├── trace/           # trace 收集
-│   │   │   └── world-state/     # 世界状态
-│   │   └── openclaw/        # OpenClaw 远端代理
-│   └── prisma/
-│       ├── schema.prisma    # 数据库模型定义
-│       └── migrations/
-├── frontend/                # Angular 前端
-│   └── src/app/
-│       ├── chat/            # 聊天主界面
-│       ├── dev-agent/       # DevAgent 面板（session/run 管理）
-│       ├── memory/          # 记忆查看/编辑页
-│       ├── persona/         # 人格双池配置页
-│       ├── reading/         # 读物摄入页
-│       ├── layout/          # 主布局（main-layout）
-│       └── core/            # 公共服务/模型
-├── assets/
-│   └── character/            # 静态立绘 PNG
-├── desktop/                  # Tauri 2 桌面端（Live2D 渲染）
-│   ├── index.html            # 主页面（PixiJS canvas + Live2D）
-│   ├── js/                   # 应用模块（config/model-manager/state-bridge/app）
-│   ├── models/               # Live2D 模型资产（手动下载，不提交 git）
-│   ├── public/lib/           # Cubism Core 运行时（手动下载）
-│   ├── docs/                 # 维护指南（live2d-maintenance.md）
-│   └── src-tauri/            # Tauri 2 Rust 后端
-├── docs/
-│   ├── requirements/        # 分阶段 PRD（PRD-00 ~ PRD-03）
-│   ├── dev-agent-plan.md    # DevAgent 接入计划（Phase 1-3 已完成）
-│   └── PROJECT-SUMMARY.md
-└── package.json             # 根脚本（启动前后端）
-```
+你在这里的角色是：**协助修改/扩展代码与文档，但不改变既定架构原则与边界**。
 
 ---
 
-## 数据库模型（Prisma）
+### 2. 全局工作原则
 
-| 模型 | 用途 | 阶段 |
-|---|---|---|
-| `Conversation` | 对话会话 | Phase1 |
-| `Message` | 单条消息（含 role/content） | Phase1 |
-| `Memory` | 记忆条目（mid/long，含溯源 messageIds） | Phase1 |
-| `Persona` | 人格单例（4 人格字段 + 3 表达调度字段 + 进化约束 + 印象） | Phase2 |
-| `Reading` | 读物摄入（中性/人格化解读） | Phase3 |
-| `ReadingInsight` | 读物候选条目（待用户采纳） | Phase3 |
+1. **遵守仓库已有规则文件**
+   - `AGENTS.md` 与 `.cursor/rules/**/*.mdc` 中的约定优先生效。
+   - 特别是：
+     - `no-new-tests-by-default.mdc`：**不要主动新增或补写任何测试文件**（`*.spec.*`、`*.test.*` 等），除非用户明确要求。
+     - `ui-design-system.mdc`：前端/样式修改必须使用已有设计系统的 CSS 变量与布局模式，禁止硬编码颜色与随意 radius。
 
----
+2. **修改文档前必须先读代码**
+   - 参考 `.cursor/skills/supplement-docs/SKILL.md`：
+     - 若要改 `docs/**` 或 `README.md`，先用 `Glob`/`Read` 查看对应模块的真实实现，再更新文档。
+     - 不凭记忆和猜测描述系统行为，**以代码与最新文档为准**。
 
-## Persona 结构化字段
+3. **保持架构与边界清晰**
+   - 不把 DevAgent 的逻辑写回聊天主链（`backend/src/xiaoqing/**`）。
+   - 不在 DevAgent 内直接调用 Memory / Summarizer / Cognitive Pipeline 等聊天能力，相关说明见 `docs/dev-agent-architecture.md` 与 `docs/context-boundary.md`。
+   - 若新增能力，**优先通过清晰的 service / adapter / executor 扩展点实现**，避免在核心 service 中堆积分支逻辑。
 
-Persona 表已从单体 `currentPersonaText` 拆分为 7 个结构化字段：
-
-**人格层**（稳定注入，几乎不变）：
-| 字段 | 用途 |
-|---|---|
-| `identity` | 身份定位：我是谁、与用户的关系（核心人格，高危变更） |
-| `personality` | 性格特质（核心人格，高危变更） |
-| `valueBoundary` | 价值边界：判断原则、记忆哲学（核心人格，高危变更） |
-| `behaviorForbidden` | 行为禁止项 |
-
-**表达调度层**（常驻但独立，允许更频繁微调）：
-| 字段 | 用途 |
-|---|---|
-| `voiceStyle` | 语言风格基线 |
-| `adaptiveRules` | 自适应展开/收缩条件（根据 intentState 动态增强） |
-| `silencePermission` | 留白与少说许可 |
-
-Prompt 注入顺序：`[人格 4 字段] → identityAnchor → impression → memory → intentState → worldState → [表达调度 3 字段]`
-
-进化系统支持字段级精准更新：`EvolutionChange { field, content, reason }`。
-
-当前实现采用**风险分流**：
-- `identity / personality / valueBoundary` 默认视为核心人格，只有长期稳定证据下才允许进入待确认列表，并以高危变更展示。
-- 常见的“更口语、少 GPT 味、少展开、记录后只确认、轻量夸赞”等变化，优先重路由到 `voiceStyle / adaptiveRules / silencePermission`。
-- 明显属于“用户更喜欢怎样被回应”的信号，会优先进入独立的 `UserPreference`（默认用户单例），而不会直接改写核心人格。
-
-详见 [docs/expression-policy-design.md](docs/expression-policy-design.md)。
+4. **偏好小步、可回顾的改动**
+   - 拆分为易于 review 的小变更：类型声明 → 业务逻辑 → UI。
+   - 任何「可能破坏执行安全性或隔离性」的改动（Shell 执行、Workspace 管理、权限控制）要特别谨慎，优先沿用现有模式。
 
 ---
 
-## 启动方式
+### 3. DevAgent 相关约定（`backend/src/dev-agent/**`）
 
-```bash
-# 安装全部依赖
-npm run install:all
+阅读基准文档：`docs/dev-agent-architecture.md`。
 
-# 启动后端（NestJS，默认 http://localhost:3000）
-npm run backend
-# 或 cd backend && npm run start:dev
+**核心目标**：
+- Dev 任务通过统一入口接入，使用 **异步队列** 后台执行。
+- Dev 任务与聊天主链隔离，不污染记忆 / 总结 / 成长等组件。
+- `DevAgentService` 保持「薄入口」，核心编排在 `DevAgentOrchestrator`、`DevTaskPlanner`、`DevStepRunner` 等专职模块中。
 
-# 启动前端（Angular，默认 http://localhost:4200）
-npm run frontend
-# 或 cd frontend && npm start
-```
+**你在这里需要遵守的要点**：
 
-**后端环境配置**（`backend/.env`）：
-```bash
-cp backend/.env.example backend/.env
-# 编辑 DATABASE_URL，例如：
-# DATABASE_URL="postgresql://postgres:postgres@localhost:5432/chat?schema=public"
-# OPENAI_API_KEY=sk-xxx  # 不填则使用 Mock 回复
-```
+1. **入口与路由**
+   - 统一入口：`POST /conversations/:id/messages`，路由规则在 `backend/src/gateway/message-router.service.ts` 与 `backend/src/orchestrator/dev-agent.adapter.ts` 中。
+   - 路由优先级（不可随意修改）：
+     1. 显式 `mode: 'dev'`
+     2. `/dev` 或 `/task` 前缀
+     3. LLM 意图分类命中 dev
+     4. 其他走 chat
+   - 如需调整路由策略，必须保证：
+     - **前置路由**：在消息落库前完成判定；
+     - **保守降级**：不确定时降级为 chat；
+     - 不破坏 `ConversationService` 的主业务链。
 
-**首次初始化数据库**：
-```bash
-cd backend && npx prisma migrate dev
-```
+2. **执行与安全**
+   - 执行链路：`DevRunRunnerService → DevAgentOrchestrator → DevTaskPlanner / DevStepRunner / DevProgressEvaluator / DevReplanPolicy / DevFinalReportGenerator / DevTranscriptWriter`。
+   - 执行器在 `backend/src/dev-agent/executors/**` 中：
+     - `ShellExecutor`：有白名单 / 黑名单 / 高风险语法拦截，**不要随意放宽安全策略**。
+     - `OpenClawExecutor`：委派到 OpenClaw。
+     - `ClaudeCodeExecutor`：委派到 `ClaudeCodeStreamService`，受 `FEATURE_CLAUDE_CODE` 开关控制。
+   - 任何新增执行方式，需走：
+     - 能力声明 → `CapabilityRegistry`
+     - 执行器实现 → `IDevExecutor` 实现类
+     - 路由策略 → `DevStepRoutingService`
 
----
+3. **Workspace 与隔离**
+   - 工作区管理在 `backend/src/dev-agent/workspace/workspace-manager.service.ts`：
+     - 支持 `shared` 和 `worktree` 两种模式。
+     - 通过 `DEV_AGENT_ALLOWED_WORKSPACE_ROOTS` 环境变量限制可访问路径。
+   - 你在修改相关逻辑时，要确保：
+     - 不在未校验路径下执行命令；
+     - 若 session 已绑定 workspace 且不可用，run 要明确失败，而不是静默退回默认目录。
 
-## 主要 API（Phase1）
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| POST | `/conversations` | 创建对话 |
-| GET | `/conversations` | 列出对话 |
-| GET | `/conversations/:id/messages` | 获取消息列表 |
-| POST | `/conversations/:id/messages` | 发送消息（触发 LLM） |
-| POST | `/conversations/:id/summarize` | 手动触发总结 |
-| GET | `/memories` | 查询记忆 |
-| PATCH | `/memories/:id` | 编辑记忆 |
-
-### Pet 状态 API（桌面端同步）
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| SSE | `/pet/state-stream` | SSE 推送状态变化（idle/speaking/thinking） |
-| GET | `/pet/state` | 查询当前状态 |
-| POST | `/pet/state` | 手动设置状态（调试用） |
+4. **调度与提醒**
+   - 队列串行：同一 `DevSession` 下的 run 必须串行执行，使用 `KeyedFifoQueueService`。
+   - 提醒与定时任务逻辑在 `DevReminderService` 与 `DevReminderSchedulerService` 中，受 `FEATURE_DEV_REMINDER` 控制。
+   - 变更这些模块时，注意不要引入「重复执行」或「漏执行」的问题。
 
 ---
 
-## 桌面端架构（Live2D）
+### 4. Debug Trace / 溯源模式
 
-**渲染引擎**：pixi-live2d-display + PixiJS 6.x + Cubism 4 Core
-**窗口**：280×360，透明、无边框、置顶、可拖拽
-**状态同步**：SSE 从后端接收状态推送（idle/speaking/thinking），驱动模型表情/动作切换
+参考：`docs/debug-trace-design.md`。
 
-**核心模块**：
-| 文件 | 职责 |
-|---|---|
-| `js/config.js` | 配置常量（后端地址、默认模型、STATE_MAP 状态映射） |
-| `js/model-manager.js` | 模型加载/切换/表情/动作/换装（Parts Visibility） |
-| `js/state-bridge.js` | SSE 监听 + 状态→模型动作映射 |
-| `js/app.js` | 主入口：初始化 PixiJS + 加载模型 + 连接 SSE + 交互事件 |
+- 后端通过 `TraceStep[]` 和 `TurnTraceEvent[]` 结构采集一次对话中的关键决策步骤（意图识别、策略决策、记忆召回、工具调用、Prompt 构建、LLM 生成等）。
+- 前端将 trace 渲染为「Pipeline Badge Bar」，取代简单的 "via OpenClaw" 标签。
 
-**换装机制**：Live2D 模型通过 Parts Visibility 切换服装/发型，每个模型可配 `model-manifest.json` 定义 outfit 组合。
+你在这里修改时要注意：
 
-**维护指南**：详见 [desktop/docs/live2d-maintenance.md](desktop/docs/live2d-maintenance.md)
+- **保持向后兼容**：`trace` 字段在 API 中是新增字段，不要移除旧的 `debugMeta` 字段，除非项目已经统一迁移。
+- **避免返回过大的数据**：trace 中不要塞完整 prompt 文本，只保留必要的统计信息与简要预览。
 
 ---
 
-## 开发规范
+### 5. 前端与 UI 约定
 
-### 通用
-- 所有 prompt 必须有版本号字段，便于追踪与回溯
-- 记忆写入（尤其长期记忆）必须有 `sourceMessageIds`，保证可回溯
-- Token 使用必须可预估：上下文 N 轮 + M 条记忆，请求前截断
-- **绝不允许** Agent 或模型自行决定写入长期记忆
+涉及 `frontend/**` 时：
 
-### 后端（NestJS）
-- 模块分层：controller → service → prisma；不在 controller 写业务逻辑
-- Prompt Router 由规则/配置驱动，不是模型自决
-- 环境变量通过 `@nestjs/config` 管理
-- 测试文件：`*.spec.ts`，使用 Jest
+1. **统一设计系统**
+   - 所有颜色 / 间距 /圆角 /阴影都来自 `styles/_variables.scss` 中的 CSS 自定义属性。
+   - 组件级样式引用 `var(--token-name)`，不要写死 hex 值、px 值（除非已有约定）。
+   - 布局优先使用 Flex / Grid，符合 `ui-design-system.mdc` 中的模式（左侧 sidebar + 右侧主内容）。
 
-### 前端（Angular）
-- standalone 组件，使用 Angular 21 新特性
-- API 地址配置在 `src/environments/environment.ts`
-- 人格进化建议：前端展示候选，用户确认后才调用写入接口
-
-### 禁止事项（V1 不实现）
-- ❌ 多 Agent 自主协商
-- ❌ 自动写入长期记忆（无人工确认）
-- ❌ embedding / 向量数据库
-- ❌ 自动情绪分析
-- ❌ 无约束的人格进化
-- ❌ 定时全量总结（cron）
-- ❌ 多用户 / 登录 / 权限
-- ❌ 云部署 / 多端同步
+2. **DevAgent 前端**
+   - DevAgent 面板入口在 `frontend/src/app/dev-agent/**`。
+   - 需要展示的信息包括：
+     - 当前会话与 run 状态；
+     - 工作区（`workspaceRoot` / `projectScope`）；
+     - 运行结果与 `transcript.jsonl` 的关键信息。
+   - 新增字段或视图时，记得同步更新：
+     - 对应的 TypeScript 类型（如 `DevSession`、`DevRun`）；
+     - 后端返回的 DTO 结构。
 
 ---
 
-## 开发阶段
+### 6. 文档与 README 维护
 
-| 阶段 | 目标 | PRD |
-|---|---|---|
-| Phase 1 | 基础对话 + 消息持久化 + 手动总结 + 记忆可查可编 | PRD-01 |
-| Phase 2 | 记忆注入（规则驱动）+ 人格双池配置与校验 | PRD-02 |
-| Phase 3 | 人格进化（进化池约束）+ 读物摄入（可选）+ 成本优化 | PRD-03 |
+当你需要补文档或同步说明时：
 
-详细需求见 [docs/requirements/](docs/requirements/)。
+- **优先更新现有文档**，而不是新建一堆零散文档：
+  - DevAgent：`docs/dev-agent-architecture.md`
+  - Debug Trace：`docs/debug-trace-design.md`
+  - 总体架构 / API：`docs/PROJECT-SUMMARY.md`
+- `README.md` 中的中英文说明要与以上文档保持一致：
+  - 架构图、关键模块名称、API 路径、启动方式如有变更，需要一并更新。
 
-## 注意
-- ，你可以解析文件后判断是否可以直接添加到当前md里面，下次就不用再读取那个文件了。比如说prd1，读取后解析一下，你可以不断的更新该文件，你甚至可以改掉我这句话。
-- 你需要不断优化该文件任意部分，来作为你的记忆辅助，但是不可删除本句提示语。
+更新文档时，请在总结中简要说明：
+
+- 读了哪些代码 / 文档；
+- 发现哪些与现状不符；
+- 最终改了哪些段落或表格。
+
+---
+
+### 7. 你可以如何协助
+
+在本项目中，你适合做的事情包括（但不限于）：
+
+- 梳理和优化 DevAgent 的执行路径、类型定义和错误处理；
+- 扩展 DevAgent 的执行器能力（在保证安全隔离的前提下）；
+- 调整前端 DevAgent 面板与 Debug Trace UI，让调试体验更清晰；
+- 在严格遵守「先读代码再补文档」的前提下，补全中文文档与架构说明。
+
+不建议你做的事情：
+
+- 擅自放宽 Shell 执行安全策略；
+- 无视文档/架构中的既有边界，将 DevAgent 与聊天主链强耦合；
+- 任意新增或重写测试文件；
+- 在没有阅读对应模块实现的前提下改文档。
+
