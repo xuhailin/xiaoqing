@@ -10,7 +10,8 @@ export class DevReplanPolicy {
     return errorType === 'COMMAND_NOT_ALLOWED'
       || errorType === 'FILE_NOT_FOUND'
       || errorType === 'NON_ZERO_EXIT'
-      || errorType === 'COMMAND_NOT_FOUND';
+      || errorType === 'COMMAND_NOT_FOUND'
+      || errorType === 'ROUTING_FAILED';
   }
 
   buildFailureSuggestion(taskContext: DevTaskContext): string {
@@ -32,6 +33,8 @@ export class DevReplanPolicy {
         return '命令耗时过长，建议拆分为更小步骤。';
       case 'NON_ZERO_EXIT':
         return '命令返回非 0，建议先查看 stderr 并分步排查。';
+      case 'ROUTING_FAILED':
+        return '执行器路由失败，建议检查可用执行器能力声明与策略匹配关系。';
       default:
         return '建议缩小任务范围并重试。';
     }

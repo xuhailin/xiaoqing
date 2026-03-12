@@ -18,6 +18,7 @@ import { DevPlanParser } from './planning/dev-plan-parser';
 import { DevPlanNormalizer } from './planning/dev-plan-normalizer';
 import { DevStepRunner } from './execution/dev-step-runner';
 import { DevExecutorResolver } from './execution/dev-executor-resolver';
+import { DevStepRoutingService } from './execution/dev-step-routing.service';
 import { DevProgressEvaluator } from './execution/dev-progress-evaluator';
 import { DevReplanPolicy } from './execution/dev-replan-policy';
 import { DevFinalReportGenerator } from './reporting/dev-final-report.generator';
@@ -44,6 +45,7 @@ import { DevReminderSchedulerService } from './dev-reminder.scheduler.service';
     DevPlanParser,
     DevPlanNormalizer,
     DevStepRunner,
+    DevStepRoutingService,
     DevExecutorResolver,
     DevProgressEvaluator,
     DevReplanPolicy,

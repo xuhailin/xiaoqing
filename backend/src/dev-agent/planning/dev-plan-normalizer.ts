@@ -1,9 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { isDevExecutorName } from '../dev-agent.types';
 import type { DevPlan, DevPlanStep } from '../dev-agent.types';
 import { inspectShellCommand } from '../shell-command-policy';
 import { MAX_STEPS_PER_ROUND } from '../dev-agent.constants';
 
-/** 规划归一化：收敛 executor/command 并修正明显非法 shell 命令。 */
+/** 规划归一化：收敛 strategy/command，并修正明显非法 shell 命令。 */
 @Injectable()
 export class DevPlanNormalizer {
   private readonly logger = new Logger(DevPlanNormalizer.name);
@@ -19,20 +20,29 @@ export class DevPlanNormalizer {
   }
 
   private coerceStep(rawStep: Partial<DevPlanStep>, index: number, fallbackCommand: string): DevPlanStep {
+    // legacy executor 字段仅用于兼容输入，不回写到标准化 step 结构。
+    const legacyExecutor = isDevExecutorName(rawStep.executor)
+      ? rawStep.executor.trim()
+      : null;
+    if (legacyExecutor) {
+      this.logger.debug(`Legacy executor hint ignored in normalizer: ${legacyExecutor}`);
+    }
+    const strategy = rawStep.strategy === 'edit' ||
+      rawStep.strategy === 'verify' ||
+      rawStep.strategy === 'autonomous_coding'
+      ? rawStep.strategy
+      : 'inspect';
+
     return {
       index: rawStep.index ?? index + 1,
       description: rawStep.description ?? '',
-      executor: rawStep.executor === 'openclaw'
-        ? 'openclaw'
-        : rawStep.executor === 'claude-code'
-          ? 'claude-code'
-          : 'shell',
+      strategy,
       command: rawStep.command ?? fallbackCommand,
     };
   }
 
   private normalizeShellStep(step: DevPlanStep, fallbackCommand: string): DevPlanStep {
-    if (step.executor !== 'shell') return step;
+    if (!this.isShellLikeStep(step)) return step;
 
     const rawCommand = step.command?.trim() || fallbackCommand;
     const policy = inspectShellCommand(rawCommand);
@@ -48,5 +58,13 @@ export class DevPlanNormalizer {
     }
 
     return { ...step, command: rawCommand };
+  }
+
+  private isShellLikeStep(step: DevPlanStep): boolean {
+    if (step.strategy === 'inspect' || step.strategy === 'verify') return true;
+    if (step.strategy === 'edit') {
+      return inspectShellCommand(step.command).allowed;
+    }
+    return false;
   }
 }

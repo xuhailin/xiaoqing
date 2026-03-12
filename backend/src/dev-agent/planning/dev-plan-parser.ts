@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { DevPlan, DevPlanStep } from '../dev-agent.types';
+import { isDevExecutorName } from '../dev-agent.types';
+import type { DevPlan, DevPlanStep, DevStepStrategy } from '../dev-agent.types';
 
 /** 解析 Planner 输出 JSON，异常时降级为单步 shell 计划。 */
 @Injectable()
@@ -17,7 +18,7 @@ export class DevPlanParser {
 
       return {
         summary: typeof parsed.summary === 'string' ? parsed.summary : fallbackCommand,
-        steps: steps as DevPlanStep[],
+        steps: steps.map((step, i) => this.parseStep(step as Partial<DevPlanStep>, i, fallbackCommand)),
       };
     } catch {
       this.logger.warn('Failed to parse LLM plan, falling back to single shell step');
@@ -27,12 +28,42 @@ export class DevPlanParser {
           {
             index: 1,
             description: fallbackCommand,
-            executor: 'shell',
+            strategy: 'inspect',
             command: fallbackCommand,
           },
         ],
       };
     }
+  }
+
+  private parseStep(rawStep: Partial<DevPlanStep>, index: number, fallbackCommand: string): DevPlanStep {
+    // legacy executor 字段仅用于兼容输入，不回写到标准化 step 结构。
+    const legacyExecutor = isDevExecutorName(rawStep.executor)
+      ? rawStep.executor.trim()
+      : null;
+    if (legacyExecutor) {
+      this.logger.debug(`Legacy executor hint ignored in parser: ${legacyExecutor}`);
+    }
+    const strategy = this.parseStrategy(rawStep.strategy);
+    return {
+      index: rawStep.index ?? index + 1,
+      description: rawStep.description ?? '',
+      strategy,
+      command: rawStep.command ?? fallbackCommand,
+    };
+  }
+
+  private parseStrategy(rawStrategy: DevPlanStep['strategy'] | undefined): DevStepStrategy {
+    if (
+      rawStrategy === 'inspect' ||
+      rawStrategy === 'edit' ||
+      rawStrategy === 'verify' ||
+      rawStrategy === 'autonomous_coding'
+    ) {
+      return rawStrategy;
+    }
+
+    return 'inspect';
   }
 
   private extractJson(response: string): string {

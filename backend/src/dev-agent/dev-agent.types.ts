@@ -23,6 +23,7 @@ export type DevExecutorErrorType =
   | 'HIGH_RISK_SYNTAX'
   | 'COMMAND_NOT_FOUND'
   | 'NON_ZERO_EXIT'
+  | 'ROUTING_FAILED'
   | 'TIMEOUT'
   | 'FILE_NOT_FOUND'
   | 'PERMISSION_DENIED'
@@ -34,20 +35,33 @@ export interface DevPlan {
   summary: string;
 }
 
+export type DevStepStrategy = 'inspect' | 'edit' | 'verify' | 'autonomous_coding';
+export type DevExecutorName = string;
+export type DevExecutorCost = 'low' | 'medium' | 'high';
+export const DEV_EXECUTOR_NAME_RE = /^[a-z][a-z0-9-]*$/;
+
+export function isDevExecutorName(value: unknown): value is DevExecutorName {
+  return typeof value === 'string' && DEV_EXECUTOR_NAME_RE.test(value.trim());
+}
+
 export interface DevPlanStep {
   /** 步骤序号 */
   index: number;
   /** 步骤描述 */
   description: string;
-  /** 选择的执行器 */
-  executor: 'shell' | 'openclaw' | 'claude-code';
+  /** 步骤策略（高层任务类型） */
+  strategy: DevStepStrategy;
+  /** 兼容旧 planner 输出，主逻辑不再依赖 */
+  executor?: DevExecutorName;
   /** 要执行的具体命令/指令 */
   command: string;
 }
 
 /** 执行器统一接口 */
 export interface IDevExecutor {
-  readonly name: string;
+  readonly name: DevExecutorName;
+  readonly supportedStrategies: DevStepStrategy[];
+  readonly costLevel: DevExecutorCost;
   execute(input: DevExecutorInput): Promise<DevExecutorOutput>;
 }
 
@@ -78,6 +92,10 @@ export interface DevExecutorOutput {
 export interface DevStepResult {
   stepIndex: number;
   stepId?: string;
+  strategy: DevStepStrategy;
+  /** 最终路由到的执行器 */
+  resolvedExecutor: DevExecutorName;
+  /** 兼容旧字段：等于 resolvedExecutor */
   executor: string;
   command: string;
   success: boolean;
@@ -92,6 +110,11 @@ export interface DevStepResult {
 export interface DevStepExecutionLog {
   taskId: string;
   stepId: string;
+  strategy: DevStepStrategy;
+  resolvedExecutor: DevExecutorName;
+  routeCost: DevExecutorCost | null;
+  routeReason: string;
+  errorType: DevExecutorErrorType | null;
   stepType: string;
   command: string;
   args: string[];

@@ -4,6 +4,7 @@ import type { ICapability } from '../../action/capability.interface';
 import type { CapabilityRequest, CapabilityResult } from '../../action/capability.types';
 import type { MessageChannel } from '../../gateway/message-router.types';
 import { OpenClawService } from '../../openclaw/openclaw.service';
+import type { DevExecutorCost, DevStepStrategy } from '../dev-agent.types';
 
 /**
  * OpenClaw 执行器 — 将任务委派给远端 Agent 执行。
@@ -14,6 +15,8 @@ import { OpenClawService } from '../../openclaw/openclaw.service';
 @Injectable()
 export class OpenClawExecutor implements IDevExecutor, ICapability {
   readonly name = 'openclaw';
+  readonly supportedStrategies: DevStepStrategy[] = ['inspect', 'edit', 'verify', 'autonomous_coding'];
+  readonly costLevel: DevExecutorCost = 'medium';
   readonly taskIntent = 'openclaw_delegate';
   readonly channels: MessageChannel[] = ['dev', 'chat'];
   readonly description = '远端 AI Agent 执行（复杂推理、代码生成等）';

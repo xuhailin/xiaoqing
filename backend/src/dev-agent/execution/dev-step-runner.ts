@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import type { DevTaskContext } from '../dev-task-context';
 import type {
+  DevExecutorCost,
+  DevExecutorName,
   DevExecutorOutput,
   DevPlanStep,
   DevStepExecutionLog,
@@ -9,11 +11,15 @@ import type {
 import { inspectShellCommand, parseShellCommand } from '../shell-command-policy';
 import { PREVIEW_LIMIT } from '../dev-agent.constants';
 import { DevExecutorResolver } from './dev-executor-resolver';
+import { DevStepRoutingService } from './dev-step-routing.service';
 
 /** 执行单 step：preflight validate -> executor execute -> result/log normalize。 */
 @Injectable()
 export class DevStepRunner {
-  constructor(private readonly executorResolver: DevExecutorResolver) {}
+  constructor(
+    private readonly executorResolver: DevExecutorResolver,
+    private readonly routingService: DevStepRoutingService,
+  ) {}
 
   async executeStep(
     runId: string,
@@ -23,12 +29,18 @@ export class DevStepRunner {
     stepId: string,
   ): Promise<{ result: DevStepResult; log: DevStepExecutionLog }> {
     const start = new Date();
+    let route: { executor: DevExecutorName; cost: DevExecutorCost; reason: string };
+    try {
+      route = this.routingService.routeStep(step);
+    } catch (err) {
+      return this.buildRoutingFailure(start, taskContext, step, stepId, err);
+    }
 
-    const output = await this.runStepWithPreflight(runId, sessionId, step);
+    const output = await this.runStepWithPreflight(runId, sessionId, step, route.executor);
 
     const end = new Date();
     const duration = end.getTime() - start.getTime();
-    const parsed = step.executor === 'shell'
+    const parsed = route.executor === 'shell'
       ? parseShellCommand(step.command)
       : { command: step.command, args: [] };
     const stdoutPreview = this.preview(output.stdout ?? (output.success ? output.content : null));
@@ -38,7 +50,9 @@ export class DevStepRunner {
     const result: DevStepResult = {
       stepIndex: step.index,
       stepId,
-      executor: step.executor,
+      strategy: step.strategy,
+      resolvedExecutor: route.executor,
+      executor: route.executor,
       command: step.command,
       success: output.success,
       output: output.content,
@@ -51,7 +65,12 @@ export class DevStepRunner {
     const log: DevStepExecutionLog = {
       taskId: taskContext.taskId,
       stepId,
-      stepType: step.executor,
+      strategy: step.strategy,
+      resolvedExecutor: route.executor,
+      routeCost: route.cost,
+      routeReason: route.reason,
+      errorType: output.errorType ?? null,
+      stepType: step.strategy,
       command: output.command ?? parsed.command,
       args: output.args ?? parsed.args,
       cwd: output.cwd ?? null,
@@ -68,12 +87,64 @@ export class DevStepRunner {
     return { result, log };
   }
 
+  private buildRoutingFailure(
+    start: Date,
+    taskContext: DevTaskContext,
+    step: DevPlanStep,
+    stepId: string,
+    err: unknown,
+  ): { result: DevStepResult; log: DevStepExecutionLog } {
+    const end = new Date();
+    const duration = end.getTime() - start.getTime();
+    const reason = err instanceof Error ? err.message : String(err);
+    const resolvedExecutor = 'unroutable';
+    const failureReason = `路由失败：${reason}`;
+    return {
+      result: {
+        stepIndex: step.index,
+        stepId,
+        strategy: step.strategy,
+        resolvedExecutor,
+        executor: resolvedExecutor,
+        command: step.command,
+        success: false,
+        output: null,
+        error: failureReason,
+        errorType: 'ROUTING_FAILED',
+        exitCode: null,
+        failureReason,
+      },
+      log: {
+        taskId: taskContext.taskId,
+        stepId,
+        strategy: step.strategy,
+        resolvedExecutor,
+        routeCost: null,
+        routeReason: failureReason,
+        errorType: 'ROUTING_FAILED',
+        stepType: step.strategy,
+        command: step.command,
+        args: [],
+        cwd: null,
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+        duration,
+        status: 'failed',
+        exitCode: null,
+        stdoutPreview: null,
+        stderrPreview: this.preview(failureReason),
+        failureReason,
+      },
+    };
+  }
+
   private async runStepWithPreflight(
     runId: string,
     sessionId: string,
     step: DevPlanStep,
+    executorName: DevExecutorName,
   ): Promise<DevExecutorOutput> {
-    if (step.executor === 'shell') {
+    if (executorName === 'shell') {
       const preflight = inspectShellCommand(step.command);
       if (!preflight.allowed) {
         return {
@@ -96,7 +167,7 @@ export class DevStepRunner {
       }
     }
 
-    const executor = this.executorResolver.resolve(step.executor);
+    const executor = this.executorResolver.resolve(executorName);
     return executor.execute({
       runId,
       userInput: step.command,

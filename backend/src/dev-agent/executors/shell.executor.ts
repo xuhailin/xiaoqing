@@ -10,7 +10,7 @@ import {
   ALLOWED_SHELL_COMMANDS,
   planShellAutoFix,
 } from '../shell-command-policy';
-import type { DevExecutorErrorType } from '../dev-agent.types';
+import type { DevExecutorCost, DevExecutorErrorType, DevStepStrategy } from '../dev-agent.types';
 import { WorkspaceManager } from '../workspace/workspace-manager.service';
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -30,6 +30,8 @@ interface ShellRunOptions {
 @Injectable()
 export class ShellExecutor implements IDevExecutor, ICapability {
   readonly name = 'shell';
+  readonly supportedStrategies: DevStepStrategy[] = ['inspect', 'edit', 'verify'];
+  readonly costLevel: DevExecutorCost = 'low';
   readonly taskIntent = 'shell_command';
   readonly channels: MessageChannel[] = ['dev'];
   readonly description = '本地 shell 命令执行（ls/cat/grep/git/npm 等）';

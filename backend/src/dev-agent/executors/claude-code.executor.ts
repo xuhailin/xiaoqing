@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { IDevExecutor, DevExecutorInput, DevExecutorOutput } from './executor.interface';
-import type { DevExecutorErrorType } from '../dev-agent.types';
+import type { DevExecutorCost, DevExecutorErrorType, DevStepStrategy } from '../dev-agent.types';
 import type { ICapability } from '../../action/capability.interface';
 import type { CapabilityRequest, CapabilityResult } from '../../action/capability.types';
 import type { MessageChannel } from '../../gateway/message-router.types';
@@ -20,6 +20,8 @@ import { WorkspaceManager } from '../workspace/workspace-manager.service';
 @Injectable()
 export class ClaudeCodeExecutor implements IDevExecutor, ICapability {
   readonly name = 'claude-code';
+  readonly supportedStrategies: DevStepStrategy[] = ['edit', 'autonomous_coding'];
+  readonly costLevel: DevExecutorCost = 'high';
   readonly taskIntent = 'claude_code_agent';
   readonly channels: MessageChannel[] = ['dev'];
   readonly description = 'Claude Code Agent 自主编码（代码生成/修改/重构/bug 修复）';

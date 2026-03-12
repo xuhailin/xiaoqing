@@ -143,6 +143,9 @@ export class DevAgentOrchestrator {
             step,
             stepId,
           );
+          this.logger.log(
+            `Step ${stepId}: strategy=${result.strategy} -> executor=${result.resolvedExecutor} (${result.success ? 'success' : 'failed'})`,
+          );
           await this.throwIfCancelled(input.run.id);
 
           taskContext.stepResults.push(result);
