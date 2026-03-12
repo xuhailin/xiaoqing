@@ -57,7 +57,8 @@ export interface DevPlan {
 export interface DevPlanStep {
   index: number;
   description: string;
-  executor: 'shell' | 'openclaw' | 'claude-code';
+  strategy?: 'inspect' | 'edit' | 'verify' | 'autonomous_coding' | string;
+  executor?: 'shell' | 'openclaw' | 'claude-code' | string;
   command: string;
 }
 
@@ -69,6 +70,7 @@ export interface DevTaskResult {
   };
   run: {
     id: string;
+    userInput?: string | null;
     status: string;
     executor: string | null;
     plan: DevPlan | null;
@@ -103,6 +105,10 @@ export class DevAgentService {
     return this.http.post<DevRunCancelResult>(`${this.base}/runs/${runId}/cancel`, {
       ...(reason ? { reason } : {}),
     });
+  }
+
+  rerunRun(runId: string) {
+    return this.http.post<DevTaskResult>(`${this.base}/runs/${runId}/rerun`, {});
   }
 
   /** 通过 gateway 发送 dev 模式消息 */

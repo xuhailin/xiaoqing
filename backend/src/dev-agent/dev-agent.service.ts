@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { type Prisma, DevSessionStatus } from '@prisma/client';
 import { DevRunStatus } from '@prisma/client';
 import type { DevTaskResult } from './dev-agent.types';
@@ -126,6 +126,58 @@ export class DevAgentService {
         error: run.error,
         finishedAt: run.finishedAt,
       },
+    };
+  }
+
+  async rerunRun(runId: string): Promise<DevTaskResult> {
+    const sourceRun = await this.sessions.getRunWithSession(runId);
+    if (!sourceRun?.session) {
+      throw new NotFoundException('run not found');
+    }
+
+    const isActive = sourceRun.status === DevRunStatus.queued
+      || sourceRun.status === DevRunStatus.pending
+      || sourceRun.status === DevRunStatus.running;
+    if (isActive) {
+      throw new BadRequestException(`run ${runId} is still ${sourceRun.status}, cannot rerun`);
+    }
+
+    let workspace = parseWorkspaceMetaFromRunResult(sourceRun.result)
+      ?? await this.resolveSessionWorkspace(sourceRun.sessionId);
+    if (workspace) {
+      try {
+        workspace = await this.workspaceManager.bindSessionWorkspace(sourceRun.sessionId, workspace);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        throw new BadRequestException(`workspaceRoot 不可用：${message}`);
+      }
+    }
+
+    const run = await this.sessions.createRun(
+      sourceRun.sessionId,
+      sourceRun.userInput,
+      this.buildQueuedResult(workspace),
+    );
+
+    this.runner.startRun(run.id, sourceRun.sessionId);
+
+    return {
+      session: {
+        id: sourceRun.session.id,
+        status: sourceRun.session.status,
+        workspace,
+      },
+      run: {
+        id: run.id,
+        status: run.status,
+        executor: run.executor ?? null,
+        plan: null,
+        result: run.result,
+        error: null,
+        artifactPath: null,
+        workspace,
+      },
+      reply: `已基于 run ${sourceRun.id} 创建重跑任务（run: ${run.id}）。可轮询 /dev-agent/runs/${run.id} 查看进度。`,
     };
   }
 

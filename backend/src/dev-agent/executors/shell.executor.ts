@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { execFile } from 'child_process';
+import { existsSync } from 'fs';
+import { basename, resolve } from 'path';
 import type { IDevExecutor, DevExecutorInput, DevExecutorOutput } from './executor.interface';
 import type { ICapability } from '../../action/capability.interface';
 import type { CapabilityRequest, CapabilityResult } from '../../action/capability.types';
@@ -14,6 +16,7 @@ import { WorkspaceManager } from '../workspace/workspace-manager.service';
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_OUTPUT_BYTES = 100_000; // 100KB
+const READ_ONLY_PATH_COMMANDS = new Set(['ls', 'cat', 'head', 'tail', 'wc', 'grep', 'find']);
 
 interface ShellRunOptions {
   suppressStderr: boolean;
@@ -144,7 +147,19 @@ export class ShellExecutor implements IDevExecutor, ICapability {
       `[shell] ${runId ? `runId=${runId} ` : ''}cwd=${cwd} cmd="${command}" args=${JSON.stringify(effectiveArgs)}`,
     );
 
-    const result = await this.runCommandOnce(command, effectiveArgs, runOptions, cwd, runId);
+    let result = await this.runCommandOnce(command, effectiveArgs, runOptions, cwd, runId);
+    const prefixFixResult = await this.tryPathPrefixAutoFix(
+      command,
+      effectiveArgs,
+      runOptions,
+      cwd,
+      runId,
+      result,
+    );
+    if (prefixFixResult) {
+      result = prefixFixResult;
+    }
+
     if (!autoFixPlan.shouldApply) {
       return result;
     }
@@ -394,5 +409,72 @@ export class ShellExecutor implements IDevExecutor, ICapability {
     if (!headLimit || headLimit <= 0 || !output) return output;
     const lines = output.split('\n');
     return lines.slice(0, headLimit).join('\n');
+  }
+
+  private async tryPathPrefixAutoFix(
+    command: string,
+    args: string[],
+    runOptions: ShellRunOptions,
+    cwd: string,
+    runId: string | undefined,
+    result: DevExecutorOutput,
+  ): Promise<DevExecutorOutput | null> {
+    if (result.success || result.errorType !== 'FILE_NOT_FOUND') {
+      return null;
+    }
+    if (!READ_ONLY_PATH_COMMANDS.has(command)) {
+      return null;
+    }
+
+    const fixedArgs = this.rewriteDuplicatedScopePrefix(args, cwd);
+    if (!fixedArgs) {
+      return null;
+    }
+
+    this.logger.warn(
+      `[shell] ${runId ? `runId=${runId} ` : ''}apply path-prefix autofix: ${JSON.stringify(args)} -> ${JSON.stringify(fixedArgs)}`,
+    );
+
+    const retried = await this.runCommandOnce(command, fixedArgs, runOptions, cwd, runId);
+    const note = '已自动去除重复路径前缀并重试（例如 backend/src -> src）。';
+    if (retried.success) {
+      return {
+        ...retried,
+        content: retried.content ? `${note}\n${retried.content}` : note,
+      };
+    }
+
+    return {
+      ...retried,
+      failureReason: [retried.failureReason, note].filter(Boolean).join('；'),
+      retryHint: [retried.retryHint, `自动重试参数：${JSON.stringify(fixedArgs)}`]
+        .filter(Boolean)
+        .join('；'),
+    };
+  }
+
+  private rewriteDuplicatedScopePrefix(args: string[], cwd: string): string[] | null {
+    const scope = basename(cwd);
+    if (!scope) return null;
+    const prefix = `${scope}/`;
+    let changed = false;
+
+    const fixedArgs = args.map((arg) => {
+      if (arg.startsWith('-')) return arg;
+      if (!arg.startsWith(prefix)) return arg;
+
+      const originalAbs = resolve(cwd, arg);
+      if (existsSync(originalAbs)) return arg;
+
+      const stripped = arg.slice(prefix.length);
+      if (!stripped) return arg;
+      const strippedAbs = resolve(cwd, stripped);
+      if (!existsSync(strippedAbs)) return arg;
+
+      changed = true;
+      return stripped;
+    });
+
+    return changed ? fixedArgs : null;
   }
 }

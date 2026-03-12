@@ -29,6 +29,11 @@ export class DevAgentController {
     return this.devAgent.cancelRun(runId, body?.reason);
   }
 
+  @Post('runs/:runId/rerun')
+  async rerunRun(@Param('runId') runId: string) {
+    return this.devAgent.rerunRun(runId);
+  }
+
   @Get('reminders')
   async listReminders(@Query('sessionId') sessionId?: string) {
     return this.devAgent.listReminders(sessionId);
