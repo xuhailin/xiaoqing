@@ -4,6 +4,7 @@ import { KeyedFifoQueueService } from '../infra/queue';
 import { DevAgentOrchestrator } from './dev-agent.orchestrator';
 import { DevSessionRepository } from './dev-session.repository';
 import { WorkspaceManager } from './workspace/workspace-manager.service';
+import { parseWorkspaceMetaFromRunResult, withWorkspaceMeta } from './workspace/workspace-meta';
 
 @Injectable()
 export class DevRunRunnerService implements OnModuleInit {
@@ -74,11 +75,49 @@ export class DevRunRunnerService implements OnModuleInit {
         return;
       }
 
+      const requestedWorkspace = parseWorkspaceMetaFromRunResult(claimedRun.result);
+      if (requestedWorkspace) {
+        try {
+          await this.workspaceManager.bindSessionWorkspace(
+            claimedRun.session.id,
+            requestedWorkspace,
+          );
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          await this.sessions.updateRunStatus(runId, {
+            status: DevRunStatus.failed,
+            error: `工作区不可用：${message}`,
+            result: withWorkspaceMeta({
+              phase: 'failed',
+              taskId: runId,
+              goal: claimedRun.userInput,
+              errors: [
+                {
+                  stepId: 'workspace',
+                  errorType: 'FILE_NOT_FOUND',
+                  message: `工作区不可用：${message}`,
+                  command: requestedWorkspace.workspaceRoot,
+                  createdAt: new Date().toISOString(),
+                },
+              ],
+              updatedAt: new Date().toISOString(),
+            }, requestedWorkspace) as any,
+            finishedAt: new Date(),
+          });
+          return;
+        }
+      }
+
+      const effectiveWorkspace = this.workspaceManager.getSessionWorkspace(claimedRun.session.id)
+        ?? requestedWorkspace
+        ?? null;
+
       await this.orchestrator.executeRun({
         conversationId: claimedRun.session.conversationId ?? null,
         session: {
           id: claimedRun.session.id,
           status: claimedRun.session.status,
+          workspace: effectiveWorkspace,
         },
         run: {
           id: claimedRun.id,

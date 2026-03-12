@@ -4,6 +4,7 @@ import type {
   DevStepResult,
   DevExecutorErrorType,
 } from './dev-agent.types';
+import type { DevWorkspaceMeta } from './workspace/workspace-meta';
 
 /**
  * DevAgent 独立任务上下文（与聊天上下文隔离）。
@@ -13,6 +14,7 @@ import type {
 export interface DevTaskContext {
   taskId: string;
   goal: string;
+  workspace: DevWorkspaceMeta | null;
   plans: Array<{
     round: number;
     plan: DevPlan;
@@ -33,10 +35,15 @@ export interface DevTaskErrorRecord {
   createdAt: string;
 }
 
-export function createTaskContext(taskId: string, goal: string): DevTaskContext {
+export function createTaskContext(
+  taskId: string,
+  goal: string,
+  workspace: DevWorkspaceMeta | null,
+): DevTaskContext {
   return {
     taskId,
     goal,
+    workspace,
     plans: [],
     steps: [],
     stepResults: [],

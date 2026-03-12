@@ -1,6 +1,13 @@
 /** 消息通道：决定消息进入哪条处理链 */
 export type MessageChannel = 'chat' | 'dev';
 
+export interface SendMessageMetadata {
+  /** DevAgent 可选工作区路径（允许绝对/相对路径，后端会归一化） */
+  workspaceRoot?: string;
+  /** 可选项目展示名，不传则后端从目录名推导 */
+  projectScope?: string;
+}
+
 /** 路由判定结果 */
 export interface RouteDecision {
   channel: MessageChannel;
@@ -15,4 +22,6 @@ export interface SendMessageBody {
   content: string;
   /** 显式指定消息通道，缺省为 chat */
   mode?: MessageChannel;
+  /** 可选附加上下文（当前仅 dev workspace 使用） */
+  metadata?: SendMessageMetadata;
 }

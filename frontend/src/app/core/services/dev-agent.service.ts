@@ -2,11 +2,19 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 
+export interface DevWorkspaceMeta {
+  workspaceRoot: string;
+  projectScope: string;
+}
+
 export interface DevSession {
   id: string;
   conversationId: string | null;
   title: string | null;
   status: string;
+  workspace: DevWorkspaceMeta | null;
+  workspaceRoot: string | null;
+  projectScope: string | null;
   createdAt: string;
   updatedAt: string;
   runs: DevRun[];
@@ -22,6 +30,9 @@ export interface DevRun {
   result: unknown;
   error: string | null;
   artifactPath: string | null;
+  workspace: DevWorkspaceMeta | null;
+  workspaceRoot: string | null;
+  projectScope: string | null;
   startedAt: string | null;
   finishedAt: string | null;
   createdAt: string;
@@ -51,7 +62,11 @@ export interface DevPlanStep {
 }
 
 export interface DevTaskResult {
-  session: { id: string; status: string };
+  session: {
+    id: string;
+    status: string;
+    workspace: DevWorkspaceMeta | null;
+  };
   run: {
     id: string;
     status: string;
@@ -60,6 +75,7 @@ export interface DevTaskResult {
     result: unknown;
     error: string | null;
     artifactPath: string | null;
+    workspace: DevWorkspaceMeta | null;
   };
   reply: string;
 }
@@ -90,10 +106,31 @@ export class DevAgentService {
   }
 
   /** 通过 gateway 发送 dev 模式消息 */
-  sendDevMessage(conversationId: string, content: string) {
+  sendDevMessage(
+    conversationId: string,
+    content: string,
+    options?: {
+      workspaceRoot?: string;
+      projectScope?: string;
+    },
+  ) {
+    const workspaceRoot = options?.workspaceRoot?.trim();
+    const projectScope = options?.projectScope?.trim();
+
     return this.http.post<DevTaskResult>(
       `${this.msgBase}/${conversationId}/messages`,
-      { content, mode: 'dev' },
+      {
+        content,
+        mode: 'dev',
+        ...(workspaceRoot
+          ? {
+              metadata: {
+                workspaceRoot,
+                ...(projectScope ? { projectScope } : {}),
+              },
+            }
+          : {}),
+      },
     );
   }
 }

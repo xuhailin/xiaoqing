@@ -19,12 +19,16 @@ export class DevPlannerPromptFactory {
       ? devCapabilities.map((c) => `- ${c.name}：${c.description}`).join('\n')
       : '- shell：本地 shell 命令执行（支持 ls, cat, grep, find, node, npm, npx, git, curl 等常用命令）\n- openclaw：远端 AI Agent 执行（适合复杂推理、代码生成等任务）';
     const shellPolicy = `shell 允许命令（只能使用以下首命令）：\n${ALLOWED_SHELL_COMMANDS.map((c) => `- ${c}`).join('\n')}`;
+    const workspaceContext = taskContext.workspace
+      ? `当前工作区：\n- 项目：${taskContext.workspace.projectScope}\n- 路径：${taskContext.workspace.workspaceRoot}`
+      : '当前工作区：未指定（使用默认工作目录）';
 
     const systemPrompt = `你是 DevAgent 的任务规划器，需要输出“当前轮”的小步执行计划。
 
 可用能力（供你理解环境，不用于你直接绑定执行器）：
 ${capabilityLines}
 ${shellPolicy}
+${workspaceContext}
 
 硬性规则：
 1. 只输出 JSON

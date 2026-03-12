@@ -64,7 +64,9 @@ flowchart TD
   N --> U[LlmService]
   N1 --> V[CapabilityRegistry]
 
+  O --> O0[DevStepRoutingService]
   O --> O1[DevExecutorResolver]
+  O0 --> V
   O1 --> V
   O1 --> W[ShellExecutor]
   O1 --> X[OpenClawExecutor]
@@ -100,6 +102,7 @@ backend/src/
 │   ├── dev-agent.constants.ts
 │   ├── dev-agent.module.ts
 │   ├── dev-session.repository.ts
+│   ├── dev-task-context.ts           # 任务上下文类型（DevTaskContext/createTaskContext）
 │   ├── dev-runner.service.ts         # 后台队列 + 恢复策略
 │   ├── dev-reminder.service.ts
 │   ├── dev-reminder.scheduler.service.ts
@@ -110,6 +113,7 @@ backend/src/
 │   │   └── dev-plan-normalizer.ts
 │   ├── execution/
 │   │   ├── dev-step-runner.ts
+│   │   ├── dev-step-routing.service.ts  # 步骤→执行器路由（策略/成本/降级）
 │   │   ├── dev-executor-resolver.ts
 │   │   ├── dev-progress-evaluator.ts
 │   │   └── dev-replan-policy.ts
@@ -117,7 +121,8 @@ backend/src/
 │   │   ├── dev-final-report.generator.ts
 │   │   └── dev-transcript.writer.ts
 │   ├── workspace/
-│   │   └── workspace-manager.service.ts
+│   │   ├── workspace-manager.service.ts
+│   │   └── workspace-meta.ts          # DevWorkspaceMeta 等
 │   ├── executors/
 │   │   ├── executor.interface.ts
 │   │   ├── shell.executor.ts
@@ -148,7 +153,8 @@ backend/src/
 ### 5.1 入口层
 
 - `DevAgentService`
-  - `handleTask`: `getOrCreateSession` + `createRun(status=queued)` + `startRun`（后台）
+  - `handleTask`: 按 `conversationId + workspaceRoot` 复用/创建 session，`createRun(status=queued)` + `startRun`（后台）
+  - 支持接收 `metadata.workspaceRoot/projectScope`，并在 run result 中回写统一 workspace 元信息
   - 快速返回 `runId`，不阻塞等待执行完成
   - 查询接口代理：`listSessions/getSession/getRun`
   - 控制接口代理：`cancelRun`
@@ -159,6 +165,7 @@ backend/src/
 - `DevRunRunnerService`
   - 使用 `KeyedFifoQueueService` 做 per-session 串行执行
   - `claimRunForExecution` 防重复抢占
+  - 在执行前解析 run 请求中的 workspace 元信息，并绑定到 `WorkspaceManager`（绑定失败时 run 直接失败）
   - 启动恢复：自动处理 `queued/pending/running` 中断任务
   - `DEV_RUN_RECOVER_RUNNING_STRATEGY=retry|fail` 控制 running 任务恢复方式
 
@@ -167,6 +174,7 @@ backend/src/
 - `DevAgentOrchestrator`
   - 负责 round loop / step loop
   - 状态推进：`queued -> running -> success|failed|cancelled`
+  - `DevTaskContext` 持有 `workspace`，并在 progress/result/transcript 中持续携带
   - 自动重规划：最多 `MAX_AUTO_REPLAN=1`
   - 终止策略：最多 `MAX_PLAN_ROUNDS=4`、连续失败阈值 2
   - 支持 `/skill <name>` 直达本地技能执行（绕过 planner/step loop）
@@ -177,6 +185,7 @@ backend/src/
 - `DevPlannerPromptFactory`:
   - 注入可用执行器说明（CapabilityRegistry）
   - 注入 shell allowlist
+  - 注入当前 workspace（projectScope + workspaceRoot）
   - 强制 small-step（每轮最多 2 步）
   - 编码任务优先 `claude-code`
 - `DevPlanParser`: JSON 解析失败时降级为单步 shell
@@ -184,8 +193,9 @@ backend/src/
 
 ### 5.5 执行层
 
-- `DevStepRunner`: preflight 校验 -> 执行器执行 -> 结果/日志归一化
-- `DevExecutorResolver`: 优先从 `CapabilityRegistry` 取执行器，否则回落内建执行器
+- `DevStepRunner`: preflight 校验 -> **路由** -> 执行器执行 -> 结果/日志归一化
+- `DevStepRoutingService`: 按 step 的 strategy（inspect/verify/edit/autonomous_coding）与策略表做步骤→执行器路由，集中承载能力可用性、成本优先级与降级；`DevStepRunner` 先调用 `routeStep` 得到 executor，再交给 resolver 执行
+- `DevExecutorResolver`: 按执行器名称从 `CapabilityRegistry` 解析为 `IDevExecutor` 实例，未命中则回落 shell
 - `DevProgressEvaluator`: 轮中规则 + 轮末 LLM 完成度评估
 - `DevReplanPolicy`: 按错误类型决定是否自动重规划、失败建议文案
 
@@ -195,19 +205,33 @@ backend/src/
   - 高风险语法拦截（管道/重定向/命令拼接等）
   - 低风险自动修复（如 `2>/dev/null`、`| head`）
   - 超时 30s，输出上限 100KB
+  - 通过 `WorkspaceManager.acquire(sessionId)` 获取 cwd；若 session 已绑定 workspace 且不可用，直接失败（不静默回退）
 - `OpenClawExecutor`
   - 委派到 `OpenClawService.delegateTask`
 - `ClaudeCodeExecutor`
   - 委派到 `ClaudeCodeStreamService`（SDK 流式执行）
   - 支持 abort/cancel
   - 受 `FEATURE_CLAUDE_CODE=true` 开关控制
+  - 与 shell 一样使用 session 绑定 workspace
 
 ### 5.6 工作区隔离
 
 - `WorkspaceManager`
   - `shared`：直接在项目目录执行（默认）
   - `worktree`：每 session 创建 git worktree 隔离分支
+  - 支持 session 级 workspace 绑定（`bindSessionWorkspace/getSessionWorkspace`）
+  - 可通过 `DEV_AGENT_ALLOWED_WORKSPACE_ROOTS`（逗号分隔）限制可访问路径范围
+  - 对 workspaceRoot 做存在性/目录类型/可访问性校验
   - run 完成后释放 workspace；服务启动会清理孤儿 worktree
+
+### 5.9 前端最小可见/可输
+
+- `frontend/src/app/dev-agent/dev-agent.component.ts`
+  - 输入区新增可选 workspace 路径输入
+  - Session 卡片与结果卡片显示当前 workspace（projectScope + path）
+- `frontend/src/app/core/services/dev-agent.service.ts`
+  - `sendDevMessage` 支持透传 `metadata.workspaceRoot/projectScope`
+  - `DevSession/DevRun/DevTaskResult` 增加 `workspace` 字段
 
 ### 5.7 汇报层
 
@@ -237,9 +261,10 @@ sequenceDiagram
   participant S as DevAgentService
   participant Q as DevRunRunnerService
 
-  U->>G: POST /conversations/:id/messages (mode=dev)
-  G->>S: handleTask(conversationId, userInput)
-  S->>S: getOrCreateSession + createRun(queued)
+  U->>G: POST /conversations/:id/messages (mode=dev, metadata.workspaceRoot?)
+  G->>S: handleTask(conversationId, userInput, metadata)
+  S->>S: resolve session by conversationId + workspaceRoot
+  S->>S: createRun(queued, result.workspace=...)
   S->>Q: startRun(runId, sessionId)
   S-->>U: 立即返回 runId（后台执行中）
 ```
@@ -256,7 +281,8 @@ sequenceDiagram
   participant RP as DevReplanPolicy
   participant T as DevTranscriptWriter
 
-  Q->>O: executeRun(runId)
+  Q->>Q: bind session workspace (from run.result.workspace)
+  Q->>O: executeRun(runId, session.workspace)
   O->>T: write(plan)
   loop round <= 4
     O->>P: planTask(...)
@@ -287,6 +313,7 @@ sequenceDiagram
 - `DevRun`
   - 状态：`queued | pending | running | success | failed | cancelled`
   - 字段：`plan/result/error/executor/artifactPath/startedAt/finishedAt`
+  - `result.workspace` 作为当前 run 的 workspace 元信息（`workspaceRoot/projectScope`）
 - `DevReminder`
   - 字段：`scope/title/message/cronExpr/runAt/timezone/enabled/nextRunAt/...`
 
@@ -308,7 +335,14 @@ transcript phase：`plan/step/step_log/step_eval/replan/report/skill`。
 
 ```ts
 POST /conversations/:id/messages
-body: { content: string; mode?: 'chat' | 'dev' }
+body: {
+  content: string;
+  mode?: 'chat' | 'dev';
+  metadata?: {
+    workspaceRoot?: string;
+    projectScope?: string;
+  };
+}
 ```
 
 ### 8.2 DevAgent 查询与控制接口
@@ -330,7 +364,11 @@ DELETE /dev-agent/reminders/:id
 
 ```ts
 interface DevTaskResult {
-  session: { id: string; status: string };
+  session: {
+    id: string;
+    status: string;
+    workspace: { workspaceRoot: string; projectScope: string } | null;
+  };
   run: {
     id: string;
     status: string; // 首次通常为 queued
@@ -339,10 +377,17 @@ interface DevTaskResult {
     result: unknown;
     error: string | null;
     artifactPath: string | null;
+    workspace: { workspaceRoot: string; projectScope: string } | null;
   };
   reply: string; // “任务已接收，后台执行中”
 }
 ```
+
+### 8.4 Session/Run 查询返回补充
+
+- `GET /dev-agent/sessions`、`GET /dev-agent/sessions/:id`、`GET /dev-agent/runs/:runId`
+  - 返回对象含 `workspace/workspaceRoot/projectScope` 便于前端直接展示
+  - `workspace` 优先来自 run.result.workspace，其次来自当前进程内 session 绑定
 
 ## 9. 稳定性与安全策略
 
@@ -361,6 +406,7 @@ interface DevTaskResult {
 - 低风险自动修复（`2>/dev/null` 与 `| head` 受控转换）。
 - 30s timeout、100KB 输出截断。
 - cwd 限制在 workspace（shared/worktree）。
+- 若 session 已显式绑定 workspace 且校验失败，run 直接失败并给出明确错误，不回落默认仓库。
 
 ### 9.3 隔离边界
 
@@ -375,6 +421,7 @@ DevAgent 当前核心能力：
 - 三类执行器协同：`shell`、`openclaw`、`claude-code`。
 - 后台异步运行：提交即返回、可查询进度、可取消。
 - 定时任务：一次性提醒与 cron 提醒，支持自动触发 DevRun。
+- 最小 workspace 切换验证：可从前端按任务指定 workspaceRoot，session 级绑定执行目录。
 - 运行隔离与安全治理：session 串行队列、workspace 隔离、命令安全策略。
 
 ## 11. 实施状态

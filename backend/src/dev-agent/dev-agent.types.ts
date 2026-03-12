@@ -1,8 +1,11 @@
+import type { DevWorkspaceMeta } from './workspace/workspace-meta';
+
 /** DevAgent 任务执行结果，返回给前端 */
 export interface DevTaskResult {
   session: {
     id: string;
     status: string;
+    workspace: DevWorkspaceMeta | null;
   };
   run: {
     id: string;
@@ -12,6 +15,7 @@ export interface DevTaskResult {
     result: unknown;
     error: string | null;
     artifactPath: string | null;
+    workspace: DevWorkspaceMeta | null;
   };
   /** 小晴对用户的自然语言回复 */
   reply: string;

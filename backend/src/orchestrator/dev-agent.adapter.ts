@@ -19,6 +19,7 @@ export class DevAgentAdapter implements IAgent {
     const result = await this.devAgent.handleTask(
       req.conversationId,
       req.content,
+      req.metadata,
     );
 
     return {

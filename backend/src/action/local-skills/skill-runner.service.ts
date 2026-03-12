@@ -89,11 +89,14 @@ export class SkillRunner {
 
       let result: CapabilityResult;
       try {
+        const params = request.sessionId
+          ? { ...step.request, __devSessionId: request.sessionId }
+          : step.request;
         result = await capability.execute({
           conversationId: request.conversationId,
           turnId: request.turnId,
           userInput: request.userInput,
-          params: step.request,
+          params,
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

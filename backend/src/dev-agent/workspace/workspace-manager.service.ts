@@ -1,9 +1,11 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { resolve } from 'path';
-import { mkdir, rm, readdir, access } from 'fs/promises';
+import { isAbsolute, relative, resolve } from 'path';
+import { constants as fsConstants } from 'fs';
+import { mkdir, rm, readdir, access, stat, realpath } from 'fs/promises';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import type { DevWorkspaceMeta } from './workspace-meta';
 
 const execFileAsync = promisify(execFile);
 
@@ -35,14 +37,20 @@ export class WorkspaceManager implements OnModuleInit, OnModuleDestroy {
   private readonly projectRoot: string;
   private readonly strategy: WorkspaceStrategy;
   private readonly workspacesDir: string;
+  private readonly allowedWorkspaceRoots: string[];
 
   /** 活跃 workspace 记录 */
   private readonly activeWorkspaces = new Map<string, WorkspaceInfo>();
+  /** session 级 workspace 绑定（支持跨 run 复用） */
+  private readonly sessionWorkspaceBindings = new Map<string, DevWorkspaceMeta>();
 
   constructor(config: ConfigService) {
     this.projectRoot = config.get('CLAUDE_CODE_PROJECT_ROOT') || process.cwd();
     this.strategy = (config.get('CLAUDE_CODE_WORKSPACE_STRATEGY') || 'shared') as WorkspaceStrategy;
     this.workspacesDir = resolve(__dirname, '../../../../data/dev-workspaces');
+    this.allowedWorkspaceRoots = this.parseAllowedWorkspaceRoots(
+      config.get('DEV_AGENT_ALLOWED_WORKSPACE_ROOTS') || '',
+    );
   }
 
   async onModuleInit(): Promise<void> {
@@ -72,9 +80,12 @@ export class WorkspaceManager implements OnModuleInit, OnModuleDestroy {
       return existing;
     }
 
-    const info = this.strategy === 'worktree'
-      ? await this.createWorktree(sessionId)
-      : this.createShared();
+    const boundWorkspace = this.sessionWorkspaceBindings.get(sessionId);
+    const info = boundWorkspace
+      ? this.createShared(boundWorkspace.workspaceRoot)
+      : this.strategy === 'worktree'
+        ? await this.createWorktree(sessionId)
+        : this.createShared();
 
     this.activeWorkspaces.set(sessionId, info);
     this.logger.log(
@@ -106,11 +117,45 @@ export class WorkspaceManager implements OnModuleInit, OnModuleDestroy {
     return this.activeWorkspaces.get(sessionId);
   }
 
+  getDefaultWorkspaceRoot(): string {
+    return this.projectRoot;
+  }
+
+  getSessionWorkspace(sessionId: string): DevWorkspaceMeta | null {
+    return this.sessionWorkspaceBindings.get(sessionId) ?? null;
+  }
+
+  hasSessionWorkspace(sessionId: string): boolean {
+    return this.sessionWorkspaceBindings.has(sessionId);
+  }
+
+  /**
+   * 绑定 session 的工作区。后续该 session 的 shell/agent 执行将固定在该路径。
+   */
+  async bindSessionWorkspace(sessionId: string, workspace: DevWorkspaceMeta): Promise<DevWorkspaceMeta> {
+    const workspaceRoot = await this.validateWorkspaceRoot(workspace.workspaceRoot);
+    const normalized: DevWorkspaceMeta = {
+      workspaceRoot,
+      projectScope: workspace.projectScope?.trim() || workspaceRoot,
+    };
+    this.sessionWorkspaceBindings.set(sessionId, normalized);
+
+    // 绑定变更时释放旧 workspace，确保后续 acquire 使用新目录。
+    if (this.activeWorkspaces.has(sessionId)) {
+      await this.release(sessionId);
+    }
+
+    this.logger.log(
+      `Workspace bound: session=${sessionId} project=${normalized.projectScope} root=${normalized.workspaceRoot}`,
+    );
+    return normalized;
+  }
+
   // ── shared 策略 ──────────────────────────────────────────
 
-  private createShared(): WorkspaceInfo {
+  private createShared(cwd = this.projectRoot): WorkspaceInfo {
     return {
-      cwd: this.projectRoot,
+      cwd,
       strategy: 'shared',
       needsCleanup: false,
     };
@@ -220,5 +265,56 @@ export class WorkspaceManager implements OnModuleInit, OnModuleDestroy {
     } catch {
       return false;
     }
+  }
+
+  private parseAllowedWorkspaceRoots(raw: string): string[] {
+    const values = String(raw || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    return values.map((item) => resolve(item));
+  }
+
+  private async validateWorkspaceRoot(workspaceRoot: string): Promise<string> {
+    const normalized = isAbsolute(workspaceRoot)
+      ? resolve(workspaceRoot)
+      : resolve(process.cwd(), workspaceRoot);
+    const real = await realpath(normalized).catch(() => normalized);
+
+    if (!this.isAllowedWorkspaceRoot(real)) {
+      throw new Error(
+        `workspaceRoot is not allowed: ${real}. Set DEV_AGENT_ALLOWED_WORKSPACE_ROOTS to allow it.`,
+      );
+    }
+
+    let targetStat;
+    try {
+      targetStat = await stat(real);
+    } catch {
+      throw new Error(`workspaceRoot does not exist: ${real}`);
+    }
+    if (!targetStat.isDirectory()) {
+      throw new Error(`workspaceRoot is not a directory: ${real}`);
+    }
+
+    try {
+      await access(real, fsConstants.R_OK | fsConstants.X_OK);
+    } catch {
+      throw new Error(`workspaceRoot is not accessible: ${real}`);
+    }
+
+    return real;
+  }
+
+  private isAllowedWorkspaceRoot(candidate: string): boolean {
+    if (this.allowedWorkspaceRoots.length === 0) {
+      return true;
+    }
+    return this.allowedWorkspaceRoots.some((root) => this.isSameOrSubPath(root, candidate));
+  }
+
+  private isSameOrSubPath(parent: string, child: string): boolean {
+    const rel = relative(parent, child);
+    return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
   }
 }

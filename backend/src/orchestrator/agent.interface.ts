@@ -1,5 +1,5 @@
 import type { TraceStep } from '../infra/trace/trace.types';
-import type { MessageChannel } from '../gateway/message-router.types';
+import type { MessageChannel, SendMessageMetadata } from '../gateway/message-router.types';
 
 // ──────────────────────────────────────────────
 // IAgent — 统一 Agent 接口
@@ -13,7 +13,7 @@ export interface AgentRequest {
   content: string;
   /** 原始 mode，仅供 agent 内部参考 */
   mode?: MessageChannel;
-  metadata?: Record<string, unknown>;
+  metadata?: SendMessageMetadata;
 }
 
 /** 统一返回体 */

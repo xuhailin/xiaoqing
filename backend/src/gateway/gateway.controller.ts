@@ -23,6 +23,7 @@ export class GatewayController {
       id,
       body.content.trim(),
       body.mode,
+      body.metadata,
     );
 
     // 返回 agent 原始 payload，保持前端兼容

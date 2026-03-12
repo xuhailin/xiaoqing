@@ -27,6 +27,7 @@ export interface LocalSkillDefinition {
 export interface LocalSkillRunRequest {
   skill: string;
   conversationId: string;
+  sessionId?: string;
   turnId: string;
   userInput: string;
 }

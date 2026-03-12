@@ -6,6 +6,20 @@ import { PrismaService } from '../infra/prisma.service';
 export class DevSessionRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  async createSession(conversationId?: string) {
+    return this.prisma.devSession.create({
+      data: { conversationId, status: DevSessionStatus.active },
+    });
+  }
+
+  async listActiveSessionsByConversation(conversationId: string) {
+    return this.prisma.devSession.findMany({
+      where: { conversationId, status: DevSessionStatus.active },
+      orderBy: { createdAt: 'desc' },
+      include: { runs: { orderBy: { createdAt: 'desc' }, take: 1 } },
+    });
+  }
+
   async getOrCreateSession(conversationId?: string) {
     // 如果有关联的 conversationId，尝试复用活跃 session
     if (conversationId) {
@@ -103,6 +117,13 @@ export class DevSessionRepository {
   async getSession(sessionId: string) {
     return this.prisma.devSession.findUnique({
       where: { id: sessionId },
+    });
+  }
+
+  async getLatestRun(sessionId: string) {
+    return this.prisma.devRun.findFirst({
+      where: { sessionId },
+      orderBy: { createdAt: 'desc' },
     });
   }
 

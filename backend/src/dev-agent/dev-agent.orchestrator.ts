@@ -19,12 +19,15 @@ import { DevProgressEvaluator } from './execution/dev-progress-evaluator';
 import { DevReplanPolicy } from './execution/dev-replan-policy';
 import { DevTranscriptWriter } from './reporting/dev-transcript.writer';
 import { DevFinalReportGenerator } from './reporting/dev-final-report.generator';
+import type { DevWorkspaceMeta } from './workspace/workspace-meta';
+import { withWorkspaceMeta } from './workspace/workspace-meta';
 
 interface DevRunExecutionInput {
   conversationId: string | null;
   session: {
     id: string;
     status: string;
+    workspace: DevWorkspaceMeta | null;
   };
   run: {
     id: string;
@@ -82,13 +85,20 @@ export class DevAgentOrchestrator {
         });
       }
 
-      taskContext = createTaskContext(input.run.id, input.run.userInput);
+      taskContext = createTaskContext(
+        input.run.id,
+        input.run.userInput,
+        input.session.workspace,
+      );
       await this.sessions.updateRunStatus(input.run.id, {
-        result: this.buildProgressResult(taskContext, {
-          currentRound: 0,
-          currentStepId: null,
-          lastEvent: '任务进入执行阶段',
-        }),
+        result: withWorkspaceMeta(
+          this.buildProgressResult(taskContext, {
+            currentRound: 0,
+            currentStepId: null,
+            lastEvent: '任务进入执行阶段',
+          }) as Record<string, unknown>,
+          taskContext.workspace,
+        ) as any,
       });
 
       let stopReason = '';
@@ -110,11 +120,14 @@ export class DevAgentOrchestrator {
 
         await this.sessions.updateRunStatus(input.run.id, {
           plan: plan as any,
-          result: this.buildProgressResult(taskContext, {
-            currentRound: round,
-            currentStepId: null,
-            lastEvent: `第 ${round} 轮规划完成`,
-          }),
+          result: withWorkspaceMeta(
+            this.buildProgressResult(taskContext, {
+              currentRound: round,
+              currentStepId: null,
+              lastEvent: `第 ${round} 轮规划完成`,
+            }) as Record<string, unknown>,
+            taskContext.workspace,
+          ) as any,
         });
 
         await this.transcriptWriter.write(runDir, {
@@ -158,13 +171,16 @@ export class DevAgentOrchestrator {
           await this.transcriptWriter.write(runDir, { phase: 'step_log', ...log });
 
           await this.sessions.updateRunStatus(input.run.id, {
-            result: this.buildProgressResult(taskContext, {
-              currentRound: round,
-              currentStepId: stepId,
-              lastEvent: result.success
-                ? `步骤 ${stepId} 执行成功`
-                : `步骤 ${stepId} 执行失败`,
-            }),
+            result: withWorkspaceMeta(
+              this.buildProgressResult(taskContext, {
+                currentRound: round,
+                currentStepId: stepId,
+                lastEvent: result.success
+                  ? `步骤 ${stepId} 执行成功`
+                  : `步骤 ${stepId} 执行失败`,
+              }) as Record<string, unknown>,
+              taskContext.workspace,
+            ) as any,
           });
 
           if (!result.success) {
@@ -191,11 +207,14 @@ export class DevAgentOrchestrator {
                 reason: pendingReplanReason,
               });
               await this.sessions.updateRunStatus(input.run.id, {
-                result: this.buildProgressResult(taskContext, {
-                  currentRound: round,
-                  currentStepId: stepId,
-                  lastEvent: `步骤 ${stepId} 触发自动重规划`,
-                }),
+                result: withWorkspaceMeta(
+                  this.buildProgressResult(taskContext, {
+                    currentRound: round,
+                    currentStepId: stepId,
+                    lastEvent: `步骤 ${stepId} 触发自动重规划`,
+                  }) as Record<string, unknown>,
+                  taskContext.workspace,
+                ) as any,
               });
               continue roundLoop;
             }
@@ -238,6 +257,7 @@ export class DevAgentOrchestrator {
       const resultSummary = {
         taskId: taskContext.taskId,
         goal: taskContext.goal,
+        workspace: taskContext.workspace,
         allSuccess,
         stopReason,
         planRounds: taskContext.plans.length,
@@ -273,7 +293,7 @@ export class DevAgentOrchestrator {
       await this.sessions.updateRunStatus(input.run.id, {
         status: finalStatus,
         executor: executors,
-        result: JSON.parse(
+        result: withWorkspaceMeta(JSON.parse(
           JSON.stringify({
             phase: 'completed',
             finalReply: reply,
@@ -281,14 +301,18 @@ export class DevAgentOrchestrator {
             taskContext,
             updatedAt: new Date().toISOString(),
           }),
-        ),
+        ) as Record<string, unknown>, taskContext.workspace) as any,
         artifactPath,
         error: allSuccess ? undefined : stopReason,
         finishedAt: new Date(),
       });
 
       return {
-        session: { id: input.session.id, status: input.session.status },
+        session: {
+          id: input.session.id,
+          status: input.session.status,
+          workspace: input.session.workspace,
+        },
         run: {
           id: input.run.id,
           status: finalStatus,
@@ -297,6 +321,7 @@ export class DevAgentOrchestrator {
           result: resultSummary,
           error: allSuccess ? null : stopReason,
           artifactPath,
+          workspace: taskContext.workspace,
         },
         reply,
       };
@@ -306,7 +331,7 @@ export class DevAgentOrchestrator {
         await this.sessions.updateRunStatus(input.run.id, {
           status: DevRunStatus.cancelled,
           error: cancelledReason,
-          result: JSON.parse(
+          result: withWorkspaceMeta(JSON.parse(
             JSON.stringify({
               phase: 'cancelled',
               taskId: taskContext?.taskId ?? input.run.id,
@@ -317,12 +342,16 @@ export class DevAgentOrchestrator {
               cancelReason: cancelledReason,
               updatedAt: new Date().toISOString(),
             }),
-          ),
+          ) as Record<string, unknown>, taskContext?.workspace ?? input.session.workspace) as any,
           finishedAt: new Date(),
         });
 
         return {
-          session: { id: input.session.id, status: input.session.status },
+          session: {
+            id: input.session.id,
+            status: input.session.status,
+            workspace: input.session.workspace,
+          },
           run: {
             id: input.run.id,
             status: DevRunStatus.cancelled,
@@ -339,6 +368,7 @@ export class DevAgentOrchestrator {
               : null,
             error: cancelledReason,
             artifactPath: null,
+            workspace: taskContext?.workspace ?? input.session.workspace,
           },
           reply: `任务已取消：${cancelledReason}`,
         };
@@ -350,7 +380,7 @@ export class DevAgentOrchestrator {
       await this.sessions.updateRunStatus(input.run.id, {
         status: DevRunStatus.failed,
         error: errorMsg,
-        result: JSON.parse(
+        result: withWorkspaceMeta(JSON.parse(
           JSON.stringify({
             phase: 'failed',
             taskId: taskContext?.taskId ?? input.run.id,
@@ -360,12 +390,16 @@ export class DevAgentOrchestrator {
             errors: taskContext?.errors ?? [],
             updatedAt: new Date().toISOString(),
           }),
-        ),
+        ) as Record<string, unknown>, taskContext?.workspace ?? input.session.workspace) as any,
         finishedAt: new Date(),
       });
 
       return {
-        session: { id: input.session.id, status: input.session.status },
+        session: {
+          id: input.session.id,
+          status: input.session.status,
+          workspace: input.session.workspace,
+        },
         run: {
           id: input.run.id,
           status: DevRunStatus.failed,
@@ -382,6 +416,7 @@ export class DevAgentOrchestrator {
             : null,
           error: errorMsg,
           artifactPath: null,
+          workspace: taskContext?.workspace ?? input.session.workspace,
         },
         reply: `任务执行失败：${errorMsg}`,
       };
@@ -406,6 +441,7 @@ export class DevAgentOrchestrator {
         phase: 'running',
         taskId: taskContext.taskId,
         goal: taskContext.goal,
+        workspace: taskContext.workspace,
         currentRound: options.currentRound,
         currentStepId: options.currentStepId,
         lastEvent: options.lastEvent,
@@ -423,7 +459,7 @@ export class DevAgentOrchestrator {
 
   private async handleLocalSkillTask(params: {
     conversationId: string;
-    session: { id: string; status: string };
+    session: { id: string; status: string; workspace: DevWorkspaceMeta | null };
     run: { id: string };
     runDir: string;
     userInput: string;
@@ -431,7 +467,7 @@ export class DevAgentOrchestrator {
   }): Promise<DevTaskResult> {
     await this.throwIfCancelled(params.run.id);
     await this.sessions.updateRunStatus(params.run.id, {
-      result: JSON.parse(
+      result: withWorkspaceMeta(JSON.parse(
         JSON.stringify({
           phase: 'running',
           mode: 'local-skill',
@@ -440,12 +476,13 @@ export class DevAgentOrchestrator {
           lastEvent: `本地技能 ${params.skillName} 开始执行`,
           updatedAt: new Date().toISOString(),
         }),
-      ),
+      ) as Record<string, unknown>, params.session.workspace) as any,
     });
 
     const localSkillRun = await this.localSkillRunner.run({
       skill: params.skillName,
       conversationId: params.conversationId,
+      sessionId: params.session.id,
       turnId: params.run.id,
       userInput: params.userInput,
     });
@@ -460,7 +497,7 @@ export class DevAgentOrchestrator {
     await this.sessions.updateRunStatus(params.run.id, {
       status: runStatus,
       executor: `local-skill:${localSkillRun.skill}`,
-      result: JSON.parse(
+      result: withWorkspaceMeta(JSON.parse(
         JSON.stringify({
           phase: 'completed',
           mode: 'local-skill',
@@ -468,7 +505,7 @@ export class DevAgentOrchestrator {
           summary: localSkillRun,
           updatedAt: new Date().toISOString(),
         }),
-      ),
+      ) as Record<string, unknown>, params.session.workspace) as any,
       error: localSkillRun.success ? undefined : localSkillRun.summary,
       artifactPath,
       finishedAt: new Date(),
@@ -484,6 +521,7 @@ export class DevAgentOrchestrator {
         result: localSkillRun,
         error: localSkillRun.success ? null : localSkillRun.summary,
         artifactPath,
+        workspace: params.session.workspace,
       },
       reply: localSkillRun.summary,
     };

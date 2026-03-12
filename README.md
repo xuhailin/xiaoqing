@@ -325,7 +325,12 @@ xiaoqing/
 ### Unified Entry
 
 ```
-POST /conversations/:id/messages  { content, mode?: 'chat' | 'dev' }
+POST /conversations/:id/messages
+{
+  content,
+  mode?: 'chat' | 'dev',
+  metadata?: { workspaceRoot?: string, projectScope?: string } // dev 模式可选
+}
 ```
 
 Routing: `mode='dev'` → `/dev` prefix → LLM intent → default chat
@@ -342,6 +347,7 @@ Routing: `mode='dev'` → `/dev` prefix → LLM intent → default chat
 | `POST` | `/persona/evolve/suggest` | Generate evolution suggestions |
 | `POST` | `/persona/evolve/confirm` | Confirm evolution |
 | `GET` | `/dev-agent/sessions` | List dev sessions |
+| `GET` | `/dev-agent/runs/:runId` | Get dev run detail (includes workspace metadata) |
 | `GET` | `/identity-anchors` | List identity anchors |
 | `SSE` | `/pet/state-stream` | Desktop pet state stream |
 

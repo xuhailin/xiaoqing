@@ -6,6 +6,7 @@ import {
   DevRun,
   DevSession,
   DevTaskResult,
+  DevWorkspaceMeta,
 } from '../core/services/dev-agent.service';
 
 @Component({
@@ -26,6 +27,12 @@ import {
           [(ngModel)]="inputText"
           (keydown.enter)="send()"
           placeholder="输入开发任务（如：git status）"
+          [disabled]="sending()"
+        />
+        <input
+          type="text"
+          [(ngModel)]="workspaceRootInput"
+          placeholder="可选：workspace 路径（如 /Users/.../sandbox-repo）"
           [disabled]="sending()"
         />
         <button (click)="send()" [disabled]="sending() || !inputText.trim()">
@@ -55,6 +62,10 @@ import {
             }
           </div>
           <div class="reply">{{ lastResult()!.reply }}</div>
+          <div class="workspace-meta">
+            <span class="workspace-tag">workspace</span>
+            <code>{{ formatWorkspace(lastResult()!.run.workspace) }}</code>
+          </div>
           @if (lastResult()!.run.plan) {
             <details class="plan-details">
               <summary>执行计划（{{ lastResult()!.run.plan!.steps.length }} 步）</summary>
@@ -123,6 +134,7 @@ import {
               <span class="session-title">{{ session.title || session.id.slice(0, 8) }}</span>
               <span class="session-meta">{{ session.runs.length }} runs</span>
             </div>
+            <div class="workspace-path">{{ formatWorkspace(session.workspace) }}</div>
             @if (expandedSession() === session.id) {
               <div class="run-list">
                 @for (run of session.runs; track run.id) {
@@ -185,10 +197,12 @@ import {
     .input-area {
       display: flex;
       gap: var(--space-2);
+      flex-wrap: wrap;
     }
 
     .input-area input {
       flex: 1;
+      min-width: 240px;
       padding: var(--space-2) var(--space-3);
       border: 1px solid var(--color-border);
       border-radius: var(--radius-md);
@@ -284,6 +298,31 @@ import {
       line-height: 1.6;
       white-space: pre-wrap;
       color: var(--color-text);
+    }
+
+    .workspace-meta {
+      margin-top: var(--space-2);
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: var(--font-size-xs);
+      color: var(--color-text-secondary);
+    }
+
+    .workspace-tag {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      padding: 1px var(--space-1);
+    }
+
+    .workspace-meta code,
+    .workspace-path {
+      font-size: var(--font-size-xs);
+      color: var(--color-text-secondary);
+      background: var(--color-bg);
+      border-radius: var(--radius-sm);
+      padding: 1px var(--space-1);
+      word-break: break-all;
     }
 
     .plan-details {
@@ -493,6 +532,11 @@ import {
       color: var(--color-text-secondary);
     }
 
+    .workspace-path {
+      margin-top: var(--space-2);
+      display: inline-block;
+    }
+
     .run-list {
       margin-top: var(--space-2);
       padding-top: var(--space-2);
@@ -552,6 +596,7 @@ export class DevAgentComponent implements OnInit, OnDestroy {
   selectedRunId = signal<string | null>(null);
   cancellingRunId = signal<string | null>(null);
   inputText = '';
+  workspaceRootInput = '';
 
   /** 默认使用一个固定的 conversationId 做 dev 通道 */
   private devConversationId = '';
@@ -578,6 +623,7 @@ export class DevAgentComponent implements OnInit, OnDestroy {
           if (!this.devConversationId) {
             this.devConversationId = 'dev-default';
           }
+          this.workspaceRootInput = '';
           return;
         }
 
@@ -588,6 +634,7 @@ export class DevAgentComponent implements OnInit, OnDestroy {
         } else if (!this.devConversationId) {
           this.devConversationId = 'dev-default';
         }
+        this.workspaceRootInput = activeSession.workspaceRoot ?? '';
       },
     });
   }
@@ -598,13 +645,15 @@ export class DevAgentComponent implements OnInit, OnDestroy {
 
     this.sending.set(true);
     const convId = this.devConversationId || 'dev-default';
+    const workspaceRoot = this.resolveWorkspaceRootForSend();
 
-    this.devAgent.sendDevMessage(convId, content).subscribe({
+    this.devAgent.sendDevMessage(convId, content, { workspaceRoot }).subscribe({
       next: (result) => {
         this.lastResult.set(result);
         this.selectedSessionId.set(result.session.id);
         this.expandedSession.set(result.session.id);
         this.selectedRunId.set(result.run.id);
+        this.workspaceRootInput = result.run.workspace?.workspaceRoot ?? workspaceRoot ?? '';
         this.pollRun(result.run.id, result.session.id);
         this.inputText = '';
         this.sending.set(false);
@@ -612,7 +661,7 @@ export class DevAgentComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.lastResult.set({
-          session: { id: '', status: 'failed' },
+          session: { id: '', status: 'failed', workspace: null },
           run: {
             id: '',
             status: 'failed',
@@ -621,6 +670,7 @@ export class DevAgentComponent implements OnInit, OnDestroy {
             result: null,
             error: err.message || '请求失败',
             artifactPath: null,
+            workspace: null,
           },
           reply: '请求失败：' + (err.error?.message || err.message || '未知错误'),
         });
@@ -638,6 +688,7 @@ export class DevAgentComponent implements OnInit, OnDestroy {
     if (session?.conversationId) {
       this.devConversationId = session.conversationId;
     }
+    this.workspaceRootInput = session?.workspaceRoot ?? '';
     if (!next) {
       return;
     }
@@ -666,6 +717,7 @@ export class DevAgentComponent implements OnInit, OnDestroy {
         if (!run) return;
         this.lastResult.set(this.mapRunToTaskResult(run));
         this.selectedSessionId.set(run.sessionId);
+        this.workspaceRootInput = run.workspaceRoot ?? '';
         this.loadSessions(run.sessionId);
         if (!this.isTerminalStatus(run.status)) {
           this.pollRun(run.id, run.sessionId);
@@ -771,6 +823,26 @@ export class DevAgentComponent implements OnInit, OnDestroy {
     return sessions[0] ?? null;
   }
 
+  formatWorkspace(workspace: DevWorkspaceMeta | null | undefined): string {
+    if (!workspace?.workspaceRoot) {
+      return '默认工作区（当前服务目录）';
+    }
+    return `${workspace.projectScope} · ${workspace.workspaceRoot}`;
+  }
+
+  private resolveWorkspaceRootForSend(): string | undefined {
+    const typed = this.workspaceRootInput.trim();
+    if (typed) {
+      return typed;
+    }
+    const selectedSessionId = this.selectedSessionId();
+    if (!selectedSessionId) {
+      return undefined;
+    }
+    const selectedSession = this.sessions().find((item) => item.id === selectedSessionId);
+    return selectedSession?.workspaceRoot ?? undefined;
+  }
+
   private mapRunToTaskResult(run: DevRun): DevTaskResult {
     const plan = this.isPlan(run.plan) ? run.plan : null;
     const resultObj = this.asRecord(run.result);
@@ -785,9 +857,11 @@ export class DevAgentComponent implements OnInit, OnDestroy {
       runError: run.error,
       stopReason,
     });
+    const workspace = this.normalizeWorkspace(run.workspace)
+      ?? this.parseWorkspaceFromResult(run.result);
 
     return {
-      session: { id: run.sessionId, status: 'active' },
+      session: { id: run.sessionId, status: 'active', workspace },
       run: {
         id: run.id,
         status: run.status,
@@ -796,6 +870,7 @@ export class DevAgentComponent implements OnInit, OnDestroy {
         result: run.result,
         error: run.error,
         artifactPath: run.artifactPath,
+        workspace,
       },
       reply,
     };
@@ -912,6 +987,28 @@ export class DevAgentComponent implements OnInit, OnDestroy {
   ): number | null {
     const value = record?.[key];
     return typeof value === 'number' ? value : null;
+  }
+
+  private normalizeWorkspace(value: unknown): DevWorkspaceMeta | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+    const record = value as Record<string, unknown>;
+    const workspaceRoot = typeof record['workspaceRoot'] === 'string'
+      ? record['workspaceRoot'].trim()
+      : '';
+    if (!workspaceRoot) {
+      return null;
+    }
+    const projectScope = typeof record['projectScope'] === 'string' && record['projectScope'].trim()
+      ? record['projectScope'].trim()
+      : workspaceRoot;
+    return { workspaceRoot, projectScope };
+  }
+
+  private parseWorkspaceFromResult(result: unknown): DevWorkspaceMeta | null {
+    const record = this.asRecord(result);
+    return this.normalizeWorkspace(record?.['workspace']);
   }
 
   private isPlan(value: unknown): value is NonNullable<DevTaskResult['run']['plan']> {

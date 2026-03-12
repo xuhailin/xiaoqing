@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { execFile } from 'child_process';
-import { resolve } from 'path';
 import type { IDevExecutor, DevExecutorInput, DevExecutorOutput } from './executor.interface';
 import type { ICapability } from '../../action/capability.interface';
 import type { CapabilityRequest, CapabilityResult } from '../../action/capability.types';
@@ -37,8 +36,6 @@ export class ShellExecutor implements IDevExecutor, ICapability {
   readonly description = '本地 shell 命令执行（ls/cat/grep/git/npm 等）';
 
   private readonly logger = new Logger(ShellExecutor.name);
-  /** 工作目录限制在项目根目录 */
-  private readonly projectRoot = resolve(__dirname, '../../../../..');
 
   constructor(private readonly workspaceManager: WorkspaceManager) {}
 
@@ -55,8 +52,30 @@ export class ShellExecutor implements IDevExecutor, ICapability {
       : (input as DevExecutorInput).userInput;
 
     const runId = 'runId' in input ? (input as DevExecutorInput).runId : undefined;
-    const sessionId = 'sessionId' in input ? (input as DevExecutorInput).sessionId : undefined;
-    const cwd = await this.resolveCwd(sessionId, runId);
+    const sessionId = this.resolveSessionId(input);
+
+    let cwd: string;
+    try {
+      cwd = await this.resolveCwd(sessionId, runId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        success: false,
+        content: null,
+        error: `工作目录不可用：${message}`,
+        errorType: 'FILE_NOT_FOUND',
+        exitCode: null,
+        command: null,
+        args: [],
+        cwd: null,
+        stdout: null,
+        stderr: message,
+        durationMs: 0,
+        failureReason: message,
+        retryHint: '请检查 workspace 路径是否存在且可访问。',
+      };
+    }
+
     const result = await this.executeCommand(userInput, cwd, runId);
     return result;
   }
@@ -241,18 +260,32 @@ export class ShellExecutor implements IDevExecutor, ICapability {
 
   private async resolveCwd(sessionId?: string, runId?: string): Promise<string> {
     if (!sessionId) {
-      return this.projectRoot;
+      return this.workspaceManager.getDefaultWorkspaceRoot();
     }
 
     try {
       const workspace = await this.workspaceManager.acquire(sessionId);
       return workspace.cwd;
     } catch (err) {
+      if (this.workspaceManager.hasSessionWorkspace(sessionId)) {
+        throw err;
+      }
       this.logger.warn(
         `[shell] ${runId ? `runId=${runId} ` : ''}workspace acquire failed, fallback to project root: ${String(err)}`,
       );
-      return this.projectRoot;
+      return this.workspaceManager.getDefaultWorkspaceRoot();
     }
+  }
+
+  private resolveSessionId(input: CapabilityRequest | DevExecutorInput): string | undefined {
+    if ('sessionId' in input) {
+      return (input as DevExecutorInput).sessionId;
+    }
+
+    const raw = input.params?.['__devSessionId'];
+    return typeof raw === 'string' && raw.trim().length > 0
+      ? raw.trim()
+      : undefined;
   }
 
   private classifyFailure(

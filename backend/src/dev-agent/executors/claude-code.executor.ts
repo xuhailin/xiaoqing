@@ -28,7 +28,6 @@ export class ClaudeCodeExecutor implements IDevExecutor, ICapability {
 
   private readonly logger = new Logger(ClaudeCodeExecutor.name);
   private readonly enabled: boolean;
-  private readonly projectRoot: string;
 
   /** 活跃执行中的 AbortController，用于 cancel */
   private readonly activeAbortControllers = new Map<string, AbortController>();
@@ -39,7 +38,6 @@ export class ClaudeCodeExecutor implements IDevExecutor, ICapability {
     config: ConfigService,
   ) {
     this.enabled = config.get('FEATURE_CLAUDE_CODE') === 'true';
-    this.projectRoot = config.get('CLAUDE_CODE_PROJECT_ROOT') || process.cwd();
   }
 
   isAvailable(): boolean {
@@ -124,6 +122,23 @@ export class ClaudeCodeExecutor implements IDevExecutor, ICapability {
           workspaceStrategy: workspace.strategy,
           workspaceBranch: workspace.branch,
         },
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        success: false,
+        content: null,
+        error: `工作目录不可用：${message}`,
+        errorType: 'FILE_NOT_FOUND',
+        exitCode: 1,
+        command: 'claude-code.execute',
+        args: [],
+        cwd: null,
+        stdout: null,
+        stderr: message,
+        durationMs: Date.now() - startTime,
+        failureReason: message,
+        retryHint: '请检查 workspace 路径是否存在且可访问。',
       };
     } finally {
       this.activeAbortControllers.delete(runId);

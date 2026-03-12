@@ -3,7 +3,7 @@ import { MessageRouterService } from '../gateway/message-router.service';
 import { ConversationLockService } from './conversation-lock.service';
 import type { IAgent, AgentRequest, AgentResult } from './agent.interface';
 import { AGENT_TOKEN } from './agent.interface';
-import type { MessageChannel } from '../gateway/message-router.types';
+import type { MessageChannel, SendMessageMetadata } from '../gateway/message-router.types';
 
 // ──────────────────────────────────────────────
 // DispatcherService
@@ -41,6 +41,7 @@ export class DispatcherService {
     conversationId: string,
     content: string,
     mode?: MessageChannel,
+    metadata?: SendMessageMetadata,
   ): Promise<AgentResult> {
     // 1. 路由
     const decision = await this.router.route(content, mode);
@@ -63,6 +64,7 @@ export class DispatcherService {
         conversationId,
         content: decision.content,
         mode: decision.channel,
+        metadata,
       };
       return await agent.handle(req);
     } finally {
