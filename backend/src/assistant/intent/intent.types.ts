@@ -46,6 +46,12 @@ export interface WorldStateUpdateFromIntent {
   conversationMode?: string;
 }
 
+/** LLM 给出的行动决策建议（intent_v13+），最终是否采纳由 ActionReasoner 决定 */
+export interface ActionHintFromIntent {
+  action: string;
+  reason?: string;
+}
+
 export interface DialogueIntentState {
   mode: DialogueMode;
   seriousness: DialogueSeriousness;
@@ -68,6 +74,8 @@ export interface DialogueIntentState {
   worldStateUpdate?: WorldStateUpdateFromIntent;
   /** LLM 推断的用户当前情绪（intent_v9+），用于替代 regex 匹配 */
   detectedEmotion?: UserEmotion;
+  /** LLM 给出的行动建议（intent_v13+） */
+  actionHint?: ActionHintFromIntent;
 }
 
 export const DEFAULT_INTENT_STATE: DialogueIntentState = {

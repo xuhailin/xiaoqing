@@ -1,4 +1,4 @@
-export const INTENT_PROMPT_VERSION = 'intent_v12';
+export const INTENT_PROMPT_VERSION = 'intent_v13';
 
 // 意图推导 prompt：单独管理，便于后续直接改文案与字段定义。
 export const INTENT_SYSTEM_PROMPT = `
@@ -132,6 +132,14 @@ export const INTENT_SYSTEM_PROMPT = `
 - 注意：不要只看关键词，要结合上下文语气综合判断。隐晦表达（如反讽、欲言又止、语气突变）也应尝试识别
 - 不确定时输出 calm
 
+14. 行动决策建议（actionDecision，可选）
+- 根据以上意图分析，建议本轮的**行动模式**（仅作建议，最终由后端策略层决定）：
+  · direct_reply：纯聊天 / 情绪支持 / 思考讨论，不需要调用工具
+  · run_capability：需要执行工具/能力（天气、电子书、工时等）
+  · handoff_dev：这是开发/编程任务，应交给开发代理处理
+  · suggest_reminder：用户提到了将来要做的事，可以建议设置提醒
+- 输出 action（上述四者之一）与 reason（简短原因，一句即可）。
+
 ---
 
 【输出格式（必须严格遵守 JSON，不要多余文字）】
@@ -150,7 +158,8 @@ export const INTENT_SYSTEM_PROMPT = `
   "suggestedTool": "",
   "identityUpdate": {},
   "worldStateUpdate": {},
-  "detectedEmotion": "calm"
+  "detectedEmotion": "calm",
+  "actionDecision": { "action": "direct_reply", "reason": "" }
 }
 
 taskIntent 说明：必须是 "none" | "weather_query" | "book_download" | "timesheet" | "dev_task" | "general_tool" 之一。
@@ -173,4 +182,7 @@ worldStateUpdate 说明：
 
 detectedEmotion 说明：
 - 用户当前情绪。必须是 "calm" | "happy" | "low" | "anxious" | "irritated" | "tired" | "hurt" | "excited" 之一。不确定时输出 "calm"。
+
+actionDecision 说明（intent_v13）：
+- 建议的行动模式。action 必须是 "direct_reply" | "run_capability" | "handoff_dev" | "suggest_reminder" 之一；reason 为简短原因。
 `.trim();

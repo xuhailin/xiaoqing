@@ -4,6 +4,7 @@ import type { OpenAI } from 'openai';
 import { LlmService } from '../../infra/llm/llm.service';
 import { INTENT_PROMPT_VERSION, INTENT_SYSTEM_PROMPT } from '../prompts/intent';
 import {
+  type ActionHintFromIntent,
   DEFAULT_INTENT_STATE,
   type DialogueAgency,
   type DialogueEscalation,
@@ -207,6 +208,8 @@ export class IntentService {
       ['calm', 'happy', 'low', 'anxious', 'irritated', 'tired', 'hurt', 'excited'] as const,
     );
 
+    const actionHint = this.normalizeActionHint(rawInput.actionDecision);
+
     return {
       mode,
       seriousness,
@@ -222,7 +225,17 @@ export class IntentService {
       identityUpdate: identityUpdate ?? {},
       worldStateUpdate: worldStateUpdate ?? {},
       ...(detectedEmotion ? { detectedEmotion } : {}),
+      ...(actionHint ? { actionHint } : {}),
     };
+  }
+
+  private normalizeActionHint(raw: unknown): ActionHintFromIntent | undefined {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+    const o = raw as Record<string, unknown>;
+    const action = typeof o.action === 'string' ? o.action.trim() : '';
+    if (!action) return undefined;
+    const reason = typeof o.reason === 'string' ? o.reason.trim() : undefined;
+    return { action, ...(reason ? { reason } : {}) };
   }
 
   private normalizeIdentityUpdate(raw: unknown): IdentityUpdateFromIntent | undefined {

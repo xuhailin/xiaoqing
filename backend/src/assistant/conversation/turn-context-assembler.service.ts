@@ -7,6 +7,7 @@ import { WorldStateService } from '../../infra/world-state/world-state.service';
 import { CognitiveGrowthService } from '../cognitive-pipeline/cognitive-growth.service';
 import { MemoryService, type MemoryCandidate } from '../memory/memory.service';
 import { PromptRouterService } from '../prompt-router/prompt-router.service';
+import { ActionReasonerService } from '../action-reasoner/action-reasoner.service';
 import { IntentService } from '../intent/intent.service';
 import type { DialogueIntentState } from '../intent/intent.types';
 import { CapabilityRegistry } from '../../action/capability-registry.service';
@@ -38,6 +39,7 @@ export class TurnContextAssembler {
     private readonly memory: MemoryService,
     private readonly router: PromptRouterService,
     private readonly intent: IntentService,
+    private readonly actionReasoner: ActionReasonerService,
     private readonly capabilityRegistry: CapabilityRegistry,
     private readonly claimConfig: ClaimEngineConfig,
     private readonly claimSelector: ClaimSelectorService,
@@ -83,6 +85,9 @@ export class TurnContextAssembler {
     const fullWorldState = await this.worldState.get(input.conversationId);
     const claimCtx = await this.buildClaimAndSessionContext(input.conversationId);
 
+    const resolvedIntent = intentCtx.mergedIntentState ?? intentCtx.intentState;
+    const actionDecision = this.actionReasoner.decide(resolvedIntent ?? null);
+
     return {
       request: {
         conversationId: input.conversationId,
@@ -109,6 +114,7 @@ export class TurnContextAssembler {
       runtime: {
         intentState: intentCtx.intentState,
         mergedIntentState: intentCtx.mergedIntentState,
+        actionDecision,
         memoryRecall: {
           candidatesCount: memoryCtx.candidatesCount,
           selectedCount: memoryCtx.injectedMemories.length,

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../infra/prisma.service';
 import { estimateTokens } from '../../infra/token-estimator';
+import { ActionReasonerService } from '../action-reasoner/action-reasoner.service';
 import { PostTurnPipeline } from '../post-turn/post-turn.pipeline';
 import { TurnContextAssembler } from './turn-context-assembler.service';
 import { ToolPolicyResolver } from './tool-policy-resolver.service';
@@ -14,6 +15,7 @@ export class AssistantOrchestrator {
 
   constructor(
     private readonly assembler: TurnContextAssembler,
+    private readonly actionReasoner: ActionReasonerService,
     private readonly policyResolver: ToolPolicyResolver,
     private readonly completionRunner: ChatCompletionRunner,
     private readonly postTurnPipeline: PostTurnPipeline,
@@ -49,9 +51,13 @@ export class AssistantOrchestrator {
 
     let policy: ToolPolicyDecision = { action: 'chat', reason: 'intent 未命中，默认聊天路径' };
     try {
-      const resolvedIntent = context.runtime.mergedIntentState ?? context.runtime.intentState;
-      if (resolvedIntent) {
-        policy = await this.policyResolver.resolve(context, resolvedIntent);
+      if (context.runtime.actionDecision) {
+        policy = this.actionReasoner.toToolPolicy(context.runtime.actionDecision);
+      } else {
+        const resolvedIntent = context.runtime.mergedIntentState ?? context.runtime.intentState;
+        if (resolvedIntent) {
+          policy = await this.policyResolver.resolve(context, resolvedIntent);
+        }
       }
     } catch (err) {
       this.logger.warn(`resolve policy failed, fallback chat: ${String(err)}`);

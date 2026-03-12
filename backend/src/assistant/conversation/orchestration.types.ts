@@ -9,6 +9,7 @@ import type {
   PersistedGrowthContext,
   SessionStateSignal,
 } from '../cognitive-pipeline/cognitive-pipeline.types';
+import type { ActionDecision } from '../action-reasoner/action-reasoner.types';
 import type { DialogueIntentState } from '../intent/intent.types';
 import type { WorldState } from '../../infra/world-state/world-state.types';
 import type {
@@ -74,6 +75,7 @@ export interface TurnContext {
   runtime: {
     intentState?: DialogueIntentState | null;
     mergedIntentState?: DialogueIntentState | null;
+    actionDecision?: ActionDecision;
     memoryRecall?: MemoryRecallPlan;
     cognitiveState?: CognitiveTurnState;
     boundaryPrompt?: BoundaryPromptContext | null;

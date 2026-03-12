@@ -6,6 +6,7 @@ import { MemoryService, MemoryCandidate } from '../memory/memory.service';
 import { MemoryDecayService } from '../memory/memory-decay.service';
 import { PersonaService, PersonaDto } from '../persona/persona.service';
 import { UserProfileService, type UserProfileDto } from '../persona/user-profile.service';
+import { ActionReasonerService } from '../action-reasoner/action-reasoner.service';
 import { IntentService } from '../intent/intent.service';
 import type { DialogueIntentState } from '../intent/intent.types';
 import { TaskFormatterService } from '../../openclaw/task-formatter.service';
@@ -35,12 +36,7 @@ import type { TraceStep } from '../../infra/trace/trace.types';
 import { adaptLegacyTraceToTurnEvents } from '../../infra/trace/turn-trace.adapter';
 import { DailyMomentService } from '../daily-moment/daily-moment.service';
 import type { DailyMomentChatMessage, DailyMomentRecord, DailyMomentSuggestion } from '../daily-moment/daily-moment.types';
-import type {
-  SendMessageResult,
-  ToolPolicyAction,
-  ToolPolicyDecision,
-  TurnContext,
-} from './orchestration.types';
+import type { SendMessageResult, ToolPolicyDecision, TurnContext } from './orchestration.types';
 import { ToolExecutorRegistry } from '../../action/tools/tool-executor-registry.service';
 import { PostTurnPipeline } from '../post-turn/post-turn.pipeline';
 import type { PostTurnPlan, PostTurnTask } from '../post-turn/post-turn.types';
@@ -123,6 +119,7 @@ export class ChatCompletionEngine {
     private persona: PersonaService,
     private userProfile: UserProfileService,
     private intent: IntentService,
+    private actionReasoner: ActionReasonerService,
     private taskFormatter: TaskFormatterService,
     private capabilityRegistry: CapabilityRegistry,
     private weatherSkill: WeatherSkillService,
@@ -371,7 +368,7 @@ export class ChatCompletionEngine {
 
       }
 
-      const policy = this.forcedPolicy ?? this.decideToolPolicy(merged);
+      const policy = this.forcedPolicy ?? this.actionReasoner.toToolPolicy(this.actionReasoner.decide(merged));
         this.advancePipelineState(pipelineState, 'decision');
         trace.add('policy-decision', '策略决策', 'success', {
           policyDecision: policy.action,
@@ -382,6 +379,13 @@ export class ChatCompletionEngine {
           requiresTool: merged.requiresTool,
           missingParams: merged.missingParams,
           pipeline: this.buildPipelineSnapshot(pipelineState),
+          actionReasoner: this.preparedContext?.runtime?.actionDecision
+            ? {
+                action: this.preparedContext.runtime.actionDecision.action,
+                source: this.preparedContext.runtime.actionDecision.source,
+                capability: this.preparedContext.runtime.actionDecision.capability,
+              }
+            : undefined,
         });
       if (policy.action === 'ask_missing') {
           return this.handleMissingParamsReply(
@@ -824,62 +828,6 @@ export class ChatCompletionEngine {
     return lines.every((line) => overrideLinePattern.test(line)) ? text : undefined;
   }
 
-  /** capability name → ToolPolicyAction 映射（保持下游兼容） */
-  private static readonly CAPABILITY_TO_ACTION: Record<string, ToolPolicyAction> = {
-    'weather': 'run_local_weather',
-    'book-download': 'run_local_book_download',
-    'general-action': 'run_local_general_action',
-    'timesheet': 'run_local_timesheet',
-  };
-
-  private decideToolPolicy(intentState: DialogueIntentState): ToolPolicyDecision {
-    if (!intentState.requiresTool) {
-      return { action: 'chat', reason: '意图为非工具请求，走聊天路径' };
-    }
-    if (intentState.confidence < this.openclawConfidenceThreshold) {
-      return {
-        action: 'chat',
-        reason: `工具意图置信度 ${intentState.confidence} < 阈值 ${this.openclawConfidenceThreshold}`,
-      };
-    }
-    const allowTimesheetDefaultParams = intentState.taskIntent === 'timesheet' &&
-      intentState.missingParams.every((name) => name === 'timesheetDate' || name === 'timesheetMonth');
-    if (intentState.missingParams.length > 0 && !allowTimesheetDefaultParams) {
-      return {
-        action: 'ask_missing',
-        reason: `需要工具但缺少参数：${intentState.missingParams.join('、')}`,
-      };
-    }
-
-    // 统一通过 CapabilityRegistry 查找本地能力
-    if (intentState.taskIntent !== 'none' && intentState.taskIntent !== 'dev_task') {
-      const cap = this.capabilityRegistry.findByTaskIntent(intentState.taskIntent, 'chat');
-      if (cap) {
-        const action = ChatCompletionEngine.CAPABILITY_TO_ACTION[cap.name];
-        if (action) {
-          return { action, reason: `${intentState.taskIntent} 意图参数齐全，本地 ${cap.name} 可用` };
-        }
-      }
-      // 本地能力不可用，尝试 OpenClaw fallback
-      if (this.featureOpenClaw) {
-        return { action: 'run_openclaw', reason: `${intentState.taskIntent} 意图已识别，但本地能力未配置，回退 OpenClaw` };
-      }
-      return {
-        action: 'chat',
-        reason: `${intentState.taskIntent} 意图已识别，但本地能力未配置且 OpenClaw 已关闭，回退聊天`,
-      };
-    }
-
-    // taskIntent = none 但 requiresTool = true 的兜底
-    if (this.featureOpenClaw) {
-      return { action: 'run_openclaw', reason: '工具意图参数齐全，委派 OpenClaw 执行' };
-    }
-    return {
-      action: 'chat',
-      reason: '工具意图参数齐全，但未开启 OpenClaw，改用普通聊天',
-    };
-  }
-
   /** 根据工具执行结果构建小晴转述并保存消息，供 OpenClaw 与本地 Skill 共用 */
   private async buildToolReplyAndSave(
     conversationId: string,
@@ -1319,6 +1267,7 @@ export class ChatCompletionEngine {
       includeImpressionDetail: this.featureImpressionDetail && needDetail,
     });
 
+    const actionDecision = this.preparedContext?.runtime?.actionDecision;
     let messages = this.router.buildChatMessages({
       messages: recent as Array<{ role: 'user' | 'assistant'; content: string }>,
       personaPrompt,
@@ -1334,6 +1283,8 @@ export class ChatCompletionEngine {
       sessionStateText: claimCtx.sessionStateText,
       boundaryPrompt,
       metaFilterPolicy: personaDto.metaFilterPolicy,
+      handoffDevHint: actionDecision?.action === 'handoff_dev',
+      reminderHint: actionDecision?.action === 'suggest_reminder' ? (actionDecision.reminderHint ?? '') : undefined,
     });
 
     // ── History 截断（system prompt 不截断）────────────────

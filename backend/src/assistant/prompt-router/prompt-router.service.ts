@@ -51,6 +51,10 @@ export interface ChatContext {
   claimPolicyText?: string | null;
   /** 四期：会话短期状态（TTL 内） */
   sessionStateText?: string | null;
+  /** 行动决策提示：建议移交开发代理时为 true，回复中可自然建议使用 /dev 前缀 */
+  handoffDevHint?: boolean;
+  /** 行动决策提示：建议提醒时的描述，回复中可自然提议「要不要我帮你记一下」等，不自动创建任务 */
+  reminderHint?: string | null;
 }
 
 export interface SummaryContext {
@@ -129,6 +133,13 @@ export class PromptRouterService {
     const claimPart = ctx.claimPolicyText ?? '';
     const sessionStatePart = ctx.sessionStateText ?? '';
 
+    let actionHintPart = '';
+    if (ctx.handoffDevHint) {
+      actionHintPart = '[行动提示] 用户本轮可能是开发/编程类任务。若适合交给开发代理，可在回复中自然建议对方使用 /dev 前缀重新发送。';
+    } else if (ctx.reminderHint) {
+      actionHintPart = `[行动提示] 用户提到了将来要做的事（${ctx.reminderHint}）。可在回复中自然提议「要不要我帮你记一下」等，不要自动创建任务。`;
+    }
+
     // 组装：人格区 → 了解区 → 背景信号 → 表达策略（靠近对话历史，权重更高）
     const parts = [
       `[${CHAT_PROMPT_VERSION}]`,
@@ -143,6 +154,7 @@ export class PromptRouterService {
       sessionStatePart,
       boundaryPart,
       cognitivePart,
+      actionHintPart,
       metaPart,
       expressionPart,
       personaPresencePart,
