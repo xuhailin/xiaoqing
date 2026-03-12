@@ -1,0 +1,31 @@
+{
+  "productName": "LongMemory Pet",
+  "version": "0.1.0",
+  "identifier": "com.longmemory.desktop.pet",
+  "build": {
+    "beforeBuildCommand": "",
+    "beforeDevCommand": "npx -y serve . -p 1420",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": ".."
+  },
+  "app": {
+    "macOSPrivateApi": true,
+    "windows": [
+      {
+        "shadow": false,
+        "label": "main",
+        "title": "LongMemory Pet",
+        "width": 580,
+        "height": 300,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "resizable": true,
+        "center": false
+      }
+    ],
+    "withGlobalTauri": true
+  },
+  "bundle": {},
+  "plugins": {}
+}

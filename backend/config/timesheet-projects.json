@@ -1,0 +1,14 @@
+[
+  {
+    "repoPath": "/Users/xuhailin/development/synyi/projects/emr-app",
+    "rdProjectCode": "Z3008018",
+    "customerProjectCode": "A3021011",
+    "displayName": "住院医师工作站"
+  },
+  {
+    "repoPath": "/Users/xuhailin/development/synyi/projects/outpapp",
+    "rdProjectCode": "Z3008018",
+    "customerProjectCode": "A3021011",
+    "displayName": "门诊医师工作站"
+  }
+]

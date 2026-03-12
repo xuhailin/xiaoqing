@@ -1,0 +1,17 @@
+{
+  "primary_usage": [
+    "长期对话",
+    "思考记录",
+    "模糊想法的澄清"
+  ],
+  "non_goals": [
+    "快速获得标准答案",
+    "情绪安抚工具",
+    "人生规划或教练"
+  ],
+  "interaction_preference": {
+    "pace": "偏慢",
+    "depth": "中到深",
+    "answer_style": "探讨式而非结论式"
+  }
+}

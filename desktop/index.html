@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LongMemory Pet</title>
+  <style>
+    :root {
+      --color-bg: #faf9f6;
+      --color-surface: #ffffff;
+      --color-text: #2c2820;
+      --color-text-secondary: #6b7280;
+      --color-text-muted: #9ca3af;
+      --color-border: #e5e3de;
+      --color-primary: #5c67f2;
+      --color-primary-hover: #4a55e8;
+      --color-user-bubble: #eef0ff;
+      --color-user-label: #5c67f2;
+      --color-assistant-bubble: #f5f4f0;
+      --color-assistant-label: #6b7280;
+      --color-error: #c0392b;
+      --color-error-bg: #fef2f2;
+      --color-error-border: #fecaca;
+      --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+      --font-size-xs: 0.7rem;
+      --font-size-sm: 0.78rem;
+      --font-size-md: 0.875rem;
+      --font-weight-medium: 500;
+      --font-weight-semibold: 600;
+      --line-height-base: 1.6;
+      --line-height-relaxed: 1.75;
+      --space-1: 0.25rem;
+      --space-2: 0.5rem;
+      --space-3: 0.75rem;
+      --space-4: 1rem;
+      --space-5: 1.25rem;
+      --space-6: 1.5rem;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-pill: 9999px;
+      --shadow-sm: 0 1px 3px rgba(44, 40, 32, 0.06), 0 1px 2px rgba(44, 40, 32, 0.04);
+      --transition-fast: 0.15s ease;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      font-family: var(--font-family);
+    }
+    .drag-handle {
+      display: none;
+    }
+    .main-row {
+      height: var(--canvas-height, 300px);
+      flex-shrink: 0;
+      display: flex;
+      min-height: 0;
+      gap: 0;
+    }
+    body.panel-left .main-row {
+      flex-direction: row-reverse;
+    }
+    #canvas-container {
+      width: var(--canvas-width, 280px);
+      height: var(--canvas-height, 300px);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    #canvas-container canvas {
+      display: block;
+    }
+    body.window-unfocused #canvas-container canvas {
+      filter:
+        drop-shadow(0 -2px 0 #fff)
+        drop-shadow(0 2px 0 #fff)
+        drop-shadow(-2px 0 0 #fff)
+        drop-shadow(2px 0 0 #fff)
+        drop-shadow(-2px -2px 0 #fff)
+        drop-shadow(2px -2px 0 #fff)
+        drop-shadow(-2px 2px 0 #fff)
+        drop-shadow(2px 2px 0 #fff)
+        drop-shadow(0 0 6px rgba(44, 40, 32, 0.06));
+    }
+    #side-panel {
+      width: 300px;
+      flex-shrink: 0;
+      align-self: stretch;
+      background: rgba(250, 249, 246, 0.92);
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    body.panel-hidden #side-panel {
+      display: none;
+    }
+    #side-panel .panel-header {
+      padding: var(--space-3) var(--space-4);
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-weight-semibold);
+      color: var(--color-text);
+      background: rgba(250, 249, 246, 0.85);
+      border-bottom: none;
+    }
+    #side-panel .messages-wrap {
+      flex: 1;
+      overflow: auto;
+      padding: var(--space-4);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+    #side-panel .messages-wrap::-webkit-scrollbar { width: 4px; }
+    #side-panel .messages-wrap::-webkit-scrollbar-track { background: transparent; }
+    #side-panel .messages-wrap::-webkit-scrollbar-thumb {
+      background: var(--color-border);
+      border-radius: var(--radius-pill);
+    }
+    #side-panel .message {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+      max-width: 100%;
+    }
+    #side-panel .message.user .role-label { color: var(--color-user-label); }
+    #side-panel .message.assistant .role-label { color: var(--color-assistant-label); }
+    #side-panel .message .role-label {
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-weight-medium);
+    }
+    #side-panel .message .bubble {
+      padding: var(--space-3);
+      border-radius: var(--radius-lg);
+      font-size: var(--font-size-md);
+      line-height: var(--line-height-relaxed);
+      word-break: break-word;
+      box-shadow: var(--shadow-sm);
+    }
+    #side-panel .message.user .bubble {
+      background: var(--color-user-bubble);
+    }
+    #side-panel .message.assistant .bubble {
+      background: var(--color-assistant-bubble);
+    }
+    #side-panel .panel-footer {
+      padding: var(--space-3) var(--space-4);
+      border-top: none;
+      background: rgba(250, 249, 246, 0.85);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+    #side-panel .input-row {
+      display: flex;
+      gap: var(--space-2);
+      align-items: flex-end;
+    }
+    #side-panel .input-row textarea {
+      flex: 1;
+      min-height: 36px;
+      max-height: 100px;
+      font-family: var(--font-family);
+      font-size: var(--font-size-md);
+      color: var(--color-text);
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-2) var(--space-3);
+      resize: none;
+    }
+    #side-panel .input-row textarea::placeholder { color: var(--color-text-muted); }
+    #side-panel .input-row textarea:focus {
+      outline: none;
+      border-color: var(--color-primary);
+    }
+    #side-panel .btn-send {
+      flex-shrink: 0;
+      padding: var(--space-2) var(--space-4);
+      background: var(--color-primary);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-md);
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-weight-medium);
+      cursor: pointer;
+      transition: background var(--transition-fast);
+    }
+    #side-panel .btn-send:hover:not(:disabled) { background: var(--color-primary-hover); }
+    #side-panel .btn-send:disabled { opacity: 0.45; cursor: not-allowed; }
+    #side-panel .shortcuts {
+      display: flex;
+      gap: var(--space-2);
+    }
+    #side-panel .btn-home {
+      padding: var(--space-1) var(--space-3);
+      background: var(--color-surface);
+      color: var(--color-text-secondary);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      font-size: var(--font-size-xs);
+      cursor: pointer;
+      transition: background var(--transition-fast), color var(--transition-fast);
+    }
+    #side-panel .btn-home:hover { background: var(--color-bg); color: var(--color-text); }
+    #side-panel .notification--error {
+      padding: var(--space-2) var(--space-3);
+      font-size: var(--font-size-sm);
+      color: var(--color-error);
+      background: var(--color-error-bg);
+      border: 1px solid var(--color-error-border);
+      border-radius: var(--radius-md);
+    }
+    #side-panel .empty-hint {
+      font-size: var(--font-size-sm);
+      color: var(--color-text-muted);
+      padding: var(--space-4);
+    }
+  </style>
+</head>
+<body class="panel-left">
+  <div class="drag-handle" id="drag-handle" data-tauri-drag-region></div>
+  <div class="main-row">
+    <div id="canvas-container"></div>
+    <div id="side-panel">
+      <div class="panel-header">最近对话</div>
+      <div class="messages-wrap" id="chat-messages"></div>
+      <div class="panel-footer">
+        <div class="input-row">
+          <textarea id="chat-input" placeholder="输入消息..." rows="2"></textarea>
+          <button type="button" class="btn-send" id="chat-send" disabled>发送</button>
+        </div>
+        <div class="shortcuts">
+          <button type="button" class="btn-home" id="btn-home">进入主页</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./public/lib/live2dcubismcore.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/dist/browser/pixi.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
+  <script src="./js/config.js"></script>
+  <script src="./js/chat-panel.js"></script>
+  <script src="./js/model-manager.js"></script>
+  <script src="./js/state-bridge.js"></script>
+  <script src="./js/app.js"></script>
+</body>
+</html>

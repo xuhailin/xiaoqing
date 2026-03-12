@@ -1,0 +1,69 @@
+---
+description: 文档同步与需求映射规则（配合 skill 使用）
+alwaysApply: false
+---
+
+# 文档同步全局规则（需求变更必更新 docs）
+
+## 1. 基本原则
+
+- **任何需求 / 行为变更，都必须同步更新对应 docs**，不要只改代码不改文档。
+- **允许覆盖旧描述**：`docs` 里的旧需求总结可以被最新实现与约定直接替换，而不是追加一堆历史版本。
+- **同一改动，同步完成**：当一次改动涉及多个层（后端 + 前端 + Prompt），在完成代码修改的同时，一次性更新相关文档，不留下「以后再补」的 TODO。
+
+## 2. 文档职责划分（改什么功能，去改哪个 docs）
+
+- **全局视角 / 最终状态**
+  - 对应文档：`docs/PROJECT-SUMMARY.md`
+  - 什么时候改：
+    - 新增或删除模块（如 `persona`、`reading`、`prompt-router` 等）
+    - API 列表有增删改（路径、方法、请求 / 响应结构发生变化）
+    - 数据库 Schema（Prisma 模型）有结构性变更
+    - Phase 完成度或整体能力边界发生变化
+
+- **总体约定 / 跨 Phase 规则**
+  - 对应文档：`docs/requirements/PRD-00-总览与约定.md`
+  - 什么时候改：
+    - 项目「禁止事项」、全局约束（例如「禁止自动写长期记忆」）发生变化
+    - Phase 分工、阶段目标、术语定义更新
+    - 全局 Prompt 设计原则或通用交互约定调整
+
+- **Phase 1：基础对话与记忆**
+  - 对应文档：`docs/requirements/PRD-01-Phase1-基础对话与记忆.md`
+  - 什么时候改：
+    - `Conversation` / `Message` 模型或相关 API 行为变更
+    - 聊天主流程的时序（用户发消息 → LLM 回复 → 持久化）发生变化
+    - 基础记忆模型（`Memory` 的字段、写入 / 查询规则）调整
+    - 手动总结的触发方式、范围、产物结构发生变化（仅涉及 Phase1 能力）
+
+- **Phase 2：记忆注入与人格双池**
+  - 对应文档：`docs/requirements/PRD-02-Phase2-记忆注入与人格双池.md`
+  - 什么时候改：
+    - 人格模块（`Persona` 模型、约束池 / 进化池字段）有变更
+    - 记忆注入策略（如何挑选记忆进入上下文）或规则更新
+    - Prompt Router 针对「chat / summary / persona」的路由规则、上下文拼装逻辑改变
+    - 前端人格配置页、双池编辑交互有明显需求级调整
+
+- **Phase 3：人格细化与读物摄入**
+  - 对应文档：`docs/requirements/PRD-03-Phase3-人格细化与读物摄入.md`
+  - 什么时候改：
+    - 读物摄入模块（`Reading` / `ReadingInsight` 模型、状态机、采纳流程）变化
+    - 人格进化策略（怎样从总结 / 读物产出候选，如何人工确认后写入）更新
+    - Token 估算 / 截断策略或 Prompt Router 与 reading 的协同逻辑调整
+    - 前端读物页面、进化建议展示 / 采纳交互改动到需求层面
+
+- **架构设计说明（ADD，面试与长期维护）**
+  - 对应文档：`docs/architecture-design.md`
+  - 什么时候改：
+    - 新增或调整架构分层（如 Input / Intent / World State / Phase Context / Cognitive Memory / 人格 / Response）
+    - World State、Phase Context、记忆六类原语（identity_anchor / shared_fact / commitment / correction / soft_preference / general）的定义、边界或行为变更
+    - 记忆写入/更新/衰减策略或 WriteGuard 规则有实质性变更
+    - 关键设计权衡（如记忆完整性 vs 稳定性、反问 vs 默认前提）的取舍发生变化
+    - 可扩展性与演进方向（任务系统、外部工具、多人格等）有新增或收缩
+
+## 3. 变更处理建议
+
+- **如发现 docs 与代码 / 实际行为不一致，以「代码 & 真实行为」为准，立刻更新 docs**。
+- 优先保持 `PROJECT-SUMMARY.md` 与各 PRD 一致；若有差异，同步修正，而不是只改其中一个。
+- **架构相关变更**（分层、World State、记忆原语、写入/衰减策略、设计权衡）在改 PRD/代码的同时，同步更新 `docs/architecture-design.md`，保证 ADD 与需求及实现一致。
+- 不强制保留长篇历史差异说明，如需记录演进，可以用「简短变更记录」小节而不是全文堆砌历史版本。

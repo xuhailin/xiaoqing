@@ -1,0 +1,19 @@
+{
+  "targetDate": "2026-03-09",
+  "count": 1,
+  "startedAt": "2026-03-10T10:16:02.651Z",
+  "endedAt": "2026-03-10T10:18:31.958Z",
+  "durationMs": 149307,
+  "successCount": 0,
+  "failedCount": 1,
+  "records": [
+    {
+      "index": 1,
+      "startedAt": "2026-03-10T10:16:02.652Z",
+      "endedAt": "2026-03-10T10:18:31.958Z",
+      "durationMs": 149306,
+      "ok": false,
+      "message": "导航到工时表单失败：日期选择或表单跳转失败: 点击日期并提交后 30 秒仍未进入可录入状态；检测到弹窗提示：您已录入过该日期的工时，请修改工时填报日期，再次提交。；等待“项目类工时”区域就绪超时（30 秒） <- 点击日期并提交后 30 秒仍未进入可录入状态；检测到弹窗提示：您已录入过该日期的工时，请修改工时填报日期，再次提交。；等待“项目类工时”区域就绪超时（30 秒）（截图已保存: /Users/xuhailin/development/agents/chat/backend/assets/timesheet-debug/navigation_form_2026-03-10T10-18-31-522Z.png, /Users/xuhailin/development/agents/chat/backend/assets/timesheet-debug/navigation_main_2026-03-10T10-18-31-522Z.png）"
+    }
+  ]
+}

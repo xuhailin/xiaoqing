@@ -1,0 +1,75 @@
+{
+  "cookies": [
+    {
+      "name": "bsrv",
+      "value": "468970c15bf4827546e8f02e0b2b3ef4",
+      "domain": "zh.zlib.li",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "c_token",
+      "value": "155E52E1EA14E1057A2732F5A8C2551F7581DAD340125",
+      "domain": "zh.zlib.li",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "siteLanguage",
+      "value": "zh",
+      "domain": ".zlib.li",
+      "path": "/",
+      "expires": 1807607123.338968,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "remix_userkey",
+      "value": "17bb8934fd127ac450c883cbc4d5a39a",
+      "domain": ".zlib.li",
+      "path": "/",
+      "expires": 1776647125.176261,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "remix_userid",
+      "value": "29055760",
+      "domain": ".zlib.li",
+      "path": "/",
+      "expires": 1776647125.176402,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "selectedSiteMode",
+      "value": "books",
+      "domain": ".zlib.li",
+      "path": "/",
+      "expires": 1775725524.784577,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "redirects_count",
+      "value": "%7B%22auth%22%3A1%2C%22hide-auth-params%22%3A1%7D",
+      "domain": ".zlib.li",
+      "path": "/",
+      "expires": 1773047135.176532,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    }
+  ],
+  "origins": []
+}

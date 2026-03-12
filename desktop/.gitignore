@@ -1,0 +1,12 @@
+# Live2D 模型资产（需手动下载，不提交）
+public/models/
+
+# Cubism Core 运行时（专有许可，不可再分发）
+public/lib/live2dcubismcore.min.js
+
+# Node
+node_modules/
+
+# Tauri 构建产物
+src-tauri/target/
+

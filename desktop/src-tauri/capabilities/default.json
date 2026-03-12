@@ -1,0 +1,18 @@
+{
+  "identifier": "main-capability",
+  "description": "Main window: open chat URL on click",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-set-size",
+    "core:window:allow-outer-position",
+    "core:window:allow-current-monitor",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        { "url": "http://localhost:4200" }
+      ]
+    }
+  ]
+}

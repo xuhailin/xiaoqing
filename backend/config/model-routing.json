@@ -1,0 +1,42 @@
+{
+  "models": [
+    {
+      "id": "gpt-5-mini",
+      "displayName": "GPT-5-MINI",
+      "provider": "openai",
+      "type": "chat",
+      "tags": ["chat", "intent"],
+      "enabled": true
+    },
+    {
+      "id": "gpt-5.2",
+      "displayName": "GPT-5.2",
+      "provider": "openai",
+      "type": "chat",
+      "tags": ["chat", "reasoning", "summary"],
+      "enabled": true
+    },
+    {
+      "id": "zai-org/glm-5",
+      "displayName": "GLM-5",
+      "provider": "glm",
+      "type": "chat",
+      "tags": ["dev", "python","reasoning"],
+      "enabled": true
+    }
+  ],
+  "routing": {
+    "chatModel": "gpt-5.2",
+    "devModel": "zai-org/glm-5",
+    "pythonModel": "zai-org/glm-5",
+    "reasoningModel": "gpt-5.2",
+    "summaryModel": "gpt-5.2"
+  },
+  "scenarioRouting": {
+    "chat": "chatModel",
+    "dev": "devModel",
+    "python": "pythonModel",
+    "reasoning": "reasoningModel",
+    "summary": "summaryModel"
+  }
+}

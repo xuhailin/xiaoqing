@@ -1,0 +1,375 @@
+---
+description: Warm & Simple UI Design System — visual consistency rules for LongMemory AI Companion frontend
+globs: frontend/src/**/*.{scss,css,html,ts}
+alwaysApply: true
+---
+
+# UI Design System — Warm & Simple
+
+## Design Philosophy
+
+Build interfaces that feel like a personal journal: warm, uncluttered, and trustworthy.
+Every pixel should serve clarity, not decoration.
+
+---
+
+## Color Tokens (CSS Custom Properties)
+
+Always reference colors via CSS variables. Never hardcode hex values in component styles.
+
+```scss
+// Primary action (warm indigo)
+--color-primary: #5c67f2
+--color-primary-hover: #4a55e8
+--color-primary-light: #eef0ff
+
+// Background layers (warm off-white progression)
+--color-bg: #faf9f6         // Page background
+--color-surface: #ffffff    // Cards, inputs, panels
+--color-sidebar: #f2f0eb    // Left sidebar
+
+// Text hierarchy
+--color-text: #2c2820           // Primary — warm dark
+--color-text-secondary: #6b7280 // Secondary
+--color-text-muted: #9ca3af     // Metadata, placeholders
+
+// Borders (subtle, warm-tinted)
+--color-border: #e5e3de
+--color-border-light: #eeece8
+
+// Semantic
+--color-success: #2d7a4f        // Text
+--color-success-bg: #f0fdf4
+--color-success-border: #bbf7d0
+--color-error: #c0392b
+--color-error-bg: #fef2f2
+--color-error-border: #fecaca
+
+// Accent — Memory (amber warmth)
+--color-memory-bg: #fffbeb
+--color-memory-border: #fde68a
+--color-memory-tag-bg: #fef3c7
+--color-memory-tag-border: #fcd34d
+
+// Accent — Persona Evolution
+--color-evolve-green-bg: #f0fdf4
+--color-evolve-green-border: #bbf7d0
+--color-evolve-blue-bg: #eff6ff
+--color-evolve-blue-border: #bfdbfe
+
+// Chat bubbles
+--color-user-bubble: #eef0ff        // Light indigo for user
+--color-user-label: #5c67f2
+--color-assistant-bubble: #f5f4f0   // Warm gray for AI
+--color-assistant-label: #6b7280
+```
+
+---
+
+## Typography
+
+```scss
+// Stack: modern system fonts with CJK fallbacks
+--font-family: 'Inter', -apple-system, BlinkMacSystemFont,
+               'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+
+// Scale
+--font-size-xs: 0.7rem    // Metadata, badges, tiny labels
+--font-size-sm: 0.78rem   // Secondary text, list items
+--font-size-md: 0.875rem  // Body text, input, message bubbles
+--font-size-base: 1rem    // Base (rarely used directly)
+
+// Weights
+--font-weight-normal: 400
+--font-weight-medium: 500
+--font-weight-semibold: 600
+
+// Line heights
+--line-height-tight: 1.4    // Headings, labels
+--line-height-base: 1.6     // UI text
+--line-height-relaxed: 1.75 // Message content, paragraphs
+```
+
+**Rules:**
+- Prefer `--font-size-sm` (0.78rem) for sidebar/panel text
+- Prefer `--font-size-md` (0.875rem) for main content and chat bubbles
+- Never go below `--font-size-xs` (0.7rem) for readable content
+- Use `font-weight: 600` only for section titles and active states
+
+---
+
+## Spacing Scale
+
+```scss
+--space-1: 0.25rem   // Tight gaps (between tags, badge padding)
+--space-2: 0.5rem    // Small (button padding vertical, list item gap)
+--space-3: 0.75rem   // Medium (card padding, section gap)
+--space-4: 1rem      // Standard (component padding)
+--space-5: 1.25rem   // Large (section separation)
+--space-6: 1.5rem    // XL (main content horizontal padding)
+```
+
+**Rules:**
+- Sidebar internal padding: `var(--space-4)`
+- Chat messages horizontal padding: `var(--space-6)`
+- Between messages gap: `var(--space-4)`
+- Input row padding: `var(--space-3) var(--space-4)`
+
+---
+
+## Border Radius
+
+```scss
+--radius-sm: 4px    // Small buttons, badges, filter chips
+--radius-md: 8px    // Standard buttons, inputs, small cards
+--radius-lg: 12px   // Message bubbles, panels, cards
+--radius-xl: 16px   // Large modals/drawers
+--radius-pill: 9999px // Tags, pill buttons, scrollbar thumbs
+```
+
+**Rules:**
+- Message bubbles: `--radius-lg`
+- Action buttons: `--radius-md`
+- Filter/type badges: `--radius-pill`
+- Panel cards: `--radius-lg`
+
+---
+
+## Shadows
+
+```scss
+--shadow-sm: 0 1px 3px rgba(44, 40, 32, 0.06), 0 1px 2px rgba(44, 40, 32, 0.04)
+--shadow-md: 0 4px 12px rgba(44, 40, 32, 0.08), 0 2px 4px rgba(44, 40, 32, 0.04)
+```
+
+**Rules:**
+- Use `--shadow-sm` on message bubbles, active tab indicators
+- Use `--shadow-md` on modals, overlays, detail panels
+- Prefer shadows over borders for depth — not both
+- Never use `box-shadow` with pure black (`rgba(0,0,0,...)`) — always use warm dark base `rgba(44,40,32,...)`
+
+---
+
+## Transitions
+
+```scss
+--transition-fast: 0.15s ease   // Hover states, button feedback
+--transition-base: 0.2s ease    // Tab switches, panel reveals
+```
+
+---
+
+## Layout
+
+```scss
+--sidebar-width: 320px
+```
+
+**Rules:**
+- Layout: `display: flex; height: 100vh` — sidebar + main flex row
+- Sidebar: fixed width, `overflow: hidden`, `flex-direction: column`
+- Main content: `flex: 1; min-width: 0; overflow: auto`
+- Never use `100%` width on flex children without `min-width: 0`
+- Use `CSS Grid` for 2D layouts (card grids, form layouts)
+- Use `Flexbox` for 1D layouts (rows, columns, alignment)
+
+---
+
+## Component Patterns
+
+### Buttons
+
+Three variants only:
+
+```scss
+// Primary — main actions (Send, Save)
+.btn--primary {
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  &:hover { background: var(--color-primary-hover); }
+}
+
+// Ghost — secondary actions (Summarize, Update Persona)
+.btn--ghost {
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  &:hover { background: var(--color-bg); color: var(--color-text); }
+}
+
+// Success — confirm/adopt actions
+.btn--success {
+  background: var(--color-success);
+  color: #fff;
+  border: none;
+}
+
+// Size modifier
+.btn--sm { padding: calc(var(--space-1) + 2px) var(--space-3); font-size: var(--font-size-xs); }
+
+// Disabled — always
+&:disabled { opacity: 0.45; cursor: not-allowed; }
+```
+
+### Inputs & Textareas
+
+```scss
+textarea, input[type="text"] {
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  transition: border-color var(--transition-fast);
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(92, 103, 242, 0.1);
+  }
+  &::placeholder { color: var(--color-text-muted); }
+}
+```
+
+### Tab Bar (Pill Switcher)
+
+```scss
+.tab-bar {
+  display: flex;
+  gap: var(--space-1);
+  background: var(--color-bg);
+  border-radius: var(--radius-xl);
+  padding: var(--space-1);
+
+  button {
+    flex: 1;
+    border: none;
+    background: transparent;
+    border-radius: var(--radius-md);
+    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-medium);
+    transition: all var(--transition-fast);
+
+    &.active {
+      background: var(--color-surface);
+      color: var(--color-text);
+      font-weight: var(--font-weight-semibold);
+      box-shadow: var(--shadow-sm);
+    }
+  }
+}
+```
+
+### Notification Bars
+
+```scss
+// Sit flush at the top of the content area — no margin, full width
+.notification {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--font-size-sm);
+  border-bottom: 1px solid transparent;
+
+  &--error { color: var(--color-error); background: var(--color-error-bg); border-color: var(--color-error-border); }
+  &--success { color: var(--color-success); background: var(--color-success-bg); border-color: var(--color-success-border); }
+}
+```
+
+### Scrollbars
+
+Always style scrollbars to be minimal and warm:
+
+```scss
+@mixin custom-scrollbar {
+  &::-webkit-scrollbar { width: 4px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: var(--radius-pill);
+  }
+}
+```
+
+---
+
+## SCSS File Structure
+
+```
+frontend/src/
+  styles/
+    _variables.scss   # :root CSS custom properties — single source of truth
+    _mixins.scss      # Reusable SCSS mixins (custom-scrollbar, btn-base, flex-row)
+    _base.scss        # CSS reset, body, box-sizing, font smoothing
+  styles.scss         # @use all partials — imported by Angular globally
+```
+
+**Rules:**
+- All color/space/radius values MUST be in `_variables.scss`
+- Component SCSS files use `var(--token-name)` — never hardcode values
+- Mixins are shared by importing: `@use 'src/styles/mixins' as *` in component SCSS
+- `styles.scss` is the only file Angular includes globally — all partials go through it
+
+---
+
+## Responsive Design
+
+Breakpoints (mobile-first):
+
+```scss
+$bp-sm: 640px;    // Small phones
+$bp-md: 768px;    // Tablets
+$bp-lg: 1024px;   // Small laptops
+$bp-xl: 1280px;   // Standard desktops
+```
+
+Layout adaptation:
+- `< 768px`: Sidebar collapses to drawer (hidden by default, toggle button)
+- `768px - 1024px`: Sidebar at 280px, chat bubbles max-width 88%
+- `> 1024px`: Full layout, sidebar 320px, bubbles max-width 78%
+
+```scss
+// Pattern
+@media (max-width: 768px) {
+  .drawer { position: fixed; z-index: 100; transform: translateX(-100%); }
+  .drawer.open { transform: translateX(0); }
+}
+```
+
+---
+
+## Anti-Patterns (Never Do)
+
+- ❌ Hardcode colors: `color: #06c` → use `var(--color-primary)`
+- ❌ Use `!important` — fix specificity instead
+- ❌ `margin: auto` on flex children without `min-width: 0`
+- ❌ `display: block` inside flex containers where flex is sufficient
+- ❌ Pure black shadows: `rgba(0,0,0,0.1)` → use warm dark `rgba(44,40,32,...)`
+- ❌ Font sizes below `0.7rem` for readable content
+- ❌ Border radius inconsistency — always use tokens
+- ❌ Inline styles in Angular TypeScript — extract to `styles: []` array or SCSS file
+- ❌ CSS `em` units for spacing — use `rem` for predictable scaling
+- ❌ Overusing borders AND shadows together — choose one for depth
+
+---
+
+## Quick Reference Card
+
+| Token | Value | Use |
+|---|---|---|
+| `--color-primary` | `#5c67f2` | Main CTA buttons |
+| `--color-bg` | `#faf9f6` | Page/chat background |
+| `--color-surface` | `#ffffff` | Cards, inputs |
+| `--color-sidebar` | `#f2f0eb` | Left panel |
+| `--color-text` | `#2c2820` | Body text |
+| `--color-text-secondary` | `#6b7280` | Labels, secondary |
+| `--color-border` | `#e5e3de` | All borders |
+| `--font-size-md` | `0.875rem` | Chat bubbles, inputs |
+| `--font-size-sm` | `0.78rem` | Panel text |
+| `--radius-lg` | `12px` | Bubbles, panels |
+| `--shadow-sm` | warm low shadow | Bubbles, active states |

@@ -1,0 +1,61 @@
+// =============================================================================
+// Base / Reset — LongMemory AI Companion
+// Global resets and foundational styles.
+// =============================================================================
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--font-family);
+  background: var(--color-bg);
+  color: var(--color-text);
+  line-height: var(--line-height-base);
+  overflow: hidden;
+}
+
+// Inherit font in interactive elements
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+// Remove default list styles
+ul,
+ol {
+  list-style: none;
+}
+
+// Remove default anchor decoration
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+// Pre/code inherit font
+pre,
+code {
+  font-family: inherit;
+}
+
+// Smooth image rendering
+img {
+  max-width: 100%;
+  display: block;
+}

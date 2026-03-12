@@ -1,0 +1,392 @@
+// Phase1: Conversation, Message, Memory - see plan
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ClaimType {
+  JUDGEMENT_PATTERN
+  VALUE
+  INTERACTION_PREFERENCE
+  EMOTIONAL_TENDENCY
+  RELATION_RHYTHM
+}
+
+enum ClaimStatus {
+  CANDIDATE
+  WEAK
+  STABLE
+  CORE
+  DEPRECATED
+}
+
+enum EvidencePolarity {
+  SUPPORT
+  CONTRA
+  NEUTRAL
+}
+
+model Conversation {
+  id           String    @id @default(uuid())
+  title        String?
+  summarizedAt DateTime?
+  /** 默认世界状态（地点/时区/语言等），用于意图补全与推理前提，不写入记忆 */
+  worldState   Json?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  messages     Message[]
+  dailyMoments DailyMoment[]
+  dailyMomentSuggestions DailyMomentSuggestion[]
+  dailyMomentSignals DailyMomentSignal[]
+}
+
+model Message {
+  id             String   @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String   // 'user' | 'assistant'
+  content        String   @db.Text
+  tokenCount     Int?     // D1: 该消息的估算 token 数（assistant 消息记录 LLM 实际输出 token）
+  createdAt      DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+model Memory {
+  id               String   @id @default(uuid())
+  type             String   // 'mid' | 'long'
+  category         String   @default("general") // 'identity_anchor' | 'shared_fact' | 'commitment' | 'correction' | 'soft_preference' | 'general'
+  content          String   @db.Text
+  shortSummary     String?  @db.Text // 50-100 token 简短摘要，注入时优先使用（Phase3 可选）
+  sourceMessageIds String[] // PostgreSQL array for traceability
+  confidence       Float    @default(1)
+
+  // 衰减相关
+  hitCount         Int      @default(0)     // 被召回/引用次数
+  lastAccessedAt   DateTime @default(now()) // 最后一次被召回的时间
+  decayScore       Float    @default(1.0)   // 衰减分，定期重算，0→候选删除
+  frozen           Boolean  @default(false) // true = 不参与衰减（identity_anchor 默认 frozen）
+
+  // 纠错专用
+  correctedMemoryId String? // 若本条是纠错记忆，指向被纠正的原记忆 ID
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([category])
+  @@index([decayScore])
+}
+
+model UserClaim {
+  id                   String         @id @default(uuid())
+  userKey              String         @default("default-user")
+  type                 ClaimType
+  key                  String
+  valueJson            Json
+  confidence           Float
+  evidenceCount        Int            @default(0)
+  counterEvidenceCount Int            @default(0)
+  status               ClaimStatus    @default(CANDIDATE)
+  decayRate            Float?
+  contextTags          String[]       @default([])
+  sourceModels         String[]       @default([])
+  lastSourceMessageIds String[]       @default([])
+  lastSeenAt           DateTime       @default(now())
+  lastPromotedAt       DateTime?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  evidences            ClaimEvidence[]
+
+  @@index([userKey, type, status])
+  @@index([userKey, type, key])
+  @@index([updatedAt])
+}
+
+model ClaimEvidence {
+  id          String           @id @default(uuid())
+  claimId     String
+  claim       UserClaim        @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  userKey     String           @default("default-user")
+  messageId   String?
+  sessionId   String?
+  snippet     String           @db.Text
+  polarity    EvidencePolarity
+  weight      Float            @default(1)
+  sourceModel String?
+  createdAt   DateTime         @default(now())
+
+  @@unique([claimId, messageId, polarity])
+  @@index([userKey, createdAt])
+  @@index([claimId, createdAt])
+}
+
+model SessionState {
+  id          String   @id @default(uuid())
+  userKey     String   @default("default-user")
+  sessionId   String
+  stateJson   Json
+  confidence  Float
+  ttlSeconds  Int
+  observedAt  DateTime @default(now())
+  expiresAt   DateTime
+  sourceModel String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userKey, sessionId, expiresAt])
+  @@index([userKey, expiresAt])
+  @@index([updatedAt])
+}
+
+// Phase2: 人格双池（结构化版）。支持版本化：保存时新建一条、旧条停用（isActive=false）
+model Persona {
+  id                 String   @id @default(uuid())
+
+  // ── 人格层（稳定注入，几乎不变） ──
+  identity          String   @default("") @db.Text // 身份定位：我是谁、与用户的关系
+  personality       String   @default("") @db.Text // 性格特质
+  valueBoundary     String   @default("") @db.Text // 价值边界：判断原则、记忆哲学
+  behaviorForbidden String   @default("") @db.Text // 行为禁止项（替代 constraintKeys）
+
+  // ── 表达调度层（常驻但独立，允许更频繁微调） ──
+  voiceStyle        String   @default("") @db.Text // 语言风格基线
+  adaptiveRules     String   @default("") @db.Text // 自适应展开/收缩条件
+  silencePermission String   @default("") @db.Text // 留白与少说许可
+  metaFilterPolicy  String   @default("") @db.Text // 元过滤规则：禁止暴露内部策略/逻辑
+
+  // ── 进化约束 ──
+  evolutionAllowed   String   @default("") @db.Text // 允许的进化方向（自然语言）
+  evolutionForbidden String   @default("") @db.Text // 禁止的进化（自然语言，用于校验）
+
+  // ── 元数据 ──
+  version            Int      @default(1) // 版本号，保存时递增
+  isActive           Boolean  @default(true) // 是否当前启用；仅一条为 true
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  evolutionLogs      PersonaEvolutionLog[]
+}
+
+// 人格进化日志：记录每次进化的字段变更，关联到 Persona 版本
+model PersonaEvolutionLog {
+  id        String   @id @default(uuid())
+  personaId String   // 写入后的 Persona 版本 ID
+  persona   Persona  @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  field     String   // 目标字段名（identity/personality/...）
+  content   String   @db.Text // 追加的内容
+  reason    String   @db.Text // 变更理由
+  version   Int      // 写入时的 Persona 版本号
+  createdAt DateTime @default(now())
+
+  @@index([personaId])
+}
+
+model UserProfile {
+  userKey               String   @id
+  preferredVoiceStyle   String   @default("") @db.Text
+  praisePreference      String   @default("") @db.Text
+  responseRhythm        String   @default("") @db.Text
+  impressionCore        String?  @db.Text // 核心印象，固定注入 system prompt，≤150 token
+  impressionDetail      String?  @db.Text // 可选细节，按需补充，≤500 token
+  pendingImpressionCore String?  @db.Text // 待确认核心印象
+  pendingImpressionDetail String? @db.Text // 待确认细节印象
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+// 身份锚定：独立于 Memory，始终注入、不衰减、支持多条目
+model IdentityAnchor {
+  id        String   @id @default(uuid())
+  userKey   String   @default("default-user")
+  label     String   // 'basic' | 'occupation' | 'interest' | 'custom'
+  content   String   @db.Text
+  sortOrder Int      @default(0)
+  nickname  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// 身份锚定变更历史（审计日志）
+model IdentityAnchorHistory {
+  id              String   @id @default(uuid())
+  anchorId        String
+  previousContent String   @db.Text
+  newContent      String   @db.Text
+  changedAt       DateTime @default(now())
+}
+
+// 成长层：稳定的认知画像（独立于 Memory，便于长期演化）
+model CognitiveProfile {
+  id               String   @id @default(uuid())
+  kind             String   // 'decision_pattern' | 'thinking_pattern' | 'support_preference' | ...
+  content          String   @db.Text
+  confidence       Float    @default(0.7)
+  sourceMessageIds String[] @default([])
+  hitCount         Int      @default(0)
+  lastAppliedAt    DateTime @default(now())
+  isActive         Boolean  @default(true)
+  status           String   @default("pending") // 'pending' | 'confirmed' | 'rejected'
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([kind, isActive])
+  @@index([updatedAt])
+  @@index([status])
+}
+
+// 成长层：关系状态快照，按版本演化
+model RelationshipState {
+  id               String   @id @default(uuid())
+  stage            String   // 'early' | 'familiar' | 'steady'
+  summary          String   @db.Text
+  trustScore       Float    @default(0.5)
+  closenessScore   Float    @default(0.5)
+  rhythmHint       String?
+  boundaryNotes    String[] @default([])
+  sourceMessageIds String[] @default([])
+  hitCount         Int      @default(0)
+  version          Int      @default(1)
+  isActive         Boolean  @default(true)
+  status           String   @default("pending") // 'pending' | 'confirmed' | 'rejected'
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([isActive, updatedAt])
+  @@index([status])
+}
+
+// 成长层：边界治理事件，供后续审计与治理调优
+model BoundaryEvent {
+  id               String   @id @default(uuid())
+  note             String   @db.Text
+  severity         String   @default("info")
+  sourceMessageIds String[] @default([])
+  createdAt        DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([severity])
+}
+
+// 今日日记：表达产物表，不参与长期事实记忆
+model DailyMoment {
+  id              String   @id @default(uuid())
+  conversationId  String
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  triggerMode     String
+  title           String
+  body            String   @db.Text
+  closingNote     String   @db.Text
+  moodTag         String?
+  sourceSnippetIds String[] @default([])
+  sourceMessageIds String[] @default([])
+  feedback        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([conversationId, createdAt])
+  @@index([feedback])
+}
+
+// 今日日记轻提示：偶发触发提示记录
+model DailyMomentSuggestion {
+  id              String   @id @default(uuid())
+  conversationId  String
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  hint            String   @db.Text
+  score           Float
+  moodTag         String?
+  sourceMessageIds String[] @default([])
+  accepted        Boolean  @default(false)
+  acceptedAt      DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([accepted])
+}
+
+// 用户对今日日记功能的行为信号（喜欢/尴尬/再写一条/收藏回看）
+model DailyMomentSignal {
+  id             String   @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  type           String
+  sourceText     String?  @db.Text
+  createdAt      DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([type])
+}
+
+// 工时上报记录：记录通过本工具成功提交的工时
+model TimesheetRecord {
+  id              String   @id @default(uuid())
+  date            DateTime @db.Date
+  totalHours      Int      @default(8)
+  projectsSummary Json     // TimesheetSubmittedProject[]
+  submittedAt     DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  @@unique([date])
+  @@index([date])
+}
+
+// ── DevAgent ─────────────────────────────────────────────────
+
+// 开发代理会话：一次"帮我改代码"对话
+model DevSession {
+  id             String    @id @default(uuid())
+  conversationId String?   // 可选：关联发起的聊天会话
+  title          String?
+  status         String    @default("active") // active | completed | failed | cancelled
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  runs           DevRun[]
+  reminders      DevReminder[]
+}
+
+// 开发代理执行记录：一次具体的执行动作
+model DevRun {
+  id           String    @id @default(uuid())
+  sessionId    String
+  session      DevSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userInput    String    @db.Text
+  plan         Json?
+  status       String    @default("pending") // queued | pending | running | success | failed | canceled
+  executor     String?   // shell | openclaw | codex
+  result       Json?
+  error        String?   @db.Text
+  artifactPath String?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([sessionId, createdAt])
+  @@index([status])
+}
+
+// 开发代理提醒任务：一次性提醒或 cron 周期任务
+model DevReminder {
+  id              String     @id @default(uuid())
+  sessionId       String
+  session         DevSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  title           String?
+  message         String     @db.Text
+  cronExpr        String?
+  runAt           DateTime?
+  timezone        String?
+  enabled         Boolean    @default(true)
+  nextRunAt       DateTime?
+  lastTriggeredAt DateTime?
+  lastRunId       String?
+  lastError       String?    @db.Text
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([sessionId, createdAt])
+  @@index([enabled, nextRunAt])
+}
