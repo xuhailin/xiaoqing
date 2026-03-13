@@ -1,5 +1,6 @@
 import { Module, type OnModuleInit } from '@nestjs/common';
 import { CapabilityRegistry } from './capability-registry.service';
+import { IntentCapabilityMapper } from './intent-capability-mapper.service';
 import { ToolExecutorRegistry } from './tools/tool-executor-registry.service';
 import { WeatherSkillModule } from './skills/weather/weather-skill.module';
 import { BookDownloadSkillModule } from './skills/book-download/book-download-skill.module';
@@ -42,8 +43,8 @@ import { SkillRunner } from './local-skills/skill-runner.service';
     LocalSkillModule,
     OpenClawModule,
   ],
-  providers: [CapabilityRegistry, ToolExecutorRegistry, ReadonlyFileCapabilityService, SkillRunner],
-  exports: [CapabilityRegistry, ToolExecutorRegistry, WeatherSkillModule, ReminderSkillModule, LocalSkillModule, SkillRunner],
+  providers: [CapabilityRegistry, IntentCapabilityMapper, ToolExecutorRegistry, ReadonlyFileCapabilityService, SkillRunner],
+  exports: [CapabilityRegistry, IntentCapabilityMapper, ToolExecutorRegistry, WeatherSkillModule, ReminderSkillModule, LocalSkillModule, SkillRunner],
 })
 export class ActionModule implements OnModuleInit {
   constructor(

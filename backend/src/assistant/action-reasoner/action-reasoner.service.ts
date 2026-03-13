@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CapabilityRegistry } from '../../action/capability-registry.service';
+import { IntentCapabilityMapper } from '../../action/intent-capability-mapper.service';
 import type { DialogueIntentState } from '../intent/intent.types';
 import type { ToolPolicyAction, ToolPolicyDecision } from '../conversation/orchestration.types';
 import type { ActionDecision, ActionMode } from './action-reasoner.types';
@@ -19,6 +20,7 @@ export class ActionReasonerService {
 
   constructor(
     private readonly capabilityRegistry: CapabilityRegistry,
+    private readonly intentMapper: IntentCapabilityMapper,
     config: ConfigService,
   ) {
     this.openclawConfidenceThreshold = Number(config.get('OPENCLAW_CONFIDENCE_THRESHOLD')) || 0.7;
@@ -111,11 +113,11 @@ export class ActionReasonerService {
     }
 
     if (intentState.taskIntent === 'set_reminder') {
-      const cap = this.capabilityRegistry.findByTaskIntent('set_reminder', 'chat');
-      if (cap) {
+      const capName = this.findCapabilityByIntent('set_reminder', 'chat');
+      if (capName) {
         return {
           action: 'run_capability',
-          capability: cap.name,
+          capability: capName,
           toolPolicyAction: 'run_capability',
           reason: '提醒意图，执行 reminder 能力',
           confidence: intentState.confidence,
@@ -160,13 +162,13 @@ export class ActionReasonerService {
     }
 
     if (intentState.taskIntent !== 'none') {
-      const cap = this.capabilityRegistry.findByTaskIntent(intentState.taskIntent, 'chat');
-      if (cap) {
+      const capName = this.findCapabilityByIntent(intentState.taskIntent, 'chat');
+      if (capName) {
         return {
           action: 'run_capability',
-          capability: cap.name,
+          capability: capName,
           toolPolicyAction: 'run_capability',
-          reason: `${intentState.taskIntent} 意图参数齐全，本地 ${cap.name} 可用`,
+          reason: `${intentState.taskIntent} 意图参数齐全，本地 ${capName} 可用`,
           confidence: intentState.confidence,
           source: 'rule',
         };
@@ -210,13 +212,20 @@ export class ActionReasonerService {
     if (mode === 'handoff_dev' || mode === 'suggest_reminder') return {};
     if (mode === 'run_capability') {
       if (intentState.taskIntent !== 'none' && intentState.taskIntent !== 'dev_task') {
-        const cap = this.capabilityRegistry.findByTaskIntent(intentState.taskIntent, 'chat');
-        if (cap) {
-          return { toolPolicyAction: 'run_capability', capability: cap.name };
+        const capName = this.findCapabilityByIntent(intentState.taskIntent, 'chat');
+        if (capName) {
+          return { toolPolicyAction: 'run_capability', capability: capName };
         }
       }
       if (this.featureOpenClaw) return { toolPolicyAction: 'run_openclaw' };
     }
     return { toolPolicyAction: 'chat' };
+  }
+
+  private findCapabilityByIntent(taskIntent: string, channel: 'chat' | 'dev'): string | null {
+    const capNames = this.intentMapper.findCapabilities(taskIntent as any, channel);
+    if (capNames.length === 0) return null;
+    const cap = this.capabilityRegistry.get(capNames[0]);
+    return cap?.isAvailable() ? cap.name : null;
   }
 }
