@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DevRunStatus } from '@prisma/client';
 import { resolve } from 'path';
 import { SkillRunner } from '../action/local-skills/skill-runner.service';
+import { ReflectionService } from '../assistant/reflection/reflection.service';
 import { createTaskContext, type DevTaskContext } from './dev-task-context';
 import type { DevTaskResult } from './dev-agent.types';
 import { DevSessionRepository } from './dev-session.repository';
@@ -50,6 +51,7 @@ export class DevAgentOrchestrator {
   constructor(
     private readonly sessions: DevSessionRepository,
     private readonly localSkillRunner: SkillRunner,
+    private readonly reflectionService: ReflectionService,
     private readonly planner: DevTaskPlanner,
     private readonly stepRunner: DevStepRunner,
     private readonly progressEvaluator: DevProgressEvaluator,
@@ -269,6 +271,22 @@ export class DevAgentOrchestrator {
         stepLogs: taskContext.stepLogs,
         suggestion: allSuccess ? null : this.replanPolicy.buildFailureSuggestion(taskContext),
       };
+
+      // Reflection: 评估 DevAgent 执行质量
+      try {
+        const reflection = this.reflectionService.reflect({
+          userInput: input.run.userInput,
+          intentState: { taskIntent: 'dev_task', confidence: 1.0, requiresTool: true },
+          assistantOutput: stopReason,
+          hasError: !allSuccess,
+        });
+
+        if (reflection.quality !== 'good') {
+          this.logger.warn(`DevAgent Reflection: ${reflection.quality} - ${reflection.issues?.join('; ')}`);
+        }
+      } catch (err) {
+        this.logger.warn(`DevAgent reflection failed: ${String(err)}`);
+      }
 
       const artifactPath = `dev-runs/${input.run.id}`;
       await this.transcriptWriter.write(runDir, {

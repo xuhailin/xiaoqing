@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../infra/prisma.service';
 import { estimateTokens } from '../../infra/token-estimator';
 import { ActionReasonerService } from '../action-reasoner/action-reasoner.service';
+import { ReflectionService } from '../reflection/reflection.service';
 import { PostTurnPipeline } from '../post-turn/post-turn.pipeline';
 import { TurnContextAssembler } from './turn-context-assembler.service';
 import { ChatCompletionRunner } from './chat-completion-runner.service';
@@ -15,6 +16,7 @@ export class AssistantOrchestrator {
   constructor(
     private readonly assembler: TurnContextAssembler,
     private readonly actionReasoner: ActionReasonerService,
+    private readonly reflectionService: ReflectionService,
     private readonly completionRunner: ChatCompletionRunner,
     private readonly postTurnPipeline: PostTurnPipeline,
     private readonly summarizeTrigger: SummarizeTriggerService,
@@ -86,6 +88,33 @@ export class AssistantOrchestrator {
         },
         injectedMemories: context.memory.injectedMemories,
       };
+    }
+
+    // Reflection: 评估本轮决策质量
+    try {
+      const resolvedIntent = context.runtime.mergedIntentState ?? context.runtime.intentState;
+      const reflection = this.reflectionService.reflect({
+        userInput: input.userInput,
+        intentState: resolvedIntent ? {
+          taskIntent: resolvedIntent.taskIntent,
+          confidence: resolvedIntent.confidence,
+          requiresTool: resolvedIntent.requiresTool,
+        } : undefined,
+        actionDecision: context.runtime.actionDecision ? {
+          action: context.runtime.actionDecision.action,
+          reason: context.runtime.actionDecision.reason,
+          confidence: context.runtime.actionDecision.confidence,
+        } : undefined,
+        toolPolicy: { action: policy.action, capability: policy.capability },
+        assistantOutput: result.assistantMessage.content,
+        hasError: false,
+      });
+
+      if (reflection.quality !== 'good') {
+        this.logger.warn(`Reflection: ${reflection.quality} - ${reflection.issues?.join('; ')}`);
+      }
+    } catch (err) {
+      this.logger.warn(`reflection failed: ${String(err)}`);
     }
 
     try {

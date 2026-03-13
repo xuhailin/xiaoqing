@@ -1,12 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { LlmService } from '../infra/llm/llm.service';
+import { IntentService } from '../assistant/intent/intent.service';
 import type { MessageChannel, RouteDecision } from './message-router.types';
 
 @Injectable()
 export class MessageRouterService {
   private readonly logger = new Logger(MessageRouterService.name);
 
-  constructor(private readonly llm: LlmService) {}
+  constructor(
+    private readonly llm: LlmService,
+    private readonly intentService: IntentService,
+  ) {}
 
   /**
    * 消息路由判定，优先级：显式 mode > 前缀命令 > LLM 意图分类。
@@ -42,6 +46,22 @@ export class MessageRouterService {
    */
   private async classifyIntent(content: string): Promise<MessageChannel | null> {
     try {
+      const intentState = await this.intentService.recognize([], content);
+
+      if (intentState.taskIntent === 'dev_task' && intentState.confidence > 0.7) {
+        this.logger.log(`Intent routing: dev_task (confidence=${intentState.confidence}) for "${content.slice(0, 50)}"`);
+        return 'dev';
+      }
+
+      return null;
+    } catch (err) {
+      this.logger.warn(`Intent recognition failed, fallback to simple classification: ${err}`);
+      return this.fallbackClassifyIntent(content);
+    }
+  }
+
+  private async fallbackClassifyIntent(content: string): Promise<MessageChannel | null> {
+    try {
       const response = await this.llm.generate([
         {
           role: 'system',
@@ -64,13 +84,13 @@ export class MessageRouterService {
 
       const trimmed = response.trim().toLowerCase();
       if (trimmed === 'dev') {
-        this.logger.log(`LLM intent: dev for "${content.slice(0, 50)}"`);
+        this.logger.log(`Fallback LLM intent: dev for "${content.slice(0, 50)}"`);
         return 'dev';
       }
       return null;
     } catch (err) {
-      this.logger.warn(`Intent classification failed: ${err}`);
-      return null; // 分类失败时降级为 chat
+      this.logger.warn(`Fallback classification failed: ${err}`);
+      return null;
     }
   }
 }

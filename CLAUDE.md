@@ -12,7 +12,7 @@
   - 前端：Angular 21 SPA（目录在 `frontend/`）
   - ORM & 数据库：Prisma + PostgreSQL
   - DevAgent：在 `backend/src/dev-agent/`，负责开发类任务的规划 / 执行 / 报告
-  - 桌宠：Tauri + PixiJS + Live2D（目录在 `desktop/`）
+  - 桌宠：Tauri + PixiJS + Live2D（目录在 `desktop/`）—— **暂未启动开发，当前阶段请忽略此模块**
 - **高层架构**：统一入口 `Gateway → MessageRouter`，将请求路由到：
   - Chat 通路：`backend/src/xiaoqing/**`
   - Dev 通路：`backend/src/dev-agent/**`

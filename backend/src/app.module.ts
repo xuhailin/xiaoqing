@@ -13,7 +13,7 @@ import { PetModule } from './assistant/pet/pet.module';
 import { ClaimEngineModule } from './assistant/claim-engine/claim-engine.module';
 import { GatewayModule } from './gateway/gateway.module';
 import { DevAgentModule } from './dev-agent/dev-agent.module';
-import { WechatWorkModule } from './channels/wechat-work/wechat-work.module';
+import { WechatWorkBotModule } from './channels/wechat-work-bot/wechat-work-bot.module';
 
 @Global()
 @Module({
@@ -29,7 +29,7 @@ import { WechatWorkModule } from './channels/wechat-work/wechat-work.module';
     IdentityAnchorModule,
     PetModule,
     ClaimEngineModule,
-    WechatWorkModule,
+    WechatWorkBotModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

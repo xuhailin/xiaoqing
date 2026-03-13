@@ -8,6 +8,7 @@ import { ClaudeCodeExecutor } from './executors/claude-code.executor';
 import { ClaudeCodeStreamService } from './executors/claude-code-stream.service';
 import { OpenClawModule } from '../openclaw/openclaw.module';
 import { ActionModule } from '../action/action.module';
+import { ReflectionModule } from '../assistant/reflection/reflection.module';
 import { LlmModule } from '../infra/llm/llm.module';
 import { QueueModule } from '../infra/queue';
 import { CapabilityRegistry } from '../action/capability-registry.service';
@@ -32,7 +33,7 @@ import { SystemSelfModule } from '../system-self/system-self.module';
 import { StrategyReasoner } from '../reasoning/strategy-reasoner.service';
 
 @Module({
-  imports: [OpenClawModule, ActionModule, LlmModule, QueueModule, SystemSelfModule],
+  imports: [OpenClawModule, ActionModule, ReflectionModule, LlmModule, QueueModule, SystemSelfModule],
   controllers: [DevAgentController],
   providers: [
     DevAgentService,

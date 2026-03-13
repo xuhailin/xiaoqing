@@ -8,6 +8,7 @@ import { TurnContextAssembler } from './turn-context-assembler.service';
 import { SummarizeTriggerService } from './summarize-trigger.service';
 import { FeatureFlagConfig } from './feature-flag.config';
 import { ActionReasonerModule } from '../action-reasoner/action-reasoner.module';
+import { ReflectionModule } from '../reflection/reflection.module';
 import { LlmModule } from '../../infra/llm/llm.module';
 import { PromptRouterModule } from '../prompt-router/prompt-router.module';
 import { MemoryModule } from '../memory/memory.module';
@@ -26,7 +27,7 @@ import { SystemSelfModule } from '../../system-self/system-self.module';
 import { ReasoningModule } from '../../reasoning/reasoning.module';
 
 @Module({
-  imports: [ActionReasonerModule, LlmModule, PromptRouterModule, MemoryModule, PersonaModule, IntentModule, OpenClawModule, ActionModule, WorldStateModule, IdentityAnchorModule, SummarizerModule, CognitivePipelineModule, DailyMomentModule, SystemSelfModule, ReasoningModule],
+  imports: [ActionReasonerModule, ReflectionModule, LlmModule, PromptRouterModule, MemoryModule, PersonaModule, IntentModule, OpenClawModule, ActionModule, WorldStateModule, IdentityAnchorModule, SummarizerModule, CognitivePipelineModule, DailyMomentModule, SystemSelfModule, ReasoningModule],
   controllers: [ConversationController],
   providers: [
     ConversationService,

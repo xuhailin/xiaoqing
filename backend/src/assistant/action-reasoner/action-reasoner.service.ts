@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CapabilityRegistry } from '../../action/capability-registry.service';
 import { IntentCapabilityMapper } from '../../action/intent-capability-mapper.service';
+import { SystemSelfService } from '../../system-self/system-self.service';
+import { TaskPlannerService } from '../planning/task-planner.service';
 import type { DialogueIntentState } from '../intent/intent.types';
 import type { ToolPolicyAction, ToolPolicyDecision } from '../conversation/orchestration.types';
 import type { ActionDecision, ActionMode } from './action-reasoner.types';
@@ -21,10 +23,12 @@ export class ActionReasonerService {
   constructor(
     private readonly capabilityRegistry: CapabilityRegistry,
     private readonly intentMapper: IntentCapabilityMapper,
+    private readonly systemSelf: SystemSelfService,
+    private readonly taskPlanner: TaskPlannerService,
     config: ConfigService,
   ) {
     this.openclawConfidenceThreshold = Number(config.get('OPENCLAW_CONFIDENCE_THRESHOLD')) || 0.7;
-    this.featureOpenClaw = config.get('FEATURE_OPENCLAW') === 'true';
+    this.featureOpenClaw = this.systemSelf.getFeatures().openclaw;
   }
 
   /**
@@ -127,12 +131,26 @@ export class ActionReasonerService {
     }
 
     if (intentState.escalation === '应转任务') {
+      const plan = this.taskPlanner.shouldPlan({
+        userInput: '',
+        intentState: {
+          taskIntent: intentState.taskIntent,
+          escalation: intentState.escalation,
+          confidence: intentState.confidence,
+        },
+      });
+
+      let hint = intentState.actionHint?.reason ?? '用户表达可转任务，建议设置提醒';
+      if (plan.shouldPlan && plan.steps) {
+        hint += `。建议步骤：${plan.steps.join(' → ')}`;
+      }
+
       return {
         action: 'suggest_reminder',
-        reason: intentState.actionHint?.reason ?? '用户表达可转任务，建议设置提醒',
+        reason: hint,
         confidence: intentState.confidence,
         source: 'rule',
-        reminderHint: intentState.actionHint?.reason,
+        reminderHint: hint,
       };
     }
 
