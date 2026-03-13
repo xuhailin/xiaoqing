@@ -28,9 +28,10 @@ import { WorkspaceManager } from './workspace/workspace-manager.service';
 import { DevReminderService } from './dev-reminder.service';
 import { DevReminderSchedulerService } from './dev-reminder.scheduler.service';
 import { ReminderMessageService } from '../action/skills/reminder/reminder-message.service';
+import { SystemSelfModule } from '../system-self/system-self.module';
 
 @Module({
-  imports: [OpenClawModule, ActionModule, LlmModule, QueueModule],
+  imports: [OpenClawModule, ActionModule, LlmModule, QueueModule, SystemSelfModule],
   controllers: [DevAgentController],
   providers: [
     DevAgentService,

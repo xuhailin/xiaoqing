@@ -5,6 +5,7 @@ import type { DevPlan } from '../dev-agent.types';
 import { DevPlannerPromptFactory } from './dev-planner-prompt.factory';
 import { DevPlanParser } from './dev-plan-parser';
 import { DevPlanNormalizer } from './dev-plan-normalizer';
+import { SystemSelfService } from '../../system-self/system-self.service';
 
 /** Dev 任务规划入口：prompt -> LLM -> parse -> normalize。 */
 @Injectable()
@@ -14,6 +15,7 @@ export class DevTaskPlanner {
     private readonly promptFactory: DevPlannerPromptFactory,
     private readonly parser: DevPlanParser,
     private readonly normalizer: DevPlanNormalizer,
+    private readonly systemSelf: SystemSelfService,
   ) {}
 
   async planTask(

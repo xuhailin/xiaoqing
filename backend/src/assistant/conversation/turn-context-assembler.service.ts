@@ -16,6 +16,7 @@ import { ClaimSelectorService } from '../claim-engine/claim-selector.service';
 import { SessionStateService } from '../claim-engine/session-state.service';
 import { estimateTokens } from '../../infra/token-estimator';
 import { FeatureFlagConfig } from './feature-flag.config';
+import { SystemSelfService } from '../../system-self/system-self.service';
 import type { TurnContext } from './orchestration.types';
 
 @Injectable()
@@ -45,6 +46,7 @@ export class TurnContextAssembler {
     private readonly claimSelector: ClaimSelectorService,
     private readonly sessionStateStore: SessionStateService,
     private readonly flags: FeatureFlagConfig,
+    private readonly systemSelf: SystemSelfService,
   ) {}
 
   async assemble(input: {
