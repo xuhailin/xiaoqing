@@ -61,6 +61,8 @@ export class DevAgentService {
       },
       run: {
         id: run.id,
+        userInput: run.userInput,
+        rerunFromRunId: null,
         status: run.status,
         executor: run.executor ?? null,
         plan: null,
@@ -156,7 +158,7 @@ export class DevAgentService {
     const run = await this.sessions.createRun(
       sourceRun.sessionId,
       sourceRun.userInput,
-      this.buildQueuedResult(workspace),
+      this.buildQueuedResult(workspace, { rerunFromRunId: sourceRun.id }),
     );
 
     this.runner.startRun(run.id, sourceRun.sessionId);
@@ -169,6 +171,8 @@ export class DevAgentService {
       },
       run: {
         id: run.id,
+        userInput: run.userInput,
+        rerunFromRunId: sourceRun.id,
         status: run.status,
         executor: run.executor ?? null,
         plan: null,
@@ -241,21 +245,36 @@ export class DevAgentService {
     }
   }
 
-  private buildQueuedResult(workspace: DevWorkspaceMeta | null): Prisma.InputJsonValue {
+  private buildQueuedResult(
+    workspace: DevWorkspaceMeta | null,
+    options?: { rerunFromRunId?: string | null },
+  ): Prisma.InputJsonValue {
+    const rerunFromRunId = options?.rerunFromRunId ?? null;
+    const events: Array<Record<string, unknown>> = [
+      {
+        type: 'queued',
+        message: '任务已入队，等待执行',
+        at: new Date().toISOString(),
+      },
+    ];
+    if (rerunFromRunId) {
+      events.push({
+        type: 'rerun',
+        message: `基于 run ${rerunFromRunId} 触发重跑`,
+        sourceRunId: rerunFromRunId,
+        at: new Date().toISOString(),
+      });
+    }
+
     return withWorkspaceMeta({
       phase: 'queued',
+      rerunFromRunId,
       currentStepId: null,
       planRounds: 0,
       completedSteps: 0,
       totalSteps: 0,
       stepLogs: [],
-      events: [
-        {
-          type: 'queued',
-          message: '任务已入队，等待执行',
-          at: new Date().toISOString(),
-        },
-      ],
+      events,
     }, workspace) as Prisma.InputJsonValue;
   }
 
@@ -278,9 +297,11 @@ export class DevAgentService {
   private decorateRun(run: any) {
     const workspace = parseWorkspaceMetaFromRunResult(run?.result)
       ?? this.workspaceManager.getSessionWorkspace(run?.sessionId ?? '');
+    const rerunFromRunId = this.parseRerunFromRunResult(run?.result);
     return {
       ...run,
       workspace,
+      rerunFromRunId,
       workspaceRoot: workspace?.workspaceRoot ?? null,
       projectScope: workspace?.projectScope ?? null,
     };
@@ -304,5 +325,15 @@ export class DevAgentService {
       }
     }
     return latestWorkspace;
+  }
+
+  private parseRerunFromRunResult(result: unknown): string | null {
+    if (!result || typeof result !== 'object' || Array.isArray(result)) {
+      return null;
+    }
+    const raw = (result as Record<string, unknown>)['rerunFromRunId'];
+    return typeof raw === 'string' && raw.trim().length > 0
+      ? raw.trim()
+      : null;
   }
 }

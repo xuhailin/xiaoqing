@@ -6,3 +6,6 @@ node_modules
 dist
 
 /generated/prisma
+
+# DevAgent / runtime data (transcript, workspaces, etc.)
+/data/

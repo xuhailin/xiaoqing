@@ -24,6 +24,9 @@ import { DevTimelineStep } from '../dev-agent.view-model';
             @if (task.run.executor) {
               <span class="meta">{{ task.run.executor }}</span>
             }
+            @if (task.run.rerunFromRunId) {
+              <span class="meta">from {{ task.run.rerunFromRunId!.slice(0, 8) }}</span>
+            }
             @if (isCancellable) {
               <button
                 type="button"

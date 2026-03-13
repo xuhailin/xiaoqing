@@ -24,6 +24,7 @@ export interface DevRun {
   id: string;
   sessionId: string;
   userInput: string;
+  rerunFromRunId?: string | null;
   plan: DevPlan | null;
   status: string;
   executor: string | null;
@@ -71,6 +72,7 @@ export interface DevTaskResult {
   run: {
     id: string;
     userInput?: string | null;
+    rerunFromRunId?: string | null;
     status: string;
     executor: string | null;
     plan: DevPlan | null;

@@ -57,6 +57,7 @@ export class DevAgentPageStore {
           run: {
             ...result.run,
             userInput: result.run.userInput ?? trimmed,
+            rerunFromRunId: result.run.rerunFromRunId ?? null,
           },
         });
         this.selectedSessionId.set(result.session.id);
@@ -108,6 +109,7 @@ export class DevAgentPageStore {
           run: {
             ...result.run,
             userInput: result.run.userInput ?? fallbackUserInput,
+            rerunFromRunId: result.run.rerunFromRunId ?? sourceRunId,
           },
         });
         this.selectedSessionId.set(result.session.id);
@@ -445,6 +447,7 @@ export class DevAgentPageStore {
       run: {
         id: run.id,
         userInput: run.userInput,
+        rerunFromRunId: run.rerunFromRunId ?? null,
         status: run.status,
         executor: run.executor,
         plan,

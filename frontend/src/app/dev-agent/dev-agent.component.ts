@@ -25,12 +25,14 @@ import { DevComposerComponent } from './components/dev-composer.component';
           [selectedSessionId]="store.selectedSessionId()"
           [selectedRunId]="store.selectedRunId()"
           [expandedSessionId]="store.expandedSessionId()"
+          [activeWorkspaceRoot]="store.workspaceRootInput()"
           [searchText]="searchText()"
           [statusFilter]="statusFilter()"
           (searchTextChange)="searchText.set($event)"
           (statusFilterChange)="statusFilter.set($event)"
           (sessionToggle)="store.toggleSession($event)"
           (runSelect)="store.openRun($event)"
+          (workspaceSelect)="store.setWorkspaceRootInput($event)"
         />
 
         <app-dev-run-timeline
@@ -60,17 +62,25 @@ import { DevComposerComponent } from './components/dev-composer.component';
         <div class="action-notice">{{ store.actionNotice() }}</div>
       }
 
-      <app-dev-composer
-        [taskInput]="taskInput()"
-        [workspaceRoot]="store.workspaceRootInput()"
-        [sending]="store.sending()"
-        (taskInputChange)="taskInput.set($event)"
-        (workspaceRootChange)="store.setWorkspaceRootInput($event)"
-        (submit)="submitTask()"
-      />
+      <div class="composer-shell">
+        <app-dev-composer
+          [taskInput]="taskInput()"
+          [workspaceRoot]="store.workspaceRootInput()"
+          [sending]="store.sending()"
+          (taskInputChange)="taskInput.set($event)"
+          (workspaceRootChange)="store.setWorkspaceRootInput($event)"
+          (submit)="submitTask()"
+        />
+      </div>
     </div>
   `,
   styles: [`
+    :host {
+      display: block;
+      height: 100%;
+      min-height: 0;
+    }
+
     .dev-agent-page {
       height: 100%;
       display: grid;
@@ -79,6 +89,7 @@ import { DevComposerComponent } from './components/dev-composer.component';
       padding: var(--space-4);
       min-height: 0;
       position: relative;
+      overflow: hidden;
     }
 
     .workbench-grid {
@@ -86,6 +97,7 @@ import { DevComposerComponent } from './components/dev-composer.component';
       display: grid;
       grid-template-columns: 320px minmax(420px, 1fr) 320px;
       gap: var(--space-3);
+      overflow: hidden;
     }
 
     @media (max-width: 1320px) {
@@ -119,6 +131,14 @@ import { DevComposerComponent } from './components/dev-composer.component';
       padding: var(--space-2) var(--space-3);
       box-shadow: var(--shadow-sm);
       max-width: min(360px, 70vw);
+    }
+
+    .composer-shell {
+      position: sticky;
+      bottom: 0;
+      z-index: 1;
+      background: linear-gradient(180deg, rgba(250, 249, 246, 0), rgba(250, 249, 246, 0.92) 16px);
+      padding-top: var(--space-2);
     }
   `],
 })

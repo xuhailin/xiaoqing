@@ -9,6 +9,8 @@ export interface DevTaskResult {
   };
   run: {
     id: string;
+    userInput?: string | null;
+    rerunFromRunId?: string | null;
     status: string;
     executor: string | null;
     plan: DevPlan | null;
