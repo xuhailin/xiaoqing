@@ -29,6 +29,7 @@ import { DevReminderService } from './dev-reminder.service';
 import { DevReminderSchedulerService } from './dev-reminder.scheduler.service';
 import { ReminderMessageService } from '../action/skills/reminder/reminder-message.service';
 import { SystemSelfModule } from '../system-self/system-self.module';
+import { StrategyReasoner } from '../reasoning/strategy-reasoner.service';
 
 @Module({
   imports: [OpenClawModule, ActionModule, LlmModule, QueueModule, SystemSelfModule],
@@ -56,8 +57,9 @@ import { SystemSelfModule } from '../system-self/system-self.module';
     DevRunRunnerService,
     DevReminderService,
     DevReminderSchedulerService,
+    StrategyReasoner,
   ],
-  exports: [DevAgentService],
+  exports: [DevAgentService, DevStepRoutingService, StrategyReasoner],
 })
 export class DevAgentModule implements OnModuleInit {
   constructor(

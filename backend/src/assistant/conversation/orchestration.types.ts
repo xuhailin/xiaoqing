@@ -17,6 +17,7 @@ import type {
   DailyMomentSuggestion,
 } from '../daily-moment/daily-moment.types';
 import type { LocalSkillRunResult } from '../../action/local-skills/local-skill.types';
+import type { SystemSelf } from '../../system-self/system-self.types';
 
 export interface MemoryRecallPlan {
   candidatesCount: number;
@@ -71,6 +72,9 @@ export interface TurnContext {
     sessionStateText: string;
     injectedClaimsDebug: Array<{ type: string; key: string; confidence: number; status: string }>;
     draftClaimsDebug: Array<{ type: string; key: string; confidence: number; status: string }>;
+  };
+  system: {
+    systemSelf: SystemSelf;
   };
   runtime: {
     intentState?: DialogueIntentState | null;

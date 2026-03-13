@@ -15,7 +15,7 @@ export interface ActionDecision {
   toolPolicyAction?: ToolPolicyAction;
   reason: string;
   confidence: number;
-  source: 'rule' | 'llm_hint';
+  source: 'rule' | 'llm_hint' | 'reasoning_layer';
   /** suggest_reminder 时的描述 */
   reminderHint?: string;
 }

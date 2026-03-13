@@ -23,9 +23,10 @@ import { MetaLayerService } from '../meta-layer/meta-layer.service';
 import { DailyMomentModule } from '../daily-moment/daily-moment.module';
 import { PostTurnPipeline } from '../post-turn/post-turn.pipeline';
 import { SystemSelfModule } from '../../system-self/system-self.module';
+import { ReasoningModule } from '../../reasoning/reasoning.module';
 
 @Module({
-  imports: [ActionReasonerModule, LlmModule, PromptRouterModule, MemoryModule, PersonaModule, IntentModule, OpenClawModule, ActionModule, WorldStateModule, IdentityAnchorModule, SummarizerModule, CognitivePipelineModule, DailyMomentModule, SystemSelfModule],
+  imports: [ActionReasonerModule, LlmModule, PromptRouterModule, MemoryModule, PersonaModule, IntentModule, OpenClawModule, ActionModule, WorldStateModule, IdentityAnchorModule, SummarizerModule, CognitivePipelineModule, DailyMomentModule, SystemSelfModule, ReasoningModule],
   controllers: [ConversationController],
   providers: [
     ConversationService,

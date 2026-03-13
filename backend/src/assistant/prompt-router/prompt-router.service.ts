@@ -12,6 +12,7 @@ import type {
   PersistedGrowthContext,
 } from '../cognitive-pipeline/cognitive-pipeline.types';
 import { ClaimSchemaRegistry, CLAIM_KEYS } from '../claim-engine/claim-schema.registry';
+import type { SystemSelf } from '../../system-self/system-self.types';
 
 export const CHAT_PROMPT_VERSION = 'chat_v6';
 export const SUMMARY_PROMPT_VERSION = 'summary_v2';
@@ -55,6 +56,8 @@ export interface ChatContext {
   handoffDevHint?: boolean;
   /** 行动决策提示：建议提醒时的描述，回复中可自然提议「要不要我帮你记一下」等，不自动创建任务 */
   reminderHint?: string | null;
+  /** 系统自省信息：系统名称、版本、能力列表等 */
+  systemSelf?: SystemSelf;
 }
 
 export interface SummaryContext {
@@ -140,10 +143,22 @@ export class PromptRouterService {
       actionHintPart = `[行动提示] 用户提到了将来要做的事（${ctx.reminderHint}）。可在回复中自然提议「要不要我帮你记一下」等，不要自动创建任务。`;
     }
 
+    let systemSelfPart = '';
+    if (ctx.systemSelf) {
+      const capabilities = ctx.systemSelf.capabilities
+        .filter(c => c.visibility !== 'hidden')
+        .map(c => c.name)
+        .join('、');
+      if (capabilities) {
+        systemSelfPart = `你当前可用的能力：${capabilities}`;
+      }
+    }
+
     // 组装：人格区 → 了解区 → 背景信号 → 表达策略（靠近对话历史，权重更高）
     const parts = [
       `[${CHAT_PROMPT_VERSION}]`,
       personaPart,
+      systemSelfPart,
       identityAnchorPart,
       memoryPart,
       userProfilePart,

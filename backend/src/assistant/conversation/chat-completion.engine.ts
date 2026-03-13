@@ -1342,6 +1342,7 @@ export class ChatCompletionEngine {
       metaFilterPolicy: personaDto.metaFilterPolicy,
       handoffDevHint: actionDecision?.action === 'handoff_dev',
       reminderHint: actionDecision?.action === 'suggest_reminder' ? (actionDecision.reminderHint ?? '') : undefined,
+      systemSelf: this.preparedContext?.system?.systemSelf,
     });
 
     // ── History 截断（system prompt 不截断）────────────────

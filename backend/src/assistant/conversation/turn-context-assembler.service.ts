@@ -17,6 +17,8 @@ import { SessionStateService } from '../claim-engine/session-state.service';
 import { estimateTokens } from '../../infra/token-estimator';
 import { FeatureFlagConfig } from './feature-flag.config';
 import { SystemSelfService } from '../../system-self/system-self.service';
+import { IntentReasoner } from '../../reasoning/intent-reasoner.service';
+import { ChainReasoner } from '../../reasoning/chain-reasoner.service';
 import type { TurnContext } from './orchestration.types';
 
 @Injectable()
@@ -47,6 +49,8 @@ export class TurnContextAssembler {
     private readonly sessionStateStore: SessionStateService,
     private readonly flags: FeatureFlagConfig,
     private readonly systemSelf: SystemSelfService,
+    private readonly intentReasoner: IntentReasoner,
+    private readonly chainReasoner: ChainReasoner,
   ) {}
 
   async assemble(input: {
@@ -56,7 +60,7 @@ export class TurnContextAssembler {
     now: Date;
     recentRounds: number;
   }): Promise<TurnContext> {
-    const [recentRaw, personaDto, profile, anchors, storedWorldState, growthContext] = await Promise.all([
+    const [recentRaw, personaDto, profile, anchors, storedWorldState, growthContext, systemSelf] = await Promise.all([
       this.prisma.message.findMany({
         where: { conversationId: input.conversationId },
         orderBy: { createdAt: 'desc' },
@@ -67,6 +71,7 @@ export class TurnContextAssembler {
       this.identityAnchor.getActiveAnchors(),
       this.worldState.get(input.conversationId),
       this.cognitiveGrowth.getGrowthContext(),
+      this.systemSelf.getSystemSelf('chat'),
     ]);
 
     const recentMessages = recentRaw.reverse().map((m) => ({ role: m.role, content: m.content }));
@@ -88,7 +93,19 @@ export class TurnContextAssembler {
     const claimCtx = await this.buildClaimAndSessionContext(input.conversationId);
 
     const resolvedIntent = intentCtx.mergedIntentState ?? intentCtx.intentState;
-    const actionDecision = this.actionReasoner.decide(resolvedIntent ?? null);
+
+    // Reasoning Layer: check if chain execution is needed
+    const chainResult = await this.chainReasoner.reason({
+      conversationId: input.conversationId,
+      turnId: input.userMessage.id,
+      userInput: input.userInput,
+      channel: 'chat',
+      intentState: resolvedIntent ?? undefined,
+    });
+
+    const actionDecision = chainResult.decision === 'run_chain'
+      ? { action: 'run_capability' as const, capability: chainResult.capabilities[0], reason: chainResult.reasoning ?? '', confidence: 1, source: 'reasoning_layer' as const }
+      : this.actionReasoner.decide(resolvedIntent ?? null);
 
     return {
       request: {
@@ -113,6 +130,7 @@ export class TurnContextAssembler {
       memory: memoryCtx,
       growth: { growthContext },
       claims: claimCtx,
+      system: { systemSelf },
       runtime: {
         intentState: intentCtx.intentState,
         mergedIntentState: intentCtx.mergedIntentState,
@@ -133,7 +151,7 @@ export class TurnContextAssembler {
     now: Date;
     recentRounds: number;
   }): Promise<TurnContext> {
-    const [recentRaw, personaDto, profile, anchors, storedWorldState, growthContext] = await Promise.all([
+    const [recentRaw, personaDto, profile, anchors, storedWorldState, growthContext, systemSelf] = await Promise.all([
       this.prisma.message.findMany({
         where: { conversationId: input.conversationId },
         orderBy: { createdAt: 'desc' },
@@ -144,6 +162,7 @@ export class TurnContextAssembler {
       this.identityAnchor.getActiveAnchors(),
       this.worldState.get(input.conversationId),
       this.cognitiveGrowth.getGrowthContext(),
+      this.systemSelf.getSystemSelf('chat'),
     ]);
 
     const recentMessages = recentRaw.reverse().map((m) => ({ role: m.role, content: m.content }));
@@ -173,6 +192,7 @@ export class TurnContextAssembler {
         injectedClaimsDebug: [],
         draftClaimsDebug: [],
       },
+      system: { systemSelf },
       runtime: {},
     };
   }
