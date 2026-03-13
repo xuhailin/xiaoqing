@@ -5,7 +5,6 @@ import { AssistantOrchestrator } from './assistant-orchestrator.service';
 import { ChatCompletionEngine } from './chat-completion.engine';
 import { ChatCompletionRunner } from './chat-completion-runner.service';
 import { TurnContextAssembler } from './turn-context-assembler.service';
-import { ToolPolicyResolver } from './tool-policy-resolver.service';
 import { SummarizeTriggerService } from './summarize-trigger.service';
 import { FeatureFlagConfig } from './feature-flag.config';
 import { ActionReasonerModule } from '../action-reasoner/action-reasoner.module';
@@ -33,7 +32,6 @@ import { PostTurnPipeline } from '../post-turn/post-turn.pipeline';
     ChatCompletionEngine,
     ChatCompletionRunner,
     TurnContextAssembler,
-    ToolPolicyResolver,
     SummarizeTriggerService,
     FeatureFlagConfig,
     PostTurnPipeline,

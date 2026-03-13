@@ -4,7 +4,6 @@ import { estimateTokens } from '../../infra/token-estimator';
 import { ActionReasonerService } from '../action-reasoner/action-reasoner.service';
 import { PostTurnPipeline } from '../post-turn/post-turn.pipeline';
 import { TurnContextAssembler } from './turn-context-assembler.service';
-import { ToolPolicyResolver } from './tool-policy-resolver.service';
 import { ChatCompletionRunner } from './chat-completion-runner.service';
 import { SummarizeTriggerService } from './summarize-trigger.service';
 import type { SendMessageResult, ToolPolicyDecision, TurnContext } from './orchestration.types';
@@ -16,7 +15,6 @@ export class AssistantOrchestrator {
   constructor(
     private readonly assembler: TurnContextAssembler,
     private readonly actionReasoner: ActionReasonerService,
-    private readonly policyResolver: ToolPolicyResolver,
     private readonly completionRunner: ChatCompletionRunner,
     private readonly postTurnPipeline: PostTurnPipeline,
     private readonly summarizeTrigger: SummarizeTriggerService,
@@ -56,7 +54,8 @@ export class AssistantOrchestrator {
       } else {
         const resolvedIntent = context.runtime.mergedIntentState ?? context.runtime.intentState;
         if (resolvedIntent) {
-          policy = await this.policyResolver.resolve(context, resolvedIntent);
+          const decision = this.actionReasoner.decide(resolvedIntent);
+          policy = this.actionReasoner.toToolPolicy(decision);
         }
       }
     } catch (err) {
