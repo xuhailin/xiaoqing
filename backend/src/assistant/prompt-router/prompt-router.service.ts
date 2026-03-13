@@ -13,6 +13,7 @@ import type {
 } from '../cognitive-pipeline/cognitive-pipeline.types';
 import { ClaimSchemaRegistry, CLAIM_KEYS } from '../claim-engine/claim-schema.registry';
 import type { SystemSelf } from '../../system-self/system-self.types';
+import type { TaskPlan } from '../planning/task-planner.types';
 
 export const CHAT_PROMPT_VERSION = 'chat_v6';
 export const SUMMARY_PROMPT_VERSION = 'summary_v2';
@@ -58,6 +59,14 @@ export interface ChatContext {
   reminderHint?: string | null;
   /** 系统自省信息：系统名称、版本、能力列表等 */
   systemSelf?: SystemSelf;
+  /** 上一轮反思结果：用于改进本轮决策 */
+  previousReflection?: {
+    quality: 'good' | 'suboptimal' | 'failed';
+    adjustmentHint: string;
+    timestamp: Date;
+  };
+  /** 任务规划结果：多步骤任务的执行计划 */
+  taskPlan?: TaskPlan;
 }
 
 export interface SummaryContext {
@@ -143,6 +152,29 @@ export class PromptRouterService {
       actionHintPart = `[行动提示] 用户提到了将来要做的事（${ctx.reminderHint}）。可在回复中自然提议「要不要我帮你记一下」等，不要自动创建任务。`;
     }
 
+    let reflectionPart = '';
+    if (ctx.previousReflection) {
+      reflectionPart = `[上轮反思] 质量=${ctx.previousReflection.quality}，调整建议：${ctx.previousReflection.adjustmentHint}`;
+    }
+
+    let taskPlanPart = '';
+    if (ctx.taskPlan && ctx.taskPlan.shouldPlan) {
+      const lines = [
+        '[任务规划]',
+        `- 复杂度：${ctx.taskPlan.complexity === 'low' ? '低' : ctx.taskPlan.complexity === 'mid' ? '中' : '高'}`,
+      ];
+      if (ctx.taskPlan.steps && ctx.taskPlan.steps.length > 0) {
+        lines.push('- 建议步骤：');
+        ctx.taskPlan.steps.forEach((step, idx) => {
+          lines.push(`  ${idx + 1}. ${step}`);
+        });
+      }
+      if (ctx.taskPlan.estimatedMinutes) {
+        lines.push(`- 预计耗时：${ctx.taskPlan.estimatedMinutes} 分钟`);
+      }
+      taskPlanPart = lines.join('\n');
+    }
+
     let systemSelfPart = '';
     if (ctx.systemSelf) {
       const capabilities = ctx.systemSelf.capabilities
@@ -169,6 +201,8 @@ export class PromptRouterService {
       sessionStatePart,
       boundaryPart,
       cognitivePart,
+      reflectionPart,
+      taskPlanPart,
       actionHintPart,
       metaPart,
       expressionPart,

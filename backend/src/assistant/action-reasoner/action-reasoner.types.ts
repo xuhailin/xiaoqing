@@ -1,4 +1,5 @@
 import type { ToolPolicyAction } from '../conversation/orchestration.types';
+import type { TaskPlan } from '../planning/task-planner.types';
 
 /** 行动决策模式 */
 export type ActionMode =
@@ -18,4 +19,6 @@ export interface ActionDecision {
   source: 'rule' | 'llm_hint' | 'reasoning_layer';
   /** suggest_reminder 时的描述 */
   reminderHint?: string;
+  /** 任务规划结果（如果生成） */
+  taskPlan?: TaskPlan;
 }

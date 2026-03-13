@@ -1343,6 +1343,8 @@ export class ChatCompletionEngine {
       handoffDevHint: actionDecision?.action === 'handoff_dev',
       reminderHint: actionDecision?.action === 'suggest_reminder' ? (actionDecision.reminderHint ?? '') : undefined,
       systemSelf: this.preparedContext?.system?.systemSelf,
+      previousReflection: this.preparedContext?.runtime?.previousReflection,
+      taskPlan: actionDecision?.taskPlan,
     });
 
     // ── History 截断（system prompt 不截断）────────────────

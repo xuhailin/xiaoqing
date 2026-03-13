@@ -4,7 +4,6 @@ import {
   Delete,
   Get,
   Param,
-  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -37,14 +36,6 @@ export class MemoryController {
     return this.memory.getOne(id);
   }
 
-  @Patch(':id')
-  async update(
-    @Param('id') id: string,
-    @Body() body: { content?: string; confidence?: number; sourceMessageIds?: string[] },
-  ) {
-    return this.memory.update(id, body);
-  }
-
   // --- Decay APIs（须在 Delete(':id') 之前，避免 decay/cleanup 被当作 id）---
   @Post('decay/recalculate')
   async recalculateDecay() {
@@ -63,8 +54,7 @@ export class MemoryController {
     return { deleted };
   }
 
-  @Delete(':id')
-  async deleteOne(@Param('id') id: string) {
-    return this.memory.deleteOne(id);
-  }
+  // 注意：移除了 PATCH ':id' 和 DELETE ':id' 端点
+  // 记忆的修改和删除应该通过内部服务（如 MemoryWriteGuardService）进行，
+  // 而不是通过外部 API 直接操作，以保护数据完整性
 }

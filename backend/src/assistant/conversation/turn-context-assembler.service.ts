@@ -17,7 +17,6 @@ import { SessionStateService } from '../claim-engine/session-state.service';
 import { estimateTokens } from '../../infra/token-estimator';
 import { FeatureFlagConfig } from './feature-flag.config';
 import { SystemSelfService } from '../../system-self/system-self.service';
-import { IntentReasoner } from '../../reasoning/intent-reasoner.service';
 import { ChainReasoner } from '../../reasoning/chain-reasoner.service';
 import type { TurnContext } from './orchestration.types';
 
@@ -49,7 +48,6 @@ export class TurnContextAssembler {
     private readonly sessionStateStore: SessionStateService,
     private readonly flags: FeatureFlagConfig,
     private readonly systemSelf: SystemSelfService,
-    private readonly intentReasoner: IntentReasoner,
     private readonly chainReasoner: ChainReasoner,
   ) {}
 
@@ -92,6 +90,25 @@ export class TurnContextAssembler {
     const fullWorldState = await this.worldState.get(input.conversationId);
     const claimCtx = await this.buildClaimAndSessionContext(input.conversationId);
 
+    // 读取上一轮的反思结果
+    let previousReflection: { quality: 'good' | 'suboptimal' | 'failed'; adjustmentHint: string; timestamp: Date } | undefined;
+    try {
+      const userKey = 'default-user'; // 当前系统使用固定 userKey
+      const sessionState = await this.sessionStateStore.getFreshState(userKey, input.conversationId);
+      if (sessionState?.stateJson?.lastReflection) {
+        const lr = sessionState.stateJson.lastReflection as any;
+        if (lr.quality && lr.adjustmentHint && lr.timestamp) {
+          previousReflection = {
+            quality: lr.quality,
+            adjustmentHint: lr.adjustmentHint,
+            timestamp: new Date(lr.timestamp),
+          };
+        }
+      }
+    } catch (err) {
+      this.logger.warn(`Failed to load previous reflection: ${String(err)}`);
+    }
+
     const resolvedIntent = intentCtx.mergedIntentState ?? intentCtx.intentState;
 
     // Reasoning Layer: check if chain execution is needed
@@ -105,7 +122,7 @@ export class TurnContextAssembler {
 
     const actionDecision = chainResult.decision === 'run_chain'
       ? { action: 'run_capability' as const, capability: chainResult.capabilities[0], reason: chainResult.reasoning ?? '', confidence: 1, source: 'reasoning_layer' as const }
-      : this.actionReasoner.decide(resolvedIntent ?? null);
+      : this.actionReasoner.decide(resolvedIntent ?? null, input.userInput);
 
     return {
       request: {
@@ -140,6 +157,7 @@ export class TurnContextAssembler {
           selectedCount: memoryCtx.injectedMemories.length,
           needDetail: memoryCtx.needDetail,
         },
+        ...(previousReflection ? { previousReflection } : {}),
       },
     };
   }

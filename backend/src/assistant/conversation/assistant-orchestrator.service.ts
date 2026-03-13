@@ -7,6 +7,7 @@ import { PostTurnPipeline } from '../post-turn/post-turn.pipeline';
 import { TurnContextAssembler } from './turn-context-assembler.service';
 import { ChatCompletionRunner } from './chat-completion-runner.service';
 import { SummarizeTriggerService } from './summarize-trigger.service';
+import { SessionStateService } from '../claim-engine/session-state.service';
 import type { SendMessageResult, ToolPolicyDecision, TurnContext } from './orchestration.types';
 
 @Injectable()
@@ -20,6 +21,7 @@ export class AssistantOrchestrator {
     private readonly completionRunner: ChatCompletionRunner,
     private readonly postTurnPipeline: PostTurnPipeline,
     private readonly summarizeTrigger: SummarizeTriggerService,
+    private readonly sessionState: SessionStateService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -112,6 +114,29 @@ export class AssistantOrchestrator {
 
       if (reflection.quality !== 'good') {
         this.logger.warn(`Reflection: ${reflection.quality} - ${reflection.issues?.join('; ')}`);
+      }
+
+      // 持久化反思结果到 SessionState（如果有 adjustmentHint）
+      if (reflection.adjustmentHint) {
+        try {
+          const userKey = 'default-user'; // 当前系统使用固定 userKey
+          await this.sessionState.upsertState({
+            userKey,
+            sessionId: input.conversationId,
+            state: {
+              lastReflection: {
+                quality: reflection.quality,
+                adjustmentHint: reflection.adjustmentHint,
+                timestamp: new Date(),
+              },
+            },
+            confidence: 0.8,
+            ttlSeconds: 21600, // 6 小时
+            sourceModel: 'reflection-service',
+          });
+        } catch (err) {
+          this.logger.warn(`Failed to persist reflection: ${String(err)}`);
+        }
       }
     } catch (err) {
       this.logger.warn(`reflection failed: ${String(err)}`);

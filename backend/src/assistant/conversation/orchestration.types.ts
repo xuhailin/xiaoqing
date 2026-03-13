@@ -83,6 +83,11 @@ export interface TurnContext {
     memoryRecall?: MemoryRecallPlan;
     cognitiveState?: CognitiveTurnState;
     boundaryPrompt?: BoundaryPromptContext | null;
+    previousReflection?: {
+      quality: 'good' | 'suboptimal' | 'failed';
+      adjustmentHint: string;
+      timestamp: Date;
+    };
   };
 }
 

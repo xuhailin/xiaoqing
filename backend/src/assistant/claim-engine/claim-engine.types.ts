@@ -42,6 +42,12 @@ export interface SessionStateDraft {
   sourceModel?: string;
 }
 
+export interface LastReflection {
+  quality: 'good' | 'suboptimal' | 'failed';
+  adjustmentHint?: string;
+  timestamp: Date;
+}
+
 export interface ClaimRecord {
   id: string;
   userKey: string;

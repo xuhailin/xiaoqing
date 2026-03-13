@@ -34,7 +34,7 @@ export class ActionReasonerService {
   /**
    * 规则优先，LLM hint 补充。无 intentState 时返回默认 direct_reply。
    */
-  decide(intentState: DialogueIntentState | null): ActionDecision {
+  decide(intentState: DialogueIntentState | null, userInput?: string): ActionDecision {
     if (!intentState) {
       return {
         action: 'direct_reply',
@@ -44,7 +44,7 @@ export class ActionReasonerService {
       };
     }
 
-    const ruleDecision = this.applyRules(intentState);
+    const ruleDecision = this.applyRules(intentState, userInput);
     if (ruleDecision) return ruleDecision;
 
     const llmHint = intentState.actionHint?.action;
@@ -94,7 +94,7 @@ export class ActionReasonerService {
     return { action: 'chat', reason: decision.reason };
   }
 
-  private applyRules(intentState: DialogueIntentState): ActionDecision | null {
+  private applyRules(intentState: DialogueIntentState, userInput?: string): ActionDecision | null {
     const threshold = this.openclawConfidenceThreshold;
 
     if (!intentState.requiresTool && intentState.taskIntent === 'none') {
@@ -132,7 +132,7 @@ export class ActionReasonerService {
 
     if (intentState.escalation === '应转任务') {
       const plan = this.taskPlanner.shouldPlan({
-        userInput: '',
+        userInput: userInput ?? '',
         intentState: {
           taskIntent: intentState.taskIntent,
           escalation: intentState.escalation,
@@ -151,6 +151,7 @@ export class ActionReasonerService {
         confidence: intentState.confidence,
         source: 'rule',
         reminderHint: hint,
+        taskPlan: plan.shouldPlan ? plan : undefined,
       };
     }
 
