@@ -148,6 +148,7 @@ export class IntentService {
         'general_tool',
         'timesheet',
         'dev_task',
+        'set_reminder',
       ]);
 
     // 兼容旧字段 toolNeed，避免模型短期内输出旧结构导致行为跳变。
@@ -183,12 +184,12 @@ export class IntentService {
       ? input.missingParams.filter((p): p is string => typeof p === 'string' && p.length > 0)
       : [];
 
-    const suggestedToolAllowed: DialogueSuggestedTool[] = ['weather', 'book_download', 'timesheet'];
+    const suggestedToolAllowed: DialogueSuggestedTool[] = ['weather', 'book_download', 'timesheet', 'reminder'];
     const suggestedToolRaw =
       this.pickOne<DialogueSuggestedTool>(input.suggestedTool, suggestedToolAllowed) ??
       this.pickOne<DialogueSuggestedTool>(rawInput.preferredSkill, suggestedToolAllowed);
     const suggestedTool = suggestedToolRaw ??
-      (taskIntent === 'weather_query' ? 'weather' : taskIntent === 'book_download' ? 'book_download' : taskIntent === 'timesheet' ? 'timesheet' : undefined);
+      (taskIntent === 'weather_query' ? 'weather' : taskIntent === 'book_download' ? 'book_download' : taskIntent === 'timesheet' ? 'timesheet' : taskIntent === 'set_reminder' ? 'reminder' : undefined);
     const normalizedTaskIntent =
       taskIntent === 'general_tool' && suggestedTool === 'weather'
         ? 'weather_query'
@@ -196,7 +197,9 @@ export class IntentService {
           ? 'book_download'
           : taskIntent === 'general_tool' && suggestedTool === 'timesheet'
             ? 'timesheet'
-            : taskIntent;
+            : taskIntent === 'general_tool' && suggestedTool === 'reminder'
+              ? 'set_reminder'
+              : taskIntent;
 
     const slots = this.normalizeSlots(input.slots as unknown);
 
@@ -304,6 +307,22 @@ export class IntentService {
     }
     if (typeof input.timesheetRawOverride === 'string' && input.timesheetRawOverride.trim()) {
       slots.timesheetRawOverride = input.timesheetRawOverride.trim();
+    }
+    // 提醒槽位
+    const reminderActionAllowed = ['create', 'list', 'cancel'] as const;
+    const rmAction = this.pickOne(input.reminderAction, reminderActionAllowed);
+    if (rmAction) slots.reminderAction = rmAction;
+    if (typeof input.reminderReason === 'string' && input.reminderReason.trim()) {
+      slots.reminderReason = input.reminderReason.trim();
+    }
+    const reminderScheduleAllowed = ['once', 'daily', 'weekly'] as const;
+    const rmSchedule = this.pickOne(input.reminderSchedule, reminderScheduleAllowed);
+    if (rmSchedule) slots.reminderSchedule = rmSchedule;
+    if (typeof input.reminderTime === 'string' && input.reminderTime.trim()) {
+      slots.reminderTime = input.reminderTime.trim();
+    }
+    if (typeof input.reminderTarget === 'string' && input.reminderTarget.trim()) {
+      slots.reminderTarget = input.reminderTarget.trim();
     }
     // location 仅存坐标串，不把城市名写入
     const locRaw = typeof input.location === 'string' ? input.location.trim() : '';

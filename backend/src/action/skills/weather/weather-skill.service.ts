@@ -39,6 +39,12 @@ export class WeatherSkillService implements ICapability {
   readonly taskIntent = 'weather_query';
   readonly channels: MessageChannel[] = ['chat'];
   readonly description = '查天气（今天/明天/后天、某地天气）';
+  readonly surface = 'assistant' as const;
+  readonly scope = 'public' as const;
+  readonly portability = 'config-bound' as const;
+  readonly requiresAuth = false;
+  readonly requiresUserContext = false;
+  readonly visibility = 'default' as const;
 
   constructor(config: ConfigService) {
     this.apiKey = config.get('QWEATHER_API_KEY') || '';

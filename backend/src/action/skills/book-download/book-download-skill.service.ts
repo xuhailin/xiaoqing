@@ -16,6 +16,12 @@ export class BookDownloadSkillService implements ICapability {
   readonly taskIntent = 'book_download';
   readonly channels: MessageChannel[] = ['chat'];
   readonly description = '下载电子书（用户说「下载xxx」「帮我找《xxx》」等）';
+  readonly surface = 'assistant' as const;
+  readonly scope = 'private' as const;
+  readonly portability = 'config-bound' as const;
+  readonly requiresAuth = true;
+  readonly requiresUserContext = true;
+  readonly visibility = 'optional' as const;
 
   constructor(config: ConfigService) {
     this.baseUrl = config.get('RESOURCE_BASE_URL') || '';

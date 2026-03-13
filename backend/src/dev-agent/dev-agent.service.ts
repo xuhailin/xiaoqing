@@ -189,8 +189,8 @@ export class DevAgentService {
     return this.reminders.createReminder(input);
   }
 
-  async listReminders(sessionId?: string) {
-    return this.reminders.listReminders(sessionId);
+  async listReminders(sessionId?: string, scope?: string) {
+    return this.reminders.listReminders(sessionId, scope);
   }
 
   async setReminderEnabled(id: string, enabled: boolean) {

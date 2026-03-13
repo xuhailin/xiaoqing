@@ -16,7 +16,7 @@ export class DevPlannerPromptFactory {
       ? String(options.replanReason).slice(0, REPLAN_REASON_MAX_CHARS)
       : '无';
     const workspacePathHint = this.buildWorkspacePathHint(safeGoal, taskContext);
-    const devCapabilities = this.capabilityRegistry.listAvailable('dev');
+    const devCapabilities = this.capabilityRegistry.listExposed('dev', { surface: 'dev' });
     const capabilityLines = devCapabilities.length > 0
       ? devCapabilities.map((c) => `- ${c.name}：${c.description}`).join('\n')
       : '- shell：本地 shell 命令执行（支持 ls, cat, grep, find, node, npm, npx, git, curl 等常用命令）\n- openclaw：远端 AI Agent 执行（适合复杂推理、代码生成等任务）';

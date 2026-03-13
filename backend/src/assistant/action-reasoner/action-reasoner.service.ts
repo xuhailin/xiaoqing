@@ -5,13 +5,6 @@ import type { DialogueIntentState } from '../intent/intent.types';
 import type { ToolPolicyAction, ToolPolicyDecision } from '../conversation/orchestration.types';
 import type { ActionDecision, ActionMode } from './action-reasoner.types';
 
-const CAPABILITY_TO_ACTION: Record<string, ToolPolicyAction> = {
-  weather: 'run_local_weather',
-  'book-download': 'run_local_book_download',
-  'general-action': 'run_local_general_action',
-  timesheet: 'run_local_timesheet',
-};
-
 const VALID_ACTION_MODES: ActionMode[] = [
   'direct_reply',
   'run_capability',
@@ -77,7 +70,11 @@ export class ActionReasonerService {
    */
   toToolPolicy(decision: ActionDecision): ToolPolicyDecision {
     if (decision.toolPolicyAction) {
-      return { action: decision.toolPolicyAction, reason: decision.reason };
+      return {
+        action: decision.toolPolicyAction,
+        reason: decision.reason,
+        ...(decision.capability ? { capability: decision.capability } : {}),
+      };
     }
     if (decision.action === 'handoff_dev' || decision.action === 'suggest_reminder') {
       return { action: 'chat', reason: decision.reason };
@@ -86,9 +83,7 @@ export class ActionReasonerService {
       return { action: 'chat', reason: decision.reason };
     }
     if (decision.action === 'run_capability' && decision.capability) {
-      const action = CAPABILITY_TO_ACTION[decision.capability];
-      if (action) return { action, reason: decision.reason };
-      if (this.featureOpenClaw) return { action: 'run_openclaw', reason: decision.reason };
+      return { action: 'run_capability', capability: decision.capability, reason: decision.reason };
     }
     return { action: 'chat', reason: decision.reason };
   }
@@ -113,6 +108,20 @@ export class ActionReasonerService {
         confidence: intentState.confidence,
         source: 'rule',
       };
+    }
+
+    if (intentState.taskIntent === 'set_reminder') {
+      const cap = this.capabilityRegistry.findByTaskIntent('set_reminder', 'chat');
+      if (cap) {
+        return {
+          action: 'run_capability',
+          capability: cap.name,
+          toolPolicyAction: 'run_capability',
+          reason: '提醒意图，执行 reminder 能力',
+          confidence: intentState.confidence,
+          source: 'rule',
+        };
+      }
     }
 
     if (intentState.escalation === '应转任务') {
@@ -153,17 +162,14 @@ export class ActionReasonerService {
     if (intentState.taskIntent !== 'none') {
       const cap = this.capabilityRegistry.findByTaskIntent(intentState.taskIntent, 'chat');
       if (cap) {
-        const action = CAPABILITY_TO_ACTION[cap.name];
-        if (action) {
-          return {
-            action: 'run_capability',
-            capability: cap.name,
-            toolPolicyAction: action,
-            reason: `${intentState.taskIntent} 意图参数齐全，本地 ${cap.name} 可用`,
-            confidence: intentState.confidence,
-            source: 'rule',
-          };
-        }
+        return {
+          action: 'run_capability',
+          capability: cap.name,
+          toolPolicyAction: 'run_capability',
+          reason: `${intentState.taskIntent} 意图参数齐全，本地 ${cap.name} 可用`,
+          confidence: intentState.confidence,
+          source: 'rule',
+        };
       }
       if (this.featureOpenClaw) {
         return {
@@ -206,8 +212,7 @@ export class ActionReasonerService {
       if (intentState.taskIntent !== 'none' && intentState.taskIntent !== 'dev_task') {
         const cap = this.capabilityRegistry.findByTaskIntent(intentState.taskIntent, 'chat');
         if (cap) {
-          const action = CAPABILITY_TO_ACTION[cap.name];
-          if (action) return { toolPolicyAction: action, capability: cap.name };
+          return { toolPolicyAction: 'run_capability', capability: cap.name };
         }
       }
       if (this.featureOpenClaw) return { toolPolicyAction: 'run_openclaw' };

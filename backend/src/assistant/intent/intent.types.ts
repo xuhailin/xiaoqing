@@ -5,9 +5,9 @@ export type DialogueSeriousness = 'casual' | 'semi' | 'focused';
 export type DialogueExpectation = '陪聊' | '一起想' | '直接给结果';
 export type DialogueAgency = '朋友' | '并肩思考者' | '顾问' | '执行器';
 export type DialogueEscalation = '不推进' | '可记录' | '应转任务';
-export type DialogueTaskIntent = 'none' | 'weather_query' | 'book_download' | 'general_tool' | 'timesheet' | 'dev_task';
+export type DialogueTaskIntent = 'none' | 'weather_query' | 'book_download' | 'general_tool' | 'timesheet' | 'dev_task' | 'set_reminder';
 /** LLM 给出的建议工具；最终是否调用由策略层决定 */
-export type DialogueSuggestedTool = 'weather' | 'book_download' | 'timesheet';
+export type DialogueSuggestedTool = 'weather' | 'book_download' | 'timesheet' | 'reminder';
 
 export interface DialogueIntentSlots {
   city?: string;
@@ -26,6 +26,16 @@ export interface DialogueIntentSlots {
   timesheetMonth?: string;
   /** 工时上报：确认时的原始修改文本，如 "住院医生 松江现场支持 8" */
   timesheetRawOverride?: string;
+  /** 提醒：操作类型 */
+  reminderAction?: 'create' | 'list' | 'cancel';
+  /** 提醒：原因/内容（如 "吃晚饭"） */
+  reminderReason?: string;
+  /** 提醒：频率 */
+  reminderSchedule?: 'once' | 'daily' | 'weekly';
+  /** 提醒：时间（如 "18:00"、"明天 9:00"、"每周一 10:00"） */
+  reminderTime?: string;
+  /** 提醒：取消时的提醒 ID 或关键词 */
+  reminderTarget?: string;
   [key: string]: unknown;
 }
 

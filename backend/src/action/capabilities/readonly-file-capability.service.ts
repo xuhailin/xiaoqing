@@ -18,6 +18,12 @@ export class ReadonlyFileCapabilityService implements ICapability {
   readonly taskIntent = 'internal_readonly_file';
   readonly channels: MessageChannel[] = [];
   readonly description = 'Internal read-only file access capability for local skills.';
+  readonly surface = 'internal' as const;
+  readonly scope = 'private' as const;
+  readonly portability = 'environment-bound' as const;
+  readonly requiresAuth = false;
+  readonly requiresUserContext = false;
+  readonly visibility = 'local-only' as const;
 
   private readonly repoRoot = process.cwd();
   private readonly allowedReadme = path.resolve(this.repoRoot, 'README.md');

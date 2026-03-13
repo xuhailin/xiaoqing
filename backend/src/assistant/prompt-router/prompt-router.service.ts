@@ -73,7 +73,7 @@ export interface ToolResultContext {
   expressionText?: string;
   userProfileText?: string;
   metaFilterPolicy?: string | null;
-  toolKind?: 'weather' | 'book_download' | 'general_action' | 'timesheet' | 'openclaw';
+  toolKind?: 'weather' | 'book_download' | 'general_action' | 'timesheet' | 'reminder' | 'openclaw';
   userInput: string;
   toolResult: string | null;
   toolError: string | null;

@@ -37,6 +37,12 @@ export class ShellExecutor implements IDevExecutor, ICapability {
   readonly taskIntent = 'shell_command';
   readonly channels: MessageChannel[] = ['dev'];
   readonly description = '本地 shell 命令执行（ls/cat/grep/git/npm 等）';
+  readonly surface = 'dev' as const;
+  readonly scope = 'private' as const;
+  readonly portability = 'environment-bound' as const;
+  readonly requiresAuth = false;
+  readonly requiresUserContext = true;
+  readonly visibility = 'default' as const;
 
   private readonly logger = new Logger(ShellExecutor.name);
 

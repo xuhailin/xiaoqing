@@ -182,11 +182,15 @@ export class TurnContextAssembler {
     defaultWorldState: TurnContext['world']['defaultWorldState'];
     anchorCity?: string;
   }): Promise<{ intentState: DialogueIntentState | null; mergedIntentState: DialogueIntentState | null }> {
-    const hasAnyChatCapability = this.flags.featureOpenClaw || this.capabilityRegistry.listAvailable('chat').length > 0;
+    const hasAnyChatCapability =
+      this.flags.featureOpenClaw ||
+      this.capabilityRegistry.listExposed('chat', { surface: 'assistant' }).length > 0;
     if (!hasAnyChatCapability) return { intentState: null, mergedIntentState: null };
 
     try {
-      const capabilityPrompt = this.capabilityRegistry.buildCapabilityPrompt('chat');
+      const capabilityPrompt = this.capabilityRegistry.buildExposedCapabilityPrompt('chat', {
+        surface: 'assistant',
+      });
       const intentState = await this.intent.recognize(
         input.recentMessages,
         input.userInput,

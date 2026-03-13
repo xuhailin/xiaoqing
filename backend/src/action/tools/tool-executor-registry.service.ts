@@ -12,6 +12,7 @@ const EXECUTOR_TO_CAPABILITY: Record<string, string> = {
   'local-book-download': 'book-download',
   'local-general-action': 'general-action',
   'local-timesheet': 'timesheet',
+  'local-reminder': 'reminder',
 };
 
 /**

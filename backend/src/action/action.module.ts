@@ -5,10 +5,12 @@ import { WeatherSkillModule } from './skills/weather/weather-skill.module';
 import { BookDownloadSkillModule } from './skills/book-download/book-download-skill.module';
 import { GeneralActionSkillModule } from './skills/general-action/general-action-skill.module';
 import { TimesheetSkillModule } from './skills/timesheet/timesheet-skill.module';
+import { ReminderSkillModule } from './skills/reminder/reminder-skill.module';
 import { WeatherSkillService } from './skills/weather/weather-skill.service';
 import { BookDownloadSkillService } from './skills/book-download/book-download-skill.service';
 import { GeneralActionSkillService } from './skills/general-action/general-action-skill.service';
 import { TimesheetSkillService } from './skills/timesheet/timesheet-skill.service';
+import { ReminderSkillService } from './skills/reminder/reminder-skill.service';
 import { OpenClawModule } from '../openclaw/openclaw.module';
 import { ReadonlyFileCapabilityService } from './capabilities/readonly-file-capability.service';
 import { LocalSkillModule } from './local-skills/local-skill.module';
@@ -36,11 +38,12 @@ import { SkillRunner } from './local-skills/skill-runner.service';
     BookDownloadSkillModule,
     GeneralActionSkillModule,
     TimesheetSkillModule,
+    ReminderSkillModule,
     LocalSkillModule,
     OpenClawModule,
   ],
   providers: [CapabilityRegistry, ToolExecutorRegistry, ReadonlyFileCapabilityService, SkillRunner],
-  exports: [CapabilityRegistry, ToolExecutorRegistry, WeatherSkillModule, LocalSkillModule, SkillRunner],
+  exports: [CapabilityRegistry, ToolExecutorRegistry, WeatherSkillModule, ReminderSkillModule, LocalSkillModule, SkillRunner],
 })
 export class ActionModule implements OnModuleInit {
   constructor(
@@ -49,6 +52,7 @@ export class ActionModule implements OnModuleInit {
     private readonly bookDownload: BookDownloadSkillService,
     private readonly generalAction: GeneralActionSkillService,
     private readonly timesheet: TimesheetSkillService,
+    private readonly reminder: ReminderSkillService,
     private readonly readonlyFileCapability: ReadonlyFileCapabilityService,
   ) {}
 
@@ -57,6 +61,7 @@ export class ActionModule implements OnModuleInit {
     this.registry.register(this.bookDownload);
     this.registry.register(this.generalAction);
     this.registry.register(this.timesheet);
+    this.registry.register(this.reminder);
     this.registry.register(this.readonlyFileCapability);
   }
 }

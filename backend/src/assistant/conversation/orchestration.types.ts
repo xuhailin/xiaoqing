@@ -87,7 +87,7 @@ export interface SendMessageResult {
   assistantMessage: { id: string; role: string; content: string; createdAt: Date };
   injectedMemories: Array<{ id: string; type: string; content: string }>;
   openclawUsed?: boolean;
-  localSkillUsed?: 'weather' | 'book_download' | 'general_action' | 'timesheet';
+  localSkillUsed?: 'weather' | 'book_download' | 'general_action' | 'timesheet' | 'reminder';
   dailyMoment?: {
     mode: 'entry' | 'suggestion';
     record?: DailyMomentRecord;
@@ -105,15 +105,13 @@ export type ChatCompletionResult = SendMessageResult;
 export type ToolPolicyAction =
   | 'chat'
   | 'ask_missing'
-  | 'run_local_weather'
-  | 'run_local_book_download'
-  | 'run_local_general_action'
-  | 'run_local_timesheet'
+  | 'run_capability'
   | 'run_openclaw';
 
 export interface ToolPolicyDecision {
   action: ToolPolicyAction;
   reason: string;
+  capability?: string;
 }
 
 export type TurnDecision =

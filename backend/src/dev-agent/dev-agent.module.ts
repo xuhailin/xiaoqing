@@ -27,6 +27,7 @@ import { DevRunRunnerService } from './dev-runner.service';
 import { WorkspaceManager } from './workspace/workspace-manager.service';
 import { DevReminderService } from './dev-reminder.service';
 import { DevReminderSchedulerService } from './dev-reminder.scheduler.service';
+import { ReminderMessageService } from '../action/skills/reminder/reminder-message.service';
 
 @Module({
   imports: [OpenClawModule, ActionModule, LlmModule, QueueModule],
@@ -63,6 +64,8 @@ export class DevAgentModule implements OnModuleInit {
     private readonly shell: ShellExecutor,
     private readonly openclaw: OpenClawExecutor,
     private readonly claudeCode: ClaudeCodeExecutor,
+    private readonly devReminder: DevReminderService,
+    private readonly reminderMessage: ReminderMessageService,
   ) {}
 
   onModuleInit() {
@@ -70,5 +73,8 @@ export class DevAgentModule implements OnModuleInit {
     this.registry.register(this.shell);
     this.registry.register(this.openclaw);
     this.registry.register(this.claudeCode);
+
+    // 延迟注入：将 ReminderMessageService 注入到 DevReminderService，用于 chat-scope 提醒推送
+    this.devReminder.setReminderMessageService(this.reminderMessage);
   }
 }

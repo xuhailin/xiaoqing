@@ -1,9 +1,10 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException, forwardRef } from '@nestjs/common';
 import { type Prisma, DevRunStatus, ReminderScope } from '@prisma/client';
 import { CronJob, validateCronExpression } from 'cron';
 import { PrismaService } from '../infra/prisma.service';
 import { DevRunRunnerService } from './dev-runner.service';
 import { DevSessionRepository } from './dev-session.repository';
+import type { ReminderMessageService } from '../action/skills/reminder/reminder-message.service';
 
 export interface CreateDevReminderInput {
   sessionId?: string;
@@ -22,11 +23,21 @@ export class DevReminderService {
   private readonly logger = new Logger(DevReminderService.name);
   private pollInProgress = false;
 
+  private reminderMessageService: ReminderMessageService | null = null;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly sessions: DevSessionRepository,
     private readonly runner: DevRunRunnerService,
   ) {}
+
+  /**
+   * 注入 ReminderMessageService（延迟注入，避免循环依赖）。
+   * 由 ActionModule 在初始化后调用。
+   */
+  setReminderMessageService(service: ReminderMessageService): void {
+    this.reminderMessageService = service;
+  }
 
   async createReminder(input: CreateDevReminderInput) {
     const message = input.message?.trim();
@@ -83,9 +94,14 @@ export class DevReminderService {
     });
   }
 
-  async listReminders(sessionId?: string) {
+  async listReminders(sessionId?: string, scope?: string) {
+    const where: Prisma.DevReminderWhereInput = {};
+    if (sessionId) where.sessionId = sessionId;
+    if (scope && Object.values(ReminderScope).includes(scope as ReminderScope)) {
+      where.scope = scope as ReminderScope;
+    }
     return this.prisma.devReminder.findMany({
-      where: sessionId ? { sessionId } : undefined,
+      where,
       orderBy: [{ nextRunAt: 'asc' }, { createdAt: 'desc' }],
       include: {
         session: {
@@ -264,9 +280,28 @@ export class DevReminderService {
       return null;
     }
 
-    // 只有 dev scope 才入队执行
+    // dev scope: 入队执行
     if (txResult.scope === ReminderScope.dev) {
       this.runner.startRun(txResult.runId, txResult.sessionId!);
+    }
+
+    // chat scope: 通过 ReminderMessageService 生成自然语言并推送
+    if (txResult.scope === ReminderScope.chat && this.reminderMessageService) {
+      const reminder = await this.prisma.devReminder.findUnique({ where: { id: reminderId } });
+      if (reminder) {
+        this.reminderMessageService.deliverChatReminder({
+          id: reminder.id,
+          message: reminder.message,
+          title: reminder.title,
+          sessionId: reminder.sessionId,
+        }).catch((err) => {
+          this.logger.error(`Chat reminder delivery failed: ${String(err)}`);
+          void this.prisma.devReminder.update({
+            where: { id: reminderId },
+            data: { lastError: String(err) },
+          }).catch(() => {});
+        });
+      }
     }
 
     this.logger.log(

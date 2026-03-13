@@ -16,6 +16,12 @@ export class GeneralActionSkillService implements ICapability {
   readonly taskIntent = 'general_tool';
   readonly channels: MessageChannel[] = ['chat'];
   readonly description = '其他工具型请求（搜索、邮件、日历、外部查询等）';
+  readonly surface = 'assistant' as const;
+  readonly scope = 'public' as const;
+  readonly portability = 'portable' as const;
+  readonly requiresAuth = false;
+  readonly requiresUserContext = false;
+  readonly visibility = 'optional' as const;
 
   constructor(config: ConfigService) {
     this.enabled = config.get('FEATURE_LOCAL_GENERAL_ACTION') === 'true';

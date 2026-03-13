@@ -25,6 +25,12 @@ export class ClaudeCodeExecutor implements IDevExecutor, ICapability {
   readonly taskIntent = 'claude_code_agent';
   readonly channels: MessageChannel[] = ['dev'];
   readonly description = 'Claude Code Agent 自主编码（代码生成/修改/重构/bug 修复）';
+  readonly surface = 'dev' as const;
+  readonly scope = 'private' as const;
+  readonly portability = 'environment-bound' as const;
+  readonly requiresAuth = false;
+  readonly requiresUserContext = true;
+  readonly visibility = 'default' as const;
 
   private readonly logger = new Logger(ClaudeCodeExecutor.name);
   private readonly enabled: boolean;

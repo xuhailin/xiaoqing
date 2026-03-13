@@ -288,11 +288,15 @@ export class ChatCompletionEngine {
       this.preparedContext?.runtime.mergedIntentState
       ?? this.preparedContext?.runtime.intentState
       ?? null;
-    const hasAnyChatCapability = this.featureOpenClaw || this.capabilityRegistry.listAvailable('chat').length > 0;
+    const hasAnyChatCapability =
+      this.featureOpenClaw ||
+      this.capabilityRegistry.listExposed('chat', { surface: 'assistant' }).length > 0;
     if (!intentState && hasAnyChatCapability) {
       try {
         intentState = await trace.wrap('intent', '意图识别', async () => {
-          const capabilityPrompt = this.capabilityRegistry.buildCapabilityPrompt('chat');
+          const capabilityPrompt = this.capabilityRegistry.buildExposedCapabilityPrompt('chat', {
+            surface: 'assistant',
+          });
           const state = await this.intent.recognize(recent, content, defaultLocationContext, capabilityPrompt || undefined);
           return {
             status: 'success' as const,
@@ -392,99 +396,91 @@ export class ChatCompletionEngine {
             conversationId, userMsg, content, merged.missingParams, merged, personaDto, trace, pipelineState,
           );
         }
-      if (policy.action === 'run_local_weather') {
-          let location = this.takeValidCoord(merged.slots.location);
-          let geoResolved: string | null = null;
-          if (!location && merged.slots.city) {
-            geoResolved = await this.weatherSkill.resolveCityToLocation(
-              merged.slots.city,
-              typeof merged.slots.district === 'string' && merged.slots.district.trim()
-                ? merged.slots.district.trim()
-                : undefined,
-            );
-            location = geoResolved ?? undefined;
-          }
-          if (!location) {
-            const reason = !merged.slots.city && !merged.slots.location
-              ? '意图未抽取 city 或 location 槽位'
-              : merged.slots.city && geoResolved === null
-                ? `城市 Geo 解析失败（city="${merged.slots.city}", district="${merged.slots.district ?? ''}"）`
-                : `slots.location 格式无效（"${merged.slots.location ?? ''}"）`;
-            trace.add('skill-attempt', '本地技能：天气（地点解析）', 'fail', {
-              skill: 'weather',
-              phase: 'resolve-location',
-              slotsCity: merged.slots.city ?? null,
-              slotsDistrict: merged.slots.district ?? null,
-              slotsLocation: merged.slots.location ?? null,
-              geoResolved,
-              reason,
-              fallback: 'openclaw',
-            });
-            this.logger.debug(`Weather: ${reason}, fallback to OpenClaw`);
-            this.advancePipelineState(pipelineState, 'decision');
-            if (!this.featureOpenClaw) {
-              trace.add('policy-decision', '策略决策', 'success', {
-                policyDecision: 'chat',
-                reason: 'OpenClaw 已关闭，回退聊天',
-                pipeline: this.buildPipelineSnapshot(pipelineState),
-              });
-              return this.buildToolReplyAndSave(
-                conversationId, userMsg, content, personaDto,
-                null, '天气地点解析失败，且 OpenClaw 已关闭，暂无法代为查询',
-                merged, {}, trace, pipelineState, recent,
-              );
-            }
-            return this.handleOpenClawTask(
-              conversationId, userMsg, recent, content, merged, personaDto, trace, pipelineState,
-            );
-          }
-          const displayName = merged.slots.city
-            ? (merged.slots.district ? `${merged.slots.city}${merged.slots.district}` : merged.slots.city)
-            : '该坐标';
-          const weatherInput = {
-            location,
-            dateLabel: typeof merged.slots.dateLabel === 'string' ? merged.slots.dateLabel : undefined,
-            displayName,
-          };
-          const weatherResult = await trace.wrap('skill-attempt', '本地技能：天气', async () => {
-            const result = await this.toolRegistry.execute({
-              conversationId,
-              turnId: userMsg.id,
-              userInput: content,
-              executor: 'local-weather',
-              capability: 'weather_query',
-              intentState: merged,
-              params: weatherInput as Record<string, unknown>,
-            });
-            return {
-              status: (result.success ? 'success' : 'fail') as 'success' | 'fail',
-              detail: {
-                skill: 'weather',
-                input: weatherInput,
-                success: result.success,
-                resultPreview: result.content?.slice(0, 200) ?? null,
-                error: result.error ?? null,
-                fallback: result.success ? null : 'openclaw',
-              },
-              result,
-            };
+      // Weather capability - 地理解析预处理 + fallback
+      if (policy.action === 'run_capability' && policy.capability === 'weather') {
+        let location = this.takeValidCoord(merged.slots.location);
+        let geoResolved: string | null = null;
+
+        // 地理解析预处理
+        if (!location && merged.slots.city) {
+          geoResolved = await this.weatherSkill.resolveCityToLocation(
+            merged.slots.city,
+            typeof merged.slots.district === 'string' && merged.slots.district.trim()
+              ? merged.slots.district.trim()
+              : undefined,
+          );
+          location = geoResolved ?? undefined;
+        }
+
+        // 地理解析失败，fallback 到 OpenClaw
+        if (!location) {
+          const reason = !merged.slots.city && !merged.slots.location
+            ? '意图未抽取 city 或 location 槽位'
+            : merged.slots.city && geoResolved === null
+              ? `城市 Geo 解析失败（city="${merged.slots.city}", district="${merged.slots.district ?? ''}"）`
+              : `slots.location 格式无效（"${merged.slots.location ?? ''}"）`;
+          trace.add('skill-attempt', '本地技能：天气（地点解析）', 'fail', {
+            skill: 'weather',
+            phase: 'resolve-location',
+            slotsCity: merged.slots.city ?? null,
+            slotsDistrict: merged.slots.district ?? null,
+            slotsLocation: merged.slots.location ?? null,
+            geoResolved,
+            reason,
+            fallback: 'openclaw',
           });
-          if (weatherResult.success && weatherResult.content) {
+          this.logger.debug(`Weather: ${reason}, fallback to OpenClaw`);
+          this.advancePipelineState(pipelineState, 'decision');
+          if (!this.featureOpenClaw) {
+            trace.add('policy-decision', '策略决策', 'success', {
+              policyDecision: 'chat',
+              reason: 'OpenClaw 已关闭，回退聊天',
+              pipeline: this.buildPipelineSnapshot(pipelineState),
+            });
             return this.buildToolReplyAndSave(
               conversationId, userMsg, content, personaDto,
-              weatherResult.content, null,
-              merged,
-              { localSkillUsed: 'weather' }, trace, pipelineState, recent,
+              null, '天气地点解析失败，且 OpenClaw 已关闭，暂无法代为查询',
+              merged, {}, trace, pipelineState, recent,
             );
           }
+          return this.handleOpenClawTask(
+            conversationId, userMsg, recent, content, merged, personaDto, trace, pipelineState,
+          );
+        }
+
+        // 构建参数并执行
+        const displayName = merged.slots.city
+          ? (merged.slots.district ? `${merged.slots.city}${merged.slots.district}` : merged.slots.city)
+          : '该坐标';
+        const weatherInput = {
+          location,
+          dateLabel: typeof merged.slots.dateLabel === 'string' ? merged.slots.dateLabel : undefined,
+          displayName,
+        };
+
+        const result = await this.executeCapabilityGeneric(
+          'weather',
+          conversationId,
+          userMsg,
+          content,
+          weatherInput,
+          merged,
+          personaDto,
+          trace,
+          pipelineState,
+          recent,
+          'weather',
+        );
+
+        // Weather 执行失败，fallback 到 OpenClaw
+        if (!result.assistantMessage.content || result.assistantMessage.content.includes('失败')) {
           this.advancePipelineState(pipelineState, 'decision');
           trace.add('policy-decision', '策略决策', 'success', {
             policyDecision: 'run_openclaw',
             reason: '本地 weather 执行失败，回退 OpenClaw',
-            fallbackReason: weatherResult.error ?? 'weather skill returned empty content',
             pipeline: this.buildPipelineSnapshot(pipelineState),
           });
-          this.logger.debug(`Weather skill failed or unavailable, fallback to OpenClaw: ${weatherResult.error ?? 'no content'}`);
+          this.logger.debug('Weather skill failed, fallback to OpenClaw');
           if (!this.featureOpenClaw) {
             return this.buildToolReplyAndSave(
               conversationId, userMsg, content, personaDto,
@@ -496,84 +492,28 @@ export class ChatCompletionEngine {
             conversationId, userMsg, recent, content, merged, personaDto, trace, pipelineState,
           );
         }
-      if (policy.action === 'run_local_book_download') {
-          const bookName = typeof merged.slots.bookName === 'string' ? merged.slots.bookName.trim() : '';
-          if (!bookName) {
-            trace.add('skill-attempt', '本地技能：电子书下载', 'fail', {
-              skill: 'book_download',
-              reason: '意图未抽取 bookName 槽位',
-            });
-            if (!this.featureOpenClaw) {
-              trace.add('policy-decision', '策略决策', 'success', {
-                policyDecision: 'chat',
-                reason: 'OpenClaw 已关闭，回退聊天',
-                pipeline: this.buildPipelineSnapshot(pipelineState),
-              });
-              return this.buildToolReplyAndSave(
-                conversationId, userMsg, content, personaDto,
-                null, '意图未抽取书名，且 OpenClaw 已关闭，暂无法代为下载',
-                merged, {}, trace, pipelineState, recent,
-              );
-            }
-            return this.handleOpenClawTask(
-              conversationId, userMsg, recent, content, merged, personaDto, trace, pipelineState,
-            );
-          }
-          const bookResult = await trace.wrap('skill-attempt', '本地技能：电子书下载', async () => {
-            const result = await this.toolRegistry.execute({
-              conversationId,
-              turnId: userMsg.id,
-              userInput: content,
-              executor: 'local-book-download',
-              capability: 'book_download',
-              intentState: merged,
-              params: {
-                bookName,
-                ...(typeof merged.slots.bookChoiceIndex === 'number' && { bookChoiceIndex: merged.slots.bookChoiceIndex }),
-              },
-            });
-            return {
-              status: (result.success ? 'success' : 'fail') as 'success' | 'fail',
-              detail: {
-                skill: 'book_download',
-                input: { bookName },
-                success: result.success,
-                resultPreview: result.content?.slice(0, 200) ?? null,
-                error: result.error ?? null,
-                ...(result.meta?.bookDownloadDebug != null && { bookDownloadDebug: result.meta.bookDownloadDebug as { listItemCount: number; searchResultCount: number; filteredCount: number } }),
-              },
-              result,
-            };
-          });
-          // 多条匹配：将候选列表作为工具结果展示给用户
-          const bookChoices = bookResult.meta?.bookChoices as { title: string; index: number }[] | undefined;
-          if (!bookResult.success && bookChoices?.length && bookResult.content) {
-            return this.buildToolReplyAndSave(
-              conversationId, userMsg, content, personaDto,
-              bookResult.content, null,
-              merged,
-              { localSkillUsed: 'book_download' }, trace, pipelineState, recent,
-            );
-          }
-          if (bookResult.success && bookResult.content) {
-            return this.buildToolReplyAndSave(
-              conversationId, userMsg, content, personaDto,
-              bookResult.content, null,
-              merged,
-              { localSkillUsed: 'book_download' }, trace, pipelineState, recent,
-            );
-          }
-          this.advancePipelineState(pipelineState, 'decision');
-          trace.add('policy-decision', '策略决策', 'success', {
-            policyDecision: this.featureOpenClaw ? 'run_openclaw' : 'chat',
-            reason: this.featureOpenClaw ? '本地 book_download 执行失败，回退 OpenClaw' : 'OpenClaw 已关闭，回退聊天',
-            fallbackReason: bookResult.error ?? 'book_download skill returned empty content',
-            pipeline: this.buildPipelineSnapshot(pipelineState),
+
+        return result;
+      }
+      // Book-download capability - 支持多候选处理
+      if (policy.action === 'run_capability' && policy.capability === 'book-download') {
+        const bookName = typeof merged.slots.bookName === 'string' ? merged.slots.bookName.trim() : '';
+
+        // 缺失书名，fallback 到 OpenClaw
+        if (!bookName) {
+          trace.add('skill-attempt', '本地技能：电子书下载', 'fail', {
+            skill: 'book_download',
+            reason: '意图未抽取 bookName 槽位',
           });
           if (!this.featureOpenClaw) {
+            trace.add('policy-decision', '策略决策', 'success', {
+              policyDecision: 'chat',
+              reason: 'OpenClaw 已关闭，回退聊天',
+              pipeline: this.buildPipelineSnapshot(pipelineState),
+            });
             return this.buildToolReplyAndSave(
               conversationId, userMsg, content, personaDto,
-              null, '本地电子书下载失败，且 OpenClaw 已关闭，暂无法代为下载',
+              null, '意图未抽取书名，且 OpenClaw 已关闭，暂无法代为下载',
               merged, {}, trace, pipelineState, recent,
             );
           }
@@ -581,110 +521,131 @@ export class ChatCompletionEngine {
             conversationId, userMsg, recent, content, merged, personaDto, trace, pipelineState,
           );
         }
-      if (policy.action === 'run_local_general_action') {
-          const actionResult = await trace.wrap('skill-attempt', '本地技能：基础行动能力', async () => {
-            const result = await this.toolRegistry.execute({
-              conversationId,
-              turnId: userMsg.id,
-              userInput: content,
-              executor: 'local-general-action',
-              capability: 'general_tool',
-              intentState: merged,
-              params: { input: content },
-            });
-            return {
-              status: (result.success ? 'success' : 'fail') as 'success' | 'fail',
-              detail: {
-                skill: 'general_action',
-                input: { userInput: content },
-                success: result.success,
-                resultPreview: result.content?.slice(0, 200) ?? null,
-                error: result.error ?? null,
-                reasonCode: typeof result.meta?.reasonCode === 'string' ? result.meta.reasonCode : null,
-                actionType: typeof result.meta?.actionType === 'string' ? result.meta.actionType : null,
-              },
-              result,
-            };
-          });
 
-          const reasonCode = typeof actionResult.meta?.reasonCode === 'string'
-            ? actionResult.meta.reasonCode
-            : '';
+        // 执行 book-download capability
+        const bookParams = {
+          bookName,
+          ...(typeof merged.slots.bookChoiceIndex === 'number' && { bookChoiceIndex: merged.slots.bookChoiceIndex }),
+        };
 
-          // 约束：仅 NOT_SUPPORTED 自动回退 OpenClaw；其余错误不自动回退。
-          if (!actionResult.success && reasonCode === 'NOT_SUPPORTED') {
-            this.advancePipelineState(pipelineState, 'decision');
-            trace.add('policy-decision', '策略决策', 'success', {
-              policyDecision: this.featureOpenClaw ? 'run_openclaw' : 'chat',
-              reason: this.featureOpenClaw ? '本地 general_action 返回 NOT_SUPPORTED，回退 OpenClaw' : 'OpenClaw 已关闭，回退聊天',
-              fallbackReason: actionResult.error ?? 'general_action not supported',
-              pipeline: this.buildPipelineSnapshot(pipelineState),
-            });
-            if (!this.featureOpenClaw) {
-              return this.buildToolReplyAndSave(
-                conversationId, userMsg, content, personaDto,
-                null, '该操作暂不支持，且 OpenClaw 已关闭，暂无法委派',
-                merged, {}, trace, pipelineState, recent,
-              );
-            }
-            return this.handleOpenClawTask(
-              conversationId, userMsg, recent, content, merged, personaDto, trace, pipelineState,
-            );
-          }
-
-          return this.buildToolReplyAndSave(
+        const result = await trace.wrap('skill-attempt', '本地技能：电子书下载', async () => {
+          const execResult = await this.capabilityRegistry.execute('book-download', {
             conversationId,
-            userMsg,
-            content,
-            personaDto,
-            actionResult.success ? actionResult.content : null,
-            actionResult.success ? null : (actionResult.error ?? '本地动作执行失败'),
+            turnId: userMsg.id,
+            userInput: content,
+            params: bookParams,
+            intentState: merged,
+          });
+          return {
+            status: (execResult.success ? 'success' : 'fail') as 'success' | 'fail',
+            detail: {
+              capability: 'book-download',
+              input: bookParams,
+              success: execResult.success,
+              resultPreview: execResult.content?.slice(0, 200) ?? null,
+              error: execResult.error ?? null,
+              meta: execResult.meta,
+            },
+            result: execResult,
+          };
+        });
+
+        // 多条匹配：将候选列表作为工具结果展示给用户
+        const bookChoices = result.meta?.bookChoices as { title: string; index: number }[] | undefined;
+        if (!result.success && bookChoices?.length && result.content) {
+          return this.buildToolReplyAndSave(
+            conversationId, userMsg, content, personaDto,
+            result.content, null,
             merged,
-            { localSkillUsed: 'general_action' },
-            trace,
-            pipelineState,
-            recent,
+            { localSkillUsed: 'book_download' }, trace, pipelineState, recent,
           );
         }
-      if (policy.action === 'run_local_timesheet') {
-          const timesheetParams = this.buildTimesheetParams(merged.slots, content);
-          const tsResult = await trace.wrap('skill-attempt', '本地技能：工时上报', async () => {
-            const result = await this.toolRegistry.execute({
-              conversationId,
-              turnId: userMsg.id,
-              userInput: content,
-              executor: 'local-timesheet',
-              capability: 'timesheet',
-              intentState: merged,
-              params: timesheetParams,
-            });
-            return {
-              status: (result.success ? 'success' : 'fail') as 'success' | 'fail',
-              detail: {
-                skill: 'timesheet',
-                input: timesheetParams,
-                success: result.success,
-                resultPreview: result.content?.slice(0, 200) ?? null,
-                error: result.error ?? null,
-              },
-              result,
-            };
-          });
 
+        // 成功下载
+        if (result.success && result.content) {
           return this.buildToolReplyAndSave(
-            conversationId,
-            userMsg,
-            content,
-            personaDto,
-            tsResult.success ? tsResult.content : null,
-            tsResult.success ? null : (tsResult.error ?? '工时上报失败'),
+            conversationId, userMsg, content, personaDto,
+            result.content, null,
             merged,
-            { localSkillUsed: 'timesheet' },
-            trace,
-            pipelineState,
-            recent,
+            { localSkillUsed: 'book_download' }, trace, pipelineState, recent,
           );
         }
+
+        // 失败，fallback 到 OpenClaw
+        this.advancePipelineState(pipelineState, 'decision');
+        trace.add('policy-decision', '策略决策', 'success', {
+          policyDecision: this.featureOpenClaw ? 'run_openclaw' : 'chat',
+          reason: this.featureOpenClaw ? '本地 book_download 执行失败，回退 OpenClaw' : 'OpenClaw 已关闭，回退聊天',
+          fallbackReason: result.error ?? 'book_download skill returned empty content',
+          pipeline: this.buildPipelineSnapshot(pipelineState),
+        });
+        if (!this.featureOpenClaw) {
+          return this.buildToolReplyAndSave(
+            conversationId, userMsg, content, personaDto,
+            null, '本地电子书下载失败，且 OpenClaw 已关闭，暂无法代为下载',
+            merged, {}, trace, pipelineState, recent,
+          );
+        }
+        return this.handleOpenClawTask(
+          conversationId, userMsg, recent, content, merged, personaDto, trace, pipelineState,
+        );
+      }
+      // General-action capability - 支持条件 fallback
+      if (policy.action === 'run_capability' && policy.capability === 'general-action') {
+        return this.executeCapabilityGeneric(
+          'general-action',
+          conversationId,
+          userMsg,
+          content,
+          { input: content },
+          merged,
+          personaDto,
+          trace,
+          pipelineState,
+          recent,
+          'general_action',
+          { fallbackOnReasonCode: 'NOT_SUPPORTED' },
+        );
+      }
+      // Timesheet capability - 参数构建逻辑已内联
+      if (policy.action === 'run_capability' && policy.capability === 'timesheet') {
+        const timesheetParams = this.buildTimesheetParams(merged.slots, content);
+        return this.executeCapabilityGeneric(
+          'timesheet',
+          conversationId,
+          userMsg,
+          content,
+          timesheetParams,
+          merged,
+          personaDto,
+          trace,
+          pipelineState,
+          recent,
+          'timesheet',
+        );
+      }
+      if (policy.action === 'run_capability' && policy.capability === 'reminder') {
+        const reminderParams: Record<string, unknown> = {
+          reminderAction: merged.slots.reminderAction ?? 'create',
+          reminderReason: merged.slots.reminderReason,
+          reminderSchedule: merged.slots.reminderSchedule,
+          reminderTime: merged.slots.reminderTime,
+          reminderTarget: merged.slots.reminderTarget,
+        };
+        return this.executeCapabilityGeneric(
+          'reminder',
+          conversationId,
+          userMsg,
+          content,
+          reminderParams,
+          merged,
+          personaDto,
+          trace,
+          pipelineState,
+          recent,
+          'reminder',
+        );
+      }
       if (policy.action === 'run_openclaw') {
           if (!this.featureOpenClaw) {
             this.logger.debug('OpenClaw 已关闭，工具意图回退聊天');
@@ -837,7 +798,7 @@ export class ChatCompletionEngine {
     toolResult: string | null,
     toolError: string | null,
     intentState: DialogueIntentState | null,
-    opts: { openclawUsed?: boolean; localSkillUsed?: 'weather' | 'book_download' | 'general_action' | 'timesheet' } = {},
+    opts: { openclawUsed?: boolean; localSkillUsed?: 'weather' | 'book_download' | 'general_action' | 'timesheet' | 'reminder' } = {},
     trace?: TraceCollector,
     pipelineState?: PipelineTraceState,
     recentMessages?: { role: string; content: string }[],
@@ -1002,6 +963,102 @@ export class ChatCompletionEngine {
       ...(debugMeta && { debugMeta }),
       ...(trace && { trace: trace.getTrace() }),
     };
+  }
+
+  // ── 通用 Capability 执行 ─────────────────────────────────────
+  private async executeCapabilityGeneric(
+    capabilityName: string,
+    conversationId: string,
+    userMsg: { id: string; role: string; content: string; createdAt: Date },
+    content: string,
+    params: Record<string, unknown>,
+    intentState: DialogueIntentState,
+    personaDto: PersonaDto,
+    trace: TraceCollector,
+    pipelineState: PipelineTraceState,
+    recent: Array<{ role: string; content: string }>,
+    localSkillUsed?: 'weather' | 'book_download' | 'general_action' | 'timesheet' | 'reminder',
+    options?: {
+      /** 条件 fallback：检查 meta.reasonCode，匹配时 fallback 到 OpenClaw */
+      fallbackOnReasonCode?: string;
+    },
+  ) {
+    const result = await trace.wrap('skill-attempt', `本地技能：${capabilityName}`, async () => {
+      const execResult = await this.capabilityRegistry.execute(capabilityName, {
+        conversationId,
+        turnId: userMsg.id,
+        userInput: content,
+        params,
+        intentState,
+      });
+      return {
+        status: (execResult.success ? 'success' : 'fail') as 'success' | 'fail',
+        detail: {
+          capability: capabilityName,
+          input: params,
+          success: execResult.success,
+          resultPreview: execResult.content?.slice(0, 200) ?? null,
+          error: execResult.error ?? null,
+          meta: execResult.meta,
+        },
+        result: execResult,
+      };
+    });
+
+    // 条件 fallback 逻辑
+    if (options?.fallbackOnReasonCode && !result.success) {
+      const reasonCode = typeof result.meta?.reasonCode === 'string' ? result.meta.reasonCode : '';
+      if (reasonCode === options.fallbackOnReasonCode) {
+        this.advancePipelineState(pipelineState, 'decision');
+        trace.add('policy-decision', '策略决策', 'success', {
+          policyDecision: this.featureOpenClaw ? 'run_openclaw' : 'chat',
+          reason: this.featureOpenClaw
+            ? `本地 ${capabilityName} 返回 ${reasonCode}，回退 OpenClaw`
+            : 'OpenClaw 已关闭，回退聊天',
+          fallbackReason: result.error ?? `${capabilityName} ${reasonCode}`,
+          pipeline: this.buildPipelineSnapshot(pipelineState),
+        });
+        if (!this.featureOpenClaw) {
+          return this.buildToolReplyAndSave(
+            conversationId,
+            userMsg,
+            content,
+            personaDto,
+            null,
+            '该操作暂不支持，且 OpenClaw 已关闭，暂无法委派',
+            intentState,
+            {},
+            trace,
+            pipelineState,
+            recent,
+          );
+        }
+        return this.handleOpenClawTask(
+          conversationId,
+          userMsg,
+          recent,
+          content,
+          intentState,
+          personaDto,
+          trace,
+          pipelineState,
+        );
+      }
+    }
+
+    return this.buildToolReplyAndSave(
+      conversationId,
+      userMsg,
+      content,
+      personaDto,
+      result.success ? result.content : null,
+      result.success ? null : (result.error ?? `${capabilityName} 执行失败`),
+      intentState,
+      localSkillUsed ? { localSkillUsed } : {},
+      trace,
+      pipelineState,
+      recent,
+    );
   }
 
   // ── OpenClaw 任务处理 ─────────────────────────────────────

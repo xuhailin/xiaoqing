@@ -2,17 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { CapabilityRegistry } from '../../action/capability-registry.service';
 import type { DialogueIntentState } from '../intent/intent.types';
 import { FeatureFlagConfig } from './feature-flag.config';
-import type { ToolPolicyAction, ToolPolicyDecision, TurnContext } from './orchestration.types';
+import type { ToolPolicyDecision, TurnContext } from './orchestration.types';
 
 @Injectable()
 export class ToolPolicyResolver {
-  private static readonly CAPABILITY_TO_ACTION: Record<string, ToolPolicyAction> = {
-    weather: 'run_local_weather',
-    'book-download': 'run_local_book_download',
-    'general-action': 'run_local_general_action',
-    timesheet: 'run_local_timesheet',
-  };
-
   constructor(
     private readonly capabilityRegistry: CapabilityRegistry,
     private readonly flags: FeatureFlagConfig,
@@ -45,10 +38,11 @@ export class ToolPolicyResolver {
     if (intentState.taskIntent !== 'none' && intentState.taskIntent !== 'dev_task') {
       const cap = this.capabilityRegistry.findByTaskIntent(intentState.taskIntent, 'chat');
       if (cap) {
-        const action = ToolPolicyResolver.CAPABILITY_TO_ACTION[cap.name];
-        if (action) {
-          return { action, reason: `${intentState.taskIntent} 意图参数齐全，本地 ${cap.name} 可用` };
-        }
+        return {
+          action: 'run_capability',
+          capability: cap.name,
+          reason: `${intentState.taskIntent} 意图参数齐全，本地 ${cap.name} 可用`,
+        };
       }
       if (this.flags.featureOpenClaw) {
         return {

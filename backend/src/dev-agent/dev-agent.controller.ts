@@ -35,8 +35,11 @@ export class DevAgentController {
   }
 
   @Get('reminders')
-  async listReminders(@Query('sessionId') sessionId?: string) {
-    return this.devAgent.listReminders(sessionId);
+  async listReminders(
+    @Query('sessionId') sessionId?: string,
+    @Query('scope') scope?: string,
+  ) {
+    return this.devAgent.listReminders(sessionId, scope);
   }
 
   @Post('reminders')

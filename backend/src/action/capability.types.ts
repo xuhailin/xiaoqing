@@ -1,6 +1,11 @@
 import type { DialogueIntentState } from '../assistant/intent/intent.types';
 import type { MessageChannel } from '../gateway/message-router.types';
 
+export type CapabilitySurface = 'assistant' | 'dev' | 'internal';
+export type CapabilityScope = 'public' | 'private';
+export type CapabilityPortability = 'portable' | 'config-bound' | 'environment-bound';
+export type CapabilityVisibility = 'default' | 'optional' | 'local-only';
+
 /**
  * Capability 上下文与边界说明见 docs/context-boundary.md。
  *
@@ -41,4 +46,16 @@ export interface CapabilityMeta {
   channels: MessageChannel[];
   /** 一句话描述（注入 intent prompt 用） */
   description: string;
+  /** 产品暴露面：assistant / dev / internal */
+  surface: CapabilitySurface;
+  /** 归属范围：public / private */
+  scope: CapabilityScope;
+  /** 可移植性：portable / config-bound / environment-bound */
+  portability: CapabilityPortability;
+  /** 是否依赖登录态、账号凭证或外部鉴权 */
+  requiresAuth: boolean;
+  /** 是否依赖用户/会话/工作区上下文才能正确执行 */
+  requiresUserContext: boolean;
+  /** 暴露级别：default / optional / local-only */
+  visibility: CapabilityVisibility;
 }

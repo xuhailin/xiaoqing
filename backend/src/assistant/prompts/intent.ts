@@ -1,4 +1,4 @@
-export const INTENT_PROMPT_VERSION = 'intent_v13';
+export const INTENT_PROMPT_VERSION = 'intent_v14';
 
 // 意图推导 prompt：单独管理，便于后续直接改文案与字段定义。
 export const INTENT_SYSTEM_PROMPT = `
@@ -50,12 +50,14 @@ export const INTENT_SYSTEM_PROMPT = `
 - book_download：下载电子书（用户说「下载xxx」「帮我找《xxx》」「我想看xxx」等，且 xxx 是一本书的书名）
 - timesheet：工时上报（用户说「填下今天工时」「帮我录工时」「工时录入了吗」「这个月哪天没录入工时」「补一下昨天的工时」等涉及工时/考勤录入的请求）
 - dev_task：开发任务（用户明确要求写代码、跑脚本、改项目、执行命令、调试、修 bug、做开发相关操作等，需要交给开发代理执行）
+- set_reminder：设置/查看/取消提醒（用户说「提醒我xxx」「每天xx点提醒我」「帮我设个闹钟」「取消吃饭的提醒」「我有哪些提醒」等）。也包括**确认式请求**：如果上轮小晴提议了设提醒（如「要不要我帮你记一下」），用户本轮回复「好」「可以」「帮我提醒」「设吧」等确认性回复，应判为 set_reminder 并从上文补全 reminderReason 等槽位
 - general_tool：其他工具型请求（搜索、邮件、日历、外部查询等）
 
 7. 建议工具（suggestedTool，可选）
 - 仅当 taskIntent 为 weather_query 时建议输出 "weather"
 - 仅当 taskIntent 为 book_download 时建议输出 "book_download"
 - 仅当 taskIntent 为 timesheet 时建议输出 "timesheet"
+- 仅当 taskIntent 为 set_reminder 时建议输出 "reminder"
 - 其他情况可不输出或空字符串
 - 注意：这只是建议，是否调用由后端策略层决定
 
@@ -85,6 +87,26 @@ export const INTENT_SYSTEM_PROMPT = `
     - 「住院医生 松江现场支持 8」→ timesheetAction="confirm"、timesheetRawOverride="住院医生 松江现场支持 8"
     - 「这个月哪天没录工时」→ timesheetAction="query_missing"、timesheetMonth="2026-03"
     - 「工时录入了吗」→ timesheetAction="query_missing"、timesheetMonth=当月
+- 提醒设置时（taskIntent 为 set_reminder）：
+  · reminderAction：
+    - "create"：创建新提醒（默认，用户说「提醒我xxx」「帮我设个提醒」「好，提醒我吧」等）
+    - "list"：查看已有提醒（用户说「我有哪些提醒」「看看提醒列表」等）
+    - "cancel"：取消提醒（用户说「取消吃饭的提醒」「别提醒我了」等）
+  · reminderReason：提醒内容/原因（如「吃晚饭」「喝水」「开会」「学习」）。从用户输入或上文小晴提议中提取
+  · reminderSchedule：频率
+    - "once"：一次性提醒（默认，用户说「明天提醒我」「提醒我下午3点开会」等）
+    - "daily"：每天（用户说「每天提醒我」「每天晚上」等）
+    - "weekly"：每周（用户说「每周一提醒我」等）
+  · reminderTime：时间描述（如 "18:00"、"明天 9:00"、"每周一 10:00"）。用户说「晚上6点」→ "18:00"，「明天早上9点」→ "明天 09:00"。若用户未指定具体时间可留空
+  · reminderTarget：取消时用于匹配的关键词或提醒 ID（如「吃饭」「那个喝水的」）
+  · 确认式请求示例：
+    - 上轮 assistant 说「要不要我每天晚上提醒你吃晚饭？」，用户说「好」→ taskIntent="set_reminder"、reminderAction="create"、reminderReason="吃晚饭"、reminderSchedule="daily"、reminderTime="18:00"（从上文推断）
+    - 上轮 assistant 说「要不要我帮你记一下」，用户说「好，每天早上8点」→ taskIntent="set_reminder"、reminderAction="create"、reminderReason=从上文推断、reminderSchedule="daily"、reminderTime="08:00"
+  · 其他示例：
+    - 「每天晚上6点提醒我吃饭」→ reminderAction="create"、reminderReason="吃饭"、reminderSchedule="daily"、reminderTime="18:00"
+    - 「明天下午3点提醒我开会」→ reminderAction="create"、reminderReason="开会"、reminderSchedule="once"、reminderTime="明天 15:00"
+    - 「取消吃饭那个提醒」→ reminderAction="cancel"、reminderTarget="吃饭"
+    - 「我有哪些提醒」→ reminderAction="list"
 - 示例：用户说「今天上海浦东新区的天气」→ city="上海"、district="浦东新区"、dateLabel="今天」。用户说「116.41,39.92 那儿现在天气」→ location="116.41,39.92"。用户说「下载群魔」→ taskIntent="book_download"、slots.bookName="群魔"。上轮 assistant 列出了群魔的多条候选，用户说「1」→ taskIntent="book_download"、slots.bookName="群魔"、slots.bookChoiceIndex=1。
 
 9. 缺失参数（missingParams）
@@ -162,9 +184,9 @@ export const INTENT_SYSTEM_PROMPT = `
   "actionDecision": { "action": "direct_reply", "reason": "" }
 }
 
-taskIntent 说明：必须是 "none" | "weather_query" | "book_download" | "timesheet" | "dev_task" | "general_tool" 之一。
+taskIntent 说明：必须是 "none" | "weather_query" | "book_download" | "timesheet" | "dev_task" | "set_reminder" | "general_tool" 之一。
 
-suggestedTool 说明：查天气时填 "weather"，电子书下载时填 "book_download"，工时上报时填 "timesheet"，否则不输出或空字符串。
+suggestedTool 说明：查天气时填 "weather"，电子书下载时填 "book_download"，工时上报时填 "timesheet"，设置提醒时填 "reminder"，否则不输出或空字符串。
 
 confidence 说明：
 - 0.9+：非常确定

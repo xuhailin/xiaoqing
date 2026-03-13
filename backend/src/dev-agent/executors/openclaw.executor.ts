@@ -20,6 +20,12 @@ export class OpenClawExecutor implements IDevExecutor, ICapability {
   readonly taskIntent = 'openclaw_delegate';
   readonly channels: MessageChannel[] = ['dev', 'chat'];
   readonly description = '远端 AI Agent 执行（复杂推理、代码生成等）';
+  readonly surface = 'dev' as const;
+  readonly scope = 'private' as const;
+  readonly portability = 'config-bound' as const;
+  readonly requiresAuth = false;
+  readonly requiresUserContext = false;
+  readonly visibility = 'default' as const;
 
   private readonly logger = new Logger(OpenClawExecutor.name);
 

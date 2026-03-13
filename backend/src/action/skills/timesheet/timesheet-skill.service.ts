@@ -25,6 +25,12 @@ export class TimesheetSkillService implements ICapability {
   readonly taskIntent = 'timesheet';
   readonly channels: MessageChannel[] = ['chat'];
   readonly description = '工时上报（填工时、录入工时、查询未录入工时等）';
+  readonly surface = 'assistant' as const;
+  readonly scope = 'private' as const;
+  readonly portability = 'environment-bound' as const;
+  readonly requiresAuth = true;
+  readonly requiresUserContext = true;
+  readonly visibility = 'optional' as const;
 
   constructor(
     private readonly config: ConfigService,
