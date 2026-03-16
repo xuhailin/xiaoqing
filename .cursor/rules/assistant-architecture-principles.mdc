@@ -1,0 +1,25 @@
+---
+description: 小晴助手管线架构目标 — 五能力、决策集中、架构清晰优先
+alwaysApply: true
+---
+
+# 助手架构原则（全局目标）
+
+修改或扩展小晴助手/对话管线（如 `backend/src/xiaoqing/**`）时，必须遵循 `docs/assistant-architecture-principles.md`。
+
+## 五能力管线
+
+1. **感知（Perception）** — 理解用户与情境，产出认知结果，不做行为决策。
+2. **决策（Decision）** — **唯一**做行动决策的一层；决策权集中，不分散到意图/推理/Prompt 路由。
+3. **执行（Execution）** — 按决策调用工具与能力，汇总结果。
+4. **回复组织（Response Composition）** — 组织最终回复内容与表达，不在此层再做系统路由。
+5. **回合后处理（Post-Turn Processing）** — 记忆、总结、成长等收尾。
+
+## 必须遵守
+
+- 意图只描述用户含义；最终行动由决策层决定。
+- 回复生成不重新决定系统行为。
+- 新增能力必须能明确归属到上述某一层，否则需重新设计。
+- 架构清晰优先于临时兼容；允许结构性重构与移除过时层级。
+
+详见：`docs/assistant-architecture-principles.md`。
