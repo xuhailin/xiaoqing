@@ -1,5 +1,8 @@
 import type { DevWorkspaceMeta } from './workspace/workspace-meta';
 
+/** DevAgent 执行模式 */
+export type DevRunMode = 'orchestrated' | 'agent';
+
 /** DevAgent 任务执行结果，返回给前端 */
 export interface DevTaskResult {
   session: {

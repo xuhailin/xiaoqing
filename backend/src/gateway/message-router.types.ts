@@ -6,6 +6,8 @@ export interface SendMessageMetadata {
   workspaceRoot?: string;
   /** 可选项目展示名，不传则后端从目录名推导 */
   projectScope?: string;
+  /** DevAgent 执行模式：agent 直接委派 Claude Code，orchestrated 走编排（默认 orchestrated） */
+  devRunMode?: 'orchestrated' | 'agent';
 }
 
 /** 路由判定结果 */

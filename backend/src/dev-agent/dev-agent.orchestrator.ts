@@ -4,7 +4,7 @@ import { resolve } from 'path';
 import { SkillRunner } from '../action/local-skills/skill-runner.service';
 import { ReflectionService } from '../assistant/reflection/reflection.service';
 import { createTaskContext, type DevTaskContext } from './dev-task-context';
-import type { DevTaskResult } from './dev-agent.types';
+import type { DevRunMode, DevTaskResult } from './dev-agent.types';
 import { DevSessionRepository } from './dev-session.repository';
 import {
   DEV_AGENT_DATA_DIR,
@@ -20,6 +20,8 @@ import { DevProgressEvaluator } from './execution/dev-progress-evaluator';
 import { DevReplanPolicy } from './execution/dev-replan-policy';
 import { DevTranscriptWriter } from './reporting/dev-transcript.writer';
 import { DevFinalReportGenerator } from './reporting/dev-final-report.generator';
+import { ClaudeCodeStreamService } from './executors/claude-code-stream.service';
+import { WorkspaceManager } from './workspace/workspace-manager.service';
 import type { DevWorkspaceMeta } from './workspace/workspace-meta';
 import { withWorkspaceMeta } from './workspace/workspace-meta';
 
@@ -34,6 +36,8 @@ interface DevRunExecutionInput {
     id: string;
     userInput: string;
   };
+  /** 执行模式：agent 直接委派给 Claude Code，orchestrated 走 plan/step 编排 */
+  mode?: DevRunMode;
 }
 
 class DevRunCancelledError extends Error {
@@ -58,6 +62,8 @@ export class DevAgentOrchestrator {
     private readonly replanPolicy: DevReplanPolicy,
     private readonly transcriptWriter: DevTranscriptWriter,
     private readonly finalReportGenerator: DevFinalReportGenerator,
+    private readonly claudeCodeStream: ClaudeCodeStreamService,
+    private readonly workspaceManager: WorkspaceManager,
   ) {}
 
   async executeRun(input: DevRunExecutionInput): Promise<DevTaskResult> {
@@ -85,6 +91,11 @@ export class DevAgentOrchestrator {
           userInput: input.run.userInput,
           skillName,
         });
+      }
+
+      // ── Agent 模式：整个任务委派给 Claude Code Agent ──
+      if (input.mode === 'agent') {
+        return this.executeAgentMode(input, runDir);
       }
 
       taskContext = createTaskContext(
@@ -547,6 +558,185 @@ export class DevAgentOrchestrator {
       },
       reply: localSkillRun.summary,
     };
+  }
+
+  /**
+   * Agent 模式：将完整任务目标直接交给 Claude Code Agent 自主执行。
+   * 不走 Planner/StepRunner/Evaluator，由 Claude Code 内部完成规划与工具调用。
+   */
+  private async executeAgentMode(
+    input: DevRunExecutionInput,
+    runDir: string,
+  ): Promise<DevTaskResult> {
+    const { session, run } = input;
+
+    // 获取 workspace cwd
+    const workspace = session.workspace;
+    const cwd = workspace?.workspaceRoot ?? process.cwd();
+
+    await this.sessions.updateRunStatus(run.id, {
+      status: DevRunStatus.running,
+      executor: 'claude-code',
+      result: withWorkspaceMeta({
+        phase: 'running',
+        mode: 'agent',
+        taskId: run.id,
+        goal: run.userInput,
+        lastEvent: 'Claude Code Agent 开始自主执行',
+        updatedAt: new Date().toISOString(),
+      }, workspace) as any,
+    });
+
+    await this.transcriptWriter.write(runDir, {
+      phase: 'agent_start',
+      taskId: run.id,
+      mode: 'agent',
+      goal: run.userInput,
+      cwd,
+      timestamp: new Date().toISOString(),
+    });
+
+    const abortController = new AbortController();
+    const startTime = Date.now();
+
+    try {
+      await this.throwIfCancelled(run.id);
+
+      const result = await this.claudeCodeStream.execute(
+        run.userInput,
+        {
+          cwd,
+          abortController,
+          allowedTools: ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep'],
+        },
+        (event) => {
+          // 进度写入 transcript
+          this.transcriptWriter.write(runDir, {
+            phase: 'agent_progress',
+            taskId: run.id,
+            event,
+            timestamp: new Date().toISOString(),
+          }).catch(() => {});
+        },
+      );
+
+      const durationMs = Date.now() - startTime;
+      const artifactPath = `dev-runs/${run.id}`;
+      const finalStatus = result.success ? DevRunStatus.success : DevRunStatus.failed;
+
+      await this.transcriptWriter.write(runDir, {
+        phase: 'agent_result',
+        taskId: run.id,
+        success: result.success,
+        content: result.content?.substring(0, 2000) ?? null,
+        error: result.error,
+        durationMs,
+        costUsd: result.costUsd,
+        numTurns: result.numTurns,
+        stopReason: result.stopReason,
+        sessionId: result.sessionId,
+        timestamp: new Date().toISOString(),
+      });
+
+      const reply = result.success
+        ? (result.content ?? '任务已完成。')
+        : `任务执行失败：${result.error ?? '未知错误'}`;
+
+      await this.sessions.updateRunStatus(run.id, {
+        status: finalStatus,
+        executor: 'claude-code',
+        result: withWorkspaceMeta({
+          phase: 'completed',
+          mode: 'agent',
+          finalReply: reply,
+          summary: {
+            taskId: run.id,
+            goal: run.userInput,
+            allSuccess: result.success,
+            stopReason: result.stopReason,
+            durationMs,
+            costUsd: result.costUsd,
+            numTurns: result.numTurns,
+            agentSessionId: result.sessionId,
+          },
+          updatedAt: new Date().toISOString(),
+        }, workspace) as any,
+        artifactPath,
+        error: result.success ? undefined : (result.error ?? undefined),
+        finishedAt: new Date(),
+      });
+
+      return {
+        session: {
+          id: session.id,
+          status: session.status,
+          workspace,
+        },
+        run: {
+          id: run.id,
+          status: finalStatus,
+          executor: 'claude-code',
+          plan: null,
+          result: {
+            taskId: run.id,
+            goal: run.userInput,
+            allSuccess: result.success,
+            stopReason: result.stopReason,
+            durationMs,
+            costUsd: result.costUsd,
+            numTurns: result.numTurns,
+            agentSessionId: result.sessionId,
+          },
+          error: result.success ? null : (result.error ?? '未知错误'),
+          artifactPath,
+          workspace,
+        },
+        reply,
+      };
+    } catch (err) {
+      if (err instanceof DevRunCancelledError) throw err;
+
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      const durationMs = Date.now() - startTime;
+
+      await this.transcriptWriter.write(runDir, {
+        phase: 'agent_error',
+        taskId: run.id,
+        error: errorMsg,
+        durationMs,
+        timestamp: new Date().toISOString(),
+      });
+
+      await this.sessions.updateRunStatus(run.id, {
+        status: DevRunStatus.failed,
+        executor: 'claude-code',
+        error: errorMsg,
+        result: withWorkspaceMeta({
+          phase: 'failed',
+          mode: 'agent',
+          taskId: run.id,
+          goal: run.userInput,
+          error: errorMsg,
+          updatedAt: new Date().toISOString(),
+        }, workspace) as any,
+        finishedAt: new Date(),
+      });
+
+      return {
+        session: { id: session.id, status: session.status, workspace },
+        run: {
+          id: run.id,
+          status: DevRunStatus.failed,
+          executor: 'claude-code',
+          plan: null,
+          result: null,
+          error: errorMsg,
+          artifactPath: null,
+          workspace,
+        },
+        reply: `任务执行失败：${errorMsg}`,
+      };
+    }
   }
 
   private async throwIfCancelled(runId: string): Promise<void> {

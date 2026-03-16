@@ -16,10 +16,12 @@ export class DevAgentAdapter implements IAgent {
   constructor(private readonly devAgent: DevAgentService) {}
 
   async handle(req: AgentRequest): Promise<AgentResult> {
+    const mode = req.metadata?.devRunMode === 'agent' ? 'agent' : undefined;
     const result = await this.devAgent.handleTask(
       req.conversationId,
       req.content,
       req.metadata,
+      mode ? { mode } : undefined,
     );
 
     return {

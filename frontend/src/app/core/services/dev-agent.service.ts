@@ -144,24 +144,25 @@ export class DevAgentService {
     options?: {
       workspaceRoot?: string;
       projectScope?: string;
+      /** 执行模式：agent 直接委派 Claude Code，orchestrated 走编排 */
+      devRunMode?: 'orchestrated' | 'agent';
     },
   ) {
     const workspaceRoot = options?.workspaceRoot?.trim();
     const projectScope = options?.projectScope?.trim();
+    const devRunMode = options?.devRunMode;
+
+    const metadata: Record<string, string> = {};
+    if (workspaceRoot) metadata['workspaceRoot'] = workspaceRoot;
+    if (projectScope) metadata['projectScope'] = projectScope;
+    if (devRunMode) metadata['devRunMode'] = devRunMode;
 
     return this.http.post<DevTaskResult>(
       `${this.msgBase}/${conversationId}/messages`,
       {
         content,
         mode: 'dev',
-        ...(workspaceRoot
-          ? {
-              metadata: {
-                workspaceRoot,
-                ...(projectScope ? { projectScope } : {}),
-              },
-            }
-          : {}),
+        ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
       },
     );
   }

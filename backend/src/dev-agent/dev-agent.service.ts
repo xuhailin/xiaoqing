@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { type Prisma, DevSessionStatus } from '@prisma/client';
 import { DevRunStatus } from '@prisma/client';
-import type { DevTaskResult } from './dev-agent.types';
+import type { DevRunMode, DevTaskResult } from './dev-agent.types';
 import { DevSessionRepository } from './dev-session.repository';
 import { DevRunRunnerService } from './dev-runner.service';
 import { DevReminderService, type CreateDevReminderInput } from './dev-reminder.service';
@@ -28,7 +28,9 @@ export class DevAgentService {
     conversationId: string,
     userInput: string,
     metadata?: SendMessageMetadata,
+    options?: { mode?: DevRunMode },
   ): Promise<DevTaskResult> {
+    const mode: DevRunMode = options?.mode ?? 'orchestrated';
     const requestedWorkspace = normalizeWorkspaceInput(metadata);
     const session = await this.resolveSession(conversationId, requestedWorkspace);
 
@@ -48,7 +50,7 @@ export class DevAgentService {
     const run = await this.sessions.createRun(
       session.id,
       userInput,
-      this.buildQueuedResult(workspace),
+      this.buildQueuedResult(workspace, { mode }),
     );
 
     this.runner.startRun(run.id, session.id);
@@ -260,9 +262,10 @@ export class DevAgentService {
 
   private buildQueuedResult(
     workspace: DevWorkspaceMeta | null,
-    options?: { rerunFromRunId?: string | null },
+    options?: { rerunFromRunId?: string | null; mode?: DevRunMode },
   ): Prisma.InputJsonValue {
     const rerunFromRunId = options?.rerunFromRunId ?? null;
+    const mode = options?.mode ?? 'orchestrated';
     const events: Array<Record<string, unknown>> = [
       {
         type: 'queued',
@@ -281,6 +284,7 @@ export class DevAgentService {
 
     return withWorkspaceMeta({
       phase: 'queued',
+      mode,
       rerunFromRunId,
       currentStepId: null,
       planRounds: 0,

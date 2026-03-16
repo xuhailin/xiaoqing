@@ -90,6 +90,7 @@ export class ClaudeCodeStreamService {
         'Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep',
       ],
       persistSession: false,
+      env: this.buildChildEnv(),
     };
 
     this.logger.log(
@@ -162,6 +163,20 @@ export class ClaudeCodeStreamService {
         stopReason: 'error',
       };
     }
+  }
+
+  /**
+   * 构建 Claude Code 子进程的环境变量。
+   *
+   * 策略：继承宿主 env，排除已知干扰 SDK 子进程的变量。
+   * - CLAUDECODE: SDK 嵌套检测；后端进程不是真正嵌套场景
+   * - NODE_OPTIONS: 防止宿主 inspect/debug 标志传入子进程
+   */
+  private buildChildEnv(): Record<string, string | undefined> {
+    const env = { ...process.env };
+    delete env.CLAUDECODE;
+    delete env.NODE_OPTIONS;
+    return env;
   }
 
   /** 从 SDK message 提取进度信息 */

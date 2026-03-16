@@ -118,6 +118,10 @@ export class DevRunRunnerService implements OnModuleInit {
         ?? requestedWorkspace
         ?? null;
 
+      // 从 run result 中读取 mode（由 DevAgentService 在创建时写入）
+      const runResult = claimedRun.result as Record<string, unknown> | null;
+      const mode = (runResult?.mode === 'agent' ? 'agent' : 'orchestrated') as import('./dev-agent.types').DevRunMode;
+
       await this.orchestrator.executeRun({
         conversationId: claimedRun.session.conversationId ?? null,
         session: {
@@ -129,6 +133,7 @@ export class DevRunRunnerService implements OnModuleInit {
           id: claimedRun.id,
           userInput: claimedRun.userInput,
         },
+        mode,
       });
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
