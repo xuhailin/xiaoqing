@@ -1,10 +1,23 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 
 export interface DevWorkspaceMeta {
   workspaceRoot: string;
   projectScope: string;
+}
+
+export interface DevWorkspaceTreeEntry {
+  name: string;
+  path: string;
+  type: 'directory' | 'file';
+  hasChildren: boolean;
+}
+
+export interface DevWorkspaceTreeResponse {
+  workspaceRoot: string;
+  path: string;
+  entries: DevWorkspaceTreeEntry[];
 }
 
 export interface DevSession {
@@ -80,6 +93,9 @@ export interface DevTaskResult {
     error: string | null;
     artifactPath: string | null;
     workspace: DevWorkspaceMeta | null;
+    startedAt?: string | null;
+    finishedAt?: string | null;
+    createdAt?: string | null;
   };
   reply: string;
 }
@@ -101,6 +117,14 @@ export class DevAgentService {
 
   getRun(runId: string) {
     return this.http.get<DevRun>(`${this.base}/runs/${runId}`);
+  }
+
+  listWorkspaceTree(workspaceRoot: string, path = '') {
+    let params = new HttpParams().set('workspaceRoot', workspaceRoot);
+    if (path.trim()) {
+      params = params.set('path', path.trim());
+    }
+    return this.http.get<DevWorkspaceTreeResponse>(`${this.base}/workspace-tree`, { params });
   }
 
   cancelRun(runId: string, reason?: string) {

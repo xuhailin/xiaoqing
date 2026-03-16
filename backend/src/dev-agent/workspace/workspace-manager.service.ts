@@ -22,6 +22,13 @@ export interface WorkspaceInfo {
   needsCleanup: boolean;
 }
 
+export interface WorkspaceTreeEntry {
+  name: string;
+  path: string;
+  type: 'directory' | 'file';
+  hasChildren: boolean;
+}
+
 /**
  * Workspace 隔离管理器。
  *
@@ -127,6 +134,79 @@ export class WorkspaceManager implements OnModuleInit, OnModuleDestroy {
 
   hasSessionWorkspace(sessionId: string): boolean {
     return this.sessionWorkspaceBindings.has(sessionId);
+  }
+
+  async listWorkspaceEntries(
+    workspaceRoot: string,
+    relativePath = '',
+  ): Promise<{
+    workspaceRoot: string;
+    path: string;
+    entries: WorkspaceTreeEntry[];
+  }> {
+    const normalizedRoot = await this.validateWorkspaceRoot(workspaceRoot);
+    const normalizedPath = this.normalizeRelativePath(relativePath);
+    const targetPath = resolve(normalizedRoot, normalizedPath || '.');
+
+    if (!this.isSameOrSubPath(normalizedRoot, targetPath)) {
+      throw new Error(`path is outside workspace root: ${relativePath}`);
+    }
+
+    let targetStat;
+    try {
+      targetStat = await stat(targetPath);
+    } catch {
+      throw new Error(`path does not exist: ${targetPath}`);
+    }
+    if (!targetStat.isDirectory()) {
+      throw new Error(`path is not a directory: ${targetPath}`);
+    }
+
+    try {
+      await access(targetPath, fsConstants.R_OK | fsConstants.X_OK);
+    } catch {
+      throw new Error(`path is not accessible: ${targetPath}`);
+    }
+
+    const entries = await readdir(targetPath, { withFileTypes: true });
+    const items = await Promise.all(
+      entries.map(async (entry) => {
+        const childPath = resolve(targetPath, entry.name);
+        let hasChildren = false;
+        if (entry.isDirectory()) {
+          try {
+            const children = await readdir(childPath, { withFileTypes: true });
+            hasChildren = children.length > 0;
+          } catch {
+            hasChildren = false;
+          }
+        }
+
+        const childRelativePath = normalizedPath
+          ? `${normalizedPath}/${entry.name}`
+          : entry.name;
+
+        return {
+          name: entry.name,
+          path: childRelativePath,
+          type: entry.isDirectory() ? 'directory' : 'file',
+          hasChildren,
+        } satisfies WorkspaceTreeEntry;
+      }),
+    );
+
+    items.sort((left, right) => {
+      if (left.type !== right.type) {
+        return left.type === 'directory' ? -1 : 1;
+      }
+      return left.name.localeCompare(right.name, 'zh-Hans-CN');
+    });
+
+    return {
+      workspaceRoot: normalizedRoot,
+      path: normalizedPath,
+      entries: items,
+    };
   }
 
   /**
@@ -304,6 +384,21 @@ export class WorkspaceManager implements OnModuleInit, OnModuleDestroy {
     }
 
     return real;
+  }
+
+  private normalizeRelativePath(relativePath: string): string {
+    const normalized = String(relativePath || '')
+      .trim()
+      .replace(/\\/g, '/')
+      .replace(/^\/+|\/+$/g, '');
+    if (!normalized) {
+      return '';
+    }
+    const segments = normalized.split('/').filter(Boolean);
+    if (segments.some((segment) => segment === '..')) {
+      throw new Error(`path is outside workspace root: ${relativePath}`);
+    }
+    return segments.join('/');
   }
 
   private isAllowedWorkspaceRoot(candidate: string): boolean {

@@ -20,6 +20,9 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "test:openclaw": "node scripts/test-openclaw.mjs 1",
     "test:openclaw:10": "node scripts/test-openclaw.mjs 10",
+    "qa:run": "ts-node src/qa/cli.ts",
+    "qa:gate": "ts-node src/qa/cli.ts --mode=gate",
+    "qa:replay": "ts-node src/qa/cli.ts --mode=replay",
     "migrate:claims": "ts-node prisma/migrate-claims-from-legacy.ts",
     "memory:dedup:dryrun": "ts-node scripts/cleanup-memory-duplicates.ts",
     "memory:dedup:apply": "ts-node scripts/cleanup-memory-duplicates.ts --apply"

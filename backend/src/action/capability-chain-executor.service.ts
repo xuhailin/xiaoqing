@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { CapabilityRegistry } from '../action/capability-registry.service';
-import type { ReasoningContext } from './reasoner.interface';
+import { CapabilityRegistry } from './capability-registry.service';
 
 export interface ChainStep {
   capability: string;
@@ -13,11 +12,25 @@ export interface CapabilityChain {
   description?: string;
 }
 
+export interface ChainExecutionContext {
+  conversationId: string;
+  turnId: string;
+  userInput: string;
+}
+
+/**
+ * Executes a multi-step capability chain sequentially,
+ * piping each step's output into the next step via outputMapping.
+ *
+ * Belongs in the execution/capability layer — chain planning is
+ * the caller's responsibility (e.g. a future DecisionEngine or
+ * capability planner).
+ */
 @Injectable()
-export class ChainExecutor {
+export class CapabilityChainExecutor {
   constructor(private readonly capabilityRegistry: CapabilityRegistry) {}
 
-  async execute(chain: CapabilityChain, context: ReasoningContext): Promise<any> {
+  async execute(chain: CapabilityChain, context: ChainExecutionContext): Promise<any> {
     const results: any[] = [];
     let previousOutput: any = null;
 
@@ -31,7 +44,7 @@ export class ChainExecutor {
 
       const result = await capability.execute({
         conversationId: context.conversationId,
-        turnId: context.turnId ?? '',
+        turnId: context.turnId,
         userInput: context.userInput,
         params,
       });

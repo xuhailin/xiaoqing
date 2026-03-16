@@ -14,6 +14,7 @@ import type {
 import { ClaimSchemaRegistry, CLAIM_KEYS } from '../claim-engine/claim-schema.registry';
 import type { SystemSelf } from '../../system-self/system-self.types';
 import type { TaskPlan } from '../planning/task-planner.types';
+import type { ActionDecision } from '../action-reasoner/action-reasoner.types';
 
 export const CHAT_PROMPT_VERSION = 'chat_v6';
 export const SUMMARY_PROMPT_VERSION = 'summary_v2';
@@ -67,6 +68,12 @@ export interface ChatContext {
   };
   /** 任务规划结果：多步骤任务的执行计划 */
   taskPlan?: TaskPlan;
+  /** 行动决策：包含 action、capability、reason 等决策上下文 */
+  actionDecision?: ActionDecision;
+  /** 由 DecisionSummaryBuilder 生成的决策摘要文本（优先于 actionDecision 内联构建） */
+  decisionSummaryText?: string;
+  /** 表达提示：来自推理层的语气/风格建议 */
+  expressionHintsText?: string;
 }
 
 export interface SummaryContext {
@@ -145,6 +152,23 @@ export class PromptRouterService {
     const claimPart = ctx.claimPolicyText ?? '';
     const sessionStatePart = ctx.sessionStateText ?? '';
 
+    // 决策上下文：优先使用 DecisionSummaryBuilder 生成的摘要，降级为内联构建
+    let decisionContextPart = '';
+    if (ctx.decisionSummaryText) {
+      decisionContextPart = ctx.decisionSummaryText;
+    } else if (ctx.actionDecision) {
+      const lines = ['[决策上下文]'];
+      lines.push(`- 当前行动：${ctx.actionDecision.action}`);
+      if (ctx.actionDecision.capability) {
+        lines.push(`- 选定能力：${ctx.actionDecision.capability}`);
+      }
+      lines.push(`- 决策理由：${ctx.actionDecision.reason}`);
+      lines.push('请基于此决策上下文生成回复，保持一致性，但不要向用户暴露内部系统机制。');
+      decisionContextPart = lines.join('\n');
+    }
+
+    const expressionHintsPart = ctx.expressionHintsText ?? '';
+
     let actionHintPart = '';
     if (ctx.handoffDevHint) {
       actionHintPart = '[行动提示] 用户本轮可能是开发/编程类任务。若适合交给开发代理，可在回复中自然建议对方使用 /dev 前缀重新发送。';
@@ -177,12 +201,13 @@ export class PromptRouterService {
 
     let systemSelfPart = '';
     if (ctx.systemSelf) {
-      const capabilities = ctx.systemSelf.capabilities
-        .filter(c => c.visibility !== 'hidden')
-        .map(c => c.name)
-        .join('、');
-      if (capabilities) {
-        systemSelfPart = `你当前可用的能力：${capabilities}`;
+      const visibleCaps = ctx.systemSelf.capabilities.filter(c => c.visibility !== 'hidden');
+      if (visibleCaps.length > 0) {
+        const capLines = visibleCaps.map(c => `- ${c.name}：${c.description || c.name}`);
+        const hasReminder = visibleCaps.some(c => c.name === 'reminder');
+        systemSelfPart = hasReminder
+          ? `你当前可用的能力：\n${capLines.join('\n')}\n注：reminder 能力可以设置真实的定时提醒（一次性、每天、每周），会在指定时间实际触发通知。`
+          : `你当前可用的能力：\n${capLines.join('\n')}`;
       }
     }
 
@@ -203,6 +228,8 @@ export class PromptRouterService {
       cognitivePart,
       reflectionPart,
       taskPlanPart,
+      decisionContextPart,
+      expressionHintsPart,
       actionHintPart,
       metaPart,
       expressionPart,

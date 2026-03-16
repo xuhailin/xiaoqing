@@ -18,6 +18,7 @@ import type {
 } from '../daily-moment/daily-moment.types';
 import type { LocalSkillRunResult } from '../../action/local-skills/local-skill.types';
 import type { SystemSelf } from '../../system-self/system-self.types';
+import type { PostTurnPlan } from '../post-turn/post-turn.types';
 
 export interface MemoryRecallPlan {
   candidatesCount: number;
@@ -109,7 +110,10 @@ export interface SendMessageResult {
   trace?: TraceStep[];
 }
 
-export type ChatCompletionResult = SendMessageResult;
+export interface ChatCompletionResult {
+  result: SendMessageResult;
+  postTurnPlan?: PostTurnPlan;
+}
 
 export type ToolPolicyAction =
   | 'chat'

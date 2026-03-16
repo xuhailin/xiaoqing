@@ -12,6 +12,7 @@ export interface AgentInfo {
 
 export interface CapabilityInfo {
   name: string;
+  description?: string;
   taskIntent?: string[];
   surface?: string;
   scope?: string;

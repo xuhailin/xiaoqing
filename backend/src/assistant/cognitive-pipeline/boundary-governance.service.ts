@@ -101,7 +101,7 @@ export class BoundaryGovernanceService {
       lines.push('- 当前语气必须更稳更软，先保证安全感。');
     }
     if (preflight.disallowCapabilityClaims) {
-      lines.push('- 不要声称已经完成任何未实际执行的动作。');
+      lines.push('- 不要声称已经完成任何未实际执行的动作。但可以自然地提议使用可用能力。');
     }
     lines.push(`- notes: ${preflight.notes.join('; ')}`);
     return lines.join('\n');

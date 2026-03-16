@@ -21,6 +21,7 @@ import { DebugDashboardComponent } from '../debug/debug-dashboard.component';
           <button [class.active]="tab() === 'persona'" (click)="tab.set('persona')">人格</button>
           <button [class.active]="tab() === 'identity'" (click)="tab.set('identity')">用户</button>
           <button [class.active]="tab() === 'debug'" (click)="tab.set('debug')">调试</button>
+          <button (click)="openRegression()">回归</button>
           <button (click)="openDevAgent()">Dev</button>
         </div>
         <div class="tab-content">
@@ -123,5 +124,9 @@ export class MainLayoutComponent {
 
   openDevAgent() {
     this.router.navigate(['/dev-agent']);
+  }
+
+  openRegression() {
+    this.router.navigate(['/regression']);
   }
 }

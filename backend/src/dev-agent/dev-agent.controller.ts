@@ -21,6 +21,14 @@ export class DevAgentController {
     return this.devAgent.getRun(runId);
   }
 
+  @Get('workspace-tree')
+  async listWorkspaceTree(
+    @Query('workspaceRoot') workspaceRoot: string,
+    @Query('path') path?: string,
+  ) {
+    return this.devAgent.listWorkspaceTree(workspaceRoot, path);
+  }
+
   @Post('runs/:runId/cancel')
   async cancelRun(
     @Param('runId') runId: string,

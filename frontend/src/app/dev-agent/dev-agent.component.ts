@@ -1,77 +1,44 @@
-import { Component, OnDestroy, OnInit, computed, effect, signal } from '@angular/core';
-import { DevTaskResult } from '../core/services/dev-agent.service';
+import { Component, OnDestroy, OnInit, signal } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { DevAgentPageStore } from './dev-agent-page.store';
-import { DevTimelineStep } from './dev-agent.view-model';
-import { DevThreadPaneComponent } from './components/dev-thread-pane.component';
-import { DevRunTimelineComponent } from './components/dev-run-timeline.component';
-import { DevStepDetailComponent } from './components/dev-step-detail.component';
-import { DevComposerComponent } from './components/dev-composer.component';
+import { WorkspaceSidebarComponent } from './components/workspace-sidebar.component';
+import { DevChatPanelComponent } from './components/dev-chat-panel.component';
 
 @Component({
   selector: 'app-dev-agent',
   standalone: true,
-  imports: [
-    DevThreadPaneComponent,
-    DevRunTimelineComponent,
-    DevStepDetailComponent,
-    DevComposerComponent,
-  ],
+  imports: [WorkspaceSidebarComponent, DevChatPanelComponent],
   providers: [DevAgentPageStore],
   template: `
     <div class="dev-agent-page">
-      <div class="workbench-grid">
-        <app-dev-thread-pane
+      <div class="layout-grid">
+        <app-workspace-sidebar
+          [workspaceRoot]="store.workspaceRootInput()"
+          [workspaceOptions]="store.workspaceOptions()"
           [sessions]="store.sessions()"
-          [selectedSessionId]="store.selectedSessionId()"
-          [selectedRunId]="store.selectedRunId()"
-          [expandedSessionId]="store.expandedSessionId()"
-          [activeWorkspaceRoot]="store.workspaceRootInput()"
-          [searchText]="searchText()"
-          [statusFilter]="statusFilter()"
-          (searchTextChange)="searchText.set($event)"
-          (statusFilterChange)="statusFilter.set($event)"
-          (sessionToggle)="store.toggleSession($event)"
-          (runSelect)="store.openRun($event)"
-          (workspaceSelect)="store.setWorkspaceRootInput($event)"
+          [activeSessionId]="store.selectedSessionId()"
+          (workspaceRootSelect)="store.selectWorkspaceRoot($event)"
+          (selectSession)="store.selectSession($event)"
         />
 
-        <app-dev-run-timeline
-          [task]="store.lastResult()"
-          [steps]="timelineSteps()"
-          [selectedStepId]="selectedStepId()"
-          [isCancellable]="isCurrentRunCancellable()"
+        <app-dev-chat-panel
+          [messages]="store.chatMessages()"
+          [runState]="store.runState()"
+          [taskInput]="taskInput()"
+          [sending]="store.sending()"
+          [canCancel]="isCurrentRunCancellable()"
+          [canRerun]="isCurrentRunRerunnable()"
           [cancelling]="isCancellingCurrentRun()"
-          [hasFailedStep]="hasFailedStep()"
-          (stepSelect)="selectedStepId.set($event)"
+          (taskInputChange)="taskInput.set($event)"
+          (submit)="submitTask()"
           (cancel)="store.cancelCurrentRun()"
           (rerun)="store.rerunCurrentRun()"
-          (jumpToFailed)="jumpToFailedStep()"
-        />
-
-        <app-dev-step-detail
-          [step]="selectedStep()"
-          [runStatus]="store.lastResult()?.run?.status ?? null"
-          [stopReason]="summaryStopReason()"
-          [runError]="store.lastResult()?.run?.error ?? null"
-          (copyCommand)="copySelectedCommand()"
-          (copyFailureSummary)="copyFailureSummary()"
         />
       </div>
 
       @if (store.actionNotice()) {
         <div class="action-notice">{{ store.actionNotice() }}</div>
       }
-
-      <div class="composer-shell">
-        <app-dev-composer
-          [taskInput]="taskInput()"
-          [workspaceRoot]="store.workspaceRootInput()"
-          [sending]="store.sending()"
-          (taskInputChange)="taskInput.set($event)"
-          (workspaceRootChange)="store.setWorkspaceRootInput($event)"
-          (submit)="submitTask()"
-        />
-      </div>
     </div>
   `,
   styles: [`
@@ -83,39 +50,21 @@ import { DevComposerComponent } from './components/dev-composer.component';
 
     .dev-agent-page {
       height: 100%;
-      display: grid;
-      grid-template-rows: 1fr auto;
-      gap: var(--space-3);
+      min-height: 0;
+      overflow: hidden;
       padding: var(--space-4);
-      min-height: 0;
       position: relative;
-      overflow: hidden;
+      background:
+        radial-gradient(circle at top left, rgba(234, 201, 183, 0.24), transparent 22%),
+        linear-gradient(180deg, #fbf8f2 0%, #f7f3ee 100%);
     }
 
-    .workbench-grid {
+    .layout-grid {
+      height: 100%;
       min-height: 0;
       display: grid;
-      grid-template-columns: 320px minmax(420px, 1fr) 320px;
-      gap: var(--space-3);
-      overflow: hidden;
-    }
-
-    @media (max-width: 1320px) {
-      .workbench-grid {
-        grid-template-columns: 280px minmax(360px, 1fr) 280px;
-      }
-    }
-
-    @media (max-width: 1024px) {
-      .dev-agent-page {
-        grid-template-rows: 1fr auto;
-        padding: var(--space-3);
-      }
-
-      .workbench-grid {
-        grid-template-columns: 1fr;
-        grid-template-rows: minmax(180px, 32vh) minmax(260px, 1fr) minmax(180px, 30vh);
-      }
+      grid-template-columns: minmax(260px, 300px) minmax(0, 1fr);
+      gap: var(--space-4);
     }
 
     .action-notice {
@@ -125,79 +74,46 @@ import { DevComposerComponent } from './components/dev-composer.component';
       z-index: 2;
       font-size: var(--font-size-xs);
       color: #1f8a4d;
-      border: 1px solid rgba(39, 174, 96, 0.35);
-      background: rgba(240, 253, 244, 0.92);
+      border: 1px solid rgba(39, 174, 96, 0.3);
+      background: rgba(240, 253, 244, 0.95);
       border-radius: var(--radius-md);
       padding: var(--space-2) var(--space-3);
       box-shadow: var(--shadow-sm);
-      max-width: min(360px, 70vw);
+      max-width: min(340px, 72vw);
     }
 
-    .composer-shell {
-      position: sticky;
-      bottom: 0;
-      z-index: 1;
-      background: linear-gradient(180deg, rgba(250, 249, 246, 0), rgba(250, 249, 246, 0.92) 16px);
-      padding-top: var(--space-2);
+    @media (max-width: 980px) {
+      .dev-agent-page {
+        padding: var(--space-3);
+      }
+
+      .layout-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(220px, 34vh) minmax(0, 1fr);
+      }
     }
   `],
 })
 export class DevAgentComponent implements OnInit, OnDestroy {
   taskInput = signal('');
-  searchText = signal('');
-  statusFilter = signal<'all' | 'running' | 'failed' | 'success'>('all');
-  selectedStepId = signal<string | null>(null);
 
-  readonly summary = computed(() => {
-    const runResult = this.store.lastResult()?.run.result;
-    return this.store.buildResultSummary(runResult);
-  });
-
-  readonly summaryStopReason = computed(() => this.summary()?.stopReason ?? null);
-
-  readonly timelineSteps = computed(() => this.buildTimelineSteps(this.store.lastResult()));
-
-  readonly selectedStep = computed(() => {
-    const steps = this.timelineSteps();
-    const selected = this.selectedStepId();
-    if (selected) {
-      const matched = steps.find((step) => step.id === selected);
-      if (matched) return matched;
-    }
-    return steps[0] ?? null;
-  });
-
-  readonly hasFailedStep = computed(() =>
-    this.timelineSteps().some((step) => step.status === 'failed'),
-  );
-
-  private lastRunId: string | null = null;
-
-  private readonly selectionSync = effect(() => {
-    const currentRunId = this.store.lastResult()?.run.id ?? null;
-    const steps = this.timelineSteps();
-    if (currentRunId !== this.lastRunId) {
-      this.lastRunId = currentRunId;
-      this.selectedStepId.set(steps[0]?.id ?? null);
-      return;
-    }
-    if (steps.length === 0) {
-      this.selectedStepId.set(null);
-      return;
-    }
-    if (!steps.find((step) => step.id === this.selectedStepId())) {
-      this.selectedStepId.set(steps[0].id);
-    }
-  });
-
-  constructor(public readonly store: DevAgentPageStore) {}
+  constructor(
+    public readonly store: DevAgentPageStore,
+    private readonly route: ActivatedRoute,
+  ) {}
 
   ngOnInit() {
-    this.store.init();
+    const query = this.route.snapshot.queryParamMap;
+    const navState = (history.state ?? {}) as Record<string, unknown>;
+    this.store.init({
+      preferredSessionId: query.get('sessionId'),
+      preferredRunId: query.get('runId'),
+      workspaceRoot: query.get('workspaceRoot'),
+      notice: typeof navState['notice'] === 'string' ? navState['notice'] : null,
+    });
   }
 
   ngOnDestroy() {
-    this.selectionSync.destroy();
     this.store.destroy();
   }
 
@@ -208,64 +124,18 @@ export class DevAgentComponent implements OnInit, OnDestroy {
   }
 
   isCurrentRunCancellable(): boolean {
-    const status = this.store.lastResult()?.run.status;
+    const status = this.store.currentResult()?.run.status;
     return status ? this.store.isRunCancellable(status) : false;
   }
 
+  isCurrentRunRerunnable(): boolean {
+    const status = this.store.currentResult()?.run.status;
+    return !!status && !this.store.isRunCancellable(status);
+  }
+
   isCancellingCurrentRun(): boolean {
-    const runId = this.store.lastResult()?.run.id;
+    const runId = this.store.currentResult()?.run.id;
     return !!runId && this.store.cancellingRunId() === runId;
   }
 
-  jumpToFailedStep() {
-    const failed = this.timelineSteps().find((step) => step.status === 'failed');
-    if (failed) {
-      this.selectedStepId.set(failed.id);
-    }
-  }
-
-  copySelectedCommand() {
-    const command = this.selectedStep()?.command ?? '';
-    void this.store.copyText(command, '命令');
-  }
-
-  copyFailureSummary() {
-    const summary = this.store.buildFailureSummary();
-    void this.store.copyText(summary, '错误摘要');
-  }
-
-  private buildTimelineSteps(task: DevTaskResult | null): DevTimelineStep[] {
-    if (!task) return [];
-
-    const summary = this.store.buildResultSummary(task.run.result);
-    if (summary?.steps.length) {
-      return summary.steps.map((step, index) => ({
-        id: step.stepId,
-        title: `Step ${index + 1}`,
-        command: step.command,
-        executor: step.executor,
-        strategy: null,
-        status: step.success ? 'success' : 'failed',
-        output: step.output,
-        error: step.error,
-      }));
-    }
-
-    const planSteps = task.run.plan?.steps ?? [];
-    if (planSteps.length > 0) {
-      const status = task.run.status === 'running' ? 'running' : 'planned';
-      return planSteps.map((step) => ({
-        id: `plan-${step.index}`,
-        title: step.description || `计划步骤 ${step.index}`,
-        command: step.command,
-        executor: step.executor ?? task.run.executor ?? 'pending',
-        strategy: step.strategy ?? null,
-        status,
-        output: null,
-        error: null,
-      }));
-    }
-
-    return [];
-  }
 }

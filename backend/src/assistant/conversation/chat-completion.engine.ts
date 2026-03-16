@@ -1,48 +1,26 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../infra/prisma.service';
 import { LlmService } from '../../infra/llm/llm.service';
-import { CHAT_PROMPT_VERSION, PromptRouterService } from '../prompt-router/prompt-router.service';
-import { MemoryService, MemoryCandidate } from '../memory/memory.service';
+import { CHAT_PROMPT_VERSION } from '../prompt-router/prompt-router.service';
 import { MemoryDecayService } from '../memory/memory-decay.service';
-import { PersonaService, PersonaDto } from '../persona/persona.service';
-import { UserProfileService, type UserProfileDto } from '../persona/user-profile.service';
-import { ActionReasonerService } from '../action-reasoner/action-reasoner.service';
-import { IntentService } from '../intent/intent.service';
+import { PersonaDto } from '../persona/persona.service';
 import type { DialogueIntentState } from '../intent/intent.types';
 import { TaskFormatterService } from '../../openclaw/task-formatter.service';
 import { CapabilityRegistry } from '../../action/capability-registry.service';
 import { WeatherSkillService } from '../../action/skills/weather/weather-skill.service';
-import { WorldStateService } from '../../infra/world-state/world-state.service';
-import { IdentityAnchorService } from '../identity-anchor/identity-anchor.service';
 import { PetService } from '../pet/pet.service';
-import { SummarizerService } from '../summarizer/summarizer.service';
-import { EvolutionSchedulerService } from '../persona/evolution-scheduler.service';
-import { CognitivePipelineService } from '../cognitive-pipeline/cognitive-pipeline.service';
-import { CognitiveGrowthService } from '../cognitive-pipeline/cognitive-growth.service';
-import { BoundaryGovernanceService } from '../cognitive-pipeline/boundary-governance.service';
-import type {
-  BoundaryPromptContext,
-  ClaimSignal,
-  CognitiveTurnState,
-  SessionStateSignal,
-} from '../cognitive-pipeline/cognitive-pipeline.types';
-import { MetaLayerService } from '../meta-layer/meta-layer.service';
-import { ClaimEngineConfig } from '../claim-engine/claim-engine.config';
-import { ClaimSelectorService } from '../claim-engine/claim-selector.service';
-import { SessionStateService } from '../claim-engine/session-state.service';
-import { truncateToTokenBudget, estimateMessagesTokens, estimateTokens } from '../../infra/token-estimator';
+import type { CognitiveTurnState } from '../cognitive-pipeline/cognitive-pipeline.types';
+import { estimateTokens } from '../../infra/token-estimator';
 import { TraceCollector } from '../../infra/trace/trace-collector';
-import type { TraceStep } from '../../infra/trace/trace.types';
 import { adaptLegacyTraceToTurnEvents } from '../../infra/trace/turn-trace.adapter';
 import { DailyMomentService } from '../daily-moment/daily-moment.service';
-import type { DailyMomentChatMessage, DailyMomentRecord, DailyMomentSuggestion } from '../daily-moment/daily-moment.types';
-import type { SendMessageResult, ToolPolicyDecision, TurnContext } from './orchestration.types';
+import type { DailyMomentChatMessage } from '../daily-moment/daily-moment.types';
+import type { ChatCompletionResult, SendMessageResult, ToolPolicyDecision, TurnContext } from './orchestration.types';
 import { ToolExecutorRegistry } from '../../action/tools/tool-executor-registry.service';
-import { PostTurnPipeline } from '../post-turn/post-turn.pipeline';
-import type { PostTurnPlan, PostTurnTask } from '../post-turn/post-turn.types';
+import type { PostTurnPlan } from '../post-turn/post-turn.types';
 import { SkillRunner } from '../../action/local-skills/skill-runner.service';
-import type { LocalSkillRunResult } from '../../action/local-skills/local-skill.types';
 import { FeatureFlagConfig } from './feature-flag.config';
+import { ResponseComposer } from './response-composer.service';
 
 type PipelineStepName = 'cognition' | 'decision' | 'expression';
 
@@ -89,56 +67,24 @@ export class ChatCompletionEngine {
   private readonly featureDebugMeta: boolean;
   /** OpenClaw 集成（默认 off） */
   private readonly featureOpenClaw: boolean;
-  /** 自动触发总结（默认 on，每 N 条用户消息后异步执行） */
-  private readonly featureAutoSummarize: boolean;
-  /** 自动总结触发阈值：summarizedAt 之后累计 N 条用户消息（默认 15） */
-  private readonly autoSummarizeThreshold: number;
   /** OpenClaw 意图置信度阈值 */
   private readonly openclawConfidenceThreshold: number;
-  /** 即时触发总结：关键词命中时立即总结（默认 on） */
-  private readonly featureInstantSummarize: boolean;
-
-  /** 即时触发正则：显式记忆指令 + 身份/事实声明 */
-  private static readonly INSTANT_SUMMARIZE_RE =
-    /(?:记住|记一下|别忘|请你记|帮我记|我叫|我姓|我是(?!说|不是|在说)|我今年|我住在|我在(?!说|想|看)|我换了|我的名字)/;
   private static readonly SKILL_COMMAND_RE = /^\/skill\s+([a-z0-9-]+)\s*$/;
 
-  /** 防止同一会话并发总结 */
-  private summarizingConversations = new Set<string>();
-
   private readonly logger = new Logger(ChatCompletionEngine.name);
-  private preparedContext: TurnContext | null = null;
-  private forcedPolicy: ToolPolicyDecision | null = null;
 
   constructor(
     private prisma: PrismaService,
     private llm: LlmService,
-    private router: PromptRouterService,
-    private memory: MemoryService,
     private memoryDecay: MemoryDecayService,
-    private persona: PersonaService,
-    private userProfile: UserProfileService,
-    private intent: IntentService,
-    private actionReasoner: ActionReasonerService,
     private taskFormatter: TaskFormatterService,
     private capabilityRegistry: CapabilityRegistry,
     private weatherSkill: WeatherSkillService,
-    private worldState: WorldStateService,
-    private identityAnchor: IdentityAnchorService,
     private pet: PetService,
-    private summarizer: SummarizerService,
-    private evolutionScheduler: EvolutionSchedulerService,
-    private cognitivePipeline: CognitivePipelineService,
-    private cognitiveGrowth: CognitiveGrowthService,
-    private boundaryGovernance: BoundaryGovernanceService,
-    private metaLayer: MetaLayerService,
-    private claimConfig: ClaimEngineConfig,
-    private claimSelector: ClaimSelectorService,
-    private sessionStateStore: SessionStateService,
     private dailyMoment: DailyMomentService,
     private toolRegistry: ToolExecutorRegistry,
     private localSkillRunner: SkillRunner,
-    private postTurnPipeline: PostTurnPipeline,
+    private responseComposer: ResponseComposer,
     flags: FeatureFlagConfig,
   ) {
     this.lastNRounds = flags.lastNRounds;
@@ -159,10 +105,7 @@ export class ChatCompletionEngine {
     this.featureShortSummary = flags.featureShortSummary;
     this.featureDebugMeta = flags.featureDebugMeta;
     this.featureOpenClaw = flags.featureOpenClaw;
-    this.featureAutoSummarize = flags.featureAutoSummarize;
-    this.autoSummarizeThreshold = flags.autoSummarizeThreshold;
     this.openclawConfidenceThreshold = flags.openclawConfidenceThreshold;
-    this.featureInstantSummarize = flags.featureInstantSummarize;
   }
 
   private async getLastNDailyMomentMessages(
@@ -188,18 +131,14 @@ export class ChatCompletionEngine {
   async execute(
     context: TurnContext,
     policy: ToolPolicyDecision,
-  ): Promise<SendMessageResult> {
-    this.preparedContext = context;
-    this.forcedPolicy = policy;
-    try {
-      return this.processTurnInternal(context);
-    } finally {
-      this.preparedContext = null;
-      this.forcedPolicy = null;
-    }
+  ): Promise<ChatCompletionResult> {
+    return this.processTurnInternal(context, policy);
   }
 
-  private async processTurnInternal(context: TurnContext): Promise<SendMessageResult> {
+  private async processTurnInternal(
+    context: TurnContext,
+    forcedPolicy: ToolPolicyDecision,
+  ): Promise<ChatCompletionResult> {
     const { conversationId, userInput: content, userMessage: userMsg } = context.request;
     const trace = new TraceCollector(this.featureDebugMeta);
     const pipelineState = this.createPipelineTraceState();
@@ -208,8 +147,6 @@ export class ChatCompletionEngine {
 
     const recent = context.conversation.recentMessages;
     const personaDto = context.persona.personaDto;
-    const anchorCity = context.user.anchorCity;
-    const defaultLocationContext = context.world.defaultWorldState;
     const now = context.request.now;
     const localSkillName = this.parseLocalSkillCommand(content);
     if (localSkillName) {
@@ -260,7 +197,7 @@ export class ChatCompletionEngine {
 
       this.pet.setStateWithAutoIdle('speaking', 2000);
 
-      return {
+      return this.wrapResult({
         userMessage: {
           id: userMsg.id,
           role: userMsg.role,
@@ -279,389 +216,98 @@ export class ChatCompletionEngine {
           record: generated.record,
         },
         ...(trace && { trace: trace.getTrace() }),
-      };
+      });
     }
 
     // Claw 为被动工具层，仅工具型请求才调用；闲聊/思考/情绪不经过 Claw。
     // ── 意图识别 + OpenClaw 分流 ──────────────────────────
-    let intentState: DialogueIntentState | null =
-      this.preparedContext?.runtime.mergedIntentState
-      ?? this.preparedContext?.runtime.intentState
+    const intentState: DialogueIntentState | null =
+      context.runtime.mergedIntentState
+      ?? context.runtime.intentState
       ?? null;
-    const hasAnyChatCapability =
-      this.featureOpenClaw ||
-      this.capabilityRegistry.listExposed('chat', { surface: 'assistant' }).length > 0;
-    if (!intentState && hasAnyChatCapability) {
-      try {
-        intentState = await trace.wrap('intent', '意图识别', async () => {
-          const capabilityPrompt = this.capabilityRegistry.buildExposedCapabilityPrompt('chat', {
-            surface: 'assistant',
-          });
-          const state = await this.intent.recognize(recent, content, defaultLocationContext, capabilityPrompt || undefined);
-          return {
-            status: 'success' as const,
-            detail: {
-              userInput: content,
-              defaultWorldState: defaultLocationContext,
-              anchorCityFallback: anchorCity ?? null,
-              intentNormalized: {
-                mode: state.mode,
-                requiresTool: state.requiresTool,
-                taskIntent: state.taskIntent,
-                confidence: state.confidence,
-                suggestedTool: state.suggestedTool ?? null,
-                slots: state.slots,
-                missingParams: state.missingParams,
-                seriousness: state.seriousness,
-                expectation: state.expectation,
-                agency: state.agency,
-              },
-            },
-            result: state,
-          };
-        });
-      } catch (err) {
-        trace.add('intent', '意图识别', 'fail', {
-          userInput: content,
-          error: String(err),
-          decision: 'chat',
-          reason: '意图识别异常，降级为聊天路径',
-        });
-        this.advancePipelineState(pipelineState, 'decision');
-        this.logger.warn(`Intent recognition failed, falling back to chat: ${err}`);
-      }
-
-    }
-
     if (intentState) {
-      let merged = intentState;
-      if (this.preparedContext?.runtime.mergedIntentState) {
-        merged = this.preparedContext.runtime.mergedIntentState;
-      } else {
-        // 用户明确声明变化时更新 World State（覆盖旧值）
-        if (intentState.worldStateUpdate && Object.keys(intentState.worldStateUpdate).length > 0) {
-          await this.worldState.update(conversationId, intentState.worldStateUpdate);
-          trace.add('world-state', '世界状态更新', 'success', {
-            updated: Object.keys(intentState.worldStateUpdate),
-          });
-        }
-
-        // 长期身份声明写回 IdentityAnchor（如"我住北京"→ location）
-        if (intentState.identityUpdate && Object.keys(intentState.identityUpdate).length > 0) {
-          await this.writeIdentityUpdate(intentState.identityUpdate, trace);
-        }
-
-        // 用 World State 补全槽位；仅当补全后仍缺失时才允许反问用户
-        const mergedResult = await this.worldState.mergeSlots(
-          conversationId,
-          intentState,
-          anchorCity ? { city: anchorCity } : null,
-        );
-        merged = mergedResult.merged;
-        const { filledFromWorldState } = mergedResult;
-        if (filledFromWorldState.length > 0) {
-          trace.add('world-state', '槽位补全', 'success', {
-            filledFromWorldState,
-            mergedMissingParams: merged.missingParams,
-          });
-        }
-        this.logger.debug(
-          `Intent: requiresTool=${merged.requiresTool}, taskIntent=${merged.taskIntent}, ` +
-          `missingParams=${merged.missingParams.length}, filledFromWorldState=${filledFromWorldState.join(',') || 'none'}`,
-        );
-
-      }
-
-      const policy = this.forcedPolicy ?? this.actionReasoner.toToolPolicy(this.actionReasoner.decide(merged));
-        this.advancePipelineState(pipelineState, 'decision');
-        trace.add('policy-decision', '策略决策', 'success', {
-          policyDecision: policy.action,
-          reason: policy.reason,
-          confidence: merged.confidence,
-          threshold: this.openclawConfidenceThreshold,
-          taskIntent: merged.taskIntent,
-          requiresTool: merged.requiresTool,
-          missingParams: merged.missingParams,
-          pipeline: this.buildPipelineSnapshot(pipelineState),
-          actionReasoner: this.preparedContext?.runtime?.actionDecision
-            ? {
-                action: this.preparedContext.runtime.actionDecision.action,
-                source: this.preparedContext.runtime.actionDecision.source,
-                capability: this.preparedContext.runtime.actionDecision.capability,
-              }
-            : undefined,
-        });
+      // 意图和槽位合并已由 TurnContextAssembler 完成，直接使用 mergedIntentState
+      const merged = context.runtime.mergedIntentState ?? intentState;
+      const policy = forcedPolicy;
+      this.advancePipelineState(pipelineState, 'decision');
+      trace.add('policy-decision', '策略决策', 'success', {
+        policyDecision: policy.action,
+        reason: policy.reason,
+        confidence: merged.confidence,
+        threshold: this.openclawConfidenceThreshold,
+        taskIntent: merged.taskIntent,
+        requiresTool: merged.requiresTool,
+        missingParams: merged.missingParams,
+        pipeline: this.buildPipelineSnapshot(pipelineState),
+        actionReasoner: context.runtime.actionDecision
+          ? {
+              action: context.runtime.actionDecision.action,
+              source: context.runtime.actionDecision.source,
+              capability: context.runtime.actionDecision.capability,
+            }
+          : undefined,
+      });
       if (policy.action === 'ask_missing') {
-          return this.handleMissingParamsReply(
-            conversationId, userMsg, content, merged.missingParams, merged, personaDto, trace, pipelineState,
-          );
-        }
-      // Weather capability - 地理解析预处理 + fallback
-      if (policy.action === 'run_capability' && policy.capability === 'weather') {
-        let location = this.takeValidCoord(merged.slots.location);
-        let geoResolved: string | null = null;
-
-        // 地理解析预处理
-        if (!location && merged.slots.city) {
-          geoResolved = await this.weatherSkill.resolveCityToLocation(
-            merged.slots.city,
-            typeof merged.slots.district === 'string' && merged.slots.district.trim()
-              ? merged.slots.district.trim()
-              : undefined,
-          );
-          location = geoResolved ?? undefined;
-        }
-
-        // 地理解析失败，fallback 到 OpenClaw
-        if (!location) {
-          const reason = !merged.slots.city && !merged.slots.location
-            ? '意图未抽取 city 或 location 槽位'
-            : merged.slots.city && geoResolved === null
-              ? `城市 Geo 解析失败（city="${merged.slots.city}", district="${merged.slots.district ?? ''}"）`
-              : `slots.location 格式无效（"${merged.slots.location ?? ''}"）`;
-          trace.add('skill-attempt', '本地技能：天气（地点解析）', 'fail', {
-            skill: 'weather',
-            phase: 'resolve-location',
-            slotsCity: merged.slots.city ?? null,
-            slotsDistrict: merged.slots.district ?? null,
-            slotsLocation: merged.slots.location ?? null,
-            geoResolved,
-            reason,
-            fallback: 'openclaw',
-          });
-          this.logger.debug(`Weather: ${reason}, fallback to OpenClaw`);
-          this.advancePipelineState(pipelineState, 'decision');
-          if (!this.featureOpenClaw) {
-            trace.add('policy-decision', '策略决策', 'success', {
-              policyDecision: 'chat',
-              reason: 'OpenClaw 已关闭，回退聊天',
-              pipeline: this.buildPipelineSnapshot(pipelineState),
-            });
-            return this.buildToolReplyAndSave(
-              conversationId, userMsg, content, personaDto,
-              null, '天气地点解析失败，且 OpenClaw 已关闭，暂无法代为查询',
-              merged, {}, trace, pipelineState, recent,
-            );
-          }
-          return this.handleOpenClawTask(
-            conversationId, userMsg, recent, content, merged, personaDto, trace, pipelineState,
-          );
-        }
-
-        // 构建参数并执行
-        const displayName = merged.slots.city
-          ? (merged.slots.district ? `${merged.slots.city}${merged.slots.district}` : merged.slots.city)
-          : '该坐标';
-        const weatherInput = {
-          location,
-          dateLabel: typeof merged.slots.dateLabel === 'string' ? merged.slots.dateLabel : undefined,
-          displayName,
-        };
-
-        const result = await this.executeCapabilityGeneric(
-          'weather',
+        return this.handleMissingParamsReply(
+          context,
           conversationId,
           userMsg,
           content,
-          weatherInput,
+          merged.missingParams,
           merged,
           personaDto,
           trace,
           pipelineState,
-          recent,
-          'weather',
         );
-
-        // Weather 执行失败，fallback 到 OpenClaw
-        if (!result.assistantMessage.content || result.assistantMessage.content.includes('失败')) {
-          this.advancePipelineState(pipelineState, 'decision');
-          trace.add('policy-decision', '策略决策', 'success', {
-            policyDecision: 'run_openclaw',
-            reason: '本地 weather 执行失败，回退 OpenClaw',
-            pipeline: this.buildPipelineSnapshot(pipelineState),
-          });
-          this.logger.debug('Weather skill failed, fallback to OpenClaw');
-          if (!this.featureOpenClaw) {
-            return this.buildToolReplyAndSave(
-              conversationId, userMsg, content, personaDto,
-              null, '本地天气查询失败，且 OpenClaw 已关闭，暂无法代为查询',
-              merged, {}, trace, pipelineState, recent,
-            );
-          }
-          return this.handleOpenClawTask(
-            conversationId, userMsg, recent, content, merged, personaDto, trace, pipelineState,
-          );
-        }
-
-        return result;
       }
-      // Book-download capability - 支持多候选处理
-      if (policy.action === 'run_capability' && policy.capability === 'book-download') {
-        const bookName = typeof merged.slots.bookName === 'string' ? merged.slots.bookName.trim() : '';
-
-        // 缺失书名，fallback 到 OpenClaw
-        if (!bookName) {
-          trace.add('skill-attempt', '本地技能：电子书下载', 'fail', {
-            skill: 'book_download',
-            reason: '意图未抽取 bookName 槽位',
-          });
-          if (!this.featureOpenClaw) {
-            trace.add('policy-decision', '策略决策', 'success', {
-              policyDecision: 'chat',
-              reason: 'OpenClaw 已关闭，回退聊天',
-              pipeline: this.buildPipelineSnapshot(pipelineState),
-            });
-            return this.buildToolReplyAndSave(
-              conversationId, userMsg, content, personaDto,
-              null, '意图未抽取书名，且 OpenClaw 已关闭，暂无法代为下载',
-              merged, {}, trace, pipelineState, recent,
-            );
-          }
-          return this.handleOpenClawTask(
-            conversationId, userMsg, recent, content, merged, personaDto, trace, pipelineState,
-          );
-        }
-
-        // 执行 book-download capability
-        const bookParams = {
-          bookName,
-          ...(typeof merged.slots.bookChoiceIndex === 'number' && { bookChoiceIndex: merged.slots.bookChoiceIndex }),
-        };
-
-        const result = await trace.wrap('skill-attempt', '本地技能：电子书下载', async () => {
-          const execResult = await this.capabilityRegistry.execute('book-download', {
-            conversationId,
-            turnId: userMsg.id,
-            userInput: content,
-            params: bookParams,
-            intentState: merged,
-          });
-          return {
-            status: (execResult.success ? 'success' : 'fail') as 'success' | 'fail',
-            detail: {
-              capability: 'book-download',
-              input: bookParams,
-              success: execResult.success,
-              resultPreview: execResult.content?.slice(0, 200) ?? null,
-              error: execResult.error ?? null,
-              meta: execResult.meta,
-            },
-            result: execResult,
-          };
-        });
-
-        // 多条匹配：将候选列表作为工具结果展示给用户
-        const bookChoices = result.meta?.bookChoices as { title: string; index: number }[] | undefined;
-        if (!result.success && bookChoices?.length && result.content) {
-          return this.buildToolReplyAndSave(
-            conversationId, userMsg, content, personaDto,
-            result.content, null,
-            merged,
-            { localSkillUsed: 'book_download' }, trace, pipelineState, recent,
-          );
-        }
-
-        // 成功下载
-        if (result.success && result.content) {
-          return this.buildToolReplyAndSave(
-            conversationId, userMsg, content, personaDto,
-            result.content, null,
-            merged,
-            { localSkillUsed: 'book_download' }, trace, pipelineState, recent,
-          );
-        }
-
-        // 失败，fallback 到 OpenClaw
-        this.advancePipelineState(pipelineState, 'decision');
-        trace.add('policy-decision', '策略决策', 'success', {
-          policyDecision: this.featureOpenClaw ? 'run_openclaw' : 'chat',
-          reason: this.featureOpenClaw ? '本地 book_download 执行失败，回退 OpenClaw' : 'OpenClaw 已关闭，回退聊天',
-          fallbackReason: result.error ?? 'book_download skill returned empty content',
-          pipeline: this.buildPipelineSnapshot(pipelineState),
-        });
+      if (policy.action === 'run_capability') {
+        const routed = await this.routeCapability(
+          context,
+          policy.capability ?? '',
+          conversationId,
+          userMsg,
+          recent,
+          content,
+          merged,
+          personaDto,
+          trace,
+          pipelineState,
+        );
+        if (routed) return routed;
+      }
+      if (policy.action === 'run_openclaw') {
         if (!this.featureOpenClaw) {
+          this.logger.debug('OpenClaw 已关闭，工具意图回退聊天');
           return this.buildToolReplyAndSave(
-            conversationId, userMsg, content, personaDto,
-            null, '本地电子书下载失败，且 OpenClaw 已关闭，暂无法代为下载',
-            merged, {}, trace, pipelineState, recent,
+            context,
+            conversationId,
+            userMsg,
+            content,
+            personaDto,
+            null,
+            'OpenClaw 已关闭，暂无法执行该任务',
+            merged,
+            {},
+            trace,
+            pipelineState,
+            recent,
           );
         }
         return this.handleOpenClawTask(
-          conversationId, userMsg, recent, content, merged, personaDto, trace, pipelineState,
-        );
-      }
-      // General-action capability - 支持条件 fallback
-      if (policy.action === 'run_capability' && policy.capability === 'general-action') {
-        return this.executeCapabilityGeneric(
-          'general-action',
+          context,
           conversationId,
           userMsg,
+          recent,
           content,
-          { input: content },
           merged,
           personaDto,
           trace,
           pipelineState,
-          recent,
-          'general_action',
-          { fallbackOnReasonCode: 'NOT_SUPPORTED' },
         );
       }
-      // Timesheet capability - 参数构建逻辑已内联
-      if (policy.action === 'run_capability' && policy.capability === 'timesheet') {
-        const timesheetParams = this.buildTimesheetParams(merged.slots, content);
-        return this.executeCapabilityGeneric(
-          'timesheet',
-          conversationId,
-          userMsg,
-          content,
-          timesheetParams,
-          merged,
-          personaDto,
-          trace,
-          pipelineState,
-          recent,
-          'timesheet',
-        );
-      }
-      if (policy.action === 'run_capability' && policy.capability === 'reminder') {
-        const reminderParams: Record<string, unknown> = {
-          reminderAction: merged.slots.reminderAction ?? 'create',
-          reminderReason: merged.slots.reminderReason,
-          reminderSchedule: merged.slots.reminderSchedule,
-          reminderTime: merged.slots.reminderTime,
-          reminderTarget: merged.slots.reminderTarget,
-        };
-        return this.executeCapabilityGeneric(
-          'reminder',
-          conversationId,
-          userMsg,
-          content,
-          reminderParams,
-          merged,
-          personaDto,
-          trace,
-          pipelineState,
-          recent,
-          'reminder',
-        );
-      }
-      if (policy.action === 'run_openclaw') {
-          if (!this.featureOpenClaw) {
-            this.logger.debug('OpenClaw 已关闭，工具意图回退聊天');
-            return this.buildToolReplyAndSave(
-              conversationId, userMsg, content, personaDto,
-              null, 'OpenClaw 已关闭，暂无法执行该任务',
-              merged, {}, trace, pipelineState, recent,
-            );
-          }
-          return this.handleOpenClawTask(
-            conversationId, userMsg, recent, content, merged, personaDto, trace, pipelineState,
-          );
-        }
     } else {
       trace.add('intent', '意图识别', 'skip', {
-        reason: 'OpenClaw 未开启且无可用本地能力，跳过意图识别',
+        reason: '意图未识别或无可用能力，走聊天路径',
       });
       this.advancePipelineState(pipelineState, 'decision');
     }
@@ -671,7 +317,16 @@ export class ChatCompletionEngine {
     }
 
     // ── 原有聊天路径 ──────────────────────────────────────
-    return this.handleChatReply(conversationId, userMsg, recent, personaDto, trace, pipelineState, intentState);
+    return this.handleChatReply(
+      context,
+      conversationId,
+      userMsg,
+      recent,
+      personaDto,
+      trace,
+      pipelineState,
+      intentState,
+    );
   }
 
   private parseLocalSkillCommand(input: string): string | null {
@@ -685,7 +340,7 @@ export class ChatCompletionEngine {
     userInput: string,
     skillName: string,
     trace: TraceCollector,
-  ): Promise<SendMessageResult> {
+  ): Promise<ChatCompletionResult> {
     const localSkillRun = await trace.wrap('skill-attempt', '本地技能命令', async () => {
       const result = await this.localSkillRunner.run({
         skill: skillName,
@@ -724,7 +379,7 @@ export class ChatCompletionEngine {
       },
     });
 
-    return {
+    return this.wrapResult({
       userMessage: {
         id: userMsg.id,
         role: userMsg.role,
@@ -742,7 +397,7 @@ export class ChatCompletionEngine {
         localSkillRun,
       },
       ...(trace && { trace: trace.getTrace() }),
-    };
+    });
   }
 
   /** 经度,纬度 格式（和风约定），与 intent/weather 一致 */
@@ -789,8 +444,403 @@ export class ChatCompletionEngine {
     return lines.every((line) => overrideLinePattern.test(line)) ? text : undefined;
   }
 
+  private async routeCapability(
+    context: TurnContext,
+    capability: string,
+    conversationId: string,
+    userMsg: { id: string; role: string; content: string; createdAt: Date },
+    recent: Array<{ role: string; content: string }>,
+    userInput: string,
+    intentState: DialogueIntentState,
+    personaDto: PersonaDto,
+    trace: TraceCollector,
+    pipelineState: PipelineTraceState,
+  ): Promise<ChatCompletionResult | null> {
+    if (capability === 'weather') {
+      return this.handleWeatherCapability(
+        context,
+        conversationId,
+        userMsg,
+        recent,
+        userInput,
+        intentState,
+        personaDto,
+        trace,
+        pipelineState,
+      );
+    }
+
+    if (capability === 'book-download') {
+      return this.handleBookDownloadCapability(
+        context,
+        conversationId,
+        userMsg,
+        recent,
+        userInput,
+        intentState,
+        personaDto,
+        trace,
+        pipelineState,
+      );
+    }
+
+    const simpleRequest = this.buildSimpleCapabilityRequest(capability, intentState, userInput);
+    if (!simpleRequest) return null;
+
+    return this.executeCapabilityGeneric(
+      context,
+      simpleRequest.capabilityName,
+      conversationId,
+      userMsg,
+      userInput,
+      simpleRequest.params,
+      intentState,
+      personaDto,
+      trace,
+      pipelineState,
+      recent,
+      simpleRequest.localSkillUsed,
+      simpleRequest.options,
+    );
+  }
+
+  private async handleWeatherCapability(
+    context: TurnContext,
+    conversationId: string,
+    userMsg: { id: string; role: string; content: string; createdAt: Date },
+    recent: Array<{ role: string; content: string }>,
+    userInput: string,
+    intentState: DialogueIntentState,
+    personaDto: PersonaDto,
+    trace: TraceCollector,
+    pipelineState: PipelineTraceState,
+  ): Promise<ChatCompletionResult> {
+    let location = this.takeValidCoord(intentState.slots.location);
+    let geoResolved: string | null = null;
+
+    if (!location && intentState.slots.city) {
+      geoResolved = await this.weatherSkill.resolveCityToLocation(
+        intentState.slots.city,
+        typeof intentState.slots.district === 'string' && intentState.slots.district.trim()
+          ? intentState.slots.district.trim()
+          : undefined,
+      );
+      location = geoResolved ?? undefined;
+    }
+
+    if (!location) {
+      const reason = !intentState.slots.city && !intentState.slots.location
+        ? '意图未抽取 city 或 location 槽位'
+        : intentState.slots.city && geoResolved === null
+          ? `城市 Geo 解析失败（city="${intentState.slots.city}", district="${intentState.slots.district ?? ''}"）`
+          : `slots.location 格式无效（"${intentState.slots.location ?? ''}"）`;
+      trace.add('skill-attempt', '本地技能：天气（地点解析）', 'fail', {
+        skill: 'weather',
+        phase: 'resolve-location',
+        slotsCity: intentState.slots.city ?? null,
+        slotsDistrict: intentState.slots.district ?? null,
+        slotsLocation: intentState.slots.location ?? null,
+        geoResolved,
+        reason,
+        fallback: 'openclaw',
+      });
+      this.logger.debug(`Weather: ${reason}, fallback to OpenClaw`);
+      this.advancePipelineState(pipelineState, 'decision');
+      if (!this.featureOpenClaw) {
+        trace.add('policy-decision', '策略决策', 'success', {
+          policyDecision: 'chat',
+          reason: 'OpenClaw 已关闭，回退聊天',
+          pipeline: this.buildPipelineSnapshot(pipelineState),
+        });
+        return this.buildToolReplyAndSave(
+          context,
+          conversationId,
+          userMsg,
+          userInput,
+          personaDto,
+          null,
+          '天气地点解析失败，且 OpenClaw 已关闭，暂无法代为查询',
+          intentState,
+          {},
+          trace,
+          pipelineState,
+          recent,
+        );
+      }
+      return this.handleOpenClawTask(
+        context,
+        conversationId,
+        userMsg,
+        recent,
+        userInput,
+        intentState,
+        personaDto,
+        trace,
+        pipelineState,
+      );
+    }
+
+    const displayName = intentState.slots.city
+      ? (intentState.slots.district ? `${intentState.slots.city}${intentState.slots.district}` : intentState.slots.city)
+      : '该坐标';
+    const weatherInput = {
+      location,
+      dateLabel: typeof intentState.slots.dateLabel === 'string' ? intentState.slots.dateLabel : undefined,
+      displayName,
+    };
+
+    const result = await this.executeCapabilityGeneric(
+      context,
+      'weather',
+      conversationId,
+      userMsg,
+      userInput,
+      weatherInput,
+      intentState,
+      personaDto,
+      trace,
+      pipelineState,
+      recent,
+      'weather',
+    );
+
+    if (!result.result.assistantMessage.content || result.result.assistantMessage.content.includes('失败')) {
+      this.advancePipelineState(pipelineState, 'decision');
+      trace.add('policy-decision', '策略决策', 'success', {
+        policyDecision: 'run_openclaw',
+        reason: '本地 weather 执行失败，回退 OpenClaw',
+        pipeline: this.buildPipelineSnapshot(pipelineState),
+      });
+      this.logger.debug('Weather skill failed, fallback to OpenClaw');
+      if (!this.featureOpenClaw) {
+        return this.buildToolReplyAndSave(
+          context,
+          conversationId,
+          userMsg,
+          userInput,
+          personaDto,
+          null,
+          '本地天气查询失败，且 OpenClaw 已关闭，暂无法代为查询',
+          intentState,
+          {},
+          trace,
+          pipelineState,
+          recent,
+        );
+      }
+      return this.handleOpenClawTask(
+        context,
+        conversationId,
+        userMsg,
+        recent,
+        userInput,
+        intentState,
+        personaDto,
+        trace,
+        pipelineState,
+      );
+    }
+
+    return result;
+  }
+
+  private async handleBookDownloadCapability(
+    context: TurnContext,
+    conversationId: string,
+    userMsg: { id: string; role: string; content: string; createdAt: Date },
+    recent: Array<{ role: string; content: string }>,
+    userInput: string,
+    intentState: DialogueIntentState,
+    personaDto: PersonaDto,
+    trace: TraceCollector,
+    pipelineState: PipelineTraceState,
+  ): Promise<ChatCompletionResult> {
+    const bookName = typeof intentState.slots.bookName === 'string' ? intentState.slots.bookName.trim() : '';
+    if (!bookName) {
+      trace.add('skill-attempt', '本地技能：电子书下载', 'fail', {
+        skill: 'book_download',
+        reason: '意图未抽取 bookName 槽位',
+      });
+      if (!this.featureOpenClaw) {
+        trace.add('policy-decision', '策略决策', 'success', {
+          policyDecision: 'chat',
+          reason: 'OpenClaw 已关闭，回退聊天',
+          pipeline: this.buildPipelineSnapshot(pipelineState),
+        });
+        return this.buildToolReplyAndSave(
+          context,
+          conversationId,
+          userMsg,
+          userInput,
+          personaDto,
+          null,
+          '意图未抽取书名，且 OpenClaw 已关闭，暂无法代为下载',
+          intentState,
+          {},
+          trace,
+          pipelineState,
+          recent,
+        );
+      }
+      return this.handleOpenClawTask(
+        context,
+        conversationId,
+        userMsg,
+        recent,
+        userInput,
+        intentState,
+        personaDto,
+        trace,
+        pipelineState,
+      );
+    }
+
+    const bookParams = {
+      bookName,
+      ...(typeof intentState.slots.bookChoiceIndex === 'number'
+        && { bookChoiceIndex: intentState.slots.bookChoiceIndex }),
+    };
+
+    const result = await trace.wrap('skill-attempt', '本地技能：电子书下载', async () => {
+      const execResult = await this.capabilityRegistry.execute('book-download', {
+        conversationId,
+        turnId: userMsg.id,
+        userInput,
+        params: bookParams,
+        intentState,
+      });
+      return {
+        status: (execResult.success ? 'success' : 'fail') as 'success' | 'fail',
+        detail: {
+          capability: 'book-download',
+          input: bookParams,
+          success: execResult.success,
+          resultPreview: execResult.content?.slice(0, 200) ?? null,
+          error: execResult.error ?? null,
+          meta: execResult.meta,
+        },
+        result: execResult,
+      };
+    });
+
+    const bookChoices = result.meta?.bookChoices as { title: string; index: number }[] | undefined;
+    if (!result.success && bookChoices?.length && result.content) {
+      return this.buildToolReplyAndSave(
+        context,
+        conversationId,
+        userMsg,
+        userInput,
+        personaDto,
+        result.content,
+        null,
+        intentState,
+        { localSkillUsed: 'book_download' },
+        trace,
+        pipelineState,
+        recent,
+      );
+    }
+
+    if (result.success && result.content) {
+      return this.buildToolReplyAndSave(
+        context,
+        conversationId,
+        userMsg,
+        userInput,
+        personaDto,
+        result.content,
+        null,
+        intentState,
+        { localSkillUsed: 'book_download' },
+        trace,
+        pipelineState,
+        recent,
+      );
+    }
+
+    this.advancePipelineState(pipelineState, 'decision');
+    trace.add('policy-decision', '策略决策', 'success', {
+      policyDecision: this.featureOpenClaw ? 'run_openclaw' : 'chat',
+      reason: this.featureOpenClaw ? '本地 book_download 执行失败，回退 OpenClaw' : 'OpenClaw 已关闭，回退聊天',
+      fallbackReason: result.error ?? 'book_download skill returned empty content',
+      pipeline: this.buildPipelineSnapshot(pipelineState),
+    });
+    if (!this.featureOpenClaw) {
+      return this.buildToolReplyAndSave(
+        context,
+        conversationId,
+        userMsg,
+        userInput,
+        personaDto,
+        null,
+        '本地电子书下载失败，且 OpenClaw 已关闭，暂无法代为下载',
+        intentState,
+        {},
+        trace,
+        pipelineState,
+        recent,
+      );
+    }
+    return this.handleOpenClawTask(
+      context,
+      conversationId,
+      userMsg,
+      recent,
+      userInput,
+      intentState,
+      personaDto,
+      trace,
+      pipelineState,
+    );
+  }
+
+  private buildSimpleCapabilityRequest(
+    capability: string,
+    intentState: DialogueIntentState,
+    userInput: string,
+  ): {
+    capabilityName: string;
+    params: Record<string, unknown>;
+    localSkillUsed?: 'general_action' | 'timesheet' | 'reminder';
+    options?: { fallbackOnReasonCode?: string };
+  } | null {
+    if (capability === 'general-action') {
+      return {
+        capabilityName: 'general-action',
+        params: { input: userInput },
+        localSkillUsed: 'general_action',
+        options: { fallbackOnReasonCode: 'NOT_SUPPORTED' },
+      };
+    }
+
+    if (capability === 'timesheet') {
+      return {
+        capabilityName: 'timesheet',
+        params: this.buildTimesheetParams(intentState.slots, userInput),
+        localSkillUsed: 'timesheet',
+      };
+    }
+
+    if (capability === 'reminder') {
+      return {
+        capabilityName: 'reminder',
+        params: {
+          reminderAction: intentState.slots.reminderAction ?? 'create',
+          reminderReason: intentState.slots.reminderReason,
+          reminderSchedule: intentState.slots.reminderSchedule,
+          reminderTime: intentState.slots.reminderTime,
+          reminderTarget: intentState.slots.reminderTarget,
+        },
+        localSkillUsed: 'reminder',
+      };
+    }
+
+    return null;
+  }
+
   /** 根据工具执行结果构建小晴转述并保存消息，供 OpenClaw 与本地 Skill 共用 */
   private async buildToolReplyAndSave(
+    context: TurnContext,
     conversationId: string,
     userMsg: { id: string; role: string; content: string; createdAt: Date },
     userInput: string,
@@ -802,133 +852,105 @@ export class ChatCompletionEngine {
     trace?: TraceCollector,
     pipelineState?: PipelineTraceState,
     recentMessages?: { role: string; content: string }[],
-  ) {
-    const preparedContext = this.preparedContext;
-    const worldState = preparedContext?.world.fullWorldState ?? await this.worldState.get(conversationId);
-    const growthContext = preparedContext?.growth.growthContext ?? await this.cognitiveGrowth.getGrowthContext();
-    const claimCtx = preparedContext?.claims ?? await this.buildClaimAndSessionContext(conversationId);
-    const userProfileText = this.buildInjectedUserProfileText(
-      preparedContext?.user.userProfile ?? await this.userProfile.getOrCreate(),
-      { includeImpressionCore: this.featureImpressionCore, includeImpressionDetail: true },
-    );
-    const expressionText = this.router.buildExpressionPolicy(
-      this.persona.getExpressionFields(personaDto),
-      intentState ?? undefined,
-    );
-    const toolCognitiveState = this.cognitivePipeline.analyzeTurn({
-      userInput,
-      recentMessages: recentMessages ?? [],
-      intentState,
-      worldState,
-      growthContext,
-      claimSignals: claimCtx.claimSignals,
-      sessionState: claimCtx.sessionState,
-    });
-    if (trace && pipelineState) {
-      this.recordPipelineStep(trace, pipelineState, 'cognition', {
-        path: opts.openclawUsed ? 'tool-openclaw' : opts.localSkillUsed ?? 'tool-local',
-        situation: toolCognitiveState.situation.kind,
-        userEmotion: toolCognitiveState.userState.emotion,
-        userNeedMode: toolCognitiveState.userState.needMode,
-        responseStrategy: toolCognitiveState.responseStrategy,
-        rhythm: toolCognitiveState.rhythm,
-        safety: toolCognitiveState.safety,
-      });
-    }
-
-    const wrapMessages = this.router.buildToolResultMessages({
-      personaText: this.persona.buildPersonaPrompt(personaDto),
-      expressionText,
-      userProfileText,
-      metaFilterPolicy: personaDto.metaFilterPolicy,
-      toolKind: opts.openclawUsed ? 'openclaw' : opts.localSkillUsed,
-      userInput,
-      toolResult,
-      toolError,
-      recentMessages,
-    });
-    if (trace && pipelineState) {
-      this.recordPipelineStep(trace, pipelineState, 'expression', {
-        path: opts.openclawUsed ? 'tool-openclaw' : opts.localSkillUsed ?? 'tool-local',
-        phase: 'pre-llm',
-        inputMessages: wrapMessages.length,
-        model: this.llm.getModelInfo({ scenario: 'chat' }),
-      });
-    }
-
-    const rawReplyContent = await (trace
+  ): Promise<ChatCompletionResult> {
+    const path = opts.openclawUsed ? 'tool-openclaw' : opts.localSkillUsed ?? 'tool-local';
+    const composition = await (trace
       ? trace.wrap('llm-generate', '生成回复', async () => {
-          const content = await this.llm.generate(wrapMessages, { scenario: 'chat' });
+          const result = await this.responseComposer.composeToolReply({
+            context,
+            userInput,
+            recentMessages,
+            personaDto,
+            intentState,
+            toolResult,
+            toolError,
+            toolKind: opts.openclawUsed ? 'openclaw' : (opts.localSkillUsed ?? 'general_action'),
+            profilePrompt: {
+              includeImpressionCore: this.featureImpressionCore,
+              includeImpressionDetail: true,
+            },
+            toolWasActuallyUsed: !!opts.openclawUsed || !!opts.localSkillUsed,
+          });
           return {
             status: 'success' as const,
             detail: {
               model: this.llm.getModelInfo({ scenario: 'chat' }),
-              inputMessages: wrapMessages.length,
+              inputMessages: result.promptMessages.length,
               mode: 'tool-wrap',
             },
-            result: content,
+            result,
           };
         })
-      : this.llm.generate(wrapMessages, { scenario: 'chat' }));
-    const filteredReplyContent = this.applyMetaLayerFilter(
-      rawReplyContent,
-      personaDto.metaFilterPolicy,
-      trace,
-      opts.openclawUsed ? 'openclaw' : opts.localSkillUsed ?? 'tool',
-    );
-    const review = this.boundaryGovernance.reviewGeneratedReply(filteredReplyContent, toolCognitiveState, {
-      toolWasActuallyUsed: !!opts.openclawUsed || !!opts.localSkillUsed,
-    });
-    if (review.adjusted) {
-      trace?.add('boundary-governance', '边界治理复核', 'success', {
-        adjusted: true,
-        reasons: review.reasons,
-        path: opts.openclawUsed ? 'openclaw' : opts.localSkillUsed ?? 'tool',
+      : this.responseComposer.composeToolReply({
+          context,
+          userInput,
+          recentMessages,
+          personaDto,
+          intentState,
+          toolResult,
+          toolError,
+          toolKind: opts.openclawUsed ? 'openclaw' : (opts.localSkillUsed ?? 'general_action'),
+          profilePrompt: {
+            includeImpressionCore: this.featureImpressionCore,
+            includeImpressionDetail: true,
+          },
+          toolWasActuallyUsed: !!opts.openclawUsed || !!opts.localSkillUsed,
+        }));
+    if (trace && pipelineState) {
+      this.recordPipelineStep(trace, pipelineState, 'cognition', {
+        path,
+        situation: composition.cognitiveState.situation.kind,
+        userEmotion: composition.cognitiveState.userState.emotion,
+        userNeedMode: composition.cognitiveState.userState.needMode,
+        responseStrategy: composition.cognitiveState.responseStrategy,
+        rhythm: composition.cognitiveState.rhythm,
+        safety: composition.cognitiveState.safety,
+      });
+      this.recordPipelineStep(trace, pipelineState, 'expression', {
+        path,
+        phase: 'pre-llm',
+        inputMessages: composition.promptMessages.length,
+        model: this.llm.getModelInfo({ scenario: 'chat' }),
+      });
+      this.recordPipelineStep(trace, pipelineState, 'expression', {
+        path,
+        phase: 'post-llm',
+        rawLength: composition.rawReplyContent.length,
+        filteredLength: composition.filteredReplyContent.length,
+        finalLength: composition.replyContent.length,
+        metaAdjusted: composition.rawReplyContent !== composition.filteredReplyContent,
+        boundaryAdjusted: composition.boundaryReview.adjusted,
+        boundaryReasons: composition.boundaryReview.reasons,
       });
     }
-    const replyContent = review.content;
-    if (trace && pipelineState) {
-      this.recordPipelineStep(trace, pipelineState, 'expression', {
-        path: opts.openclawUsed ? 'tool-openclaw' : opts.localSkillUsed ?? 'tool-local',
-        phase: 'post-llm',
-        rawLength: rawReplyContent.length,
-        filteredLength: filteredReplyContent.length,
-        finalLength: replyContent.length,
-        metaAdjusted: rawReplyContent !== filteredReplyContent,
-        boundaryAdjusted: review.adjusted,
-        boundaryReasons: review.reasons,
+    if (composition.boundaryReview.adjusted) {
+      trace?.add('boundary-governance', '边界治理复核', 'success', {
+        adjusted: true,
+        reasons: composition.boundaryReview.reasons,
+        path,
       });
     }
 
     this.pet.setStateWithAutoIdle('speaking', 3000);
 
     const assistantMsg = await this.prisma.message.create({
-      data: { conversationId, role: 'assistant', content: replyContent, tokenCount: estimateTokens(replyContent) },
+      data: {
+        conversationId,
+        role: 'assistant',
+        content: composition.replyContent,
+        tokenCount: estimateTokens(composition.replyContent),
+      },
     });
-    const summarizeTrigger: 'instant' | 'threshold' = this.shouldInstantSummarize(userInput)
-      ? 'instant'
-      : 'threshold';
-    const postPlan: PostTurnPlan = {
+    const postPlan = this.buildPostTurnPlan({
       conversationId,
-      turn: {
-        turnId: userMsg.id,
-        userMessageId: userMsg.id,
-        assistantMessageId: assistantMsg.id,
-        userInput,
-        assistantOutput: assistantMsg.content,
-        now: new Date(),
-      },
-      context: {
-        intentState,
-        cognitiveState: toolCognitiveState,
-      },
+      userMsg,
+      assistantMsg,
+      userInput,
+      intentState,
+      cognitiveState: composition.cognitiveState,
       beforeReturn: [],
-      afterReturn: [{ type: 'record_growth' }, { type: 'summarize_trigger', trigger: summarizeTrigger }],
-    };
-    this.postTurnPipeline.runAfterReturn(
-      postPlan,
-      async (task) => this.runPostTurnTask(task, postPlan, { trace, userMsgId: userMsg.id, assistantMsgId: assistantMsg.id }),
-    ).catch((err) => this.logger.warn(`Post-turn pipeline (tool path) failed: ${String(err)}`));
+      afterReturn: [{ type: 'record_growth' }, { type: 'summarize_trigger', trigger: this.resolveSummarizeTrigger(userInput) }],
+    });
 
     const debugMeta = this.featureDebugMeta && pipelineState
       ? {
@@ -944,7 +966,7 @@ export class ChatCompletionEngine {
         }
       : undefined;
 
-    return {
+    return this.wrapResult({
       userMessage: {
         id: userMsg.id,
         role: userMsg.role,
@@ -962,11 +984,12 @@ export class ChatCompletionEngine {
       ...(opts.localSkillUsed !== undefined && { localSkillUsed: opts.localSkillUsed }),
       ...(debugMeta && { debugMeta }),
       ...(trace && { trace: trace.getTrace() }),
-    };
+    }, postPlan);
   }
 
   // ── 通用 Capability 执行 ─────────────────────────────────────
   private async executeCapabilityGeneric(
+    context: TurnContext,
     capabilityName: string,
     conversationId: string,
     userMsg: { id: string; role: string; content: string; createdAt: Date },
@@ -982,7 +1005,7 @@ export class ChatCompletionEngine {
       /** 条件 fallback：检查 meta.reasonCode，匹配时 fallback 到 OpenClaw */
       fallbackOnReasonCode?: string;
     },
-  ) {
+  ): Promise<ChatCompletionResult> {
     const result = await trace.wrap('skill-attempt', `本地技能：${capabilityName}`, async () => {
       const execResult = await this.capabilityRegistry.execute(capabilityName, {
         conversationId,
@@ -1020,6 +1043,7 @@ export class ChatCompletionEngine {
         });
         if (!this.featureOpenClaw) {
           return this.buildToolReplyAndSave(
+            context,
             conversationId,
             userMsg,
             content,
@@ -1034,6 +1058,7 @@ export class ChatCompletionEngine {
           );
         }
         return this.handleOpenClawTask(
+          context,
           conversationId,
           userMsg,
           recent,
@@ -1047,6 +1072,7 @@ export class ChatCompletionEngine {
     }
 
     return this.buildToolReplyAndSave(
+      context,
       conversationId,
       userMsg,
       content,
@@ -1063,6 +1089,7 @@ export class ChatCompletionEngine {
 
   // ── OpenClaw 任务处理 ─────────────────────────────────────
   private async handleOpenClawTask(
+    context: TurnContext,
     conversationId: string,
     userMsg: { id: string; role: string; content: string; createdAt: Date },
     recent: Array<{ role: string; content: string }>,
@@ -1071,10 +1098,11 @@ export class ChatCompletionEngine {
     personaDto: PersonaDto,
     trace: TraceCollector,
     pipelineState: PipelineTraceState,
-  ) {
+  ): Promise<ChatCompletionResult> {
     if (!this.featureOpenClaw) {
       this.logger.warn('OpenClaw 已关闭，跳过执行');
       return this.buildToolReplyAndSave(
+        context,
         conversationId, userMsg, userInput, personaDto,
         null, 'OpenClaw 已禁用',
         intentState, { openclawUsed: false }, trace, pipelineState, recent,
@@ -1108,6 +1136,7 @@ export class ChatCompletionEngine {
     });
 
     return this.buildToolReplyAndSave(
+      context,
       conversationId, userMsg, userInput, personaDto,
       clawResult.success ? clawResult.content : null,
       clawResult.success ? null : (clawResult.error || null),
@@ -1118,6 +1147,7 @@ export class ChatCompletionEngine {
 
   /** 缺必要参数时由小晴自然追问，不调用 OpenClaw */
   private async handleMissingParamsReply(
+    context: TurnContext,
     conversationId: string,
     userMsg: { id: string; role: string; content: string; createdAt: Date },
     userInput: string,
@@ -1126,131 +1156,104 @@ export class ChatCompletionEngine {
     personaDto: PersonaDto,
     trace: TraceCollector,
     pipelineState: PipelineTraceState,
-  ) {
-    const preparedContext = this.preparedContext;
-    const paramLabel: Record<string, string> = { city: '城市或坐标', location: '城市或坐标', recipient: '收件人', to: '收件人', subject: '主题' };
-    const paramNames = missingParams.map((p) => paramLabel[p.toLowerCase()] ?? p).join('、');
-    const expressionText = this.router.buildExpressionPolicy(
-      this.persona.getExpressionFields(personaDto),
-      intentState ?? undefined,
-    );
-    const userProfileText = this.buildInjectedUserProfileText(
-      preparedContext?.user.userProfile ?? await this.userProfile.getOrCreate(),
-      { includeImpressionCore: this.featureImpressionCore, includeImpressionDetail: true },
-    );
+  ): Promise<ChatCompletionResult> {
+    const composition = await trace.wrap('llm-generate', '生成追问回复', async () => {
+      const result = await this.responseComposer.composeMissingParamsReply({
+        context,
+        userInput,
+        missingParams,
+        personaDto,
+        intentState,
+        profilePrompt: {
+          includeImpressionCore: this.featureImpressionCore,
+          includeImpressionDetail: true,
+        },
+      });
+      return {
+        status: 'success' as const,
+        detail: {
+          model: this.llm.getModelInfo({ scenario: 'chat' }),
+          inputMessages: result.promptMessages.length,
+          mode: 'missing-params-followup',
+        },
+        result,
+      };
+    });
 
     trace.add('missing-params', '缺失参数追问', 'success', {
       missingParams,
-      paramLabels: paramNames.split('、'),
-    });
-
-    const systemContent = [
-      this.persona.buildPersonaPrompt(personaDto),
-      '',
-      expressionText,
-      userProfileText,
-      '',
-      this.router.buildMetaFilterPolicy(personaDto.metaFilterPolicy),
-      '',
-      '用户想让你帮忙执行一件事，但还少一些关键信息，需要你自然地问 TA 补全。',
-      `当前缺少的信息类型：${paramNames}。`,
-      '请沿用上面的人格与表达字段，用自然口语问用户要这些信息，不要提「系统」「参数」「缺少」等词，一句或两句即可。',
-    ].join('\n');
-    const messages: Array<{ role: 'system' | 'user'; content: string }> = [
-      { role: 'system', content: systemContent },
-      { role: 'user', content: `用户说：${userInput}` },
-    ];
-
-    const worldState = preparedContext?.world.fullWorldState ?? await this.worldState.get(conversationId);
-    const growthContext = preparedContext?.growth.growthContext ?? await this.cognitiveGrowth.getGrowthContext();
-    const claimCtx = preparedContext?.claims ?? await this.buildClaimAndSessionContext(conversationId);
-    const followupCognitiveState = this.cognitivePipeline.analyzeTurn({
-      userInput,
-      recentMessages: [],
-      intentState,
-      worldState,
-      growthContext,
-      claimSignals: claimCtx.claimSignals,
-      sessionState: claimCtx.sessionState,
+      paramLabels: composition.missingParamLabels,
     });
     this.recordPipelineStep(trace, pipelineState, 'cognition', {
       path: 'missing-params',
-      situation: followupCognitiveState.situation.kind,
-      userEmotion: followupCognitiveState.userState.emotion,
-      userNeedMode: followupCognitiveState.userState.needMode,
-      responseStrategy: followupCognitiveState.responseStrategy,
-      rhythm: followupCognitiveState.rhythm,
-      safety: followupCognitiveState.safety,
+      situation: composition.cognitiveState.situation.kind,
+      userEmotion: composition.cognitiveState.userState.emotion,
+      userNeedMode: composition.cognitiveState.userState.needMode,
+      responseStrategy: composition.cognitiveState.responseStrategy,
+      rhythm: composition.cognitiveState.rhythm,
+      safety: composition.cognitiveState.safety,
       missingParams,
     });
     this.recordPipelineStep(trace, pipelineState, 'expression', {
       path: 'missing-params',
       phase: 'pre-llm',
-      inputMessages: messages.length,
+      inputMessages: composition.promptMessages.length,
       model: this.llm.getModelInfo({ scenario: 'chat' }),
     });
-
-    const rawReplyContent = await trace.wrap('llm-generate', '生成追问回复', async () => {
-      const content = await this.llm.generate(messages, { scenario: 'chat' });
-      return {
-        status: 'success' as const,
-        detail: {
-          model: this.llm.getModelInfo({ scenario: 'chat' }),
-          inputMessages: messages.length,
-          mode: 'missing-params-followup',
-        },
-        result: content,
-      };
-    });
-    const filteredReplyContent = this.applyMetaLayerFilter(
-      rawReplyContent,
-      personaDto.metaFilterPolicy,
-      trace,
-      'missing-params',
-    );
-    const review = this.boundaryGovernance.reviewGeneratedReply(filteredReplyContent, followupCognitiveState);
-    if (review.adjusted) {
+    if (composition.boundaryReview.adjusted) {
       trace.add('boundary-governance', '边界治理复核', 'success', {
         adjusted: true,
-        reasons: review.reasons,
+        reasons: composition.boundaryReview.reasons,
         path: 'missing-params',
       });
     }
-    const replyContent = review.content;
     this.recordPipelineStep(trace, pipelineState, 'expression', {
       path: 'missing-params',
       phase: 'post-llm',
-      rawLength: rawReplyContent.length,
-      filteredLength: filteredReplyContent.length,
-      finalLength: replyContent.length,
-      metaAdjusted: rawReplyContent !== filteredReplyContent,
-      boundaryAdjusted: review.adjusted,
-      boundaryReasons: review.reasons,
+      rawLength: composition.rawReplyContent.length,
+      filteredLength: composition.filteredReplyContent.length,
+      finalLength: composition.replyContent.length,
+      metaAdjusted: composition.rawReplyContent !== composition.filteredReplyContent,
+      boundaryAdjusted: composition.boundaryReview.adjusted,
+      boundaryReasons: composition.boundaryReview.reasons,
     });
 
     const assistantMsg = await this.prisma.message.create({
-      data: { conversationId, role: 'assistant', content: replyContent, tokenCount: estimateTokens(replyContent) },
+      data: {
+        conversationId,
+        role: 'assistant',
+        content: composition.replyContent,
+        tokenCount: estimateTokens(composition.replyContent),
+      },
     });
-
-    this.cognitiveGrowth
-      .recordTurnGrowth(followupCognitiveState, [userMsg.id, assistantMsg.id])
-      .catch((err) => this.logger.warn(`Failed to record cognitive growth (missing params): ${err}`));
 
     const debugMeta = this.featureDebugMeta
       ? { pipeline: this.buildPipelineSnapshot(pipelineState) }
       : undefined;
 
-    return {
+    const postPlan = this.buildPostTurnPlan({
+      conversationId,
+      userMsg,
+      assistantMsg,
+      userInput,
+      intentState,
+      cognitiveState: composition.cognitiveState,
+      beforeReturn: [],
+      afterReturn: [{ type: 'record_growth' }],
+    });
+
+    return this.wrapResult({
       userMessage: { id: userMsg.id, role: userMsg.role, content: userMsg.content, createdAt: userMsg.createdAt },
       assistantMessage: { id: assistantMsg.id, role: assistantMsg.role, content: assistantMsg.content, createdAt: assistantMsg.createdAt },
       injectedMemories: [],
       ...(debugMeta && { debugMeta }),
       trace: trace.getTrace(),
-    };
+    }, postPlan);
   }
 
   // ── 原有聊天路径（提取为独立方法）──────────────────────────
   private async handleChatReply(
+    context: TurnContext,
     conversationId: string,
     userMsg: { id: string; role: string; content: string; createdAt: Date },
     recent: Array<{ role: string; content: string }>,
@@ -1258,14 +1261,12 @@ export class ChatCompletionEngine {
     trace: TraceCollector,
     pipelineState: PipelineTraceState,
     intentState?: DialogueIntentState | null,
-  ) {
-    const personaPrompt = this.persona.buildPersonaPrompt(personaDto);
-    const preparedContext = this.preparedContext;
-    const userProfile = preparedContext?.user.userProfile ?? await this.userProfile.getOrCreate();
-    const memoryBudget = preparedContext?.memory.memoryBudgetTokens ?? 0;
-    const finalMemories = preparedContext?.memory.injectedMemories ?? [];
-    const needDetail = preparedContext?.memory.needDetail ?? false;
-    const candidatesCount = preparedContext?.memory.candidatesCount ?? finalMemories.length;
+  ): Promise<ChatCompletionResult> {
+    const userProfile = context.user.userProfile;
+    const memoryBudget = context.memory.memoryBudgetTokens;
+    const finalMemories = context.memory.injectedMemories;
+    const needDetail = context.memory.needDetail;
+    const candidatesCount = context.memory.candidatesCount;
 
     // ── 记录命中 + 获取身份锚定 ────────────────────────────
     const hitIds = finalMemories.map((m) => m.id);
@@ -1274,211 +1275,130 @@ export class ChatCompletionEngine {
         this.logger.warn(`Failed to record memory hits: ${err}`),
       );
     }
-    const activeAnchors = await this.identityAnchor.getActiveAnchors();
-    const anchorText = this.identityAnchor.buildAnchorText(activeAnchors);
-
-    // ── 构建 prompt（注入 World State 供「几点了」等推理前提）─────────────────
-    const worldState = await this.worldState.get(conversationId);
-    const growthContext = await this.cognitiveGrowth.getGrowthContext();
-    const claimCtx = await this.buildClaimAndSessionContext(conversationId);
-    const cognitiveState: CognitiveTurnState = this.cognitivePipeline.analyzeTurn({
-      userInput: userMsg.content,
-      recentMessages: recent,
-      intentState: intentState ?? null,
-      worldState,
-      growthContext,
-      claimSignals: claimCtx.claimSignals,
-      sessionState: claimCtx.sessionState,
+    const composition = await trace.wrap('llm-generate', '生成回复', async () => {
+      const result = await this.responseComposer.composeChatReply({
+        context,
+        recentMessages: recent,
+        personaDto,
+        intentState,
+        maxContextTokens: this.maxContextTokens,
+        profilePrompt: {
+          includeImpressionCore: this.featureImpressionCore,
+          includeImpressionDetail: this.featureImpressionDetail && needDetail,
+        },
+      });
+      return {
+        status: 'success' as const,
+        detail: {
+          model: this.llm.getModelInfo({ scenario: 'chat' }),
+          inputMessages: result.promptMessages.length,
+          mode: 'chat',
+        },
+        result,
+      };
     });
-    const boundaryPreflight = this.boundaryGovernance.buildPreflight(cognitiveState);
-    const boundaryPrompt: BoundaryPromptContext = {
-      preflightText: this.boundaryGovernance.buildPreflightPrompt(boundaryPreflight) || null,
-    };
+    const claimCtx = context.claims;
 
     trace.add('cognitive-pipeline', '认知管道', 'success', {
-      phase1: cognitiveState.phasePlan.phase1,
-      phase2: cognitiveState.phasePlan.phase2,
-      phase3: cognitiveState.phasePlan.phase3,
-      situation: cognitiveState.situation.kind,
-      userEmotion: cognitiveState.userState.emotion,
-      userNeedMode: cognitiveState.userState.needMode,
-      responseStrategy: cognitiveState.responseStrategy,
-      rhythm: cognitiveState.rhythm,
-      safety: cognitiveState.safety,
-      growthContext,
-      boundaryPreflight,
+      phase1: composition.cognitiveState.phasePlan.phase1,
+      phase2: composition.cognitiveState.phasePlan.phase2,
+      phase3: composition.cognitiveState.phasePlan.phase3,
+      situation: composition.cognitiveState.situation.kind,
+      userEmotion: composition.cognitiveState.userState.emotion,
+      userNeedMode: composition.cognitiveState.userState.needMode,
+      responseStrategy: composition.cognitiveState.responseStrategy,
+      rhythm: composition.cognitiveState.rhythm,
+      safety: composition.cognitiveState.safety,
+      growthContext: context.growth.growthContext,
+      boundaryPreflight: composition.boundaryPreflight,
     });
     this.recordPipelineStep(trace, pipelineState, 'cognition', {
       path: 'chat',
-      phasePlan: cognitiveState.phasePlan,
-      situation: cognitiveState.situation,
-      userState: cognitiveState.userState,
-      responseStrategy: cognitiveState.responseStrategy,
-      rhythm: cognitiveState.rhythm,
-      safety: cognitiveState.safety,
-      boundaryPreflight,
+      phasePlan: composition.cognitiveState.phasePlan,
+      situation: composition.cognitiveState.situation,
+      userState: composition.cognitiveState.userState,
+      responseStrategy: composition.cognitiveState.responseStrategy,
+      rhythm: composition.cognitiveState.rhythm,
+      safety: composition.cognitiveState.safety,
+      boundaryPreflight: composition.boundaryPreflight,
     });
-
-    const userProfileText = this.buildInjectedUserProfileText(userProfile, {
-      includeImpressionCore: this.featureImpressionCore,
-      includeImpressionDetail: this.featureImpressionDetail && needDetail,
-    });
-
-    const actionDecision = this.preparedContext?.runtime?.actionDecision;
-    let messages = this.router.buildChatMessages({
-      messages: recent as Array<{ role: 'user' | 'assistant'; content: string }>,
-      personaPrompt,
-      expressionFields: this.persona.getExpressionFields(personaDto),
-      userProfileText,
-      memories: finalMemories,
-      identityAnchor: anchorText,
-      intentState: intentState ?? undefined,
-      worldState,
-      cognitiveState,
-      growthContext,
-      claimPolicyText: claimCtx.claimPolicyText,
-      sessionStateText: claimCtx.sessionStateText,
-      boundaryPrompt,
-      metaFilterPolicy: personaDto.metaFilterPolicy,
-      handoffDevHint: actionDecision?.action === 'handoff_dev',
-      reminderHint: actionDecision?.action === 'suggest_reminder' ? (actionDecision.reminderHint ?? '') : undefined,
-      systemSelf: this.preparedContext?.system?.systemSelf,
-      previousReflection: this.preparedContext?.runtime?.previousReflection,
-      taskPlan: actionDecision?.taskPlan,
-    });
-
-    // ── History 截断（system prompt 不截断）────────────────
-    const estimatedTokens = estimateMessagesTokens(
-      messages.map((m) => ({ role: String(m.role), content: String(m.content ?? '') })),
-    );
-    const truncated = estimatedTokens > this.maxContextTokens;
-    if (truncated) {
-      messages = truncateToTokenBudget(
-        messages.map((m) => ({ role: String(m.role), content: String(m.content ?? '') })),
-        this.maxContextTokens,
-      ) as typeof messages;
+    const actionDecision = composition.actionDecision;
+    if (actionDecision) {
+      this.logger.debug(`[Decision Context] action=${actionDecision.action}, capability=${actionDecision.capability ?? 'none'}, reason=${actionDecision.reason}`);
     }
-
     trace.add('prompt-build', 'Prompt 构建', 'success', {
       promptVersion: CHAT_PROMPT_VERSION,
-      systemPromptTokens: estimateTokens(messages[0]?.content as string ?? ''),
+      systemPromptTokens: estimateTokens(composition.promptMessages[0]?.content as string ?? ''),
       historyRounds: this.lastNRounds,
       actualMessagesUsed: recent.length,
-      estimatedTotalTokens: estimatedTokens,
+      estimatedTotalTokens: composition.estimatedTokens,
       maxContextTokens: this.maxContextTokens,
-      truncated,
-      systemPromptPreview: this.previewText(String(messages[0]?.content ?? ''), 480),
+      truncated: composition.truncated,
+      systemPromptPreview: this.previewText(String(composition.promptMessages[0]?.content ?? ''), 480),
       impressionCoreInjected: this.featureImpressionCore && !!userProfile.impressionCore,
       impressionDetailInjected: this.featureImpressionDetail && needDetail && !!userProfile.impressionDetail,
+      decisionContextInjected: !!actionDecision,
+      actionDecisionSummary: actionDecision ? {
+        action: actionDecision.action,
+        capability: actionDecision.capability ?? null,
+        reason: actionDecision.reason.slice(0, 100),
+      } : null,
     });
     this.recordPipelineStep(trace, pipelineState, 'expression', {
       path: 'chat',
       phase: 'pre-llm',
       promptVersion: CHAT_PROMPT_VERSION,
-      systemPromptTokens: estimateTokens(messages[0]?.content as string ?? ''),
-      inputMessages: messages.length,
-      estimatedTotalTokens: estimatedTokens,
-      truncated,
+      systemPromptTokens: estimateTokens(composition.promptMessages[0]?.content as string ?? ''),
+      inputMessages: composition.promptMessages.length,
+      estimatedTotalTokens: composition.estimatedTokens,
+      truncated: composition.truncated,
       model: this.llm.getModelInfo({ scenario: 'chat' }),
     });
-
-    const rawReplyContent = await trace.wrap('llm-generate', '生成回复', async () => {
-      const content = await this.llm.generate(messages, { scenario: 'chat' });
-      return {
-        status: 'success' as const,
-        detail: {
-          model: this.llm.getModelInfo({ scenario: 'chat' }),
-          inputMessages: messages.length,
-          mode: 'chat',
-        },
-        result: content,
-      };
-    });
-    const filteredReplyContent = this.applyMetaLayerFilter(
-      rawReplyContent,
-      personaDto.metaFilterPolicy,
-      trace,
-      'chat',
-    );
-    const reviewedReply = this.boundaryGovernance.reviewGeneratedReply(filteredReplyContent, cognitiveState);
-    if (reviewedReply.adjusted) {
+    if (composition.boundaryReview.adjusted) {
       trace.add('boundary-governance', '边界治理复核', 'success', {
         adjusted: true,
-        reasons: reviewedReply.reasons,
+        reasons: composition.boundaryReview.reasons,
       });
     }
-    const replyContent = reviewedReply.content;
     this.recordPipelineStep(trace, pipelineState, 'expression', {
       path: 'chat',
       phase: 'post-llm',
-      rawLength: rawReplyContent.length,
-      filteredLength: filteredReplyContent.length,
-      finalLength: replyContent.length,
-      metaAdjusted: rawReplyContent !== filteredReplyContent,
-      boundaryAdjusted: reviewedReply.adjusted,
-      boundaryReasons: reviewedReply.reasons,
+      rawLength: composition.rawReplyContent.length,
+      filteredLength: composition.filteredReplyContent.length,
+      finalLength: composition.replyContent.length,
+      metaAdjusted: composition.rawReplyContent !== composition.filteredReplyContent,
+      boundaryAdjusted: composition.boundaryReview.adjusted,
+      boundaryReasons: composition.boundaryReview.reasons,
     });
 
     this.pet.setStateWithAutoIdle('speaking', 3000);
 
-    let assistantMsg = await this.prisma.message.create({
-      data: { conversationId, role: 'assistant', content: replyContent, tokenCount: estimateTokens(replyContent) },
+    const assistantMsg = await this.prisma.message.create({
+      data: {
+        conversationId,
+        role: 'assistant',
+        content: composition.replyContent,
+        tokenCount: estimateTokens(composition.replyContent),
+      },
     });
 
-    let dailyMomentMeta: SendMessageResult['dailyMoment'] | undefined;
-    const summarizeTrigger: 'instant' | 'threshold' = this.shouldInstantSummarize(userMsg.content)
-      ? 'instant'
-      : 'threshold';
-    const postPlan: PostTurnPlan = {
+    const postPlan = this.buildPostTurnPlan({
       conversationId,
-      turn: {
-        turnId: userMsg.id,
-        userMessageId: userMsg.id,
-        assistantMessageId: assistantMsg.id,
-        userInput: userMsg.content,
-        assistantOutput: assistantMsg.content,
-        now: new Date(),
-      },
-      context: {
-        intentState: intentState ?? null,
-        cognitiveState,
-        isImportantIssueInProgress:
-          cognitiveState.situation.kind === 'decision_support' ||
-          cognitiveState.situation.kind === 'advice_request' ||
-          cognitiveState.situation.kind === 'task_execution',
-      },
+      userMsg,
+      assistantMsg,
+      userInput: userMsg.content,
+      intentState: intentState ?? null,
+      cognitiveState: composition.cognitiveState,
+      isImportantIssueInProgress:
+        composition.cognitiveState.situation.kind === 'decision_support' ||
+        composition.cognitiveState.situation.kind === 'advice_request' ||
+        composition.cognitiveState.situation.kind === 'task_execution',
       beforeReturn: [{ type: 'daily_moment_suggestion' }],
-      afterReturn: [{ type: 'record_growth' }, { type: 'summarize_trigger', trigger: summarizeTrigger }],
-    };
-    await this.postTurnPipeline.runBeforeReturn(
-      postPlan,
-      async (task) => {
-        if (task.type !== 'daily_moment_suggestion') return;
-        const dailyMomentSuggestion = await this.runDailyMomentPostResponseHook({
-          conversationId,
-          intentState: intentState ?? null,
-          isImportantIssueInProgress: !!postPlan.context.isImportantIssueInProgress,
-          now: postPlan.turn.now,
-        });
-        if (!dailyMomentSuggestion) return;
-        const mergedContent = `${assistantMsg.content}\n\n${dailyMomentSuggestion.hint}`;
-        assistantMsg = await this.prisma.message.update({
-          where: { id: assistantMsg.id },
-          data: {
-            content: mergedContent,
-            tokenCount: estimateTokens(mergedContent),
-          },
-        });
-        dailyMomentMeta = {
-          mode: 'suggestion',
-          suggestion: dailyMomentSuggestion,
-        };
-      },
-    );
-    this.postTurnPipeline.runAfterReturn(
-      postPlan,
-      async (task) => this.runPostTurnTask(task, postPlan, { trace, userMsgId: userMsg.id, assistantMsgId: assistantMsg.id }),
-    ).catch((err) => this.logger.warn(`Post-turn pipeline failed: ${String(err)}`));
+      afterReturn: [
+        { type: 'record_growth' },
+        { type: 'summarize_trigger', trigger: this.resolveSummarizeTrigger(userMsg.content) },
+      ],
+    });
 
     // ── Debug Meta（保留兼容）─────────────────────────────
     const debugMeta = this.featureDebugMeta ? {
@@ -1486,9 +1406,9 @@ export class ChatCompletionEngine {
       context: {
         historyRounds: this.lastNRounds,
         actualMessagesUsed: recent.length,
-        estimatedTokens,
+        estimatedTokens: composition.estimatedTokens,
         maxContextTokens: this.maxContextTokens,
-        truncated,
+        truncated: composition.truncated,
       },
       memory: {
         featureFlags: {
@@ -1509,9 +1429,9 @@ export class ChatCompletionEngine {
       },
       prompt: {
         version: CHAT_PROMPT_VERSION,
-        systemPromptTokens: estimateTokens(messages[0]?.content as string ?? ''),
-        systemPromptPreview: this.previewText(String(messages[0]?.content ?? ''), 1400),
-        messagePreview: messages.slice(0, 6).map((m) => ({
+        systemPromptTokens: estimateTokens(composition.promptMessages[0]?.content as string ?? ''),
+        systemPromptPreview: this.previewText(String(composition.promptMessages[0]?.content ?? ''), 1400),
+        messagePreview: composition.promptMessages.slice(0, 6).map((m) => ({
           role: String(m.role),
           content: this.previewText(String(m.content ?? ''), 240),
         })),
@@ -1525,7 +1445,7 @@ export class ChatCompletionEngine {
       }),
     } : undefined;
 
-    return {
+    return this.wrapResult({
       userMessage: {
         id: userMsg.id,
         role: userMsg.role,
@@ -1539,182 +1459,54 @@ export class ChatCompletionEngine {
         createdAt: assistantMsg.createdAt,
       },
       injectedMemories: finalMemories,
-      ...(dailyMomentMeta && { dailyMoment: dailyMomentMeta }),
       ...(debugMeta && { debugMeta }),
       trace: trace.getTrace(),
+    }, postPlan);
+  }
+
+  private buildPostTurnPlan(input: {
+    conversationId: string;
+    userMsg: { id: string };
+    assistantMsg: { id: string; content: string };
+    userInput: string;
+    intentState?: DialogueIntentState | null;
+    cognitiveState?: CognitiveTurnState;
+    isImportantIssueInProgress?: boolean;
+    beforeReturn: PostTurnPlan['beforeReturn'];
+    afterReturn: PostTurnPlan['afterReturn'];
+  }): PostTurnPlan {
+    return {
+      conversationId: input.conversationId,
+      turn: {
+        turnId: input.userMsg.id,
+        userMessageId: input.userMsg.id,
+        assistantMessageId: input.assistantMsg.id,
+        userInput: input.userInput,
+        assistantOutput: input.assistantMsg.content,
+        now: new Date(),
+      },
+      context: {
+        intentState: input.intentState ?? null,
+        cognitiveState: input.cognitiveState,
+        isImportantIssueInProgress: input.isImportantIssueInProgress,
+      },
+      beforeReturn: input.beforeReturn,
+      afterReturn: input.afterReturn,
     };
   }
 
-  private async runPostTurnTask(
-    task: PostTurnTask,
-    plan: PostTurnPlan,
-    input: { trace?: TraceCollector; userMsgId: string; assistantMsgId: string },
-  ): Promise<void> {
-    if (task.type === 'record_growth') {
-      if (!plan.context.cognitiveState) return;
-      await this.cognitiveGrowth.recordTurnGrowth(plan.context.cognitiveState, [
-        input.userMsgId,
-        input.assistantMsgId,
-      ]);
-      return;
-    }
-    if (task.type === 'summarize_trigger') {
-      // summarize 已外提到 SummarizeTriggerService，由 Orchestrator 统一触发。
-      return;
-    }
+  private resolveSummarizeTrigger(userInput: string): 'instant' | 'threshold' {
+    return /(?:记住|记一下|别忘|请你记|帮我记|我叫|我姓|我是(?!说|不是|在说)|我今年|我住在|我在(?!说|想|看)|我换了|我的名字)/
+      .test(userInput)
+      ? 'instant'
+      : 'threshold';
   }
 
-  private async runDailyMomentPostResponseHook(input: {
-    conversationId: string;
-    intentState: DialogueIntentState | null;
-    isImportantIssueInProgress: boolean;
-    now: Date;
-  }): Promise<DailyMomentSuggestion | null> {
-    const recentMessages = await this.getLastNDailyMomentMessages(input.conversationId);
-    if (recentMessages.length < 3) return null;
-
-    const suggestionCheck = await this.dailyMoment.maybeSuggest({
-      conversationId: input.conversationId,
-      recentMessages,
-      now: input.now,
-      triggerContext: {
-        intentMode: input.intentState?.mode ?? null,
-        intentRequiresTool: input.intentState?.requiresTool ?? false,
-        intentSeriousness: input.intentState?.seriousness ?? null,
-        detectedEmotion: input.intentState?.detectedEmotion ?? null,
-        isImportantIssueInProgress: input.isImportantIssueInProgress,
-      },
-    });
-
-    return suggestionCheck.shouldSuggest ? suggestionCheck.suggestion ?? null : null;
-  }
-
-  private async buildClaimAndSessionContext(conversationId: string): Promise<{
-    claimSignals: ClaimSignal[];
-    claimPolicyText: string;
-    sessionState: SessionStateSignal | null;
-    sessionStateText: string;
-    injectedClaimsDebug: Array<{ type: string; key: string; confidence: number; status: string }>;
-    draftClaimsDebug: Array<{ type: string; key: string; confidence: number; status: string }>;
-  }> {
-    const claimSignals: ClaimSignal[] = [];
-    let claimPolicyText = '';
-    let sessionState: SessionStateSignal | null = null;
-    let sessionStateText = '';
-    const injectedClaimsDebug: Array<{ type: string; key: string; confidence: number; status: string }> = [];
-    let draftClaimsDebug: Array<{ type: string; key: string; confidence: number; status: string }> = [];
-
-    if (this.claimConfig.readNewEnabled && this.claimConfig.injectionEnabled) {
-      const topByType: Record<string, number> = {
-        JUDGEMENT_PATTERN: 3,
-        VALUE: 3,
-        INTERACTION_PREFERENCE: 6,
-        EMOTIONAL_TENDENCY: 3,
-        RELATION_RHYTHM: 2,
-      };
-      const rows = await this.claimSelector.getInjectableClaims('default-user', topByType, {
-        typePriority: [
-          'INTERACTION_PREFERENCE', // ip.* first
-          'RELATION_RHYTHM', // rr.* next
-          'EMOTIONAL_TENDENCY',
-          'JUDGEMENT_PATTERN',
-          'VALUE',
-        ],
-      });
-      for (const row of rows) {
-        const value = typeof row.valueJson === 'string'
-          ? row.valueJson
-          : JSON.stringify(row.valueJson);
-        injectedClaimsDebug.push({
-          type: row.type,
-          key: row.key,
-          confidence: row.confidence,
-          status: row.status,
-        });
-        claimSignals.push({
-          type: row.type,
-          key: row.key,
-          value,
-          confidence: row.confidence,
-        });
-      }
-      if (claimSignals.length > 0) {
-        const header = '[长期 Claims（stable/core）]';
-        const lines: string[] = [header];
-        let used = estimateTokens(header);
-        for (const c of claimSignals.slice(0, 20)) {
-          const line = `- [${c.type}] ${c.key}=${c.value} (conf=${c.confidence.toFixed(2)})`;
-          const t = estimateTokens(line);
-          if (used + t > this.claimConfig.injectionTokenBudget) break;
-          lines.push(line);
-          used += t;
-        }
-        claimPolicyText = lines.join('\n');
-      }
-    }
-
-    if (this.claimConfig.readNewEnabled && this.claimConfig.sessionStateInjectionEnabled) {
-      const fresh = await this.sessionStateStore.getFreshState('default-user', conversationId);
-      if (fresh && typeof fresh.stateJson === 'object') {
-        const data = fresh.stateJson;
-        const safe: SessionStateSignal = {};
-        const mood = typeof data.mood === 'string' ? data.mood : undefined;
-        const energy = typeof data.energy === 'string' ? data.energy : undefined;
-        const focus = typeof data.focus === 'string' ? data.focus : undefined;
-        const taskIntent = typeof data.taskIntent === 'string' ? data.taskIntent : undefined;
-        if (mood) safe.mood = mood;
-        if (energy) safe.energy = energy;
-        if (focus) safe.focus = focus;
-        if (taskIntent) safe.taskIntent = taskIntent;
-        safe.confidence = fresh.confidence;
-        if (Object.keys(safe).length > 0) {
-          sessionState = safe;
-          const lines = [
-            '[SessionState（TTL 内短期状态）]',
-            mood ? `- mood: ${mood}` : '',
-            energy ? `- energy: ${energy}` : '',
-            focus ? `- focus: ${focus}` : '',
-            taskIntent ? `- taskIntent: ${taskIntent}` : '',
-            `- confidence: ${fresh.confidence.toFixed(2)}`,
-          ].filter(Boolean);
-          sessionStateText = lines.join('\n');
-        }
-      }
-    }
-
-    if (this.featureDebugMeta && this.claimConfig.readNewEnabled) {
-      const rows = await this.claimSelector.getDraftClaimsForDebug('default-user', {
-        perTypeLimit: 6,
-        totalLimit: 60,
-      });
-      draftClaimsDebug = rows.map((r) => ({
-        type: r.type,
-        key: r.key,
-        confidence: r.confidence,
-        status: r.status,
-      }));
-    }
-
-    return { claimSignals, claimPolicyText, sessionState, sessionStateText, injectedClaimsDebug, draftClaimsDebug };
-  }
-
-  private applyMetaLayerFilter(
-    content: string,
-    policy: string,
-    trace?: TraceCollector,
-    path?: string,
-  ): string {
-    const filtered = this.metaLayer.filter(content, policy);
-    if (filtered.adjusted) {
-      trace?.add('meta-layer', 'Meta Layer 过滤', 'success', {
-        adjusted: true,
-        reasons: filtered.reasons,
-        removedSegments: filtered.removedSegments,
-        rewrittenSegments: filtered.rewrittenSegments,
-        path: path ?? 'unknown',
-      });
-    }
-    return filtered.content;
+  private wrapResult(
+    result: SendMessageResult,
+    postTurnPlan?: PostTurnPlan,
+  ): ChatCompletionResult {
+    return postTurnPlan ? { result, postTurnPlan } : { result };
   }
 
   private createPipelineTraceState(): PipelineTraceState {
@@ -1788,202 +1580,6 @@ export class ChatCompletionEngine {
   private previewText(text: string, maxChars: number): string {
     if (text.length <= maxChars) return text;
     return `${text.slice(0, maxChars)}…`;
-  }
-
-  // ── Identity Update → IdentityAnchor ────────────────────
-  private static readonly IDENTITY_LABEL_MAP: Record<string, string> = {
-    city: 'location',
-    timezone: 'timezone',
-    language: 'language',
-    conversationMode: 'custom',
-  };
-
-  private async writeIdentityUpdate(
-    update: import('../intent/intent.types').IdentityUpdateFromIntent,
-    trace: TraceCollector,
-  ): Promise<void> {
-    const entries = Object.entries(update).filter(
-      (e): e is [string, string] => typeof e[1] === 'string' && e[1].length > 0,
-    );
-    if (entries.length === 0) return;
-
-    const anchors = await this.identityAnchor.getActiveAnchors();
-    const written: string[] = [];
-
-    for (const [key, value] of entries) {
-      const label = ChatCompletionEngine.IDENTITY_LABEL_MAP[key];
-      if (!label) continue;
-
-      const existing = anchors.find((a) => a.label === label);
-      if (existing) {
-        if (existing.content !== value) {
-          await this.identityAnchor.update(existing.id, { content: value });
-          written.push(`${label}: ${existing.content} → ${value}`);
-        }
-      } else if (anchors.length < 5) {
-        await this.identityAnchor.create({ label, content: value });
-        anchors.push({ label, content: value } as any); // track count
-        written.push(`${label}: (new) ${value}`);
-      } else {
-        this.logger.warn(`IdentityAnchor at capacity (5), skipping: ${label}=${value}`);
-      }
-    }
-
-    if (written.length > 0) {
-      trace.add('identity-update', '身份锚定更新', 'success', { written });
-      this.logger.log(`Identity anchors updated: ${written.join('; ')}`);
-    }
-  }
-
-  // ── Auto Summarize ──────────────────────────────────────
-  private async maybeAutoSummarize(conversationId: string, trace?: TraceCollector): Promise<void> {
-    if (!this.featureAutoSummarize) return;
-    if (this.summarizingConversations.has(conversationId)) return;
-
-    const conv = await this.prisma.conversation.findUnique({
-      where: { id: conversationId },
-      select: {
-        summarizedAt: true,
-        _count: { select: { messages: true } },
-      },
-    });
-    if (!conv) return;
-
-    // 计算 summarizedAt 之后的新用户消息数
-    const newUserMessages = await this.prisma.message.count({
-      where: {
-        conversationId,
-        role: 'user',
-        ...(conv.summarizedAt ? { createdAt: { gt: conv.summarizedAt } } : {}),
-      },
-    });
-
-    if (newUserMessages < this.autoSummarizeThreshold) return;
-
-    trace?.add('auto-summarize', '自动总结（阈值触发）', 'success', {
-      trigger: 'threshold',
-      newUserMessages,
-      threshold: this.autoSummarizeThreshold,
-    });
-
-    this.summarizingConversations.add(conversationId);
-    try {
-      this.logger.log(
-        `Auto-summarize triggered: ${newUserMessages} new user messages (threshold: ${this.autoSummarizeThreshold})`,
-      );
-
-      // 只总结 summarizedAt 之后的消息，避免重复
-      const newMessageIds = conv.summarizedAt
-        ? (await this.prisma.message.findMany({
-            where: { conversationId, createdAt: { gt: conv.summarizedAt } },
-            select: { id: true },
-            orderBy: { createdAt: 'asc' },
-          })).map(m => m.id)
-        : undefined; // 首次总结走默认逻辑（全部消息）
-
-      const result = await this.summarizer.summarize(conversationId, newMessageIds);
-      if (result.created > 0) {
-        await this.triggerAutoEvolution(conversationId, trace);
-      }
-    } finally {
-      this.summarizingConversations.delete(conversationId);
-    }
-  }
-
-  // ── Instant Summarize（关键词即时触发）─────────────────
-  private shouldInstantSummarize(userContent: string): boolean {
-    if (!this.featureInstantSummarize) return false;
-    return ChatCompletionEngine.INSTANT_SUMMARIZE_RE.test(userContent);
-  }
-
-  private async instantSummarize(conversationId: string, userContent: string, trace?: TraceCollector): Promise<void> {
-    if (this.summarizingConversations.has(conversationId)) return;
-    this.summarizingConversations.add(conversationId);
-    try {
-      this.logger.log(`Instant-summarize triggered by keyword in: "${userContent.slice(0, 30)}..."`);
-
-      const conv = await this.prisma.conversation.findUnique({
-        where: { id: conversationId },
-        select: { summarizedAt: true },
-      });
-
-      const newMessageIds = conv?.summarizedAt
-        ? (await this.prisma.message.findMany({
-            where: { conversationId, createdAt: { gt: conv.summarizedAt } },
-            select: { id: true },
-            orderBy: { createdAt: 'asc' },
-          })).map(m => m.id)
-        : undefined;
-
-      const result = await this.summarizer.summarize(conversationId, newMessageIds);
-      if (result.created > 0) {
-        await this.triggerAutoEvolution(conversationId, trace);
-      }
-    } finally {
-      this.summarizingConversations.delete(conversationId);
-    }
-  }
-
-  private buildInjectedUserProfileText(
-    profile: UserProfileDto,
-    opts: { includeImpressionCore: boolean; includeImpressionDetail: boolean },
-  ): string {
-    return this.userProfile.buildPrompt({
-      ...profile,
-      impressionCore: opts.includeImpressionCore ? profile.impressionCore : null,
-      impressionDetail: opts.includeImpressionDetail ? profile.impressionDetail : null,
-    });
-  }
-
-  // ── Auto Evolution（总结后自动触发进化建议）─────────────
-  private async triggerAutoEvolution(conversationId: string, trace?: TraceCollector): Promise<void> {
-    const messages = await this.prisma.message.findMany({
-      where: { conversationId },
-      orderBy: { createdAt: 'desc' },
-      take: 20,
-    });
-    if (messages.length === 0) return;
-
-    const recent = messages.reverse().map(m => ({ role: m.role, content: m.content }));
-    const result = await this.persona.suggestEvolution(recent);
-    if (result.changes.length > 0) {
-      const isUserPref = (field: string) =>
-        field === 'preferredVoiceStyle'
-        || field === 'praisePreference'
-        || field === 'responseRhythm';
-      const preferenceChanges = result.changes.filter((c) => isUserPref(c.targetField ?? c.field));
-      const personaChanges = result.changes.filter((c) => !isUserPref(c.targetField ?? c.field));
-
-      if (preferenceChanges.length > 0) {
-        const applied = await this.persona.confirmEvolution(preferenceChanges);
-        trace?.add('auto-evolution', '用户偏好自动应用', applied.accepted ? 'success' : 'fail', {
-          autoAppliedPreferences: preferenceChanges.length,
-          accepted: applied.accepted,
-          reason: applied.reason,
-        });
-      }
-
-      if (personaChanges.length === 0) {
-        this.logger.log(
-          `Auto-evolution: auto-applied ${preferenceChanges.length} user-preference changes, no persona changes pending`,
-        );
-        return;
-      }
-
-      this.evolutionScheduler.setPendingSuggestion({
-        changes: personaChanges,
-        triggerReason: '自动总结后触发',
-        createdAt: new Date(),
-      });
-      trace?.add('auto-evolution', '人格进化建议', 'success', {
-        suggestionsCount: personaChanges.length,
-        fields: personaChanges.map(c => c.field),
-        autoAppliedPreferences: preferenceChanges.length,
-      });
-      this.logger.log(
-        `Auto-evolution: ${personaChanges.length} persona suggestions pending, ${preferenceChanges.length} preference changes auto-applied`,
-      );
-    }
   }
 
 }

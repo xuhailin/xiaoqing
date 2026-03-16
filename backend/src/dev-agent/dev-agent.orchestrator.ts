@@ -106,9 +106,13 @@ export class DevAgentOrchestrator {
       let stopReason = '';
       let allSuccess = false;
       let pendingReplanReason: string | null = null;
+      const hasPlanRoundLimit =
+        typeof MAX_PLAN_ROUNDS === 'number' &&
+        Number.isFinite(MAX_PLAN_ROUNDS) &&
+        MAX_PLAN_ROUNDS > 0;
 
       roundLoop:
-      for (let round = 1; round <= MAX_PLAN_ROUNDS; round++) {
+      for (let round = 1; !hasPlanRoundLimit || round <= MAX_PLAN_ROUNDS!; round += 1) {
         await this.throwIfCancelled(input.run.id);
 
         const plan = await this.planner.planTask(input.run.userInput, taskContext, {
@@ -252,7 +256,7 @@ export class DevAgentOrchestrator {
         }
       }
 
-      if (!allSuccess && !stopReason) {
+      if (!allSuccess && !stopReason && hasPlanRoundLimit) {
         stopReason = `达到最大规划轮次（${MAX_PLAN_ROUNDS}），任务未完全收敛。`;
       }
 

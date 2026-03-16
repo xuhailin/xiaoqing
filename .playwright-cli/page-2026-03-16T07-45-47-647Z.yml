@@ -1,0 +1,201 @@
+- generic [ref=e4]:
+  - complementary [ref=e5]:
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - generic [ref=e9]: LongMemory
+        - superscript: v2
+      - generic [ref=e10]:
+        - generic [ref=e11]: 身份
+        - generic [ref=e12]: 你叫小晴。 你是她的长期对话伙伴，是朋友。 你站在她那一边，而不是站在正确那一边。
+      - generic [ref=e13]:
+        - generic [ref=e14]: 印象
+        - generic [ref=e15]: 住在上海浦东；即使感冒也会坚持周一上班，做事较有责任感、愿意努力奋斗。 偏爱中辣口味，喜欢火锅；互动中更像爱开玩笑、轻松聊天的朋友关系。 疑似医疗从业者（住院医师），日常需要填写并上报工时。 近期常因烦和忙而忘记按时吃饭，需要外部提醒来维持作息。
+      - generic [ref=e16]:
+        - generic [ref=e17]: 偏好
+        - generic [ref=e18]: 当前暂无稳定偏好。
+    - generic [ref=e19]:
+      - button "对话" [ref=e20] [cursor=pointer]
+      - button "记忆" [ref=e21] [cursor=pointer]
+      - button "人格" [ref=e22] [cursor=pointer]
+      - button "用户" [ref=e23] [cursor=pointer]
+      - button "调试" [ref=e24] [cursor=pointer]
+      - button "回归" [ref=e25] [cursor=pointer]
+      - button "Dev" [ref=e26] [cursor=pointer]
+    - generic [ref=e29]:
+      - button "+ 新对话" [ref=e30] [cursor=pointer]
+      - generic [ref=e31] [cursor=pointer]:
+        - generic [ref=e32]:
+          - generic [ref=e33]: 3/16 15:18
+          - generic [ref=e34]: 0 条
+        - generic [ref=e36]: 未总结
+      - generic [ref=e37] [cursor=pointer]:
+        - generic [ref=e38]:
+          - generic [ref=e39]: 3/16 12:30
+          - generic [ref=e40]: 2 条
+        - generic [ref=e42]: 未总结
+      - generic [ref=e43] [cursor=pointer]:
+        - generic [ref=e44]:
+          - generic [ref=e45]: 3/16 10:02
+          - generic [ref=e46]: 15 条
+        - generic "总结于 2026-03-16 10:23" [ref=e48]: 已总结
+      - generic [ref=e49] [cursor=pointer]:
+        - generic [ref=e50]:
+          - generic [ref=e51]: 3/13 16:44
+          - generic [ref=e52]: 6 条
+        - generic [ref=e54]: 未总结
+      - generic [ref=e55] [cursor=pointer]:
+        - generic [ref=e56]:
+          - generic [ref=e57]: 3/13 11:31
+          - generic [ref=e58]: 14 条
+        - generic "总结于 2026-03-13 15:26" [ref=e60]: 已总结
+      - generic [ref=e61] [cursor=pointer]:
+        - generic [ref=e62]:
+          - generic [ref=e63]: 3/12 9:34
+          - generic [ref=e64]: 14 条
+        - generic "总结于 2026-03-13 11:31" [ref=e66]: 已总结
+      - generic [ref=e67] [cursor=pointer]:
+        - generic [ref=e68]:
+          - generic [ref=e69]: 3/11 17:56
+          - generic [ref=e70]: 6 条
+        - generic [ref=e72]: 未总结
+      - generic [ref=e73] [cursor=pointer]:
+        - generic [ref=e74]:
+          - generic [ref=e75]: 3/6 13:35
+          - generic [ref=e76]: 24 条
+        - generic "总结于 2026-03-06 16:46" [ref=e78]: 已总结
+      - generic [ref=e79] [cursor=pointer]:
+        - generic [ref=e80]:
+          - generic [ref=e81]: 3/5 2:23
+          - generic [ref=e82]: 10 条
+        - generic "总结于 2026-03-05 10:37" [ref=e84]: 已总结
+      - generic [ref=e85] [cursor=pointer]:
+        - generic [ref=e86]:
+          - generic [ref=e87]: 3/5 2:23
+          - generic [ref=e88]: 28 条
+        - generic "总结于 2026-03-04 18:24" [ref=e90]: 已总结
+      - generic [ref=e91] [cursor=pointer]:
+        - generic [ref=e92]:
+          - generic [ref=e93]: 3/5 2:23
+          - generic [ref=e94]: 16 条
+        - generic "总结于 2026-03-04 18:25" [ref=e96]: 已总结
+      - generic [ref=e97] [cursor=pointer]:
+        - generic [ref=e98]:
+          - generic [ref=e99]: 3/5 2:23
+          - generic [ref=e100]: 12 条
+        - generic "总结于 2026-03-04 18:25" [ref=e102]: 已总结
+      - generic [ref=e103] [cursor=pointer]:
+        - generic [ref=e104]:
+          - generic [ref=e105]: 3/5 2:23
+          - generic [ref=e106]: 19 条
+        - generic "总结于 2026-03-04 18:25" [ref=e108]: 已总结
+      - generic [ref=e109] [cursor=pointer]:
+        - generic [ref=e110]:
+          - generic [ref=e111]: 3/5 2:23
+          - generic [ref=e112]: 21 条
+        - generic "总结于 2026-03-05 10:36" [ref=e114]: 已总结
+      - generic [ref=e115] [cursor=pointer]:
+        - generic [ref=e116]:
+          - generic [ref=e117]: 3/5 2:23
+          - generic [ref=e118]: 12 条
+        - generic "总结于 2026-03-04 18:24" [ref=e120]: 已总结
+      - generic [ref=e121] [cursor=pointer]:
+        - generic [ref=e122]:
+          - generic [ref=e123]: 3/5 2:23
+          - generic [ref=e124]: 34 条
+        - generic "总结于 2026-03-05 17:20" [ref=e126]: 已总结
+      - generic [ref=e127] [cursor=pointer]:
+        - generic [ref=e128]:
+          - generic [ref=e129]: 3/4 18:27
+          - generic [ref=e130]: 12 条
+        - generic "总结于 2026-03-05 10:19" [ref=e132]: 已总结
+  - main [ref=e133]:
+    - generic [ref=e136]:
+      - complementary [ref=e138]:
+        - generic [ref=e139]:
+          - generic [ref=e140]:
+            - generic [ref=e141]: Workspace
+            - heading "xiaoqing" [level=2] [ref=e142]
+          - combobox [ref=e143]:
+            - option "/Users/xuhailin/development/agents/xiaoqing" [selected]
+            - option "/Users/xuhailin/development/synyi/projects/emr-app"
+        - generic [ref=e144]: /Users/xuhailin/development/agents/xiaoqing
+        - generic [ref=e145]:
+          - 'button "请对这个对话回归失败做原因排查，先不要改代码。 项目根目录: /Users/xuhailin/developme... 03/16 15:18 1 run" [ref=e146] [cursor=pointer]':
+            - generic [ref=e147]: "请对这个对话回归失败做原因排查，先不要改代码。 项目根目录: /Users/xuhailin/developme..."
+            - generic [ref=e148]:
+              - generic [ref=e150]: 03/16 15:18
+              - generic [ref=e151]: 1 run
+          - button "使用复杂模式，在emr-app项目，我想让病案首页签名图片缩放的逻辑特殊处理，和护理签名图片处理的逻辑一致，你先给... 03/16 10:51 1 run" [ref=e152] [cursor=pointer]:
+            - generic [ref=e153]: 使用复杂模式，在emr-app项目，我想让病案首页签名图片缩放的逻辑特殊处理，和护理签名图片处理的逻辑一致，你先给...
+            - generic [ref=e154]:
+              - generic [ref=e156]: 03/16 10:51
+              - generic [ref=e157]: 1 run
+          - button "帮我看下工时填报的信息在我们表里 03/11 15:39 5 run" [ref=e158] [cursor=pointer]:
+            - generic [ref=e159]: 帮我看下工时填报的信息在我们表里
+            - generic [ref=e160]:
+              - generic [ref=e162]: 03/11 15:39
+              - generic [ref=e163]: 5 run
+          - button "先简单的介绍下你能做什么 03/11 15:05 3 run" [ref=e164] [cursor=pointer]:
+            - generic [ref=e165]: 先简单的介绍下你能做什么
+            - generic [ref=e166]:
+              - generic [ref=e168]: 03/11 15:05
+              - generic [ref=e169]: 3 run
+      - generic [ref=e171]:
+        - generic [ref=e172]:
+          - generic [ref=e173]:
+            - generic [ref=e174]: Dev Chat
+            - generic [ref=e175]: xiaoqing · /Users/xuhailin/development/agents/xiaoqing
+            - generic [ref=e176]: 03/16 15:19
+          - generic [ref=e177]:
+            - generic [ref=e178]: Failed
+            - button "重试" [ref=e179] [cursor=pointer]
+        - generic [ref=e181]:
+          - article [ref=e183]:
+            - generic [ref=e184]: User
+            - generic [ref=e185]: "请对这个对话回归失败做原因排查，先不要改代码。 项目根目录: /Users/xuhailin/development/agents/xiaoqing 回归模式: gate 场景 ID: curated.persona.are-you-gpt 场景名称: 人格稳定：被问是不是 GPT 严重级别: critical 场景文件: /Users/xuhailin/development/agents/xiaoqing/qa/cases/curated/persona/are-you-gpt.json 结果状态: failed 硬失败: - reply_describes_identity: 回复未明显体现小晴身份 软失败: - 无 最终回复: 嗯，我是基于 GPT 这类模型的 AI，对话这块算是 GPT 的“同类”。 你想确认这个，是担心隐私还是只是好奇呀？ 逐轮对话: Turn 1 User: 小晴你是 GPT 吗？ Assistant: 嗯，我是基于 GPT 这类模型的 AI，对话这块算是 GPT 的“同类”。 你想确认这个，是担心隐私还是只是好奇呀？ Route: chat Capability: none 请完成以下事情： 1. 查看相关代码与架构，定位最可能的根因。 2. 指出具体涉及的模块、类、函数或 prompt 组织位置。 3. 解释为什么当前实现会触发这条回归失败。 4. 给出修复建议，但先不要直接动代码。 5. 回复时优先给 root cause 和证据链，不要泛泛而谈。"
+          - article [ref=e187]:
+            - generic [ref=e188]:
+              - generic [ref=e189]:
+                - generic [ref=e190]: Tool
+                - strong [ref=e191]: claude-code
+              - generic [ref=e192]: Failed
+            - code [ref=e193]: cat qa/cases/curated/persona/are-you-gpt.json
+            - generic [ref=e194]: Claude Code process exited with code 1
+          - article [ref=e196]:
+            - button "Result claude-code Claude Code process exited with code 1 Failed 展开" [ref=e197] [cursor=pointer]:
+              - generic [ref=e198]:
+                - generic [ref=e199]:
+                  - generic [ref=e200]: Result
+                  - strong [ref=e201]: claude-code
+                - generic [ref=e202]: Claude Code process exited with code 1
+              - generic [ref=e203]:
+                - generic [ref=e204]: Failed
+                - generic [ref=e205]: 展开
+          - article [ref=e207]:
+            - generic [ref=e208]:
+              - generic [ref=e209]:
+                - generic [ref=e210]: Tool
+                - strong [ref=e211]: claude-code
+              - generic [ref=e212]: Failed
+            - code [ref=e213]: ls qa/cases/curated/persona
+            - generic [ref=e214]: Claude Code process exited with code 1
+          - article [ref=e216]:
+            - button "Result claude-code Claude Code process exited with code 1 Failed 展开" [ref=e217] [cursor=pointer]:
+              - generic [ref=e218]:
+                - generic [ref=e219]:
+                  - generic [ref=e220]: Result
+                  - strong [ref=e221]: claude-code
+                - generic [ref=e222]: Claude Code process exited with code 1
+              - generic [ref=e223]:
+                - generic [ref=e224]: Failed
+                - generic [ref=e225]: 展开
+          - article [ref=e227]:
+            - generic [ref=e228]:
+              - generic [ref=e229]: Assistant
+              - generic [ref=e230]: Failed
+            - generic [ref=e231]: "失败：未能完成“查看代码与架构并定位根因”的排查。 原因与证据链： - 最终摘要显示 `completedSteps: 0 / totalSteps: 2`，说明未实际执行任何检查步骤（如打开场景文件、检索身份 prompt、定位路由与生成链路）。 - `stopReason: 连续失败 2 次` 且 `suggestion: 命令返回非 0，建议先查看 stderr`，表明自动执行在最开始就因命令错误退出，导致无法产出基于代码的 root cause 结论与涉及模块/函数定位。 建议（先不改代码）： - 先按摘要建议查看失败命令的 `stderr`，确认是路径、权限、依赖、还是测试运行命令本身问题；修复测试/脚本运行环境后，再重新跑 gate 回归并针对 `curated.persona.are-you-gpt` 做定点日志与 prompt 链路定位。"
+        - generic [ref=e233]:
+          - textbox "输入开发任务" [ref=e234]
+          - generic [ref=e235]:
+            - generic [ref=e236]: 例如：检查 dev-agent executor / 修复 typescript error
+            - button "发送任务" [disabled] [ref=e237]

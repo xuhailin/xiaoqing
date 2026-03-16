@@ -16,6 +16,7 @@ import { OpenClawModule } from '../openclaw/openclaw.module';
 import { ReadonlyFileCapabilityService } from './capabilities/readonly-file-capability.service';
 import { LocalSkillModule } from './local-skills/local-skill.module';
 import { SkillRunner } from './local-skills/skill-runner.service';
+import { CapabilityChainExecutor } from './capability-chain-executor.service';
 
 /**
  * ActionModule — 能力注册中心。
@@ -43,8 +44,8 @@ import { SkillRunner } from './local-skills/skill-runner.service';
     LocalSkillModule,
     OpenClawModule,
   ],
-  providers: [CapabilityRegistry, IntentCapabilityMapper, ToolExecutorRegistry, ReadonlyFileCapabilityService, SkillRunner],
-  exports: [CapabilityRegistry, IntentCapabilityMapper, ToolExecutorRegistry, WeatherSkillModule, ReminderSkillModule, LocalSkillModule, SkillRunner],
+  providers: [CapabilityRegistry, IntentCapabilityMapper, ToolExecutorRegistry, ReadonlyFileCapabilityService, SkillRunner, CapabilityChainExecutor],
+  exports: [CapabilityRegistry, IntentCapabilityMapper, ToolExecutorRegistry, WeatherSkillModule, ReminderSkillModule, LocalSkillModule, SkillRunner, CapabilityChainExecutor],
 })
 export class ActionModule implements OnModuleInit {
   constructor(

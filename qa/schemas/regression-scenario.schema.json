@@ -1,0 +1,221 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xiaoqing.local/qa/schemas/regression-scenario.schema.json",
+  "title": "RegressionScenario",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "name",
+    "sourceType",
+    "severity",
+    "releaseGate",
+    "transcript",
+    "expectations"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sourceType": {
+      "type": "string",
+      "enum": ["curated", "replay", "promoted"]
+    },
+    "category": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["critical", "high", "medium", "low"]
+    },
+    "releaseGate": {
+      "type": "boolean"
+    },
+    "transcript": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/scenarioTurn"
+      }
+    },
+    "expectations": {
+      "$ref": "#/$defs/expectations"
+    },
+    "reference": {
+      "$ref": "#/$defs/reference"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "scenarioTurn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "content"],
+      "properties": {
+        "role": {
+          "type": "string",
+          "enum": ["user"]
+        },
+        "content": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "expectationRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "qualityDimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dimension"],
+      "properties": {
+        "dimension": {
+          "type": "string",
+          "minLength": 1
+        },
+        "minScore": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "weight": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "sideEffectExpectation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "expectedExecution": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "route": {
+          "type": "string",
+          "enum": ["chat", "dev"]
+        },
+        "capability": {
+          "type": "string"
+        },
+        "sideEffects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sideEffectExpectation"
+          }
+        }
+      }
+    },
+    "expectations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mustHappen", "mustNotHappen", "qualityDimensions"],
+      "properties": {
+        "mustHappen": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/expectationRule"
+          }
+        },
+        "mustNotHappen": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/expectationRule"
+          }
+        },
+        "qualityDimensions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/qualityDimension"
+          }
+        },
+        "expectedExecution": {
+          "$ref": "#/$defs/expectedExecution"
+        }
+      }
+    },
+    "referenceConversationTurn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "content"],
+      "properties": {
+        "role": {
+          "type": "string",
+          "enum": ["user", "assistant"]
+        },
+        "content": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sampleAnswer": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "referenceConversation": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/referenceConversationTurn"
+          }
+        }
+      }
+    }
+  }
+}

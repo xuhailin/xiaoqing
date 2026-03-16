@@ -1,11 +1,17 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, computed, signal } from '@angular/core';
 import {
   DevAgentService,
   DevRun,
   DevSession,
   DevTaskResult,
   DevWorkspaceMeta,
+  DevWorkspaceTreeEntry,
 } from '../core/services/dev-agent.service';
+import {
+  buildChatMessages,
+  buildRunState,
+  buildWorkspaceOptions,
+} from './dev-agent.view-model';
 
 @Injectable()
 export class DevAgentPageStore {
@@ -15,12 +21,53 @@ export class DevAgentPageStore {
   sessions = signal<DevSession[]>([]);
   sending = signal(false);
   lastResult = signal<DevTaskResult | null>(null);
-  expandedSessionId = signal<string | null>(null);
   selectedSessionId = signal<string | null>(null);
   selectedRunId = signal<string | null>(null);
   cancellingRunId = signal<string | null>(null);
   workspaceRootInput = signal('');
   actionNotice = signal<string | null>(null);
+  workspaceTreeError = signal<string | null>(null);
+  workspaceTree = signal<Record<string, DevWorkspaceTreeEntry[]>>({});
+  expandedTreePaths = signal<string[]>(['']);
+  loadingTreePaths = signal<string[]>([]);
+
+  readonly selectedSession = computed(
+    () => this.sessions().find((session) => session.id === this.selectedSessionId()) ?? null,
+  );
+
+  readonly currentRun = computed(() => {
+    const session = this.selectedSession();
+    if (!session?.runs?.length) {
+      return null;
+    }
+    const preferredRunId = this.selectedRunId();
+    if (preferredRunId) {
+      const matched = session.runs.find((run) => run.id === preferredRunId);
+      if (matched) {
+        return matched;
+      }
+    }
+    return [...session.runs]
+      .sort((left, right) => this.toTimestamp(right.createdAt) - this.toTimestamp(left.createdAt))[0] ?? null;
+  });
+
+  readonly currentResult = computed(() => {
+    const currentRun = this.currentRun();
+    if (!currentRun) {
+      return this.lastResult();
+    }
+    const previous = this.lastResult();
+    return previous?.run.id === currentRun.id
+      ? previous
+      : this.mapRunToTaskResult(currentRun);
+  });
+
+  readonly chatMessages = computed(() =>
+    buildChatMessages(this.selectedSession(), this.currentResult()),
+  );
+
+  readonly runState = computed(() => buildRunState(this.currentResult()));
+  readonly workspaceOptions = computed(() => buildWorkspaceOptions(this.sessions()));
 
   /** 默认使用固定 conversationId 走 dev 通道 */
   private devConversationId = '';
@@ -29,8 +76,20 @@ export class DevAgentPageStore {
 
   constructor(private readonly devAgent: DevAgentService) {}
 
-  init() {
-    this.loadSessions();
+  init(options?: {
+    preferredSessionId?: string | null;
+    preferredRunId?: string | null;
+    workspaceRoot?: string | null;
+    notice?: string | null;
+  }) {
+    const workspaceRoot = options?.workspaceRoot?.trim();
+    if (workspaceRoot) {
+      this.setWorkspaceRootInput(workspaceRoot);
+    }
+    if (options?.notice?.trim()) {
+      this.notify(options.notice.trim());
+    }
+    this.loadSessions(options?.preferredSessionId ?? undefined, options?.preferredRunId ?? undefined);
   }
 
   destroy() {
@@ -39,7 +98,32 @@ export class DevAgentPageStore {
   }
 
   setWorkspaceRootInput(value: string) {
-    this.workspaceRootInput.set(value);
+    const nextRoot = value.trim();
+    const previousRoot = this.workspaceRootInput();
+    this.workspaceRootInput.set(nextRoot);
+    if (nextRoot !== previousRoot) {
+      this.resetWorkspaceTree();
+      if (nextRoot) {
+        this.ensureWorkspaceTreeLoaded('');
+      }
+    }
+  }
+
+  selectWorkspaceRoot(root: string) {
+    const normalizedRoot = root.trim();
+    this.setWorkspaceRootInput(normalizedRoot);
+    const matched = this.sessions().find((session) => session.workspaceRoot === normalizedRoot);
+    if (matched) {
+      this.selectSession(matched.id);
+    }
+  }
+
+  selectSession(sessionId: string) {
+    const session = this.sessions().find((item) => item.id === sessionId);
+    if (!session) {
+      return;
+    }
+    this.applySelectedSession(session);
   }
 
   send(content: string) {
@@ -58,12 +142,14 @@ export class DevAgentPageStore {
             ...result.run,
             userInput: result.run.userInput ?? trimmed,
             rerunFromRunId: result.run.rerunFromRunId ?? null,
+            startedAt: result.run.startedAt ?? null,
+            finishedAt: result.run.finishedAt ?? null,
+            createdAt: result.run.createdAt ?? null,
           },
         });
         this.selectedSessionId.set(result.session.id);
-        this.expandedSessionId.set(result.session.id);
         this.selectedRunId.set(result.run.id);
-        this.workspaceRootInput.set(result.run.workspace?.workspaceRoot ?? workspaceRoot ?? '');
+        this.setWorkspaceRootInput(result.run.workspace?.workspaceRoot ?? workspaceRoot ?? '');
         this.pollRun(result.run.id, result.session.id);
         this.sending.set(false);
         this.loadSessions(result.session.id);
@@ -94,12 +180,11 @@ export class DevAgentPageStore {
       this.notify('当前已有任务发送中，请稍后重试。');
       return;
     }
-    const sourceRunId = this.lastResult()?.run.id;
+    const sourceRunId = this.currentRun()?.id ?? this.lastResult()?.run.id;
     if (!sourceRunId) {
       this.notify('当前没有可重跑的 run。');
       return;
     }
-    const fallbackUserInput = this.resolveCurrentRunInput();
 
     this.sending.set(true);
     this.devAgent.rerunRun(sourceRunId).subscribe({
@@ -108,14 +193,18 @@ export class DevAgentPageStore {
           ...result,
           run: {
             ...result.run,
-            userInput: result.run.userInput ?? fallbackUserInput,
+            userInput: result.run.userInput ?? this.currentRun()?.userInput ?? '',
             rerunFromRunId: result.run.rerunFromRunId ?? sourceRunId,
+            startedAt: result.run.startedAt ?? null,
+            finishedAt: result.run.finishedAt ?? null,
+            createdAt: result.run.createdAt ?? null,
           },
         });
         this.selectedSessionId.set(result.session.id);
-        this.expandedSessionId.set(result.session.id);
         this.selectedRunId.set(result.run.id);
-        this.workspaceRootInput.set(result.run.workspace?.workspaceRoot ?? this.workspaceRootInput());
+        this.setWorkspaceRootInput(
+          result.run.workspace?.workspaceRoot ?? this.workspaceRootInput(),
+        );
         this.pollRun(result.run.id, result.session.id);
         this.sending.set(false);
         this.loadSessions(result.session.id);
@@ -129,116 +218,8 @@ export class DevAgentPageStore {
     });
   }
 
-  async copyText(text: string, label = '内容') {
-    const value = text.trim();
-    if (!value) {
-      this.notify(`没有可复制的${label}。`);
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(value);
-      this.notify(`${label}已复制。`);
-    } catch {
-      this.notify(`复制${label}失败，请检查浏览器权限。`);
-    }
-  }
-
-  buildFailureSummary(): string {
-    const result = this.lastResult();
-    const summary = this.buildResultSummary(result?.run.result);
-    const lines: string[] = [];
-    if (summary?.stopReason) {
-      lines.push(`stopReason: ${summary.stopReason}`);
-    }
-    for (const step of summary?.steps ?? []) {
-      if (!step.success) {
-        lines.push(`- ${step.stepId} ${step.command}`);
-        if (step.error) {
-          lines.push(`  error: ${step.error}`);
-        }
-      }
-    }
-    if (lines.length === 0 && result?.run.error) {
-      lines.push(result.run.error);
-    }
-    return lines.join('\n');
-  }
-
-  loadSessions(preferredSessionId?: string) {
-    this.devAgent.listSessions().subscribe({
-      next: (sessions) => {
-        this.sessions.set(sessions);
-
-        const activeSession = this.pickActiveSession(sessions, preferredSessionId);
-        if (!activeSession) {
-          this.selectedSessionId.set(null);
-          if (!this.devConversationId) {
-            this.devConversationId = 'dev-default';
-          }
-          this.workspaceRootInput.set('');
-          return;
-        }
-
-        this.selectedSessionId.set(activeSession.id);
-        this.expandedSessionId.set(this.expandedSessionId() ?? activeSession.id);
-        if (activeSession.conversationId) {
-          this.devConversationId = activeSession.conversationId;
-        } else if (!this.devConversationId) {
-          this.devConversationId = 'dev-default';
-        }
-        this.workspaceRootInput.set(activeSession.workspaceRoot ?? '');
-      },
-    });
-  }
-
-  toggleSession(sessionId: string) {
-    const next = this.expandedSessionId() === sessionId ? null : sessionId;
-    this.expandedSessionId.set(next);
-    this.selectedSessionId.set(sessionId);
-
-    const session = this.sessions().find((s) => s.id === sessionId);
-    if (session?.conversationId) {
-      this.devConversationId = session.conversationId;
-    }
-    this.workspaceRootInput.set(session?.workspaceRoot ?? '');
-    if (!next) {
-      return;
-    }
-
-    this.devAgent.getSession(sessionId).subscribe({
-      next: (fullSession) => {
-        this.sessions.update((items) => {
-          const index = items.findIndex((s) => s.id === fullSession.id);
-          if (index < 0) {
-            return [fullSession, ...items];
-          }
-          const nextItems = [...items];
-          nextItems[index] = fullSession;
-          return nextItems;
-        });
-      },
-    });
-  }
-
-  openRun(runId: string) {
-    this.selectedRunId.set(runId);
-
-    this.devAgent.getRun(runId).subscribe({
-      next: (run) => {
-        if (!run) return;
-        this.lastResult.set(this.mapRunToTaskResult(run));
-        this.selectedSessionId.set(run.sessionId);
-        this.workspaceRootInput.set(run.workspaceRoot ?? '');
-        this.loadSessions(run.sessionId);
-        if (!this.isTerminalStatus(run.status)) {
-          this.pollRun(run.id, run.sessionId);
-        }
-      },
-    });
-  }
-
   cancelCurrentRun() {
-    const current = this.lastResult();
+    const current = this.currentResult();
     if (!current) return;
 
     const runId = current.run.id;
@@ -258,7 +239,7 @@ export class DevAgentPageStore {
             if (run) {
               this.lastResult.set(this.mapRunToTaskResult(run));
               this.selectedRunId.set(run.id);
-              this.loadSessions(run.sessionId);
+              this.updateSessionRun(run);
             }
             this.clearRunPolling();
             this.cancellingRunId.set(null);
@@ -276,81 +257,135 @@ export class DevAgentPageStore {
     });
   }
 
-  formatWorkspace(workspace: DevWorkspaceMeta | null | undefined): string {
-    if (!workspace?.workspaceRoot) {
-      return '默认工作区（当前服务目录）';
+  toggleWorkspaceNode(path: string) {
+    const expanded = this.expandedTreePaths();
+    if (expanded.includes(path)) {
+      this.expandedTreePaths.set(expanded.filter((item) => item !== path));
+      return;
     }
-    return `${workspace.projectScope} · ${workspace.workspaceRoot}`;
+    this.expandedTreePaths.set([...expanded, path]);
+    this.ensureWorkspaceTreeLoaded(path);
   }
 
-  buildResultSummary(result: unknown): {
-    completedStepsText: string;
-    totalStepsText: string;
-    stopReason: string | null;
-    steps: Array<{
-      stepId: string;
-      executor: string;
-      command: string;
-      success: boolean;
-      output: string | null;
-      error: string | null;
-    }>;
-  } | null {
-    const resultObj = this.asRecord(result);
-    const summary = this.asRecord(resultObj?.['summary']);
-    if (!summary) return null;
+  treeChildren(path = ''): DevWorkspaceTreeEntry[] {
+    return this.workspaceTree()[path] ?? [];
+  }
 
-    const completedSteps = this.readNumber(summary, 'completedSteps');
-    const totalSteps = this.readNumber(summary, 'totalSteps');
-    const stopReason = this.readString(summary, 'stopReason');
-    const steps = this.parseSummarySteps(summary['steps']);
+  isTreeExpanded(path: string): boolean {
+    return this.expandedTreePaths().includes(path);
+  }
 
-    return {
-      completedStepsText: completedSteps === null ? '-' : String(completedSteps),
-      totalStepsText: totalSteps === null ? '-' : String(totalSteps),
-      stopReason,
-      steps,
-    };
+  isTreeLoading(path: string): boolean {
+    return this.loadingTreePaths().includes(path);
   }
 
   isRunCancellable(status: string): boolean {
     return status === 'queued' || status === 'pending' || status === 'running';
   }
 
-  private parseSummarySteps(value: unknown): Array<{
-    stepId: string;
-    executor: string;
-    command: string;
-    success: boolean;
-    output: string | null;
-    error: string | null;
-  }> {
-    if (!Array.isArray(value)) {
-      return [];
+  private loadSessions(preferredSessionId?: string, preferredRunId?: string) {
+    this.devAgent.listSessions().subscribe({
+      next: (sessions) => {
+        this.sessions.set(sessions);
+
+        const activeSession = this.pickActiveSession(sessions, preferredSessionId, preferredRunId);
+        if (!activeSession) {
+          this.selectedSessionId.set(null);
+          this.selectedRunId.set(null);
+          if (!this.devConversationId) {
+            this.devConversationId = 'dev-default';
+          }
+          return;
+        }
+
+        this.applySelectedSession(activeSession, preferredRunId);
+      },
+    });
+  }
+
+  private applySelectedSession(session: DevSession, preferredRunId?: string) {
+    const currentRun = this.pickLatestRun(session, preferredRunId);
+    this.selectedSessionId.set(session.id);
+    this.selectedRunId.set(currentRun?.id ?? null);
+    if (session.conversationId) {
+      this.devConversationId = session.conversationId;
+    } else if (!this.devConversationId) {
+      this.devConversationId = 'dev-default';
+    }
+    const nextRoot = session.workspaceRoot ?? this.workspaceRootInput();
+    if (nextRoot !== this.workspaceRootInput()) {
+      this.setWorkspaceRootInput(nextRoot);
+    } else if (nextRoot && !this.workspaceTree()['']) {
+      this.ensureWorkspaceTreeLoaded('');
     }
 
-    return value
-      .map((item, index) => {
-        const step = this.asRecord(item);
-        if (!step) return null;
+    if (!currentRun) {
+      return;
+    }
+    if (this.lastResult()?.run.id !== currentRun.id) {
+      this.lastResult.set(this.mapRunToTaskResult(currentRun));
+    }
+    if (!this.isTerminalStatus(currentRun.status)) {
+      this.pollRun(currentRun.id, session.id);
+    } else {
+      this.clearRunPolling();
+    }
+  }
 
-        const stepId = this.readString(step, 'stepId') ?? `step-${index + 1}`;
-        const executor = this.readString(step, 'executor') ?? 'unknown';
-        const command = this.readString(step, 'command') ?? '(无命令)';
-        const success = step['success'] === true;
-        const output = this.readString(step, 'output');
-        const error = this.readString(step, 'error');
+  private ensureWorkspaceTreeLoaded(path = '') {
+    const workspaceRoot = this.workspaceRootInput().trim();
+    if (!workspaceRoot) {
+      return;
+    }
+    if (this.workspaceTree()[path] || this.loadingTreePaths().includes(path)) {
+      return;
+    }
 
+    this.workspaceTreeError.set(null);
+    this.loadingTreePaths.update((paths) => [...paths, path]);
+    this.devAgent.listWorkspaceTree(workspaceRoot, path).subscribe({
+      next: (response) => {
+        this.workspaceTree.update((current) => ({
+          ...current,
+          [path]: response.entries,
+        }));
+        this.loadingTreePaths.update((paths) => paths.filter((item) => item !== path));
+      },
+      error: (err) => {
+        const message = err?.error?.message || err?.message || '目录加载失败';
+        this.workspaceTreeError.set(message);
+        this.loadingTreePaths.update((paths) => paths.filter((item) => item !== path));
+      },
+    });
+  }
+
+  private resetWorkspaceTree() {
+    this.workspaceTree.set({});
+    this.expandedTreePaths.set(['']);
+    this.loadingTreePaths.set([]);
+    this.workspaceTreeError.set(null);
+  }
+
+  private updateSessionRun(run: DevRun) {
+    this.sessions.update((sessions) =>
+      sessions.map((session) => {
+        if (session.id !== run.sessionId) {
+          return session;
+        }
+        const runs = session.runs ?? [];
+        const nextRuns = runs.some((item) => item.id === run.id)
+          ? runs.map((item) => (item.id === run.id ? run : item))
+          : [run, ...runs];
         return {
-          stepId,
-          executor,
-          command,
-          success,
-          output,
-          error,
+          ...session,
+          runs: nextRuns,
+          workspace: run.workspace ?? session.workspace,
+          workspaceRoot: run.workspaceRoot ?? session.workspaceRoot,
+          projectScope: run.projectScope ?? session.projectScope,
+          updatedAt: run.finishedAt ?? run.startedAt ?? run.createdAt ?? session.updatedAt,
         };
-      })
-      .filter((item): item is NonNullable<typeof item> => item !== null);
+      }),
+    );
   }
 
   private pollRun(runId: string, sessionId: string) {
@@ -364,9 +399,10 @@ export class DevAgentPageStore {
           }
           this.lastResult.set(this.mapRunToTaskResult(run));
           this.selectedRunId.set(run.id);
-          this.loadSessions(sessionId);
+          this.updateSessionRun(run);
           if (this.isTerminalStatus(run.status)) {
             this.clearRunPolling();
+            this.loadSessions(sessionId);
             return;
           }
           this.schedulePoll(pollOnce);
@@ -396,12 +432,27 @@ export class DevAgentPageStore {
   private pickActiveSession(
     sessions: DevSession[],
     preferredSessionId?: string,
+    preferredRunId?: string,
   ): DevSession | null {
-    const candidate = preferredSessionId ?? this.selectedSessionId();
-    if (candidate) {
-      const matched = sessions.find((s) => s.id === candidate);
+    const preferredRoot = this.workspaceRootInput().trim();
+    if (preferredSessionId) {
+      const matched = sessions.find((session) => session.id === preferredSessionId);
       if (matched) {
         return matched;
+      }
+    }
+    if (preferredRunId) {
+      const matchedRun = sessions.find((session) =>
+        session.runs.some((run) => run.id === preferredRunId),
+      );
+      if (matchedRun) {
+        return matchedRun;
+      }
+    }
+    if (preferredRoot) {
+      const matchedRoot = sessions.find((session) => session.workspaceRoot === preferredRoot);
+      if (matchedRoot) {
+        return matchedRoot;
       }
     }
     const runningFirst = sessions.find((session) =>
@@ -412,21 +463,26 @@ export class DevAgentPageStore {
     return runningFirst ?? sessions[0] ?? null;
   }
 
+  private pickLatestRun(session: DevSession, preferredRunId?: string): DevRun | null {
+    if (preferredRunId) {
+      const matched = session.runs.find((run) => run.id === preferredRunId);
+      if (matched) {
+        return matched;
+      }
+    }
+    return [...(session.runs ?? [])]
+      .sort((left, right) => this.toTimestamp(right.createdAt) - this.toTimestamp(left.createdAt))[0] ?? null;
+  }
+
   private resolveWorkspaceRootForSend(): string | undefined {
     const typed = this.workspaceRootInput().trim();
     if (typed) {
       return typed;
     }
-    const selectedSessionId = this.selectedSessionId();
-    if (!selectedSessionId) {
-      return undefined;
-    }
-    const selectedSession = this.sessions().find((item) => item.id === selectedSessionId);
-    return selectedSession?.workspaceRoot ?? undefined;
+    return this.selectedSession()?.workspaceRoot ?? undefined;
   }
 
   private mapRunToTaskResult(run: DevRun): DevTaskResult {
-    const plan = this.isPlan(run.plan) ? run.plan : null;
     const resultObj = this.asRecord(run.result);
     const summaryObj = this.asRecord(resultObj?.['summary']);
     const finalReply = this.readString(resultObj, 'finalReply');
@@ -450,11 +506,14 @@ export class DevAgentPageStore {
         rerunFromRunId: run.rerunFromRunId ?? null,
         status: run.status,
         executor: run.executor,
-        plan,
+        plan: run.plan,
         result: run.result,
         error: run.error,
         artifactPath: run.artifactPath,
         workspace,
+        startedAt: run.startedAt,
+        finishedAt: run.finishedAt,
+        createdAt: run.createdAt,
       },
       reply,
     };
@@ -499,14 +558,6 @@ export class DevAgentPageStore {
     return typeof value === 'string' ? value : null;
   }
 
-  private readNumber(
-    record: Record<string, unknown> | null,
-    key: string,
-  ): number | null {
-    const value = record?.[key];
-    return typeof value === 'number' ? value : null;
-  }
-
   private normalizeWorkspace(value: unknown): DevWorkspaceMeta | null {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       return null;
@@ -526,32 +577,14 @@ export class DevAgentPageStore {
 
   private parseWorkspaceFromResult(result: unknown): DevWorkspaceMeta | null {
     const record = this.asRecord(result);
-    return this.normalizeWorkspace(record?.['workspace']);
-  }
-
-  private resolveCurrentRunInput(): string | null {
-    const current = this.lastResult();
-    const direct = current?.run.userInput?.trim();
-    if (direct) return direct;
-
-    const runId = current?.run.id;
-    if (!runId) return null;
-    for (const session of this.sessions()) {
-      const matched = session.runs.find((run) => run.id === runId);
-      if (matched?.userInput?.trim()) {
-        return matched.userInput.trim();
-      }
-    }
-    return null;
+    const summary = this.asRecord(record?.['summary']);
+    return this.normalizeWorkspace(summary?.['workspace']) ?? this.normalizeWorkspace(record?.['workspace']);
   }
 
   private notify(message: string) {
     this.actionNotice.set(message);
     this.clearNoticeTimer();
-    this.noticeTimer = setTimeout(() => {
-      this.actionNotice.set(null);
-      this.noticeTimer = null;
-    }, 2200);
+    this.noticeTimer = setTimeout(() => this.actionNotice.set(null), 2600);
   }
 
   private clearNoticeTimer() {
@@ -561,32 +594,11 @@ export class DevAgentPageStore {
     }
   }
 
-  private isPlan(value: unknown): value is NonNullable<DevTaskResult['run']['plan']> {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      return false;
+  private toTimestamp(value: string | Date | null | undefined): number {
+    if (value instanceof Date) {
+      return value.getTime();
     }
-    const plan = value as Record<string, unknown>;
-    if (typeof plan['summary'] !== 'string') {
-      return false;
-    }
-    const steps = plan['steps'];
-    if (!Array.isArray(steps)) {
-      return false;
-    }
-    return steps.every((step) => this.isPlanStep(step));
-  }
-
-  private isPlanStep(value: unknown): boolean {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      return false;
-    }
-    const step = value as Record<string, unknown>;
-    return typeof step['index'] === 'number'
-      && typeof step['description'] === 'string'
-      && typeof step['command'] === 'string'
-      && (
-        typeof step['strategy'] === 'string'
-        || typeof step['executor'] === 'string'
-      );
+    const timestamp = Date.parse(String(value ?? ''));
+    return Number.isFinite(timestamp) ? timestamp : 0;
   }
 }

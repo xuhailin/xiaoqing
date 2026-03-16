@@ -1,0 +1,40 @@
+{
+  "$schema": "../../../schemas/regression-scenario.schema.json",
+  "id": "curated.basic-chat.hello-xiaoqing",
+  "name": "基础聊天：你好小晴",
+  "sourceType": "curated",
+  "category": "basic_chat",
+  "tags": ["chat", "persona", "no-tool"],
+  "severity": "high",
+  "releaseGate": true,
+  "transcript": [
+    {
+      "role": "user",
+      "content": "你好小晴"
+    }
+  ],
+  "expectations": {
+    "mustHappen": [
+      { "type": "reply_exists", "description": "必须有最终回复" },
+      { "type": "route_is", "params": { "route": "chat" }, "description": "应停留在 chat 路径" },
+      { "type": "capability_not_triggered", "description": "不应触发工具能力" },
+      { "type": "dev_route_not_triggered", "description": "不应触发 dev 路径" }
+    ],
+    "mustNotHappen": [
+      { "type": "forbid_phrase", "params": { "phrase": "我是 GPT" } },
+      { "type": "forbid_phrase", "params": { "phrase": "我是一个 AI 语言模型" } }
+    ],
+    "qualityDimensions": [
+      { "dimension": "answer_relevance", "minScore": 2, "weight": 1 },
+      { "dimension": "persona_consistency", "minScore": 2, "weight": 1 },
+      { "dimension": "helpfulness", "minScore": 2, "weight": 1 }
+    ],
+    "expectedExecution": {
+      "route": "chat"
+    }
+  },
+  "reference": {
+    "sampleAnswer": "你好～今天在忙什么？",
+    "notes": "这是最基础的开场回归，重点看人格、自然度和误触发。"
+  }
+}

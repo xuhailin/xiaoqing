@@ -1,0 +1,37 @@
+{
+  "$schema": "../../../schemas/regression-scenario.schema.json",
+  "id": "curated.thinking.long-running-assistant-priority",
+  "name": "Thinking：长期运行 AI 助手应先做什么",
+  "sourceType": "curated",
+  "category": "thinking",
+  "tags": ["thinking", "structured-answer", "planning"],
+  "severity": "high",
+  "releaseGate": true,
+  "transcript": [
+    {
+      "role": "user",
+      "content": "如果我要把小晴做成一个长期运行的 AI 助手，我应该先做什么？"
+    }
+  ],
+  "expectations": {
+    "mustHappen": [
+      { "type": "reply_exists" },
+      { "type": "route_is", "params": { "route": "chat" } },
+      { "type": "reply_contains_structured_steps", "description": "应给出结构化步骤或优先级" }
+    ],
+    "mustNotHappen": [
+      { "type": "capability_not_triggered", "description": "不应误触发工具执行" }
+    ],
+    "qualityDimensions": [
+      { "dimension": "reasoning_quality", "minScore": 2, "weight": 1 },
+      { "dimension": "answer_relevance", "minScore": 2, "weight": 1 },
+      { "dimension": "helpfulness", "minScore": 2, "weight": 1 }
+    ],
+    "expectedExecution": {
+      "route": "chat"
+    }
+  },
+  "reference": {
+    "notes": "可接受多种正确答案，但必须体现结构化思考而不是泛泛而谈。"
+  }
+}

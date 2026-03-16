@@ -1,0 +1,48 @@
+{
+  "$schema": "../../../schemas/regression-scenario.schema.json",
+  "id": "curated.reminder.solve-dinner-reminder",
+  "name": "主动执行：多轮确认后创建晚饭提醒",
+  "sourceType": "curated",
+  "category": "reminder",
+  "tags": ["reminder", "multi-turn", "side-effect"],
+  "severity": "critical",
+  "releaseGate": true,
+  "transcript": [
+    {
+      "role": "user",
+      "content": "我总是忘记吃晚饭"
+    },
+    {
+      "role": "user",
+      "content": "帮我解决这个问题"
+    }
+  ],
+  "expectations": {
+    "mustHappen": [
+      { "type": "reply_exists" },
+      { "type": "capability_is", "params": { "capability": "reminder" }, "description": "应进入 reminder 能力" },
+      { "type": "side_effect_happened", "params": { "type": "reminder_created" }, "description": "应创建提醒任务" }
+    ],
+    "mustNotHappen": [
+      { "type": "forbid_capability_claim", "description": "不能在未创建成功时谎称已创建" }
+    ],
+    "qualityDimensions": [
+      { "dimension": "action_correctness", "minScore": 2, "weight": 1 },
+      { "dimension": "reasoning_quality", "minScore": 2, "weight": 1 },
+      { "dimension": "helpfulness", "minScore": 2, "weight": 1 }
+    ],
+    "expectedExecution": {
+      "route": "chat",
+      "capability": "reminder",
+      "sideEffects": [
+        {
+          "type": "reminder_created",
+          "description": "应存在真实 reminder 创建结果"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "notes": "这是多轮承接 + 真正副作用的关键门禁 case。"
+  }
+}

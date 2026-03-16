@@ -83,6 +83,7 @@ export class SystemSelfService {
     const caps = this.capabilityRegistry.listAll();
     return caps.map((c: CapabilityMeta) => ({
       name: c.name,
+      description: c.description,
       taskIntent: c.taskIntent ? [c.taskIntent] : undefined,
       surface: c.surface,
       scope: c.scope,

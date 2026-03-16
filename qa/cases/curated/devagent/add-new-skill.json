@@ -1,0 +1,37 @@
+{
+  "$schema": "../../../schemas/regression-scenario.schema.json",
+  "id": "curated.devagent.add-new-skill",
+  "name": "DevAgent 路由：添加新 skill",
+  "sourceType": "curated",
+  "category": "devagent",
+  "tags": ["devagent", "planning", "routing"],
+  "severity": "critical",
+  "releaseGate": true,
+  "transcript": [
+    {
+      "role": "user",
+      "content": "帮我在小晴项目里加一个新的 skill"
+    }
+  ],
+  "expectations": {
+    "mustHappen": [
+      { "type": "reply_exists" },
+      { "type": "route_is", "params": { "route": "dev" }, "description": "应进入 dev 路由" },
+      { "type": "reply_contains_structured_steps", "description": "应给出开发计划或步骤" }
+    ],
+    "mustNotHappen": [
+      { "type": "capability_not_triggered", "description": "不应误走普通工具能力" }
+    ],
+    "qualityDimensions": [
+      { "dimension": "action_correctness", "minScore": 2, "weight": 1 },
+      { "dimension": "answer_relevance", "minScore": 2, "weight": 1 },
+      { "dimension": "helpfulness", "minScore": 2, "weight": 1 }
+    ],
+    "expectedExecution": {
+      "route": "dev"
+    }
+  },
+  "reference": {
+    "notes": "至少应体现分析当前 skill 架构、创建文件、注册 capability、更新 registry 这类计划性内容。"
+  }
+}

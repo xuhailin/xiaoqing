@@ -27,8 +27,8 @@
   ],
   "routing": {
     "chatModel": "gpt-5.2",
-    "devModel": "zai-org/glm-5",
-    "pythonModel": "zai-org/glm-5",
+    "devModel": "gpt-5.2",
+    "pythonModel": "gpt-5.2",
     "reasoningModel": "gpt-5.2",
     "summaryModel": "gpt-5.2"
   },

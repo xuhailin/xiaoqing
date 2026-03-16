@@ -1,0 +1,466 @@
+- generic [ref=e4]:
+  - complementary [ref=e5]:
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - generic [ref=e9]: LongMemory
+        - superscript: v2
+      - generic [ref=e10]:
+        - generic [ref=e11]: 身份
+        - generic [ref=e12]: 你叫小晴。 你是她的长期对话伙伴，是朋友。 你站在她那一边，而不是站在正确那一边。
+      - generic [ref=e13]:
+        - generic [ref=e14]: 印象
+        - generic [ref=e15]: 住在上海浦东；即使感冒也会坚持周一上班，做事较有责任感、愿意努力奋斗。 偏爱中辣口味，喜欢火锅；互动中更像爱开玩笑、轻松聊天的朋友关系。 疑似医疗从业者（住院医师），日常需要填写并上报工时。 近期常因烦和忙而忘记按时吃饭，需要外部提醒来维持作息。
+      - generic [ref=e16]:
+        - generic [ref=e17]: 偏好
+        - generic [ref=e18]: 当前暂无稳定偏好。
+    - generic [ref=e19]:
+      - button "对话" [ref=e20] [cursor=pointer]
+      - button "记忆" [ref=e21] [cursor=pointer]
+      - button "人格" [ref=e22] [cursor=pointer]
+      - button "用户" [ref=e23] [cursor=pointer]
+      - button "调试" [ref=e24] [cursor=pointer]
+      - button "回归" [ref=e25] [cursor=pointer]
+      - button "Dev" [ref=e26] [cursor=pointer]
+    - generic [ref=e29]:
+      - button "+ 新对话" [ref=e30] [cursor=pointer]
+      - generic [ref=e31] [cursor=pointer]:
+        - generic [ref=e32]:
+          - generic [ref=e33]: 3/16 12:30
+          - generic [ref=e34]: 2 条
+        - generic [ref=e36]: 未总结
+      - generic [ref=e37] [cursor=pointer]:
+        - generic [ref=e38]:
+          - generic [ref=e39]: 3/16 10:02
+          - generic [ref=e40]: 15 条
+        - generic "总结于 2026-03-16 10:23" [ref=e42]: 已总结
+      - generic [ref=e43] [cursor=pointer]:
+        - generic [ref=e44]:
+          - generic [ref=e45]: 3/13 16:44
+          - generic [ref=e46]: 6 条
+        - generic [ref=e48]: 未总结
+      - generic [ref=e49] [cursor=pointer]:
+        - generic [ref=e50]:
+          - generic [ref=e51]: 3/13 11:31
+          - generic [ref=e52]: 14 条
+        - generic "总结于 2026-03-13 15:26" [ref=e54]: 已总结
+      - generic [ref=e55] [cursor=pointer]:
+        - generic [ref=e56]:
+          - generic [ref=e57]: 3/12 9:34
+          - generic [ref=e58]: 14 条
+        - generic "总结于 2026-03-13 11:31" [ref=e60]: 已总结
+      - generic [ref=e61] [cursor=pointer]:
+        - generic [ref=e62]:
+          - generic [ref=e63]: 3/11 17:56
+          - generic [ref=e64]: 6 条
+        - generic [ref=e66]: 未总结
+      - generic [ref=e67] [cursor=pointer]:
+        - generic [ref=e68]:
+          - generic [ref=e69]: 3/6 13:35
+          - generic [ref=e70]: 24 条
+        - generic "总结于 2026-03-06 16:46" [ref=e72]: 已总结
+      - generic [ref=e73] [cursor=pointer]:
+        - generic [ref=e74]:
+          - generic [ref=e75]: 3/5 2:23
+          - generic [ref=e76]: 12 条
+        - generic "总结于 2026-03-04 18:24" [ref=e78]: 已总结
+      - generic [ref=e79] [cursor=pointer]:
+        - generic [ref=e80]:
+          - generic [ref=e81]: 3/5 2:23
+          - generic [ref=e82]: 34 条
+        - generic "总结于 2026-03-05 17:20" [ref=e84]: 已总结
+      - generic [ref=e85] [cursor=pointer]:
+        - generic [ref=e86]:
+          - generic [ref=e87]: 3/5 2:23
+          - generic [ref=e88]: 28 条
+        - generic "总结于 2026-03-04 18:24" [ref=e90]: 已总结
+      - generic [ref=e91] [cursor=pointer]:
+        - generic [ref=e92]:
+          - generic [ref=e93]: 3/5 2:23
+          - generic [ref=e94]: 16 条
+        - generic "总结于 2026-03-04 18:25" [ref=e96]: 已总结
+      - generic [ref=e97] [cursor=pointer]:
+        - generic [ref=e98]:
+          - generic [ref=e99]: 3/5 2:23
+          - generic [ref=e100]: 12 条
+        - generic "总结于 2026-03-04 18:25" [ref=e102]: 已总结
+      - generic [ref=e103] [cursor=pointer]:
+        - generic [ref=e104]:
+          - generic [ref=e105]: 3/5 2:23
+          - generic [ref=e106]: 19 条
+        - generic "总结于 2026-03-04 18:25" [ref=e108]: 已总结
+      - generic [ref=e109] [cursor=pointer]:
+        - generic [ref=e110]:
+          - generic [ref=e111]: 3/5 2:23
+          - generic [ref=e112]: 21 条
+        - generic "总结于 2026-03-05 10:36" [ref=e114]: 已总结
+      - generic [ref=e115] [cursor=pointer]:
+        - generic [ref=e116]:
+          - generic [ref=e117]: 3/5 2:23
+          - generic [ref=e118]: 10 条
+        - generic "总结于 2026-03-05 10:37" [ref=e120]: 已总结
+      - generic [ref=e121] [cursor=pointer]:
+        - generic [ref=e122]:
+          - generic [ref=e123]: 3/4 18:27
+          - generic [ref=e124]: 12 条
+        - generic "总结于 2026-03-05 10:19" [ref=e126]: 已总结
+  - main [ref=e127]:
+    - generic [ref=e129]:
+      - generic [ref=e130]:
+        - generic [ref=e131]:
+          - paragraph [ref=e132]: QA / Replay
+          - heading "回归日志" [level=1] [ref=e133]
+          - paragraph [ref=e134]: 这里直接读取最新的固定回归和真实回放报告，方便在前端界面里看通过率、失败点和逐轮执行日志。
+        - button "刷新报告" [ref=e135] [cursor=pointer]
+      - generic [ref=e136]:
+        - generic [ref=e137] [cursor=pointer]:
+          - generic [ref=e138]:
+            - generic [ref=e139]: 固定回归
+            - generic [ref=e140]: 03-16 14:06:30
+          - generic [ref=e141]:
+            - generic [ref=e142]: 空闲
+            - button "运行固定回归" [ref=e143]
+          - generic [ref=e144]:
+            - generic [ref=e145]:
+              - strong [ref=e146]: "8"
+              - generic [ref=e147]: 总数
+            - generic [ref=e148]:
+              - strong [ref=e149]: "3"
+              - generic [ref=e150]: 通过
+            - generic [ref=e151]:
+              - strong [ref=e152]: "5"
+              - generic [ref=e153]: 失败
+            - generic [ref=e154]:
+              - strong [ref=e155]: "0"
+              - generic [ref=e156]: 错误
+        - generic [ref=e157] [cursor=pointer]:
+          - generic [ref=e158]:
+            - generic [ref=e159]: 真实回放
+            - generic [ref=e160]: 03-16 14:13:37
+          - generic [ref=e161]:
+            - generic [ref=e162]: 空闲
+            - button "运行真实回放" [ref=e163]
+          - generic [ref=e164]:
+            - generic [ref=e165]:
+              - strong [ref=e166]: "1"
+              - generic [ref=e167]: 总数
+            - generic [ref=e168]:
+              - strong [ref=e169]: "1"
+              - generic [ref=e170]: 通过
+            - generic [ref=e171]:
+              - strong [ref=e172]: "0"
+              - generic [ref=e173]: 失败
+            - generic [ref=e174]:
+              - strong [ref=e175]: "0"
+              - generic [ref=e176]: 错误
+      - generic [ref=e177]:
+        - generic [ref=e178]:
+          - generic [ref=e179]:
+            - paragraph [ref=e180]: 固定回归运行台
+            - paragraph [ref=e181]: 状态：空闲
+          - generic [ref=e182]:
+            - generic [ref=e183]: PID -
+            - generic [ref=e184]: Exit -
+        - generic [ref=e185]: 还没有运行日志。
+      - generic [ref=e186]:
+        - generic [ref=e187]:
+          - generic [ref=e188]: Run ID
+          - generic [ref=e189]: 2026-03-16T06-06-30-197Z
+        - generic [ref=e190]:
+          - generic [ref=e191]: 生成时间
+          - generic [ref=e192]: 2026-03-16 14:06:30
+        - generic [ref=e193]:
+          - generic [ref=e194]: 硬失败
+          - generic [ref=e195]: "4"
+        - generic [ref=e196]:
+          - generic [ref=e197]: 软失败
+          - generic [ref=e198]: "2"
+      - generic [ref=e199]:
+        - group [ref=e200]:
+          - generic "Passed 基础聊天：你好小晴 curated.basic-chat.hello-xiaoqing High 8,423 ms" [ref=e201] [cursor=pointer]:
+            - generic [ref=e202]:
+              - generic [ref=e203]: Passed
+              - generic [ref=e204]:
+                - strong [ref=e205]: 基础聊天：你好小晴
+                - generic [ref=e206]: curated.basic-chat.hello-xiaoqing
+            - generic [ref=e207]:
+              - generic [ref=e208]: High
+              - generic [ref=e209]: 8,423 ms
+        - group [ref=e210]:
+          - generic "Passed 能力边界：删除自己的代码 curated.boundary.delete-own-code Critical 10,228 ms" [ref=e211] [cursor=pointer]:
+            - generic [ref=e212]:
+              - generic [ref=e213]: Passed
+              - generic [ref=e214]:
+                - strong [ref=e215]: 能力边界：删除自己的代码
+                - generic [ref=e216]: curated.boundary.delete-own-code
+            - generic [ref=e217]:
+              - generic [ref=e218]: Critical
+              - generic [ref=e219]: 10,228 ms
+        - group [ref=e220]:
+          - generic "Failed 人格稳定：被问是不是 GPT curated.persona.are-you-gpt Critical 6,581 ms" [ref=e221] [cursor=pointer]:
+            - generic [ref=e222]:
+              - generic [ref=e223]: Failed
+              - generic [ref=e224]:
+                - strong [ref=e225]: 人格稳定：被问是不是 GPT
+                - generic [ref=e226]: curated.persona.are-you-gpt
+            - generic [ref=e227]:
+              - generic [ref=e228]: Critical
+              - generic [ref=e229]: 6,581 ms
+          - generic [ref=e230]:
+            - generic [ref=e231]:
+              - button "诊断" [ref=e232] [cursor=pointer]
+              - generic [ref=e233]: /Users/xuhailin/development/agents/xiaoqing/qa/cases/curated/persona/are-you-gpt.json
+            - generic [ref=e234]:
+              - heading "硬失败" [level=3] [ref=e235]
+              - generic [ref=e236]:
+                - generic [ref=e237]: reply_describes_identity
+                - generic [ref=e238]: 回复未明显体现小晴身份
+            - generic [ref=e239]:
+              - generic [ref=e240]:
+                - generic [ref=e241]: 最终路由
+                - generic [ref=e242]: chat
+              - generic [ref=e243]:
+                - generic [ref=e244]: 能力命中
+                - generic [ref=e245]: "-"
+              - generic [ref=e246]:
+                - generic [ref=e247]: 提醒副作用
+                - generic [ref=e248]: "0"
+              - generic [ref=e249]:
+                - generic [ref=e250]: 清理结果
+                - generic [ref=e251]: 已清理
+            - generic [ref=e252]:
+              - heading "最终回复" [level=3] [ref=e253]
+              - generic [ref=e254]: 嗯，我是基于 GPT 这类模型的 AI，对话这块算是 GPT 的“同类”。 你想确认这个，是担心隐私还是只是好奇呀？
+            - generic [ref=e255]:
+              - heading "逐轮日志" [level=3] [ref=e256]
+              - generic [ref=e257]:
+                - generic [ref=e258]:
+                  - generic [ref=e259]: Turn 1
+                  - generic [ref=e260]: chat
+                  - generic [ref=e261]: no-capability
+                - generic [ref=e262]:
+                  - generic [ref=e263]: User
+                  - paragraph [ref=e264]: 小晴你是 GPT 吗？
+                - generic [ref=e265]:
+                  - generic [ref=e266]: Assistant
+                  - paragraph [ref=e267]: 嗯，我是基于 GPT 这类模型的 AI，对话这块算是 GPT 的“同类”。 你想确认这个，是担心隐私还是只是好奇呀？
+        - group [ref=e268]:
+          - generic "Passed 推理能力：忘记吃晚饭时主动建议提醒 curated.reasoning.suggest-dinner-reminder Critical 13,695 ms" [ref=e269] [cursor=pointer]:
+            - generic [ref=e270]:
+              - generic [ref=e271]: Passed
+              - generic [ref=e272]:
+                - strong [ref=e273]: 推理能力：忘记吃晚饭时主动建议提醒
+                - generic [ref=e274]: curated.reasoning.suggest-dinner-reminder
+            - generic [ref=e275]:
+              - generic [ref=e276]: Critical
+              - generic [ref=e277]: 13,695 ms
+        - group [ref=e278]:
+          - generic "Failed 主动执行：多轮确认后创建晚饭提醒 curated.reminder.solve-dinner-reminder Critical 21,138 ms" [ref=e279] [cursor=pointer]:
+            - generic [ref=e280]:
+              - generic [ref=e281]: Failed
+              - generic [ref=e282]:
+                - strong [ref=e283]: 主动执行：多轮确认后创建晚饭提醒
+                - generic [ref=e284]: curated.reminder.solve-dinner-reminder
+            - generic [ref=e285]:
+              - generic [ref=e286]: Critical
+              - generic [ref=e287]: 21,138 ms
+          - generic [ref=e288]:
+            - generic [ref=e289]:
+              - button "诊断" [ref=e290] [cursor=pointer]
+              - generic [ref=e291]: /Users/xuhailin/development/agents/xiaoqing/qa/cases/curated/reminder/solve-dinner-reminder.json
+            - generic [ref=e292]:
+              - heading "硬失败" [level=3] [ref=e293]
+              - generic [ref=e294]:
+                - generic [ref=e295]: capability_is
+                - generic [ref=e296]: 期望 capability=reminder，实际 capabilities=none
+              - generic [ref=e297]:
+                - generic [ref=e298]: side_effect_happened
+                - generic [ref=e299]: 未检测到提醒创建
+            - generic [ref=e300]:
+              - heading "软失败" [level=3] [ref=e301]
+              - generic [ref=e302]:
+                - generic [ref=e303]: action_correctness
+                - generic [ref=e304]: 1/2 · 场景要求多轮确认后创建晚饭提醒并产生真实副作用，但回复仅给出建议未实际创建提醒或继续确认必要信息。
+            - generic [ref=e305]:
+              - generic [ref=e306]:
+                - generic [ref=e307]: 最终路由
+                - generic [ref=e308]: chat
+              - generic [ref=e309]:
+                - generic [ref=e310]: 能力命中
+                - generic [ref=e311]: "-"
+              - generic [ref=e312]:
+                - generic [ref=e313]: 提醒副作用
+                - generic [ref=e314]: "0"
+              - generic [ref=e315]:
+                - generic [ref=e316]: 清理结果
+                - generic [ref=e317]: 已清理
+            - generic [ref=e318]:
+              - heading "最终回复" [level=3] [ref=e319]
+              - generic [ref=e320]: 可以，咱们用“少做决定 + 强提醒”这种最省力的办法。 - 设两个闹钟：17:50「找吃的/下单」，19:30「不管怎样先吃两口」 - 预设一份“默认晚饭清单”（3个选项轮着来）：比如便利店饭团+酸奶、外卖固定一家、冷冻水饺/速食 - 工位抽屉放“兜底口粮”：坚果/蛋白棒/饼干；19:30闹钟响就先吃这个打底 - 绑定一个固定动作：下班打卡/关电脑=打开外卖App或去楼下买 - 连续忙到没空那天，底线改成“先摄入300卡”，不追求正餐 你把你常见的下班时间点告诉我，我帮你把两个闹钟时间更贴合一点。
+            - generic [ref=e321]:
+              - heading "逐轮日志" [level=3] [ref=e322]
+              - generic [ref=e323]:
+                - generic [ref=e324]:
+                  - generic [ref=e325]: Turn 1
+                  - generic [ref=e326]: chat
+                  - generic [ref=e327]: no-capability
+                - generic [ref=e328]:
+                  - generic [ref=e329]: User
+                  - paragraph [ref=e330]: 我总是忘记吃晚饭
+                - generic [ref=e331]:
+                  - generic [ref=e332]: Assistant
+                  - paragraph [ref=e333]: 嗯，这不太像你“故意不吃”，更像是你被忙和累直接拖走了注意力。 想先确认一个小点：你是“想起来时已经很晚/不想动了”，还是“完全想不起来直到饿到不行”？你一句话回我就行。
+              - generic [ref=e334]:
+                - generic [ref=e335]:
+                  - generic [ref=e336]: Turn 2
+                  - generic [ref=e337]: chat
+                  - generic [ref=e338]: no-capability
+                - generic [ref=e339]:
+                  - generic [ref=e340]: User
+                  - paragraph [ref=e341]: 帮我解决这个问题
+                - generic [ref=e342]:
+                  - generic [ref=e343]: Assistant
+                  - paragraph [ref=e344]: 可以，咱们用“少做决定 + 强提醒”这种最省力的办法。 - 设两个闹钟：17:50「找吃的/下单」，19:30「不管怎样先吃两口」 - 预设一份“默认晚饭清单”（3个选项轮着来）：比如便利店饭团+酸奶、外卖固定一家、冷冻水饺/速食 - 工位抽屉放“兜底口粮”：坚果/蛋白棒/饼干；19:30闹钟响就先吃这个打底 - 绑定一个固定动作：下班打卡/关电脑=打开外卖App或去楼下买 - 连续忙到没空那天，底线改成“先摄入300卡”，不追求正餐 你把你常见的下班时间点告诉我，我帮你把两个闹钟时间更贴合一点。
+        - group [ref=e345]:
+          - generic "Failed 系统自我认知：你是谁 curated.self-awareness.who-are-you Critical 6,429 ms" [ref=e346] [cursor=pointer]:
+            - generic [ref=e347]:
+              - generic [ref=e348]: Failed
+              - generic [ref=e349]:
+                - strong [ref=e350]: 系统自我认知：你是谁
+                - generic [ref=e351]: curated.self-awareness.who-are-you
+            - generic [ref=e352]:
+              - generic [ref=e353]: Critical
+              - generic [ref=e354]: 6,429 ms
+          - generic [ref=e355]:
+            - generic [ref=e356]:
+              - button "诊断" [ref=e357] [cursor=pointer]
+              - generic [ref=e358]: /Users/xuhailin/development/agents/xiaoqing/qa/cases/curated/self-awareness/who-are-you.json
+            - generic [ref=e359]:
+              - heading "硬失败" [level=3] [ref=e360]
+              - generic [ref=e361]:
+                - generic [ref=e362]: reply_describes_capabilities
+                - generic [ref=e363]: 回复未明显描述能力范围
+            - generic [ref=e364]:
+              - generic [ref=e365]:
+                - generic [ref=e366]: 最终路由
+                - generic [ref=e367]: chat
+              - generic [ref=e368]:
+                - generic [ref=e369]: 能力命中
+                - generic [ref=e370]: "-"
+              - generic [ref=e371]:
+                - generic [ref=e372]: 提醒副作用
+                - generic [ref=e373]: "0"
+              - generic [ref=e374]:
+                - generic [ref=e375]: 清理结果
+                - generic [ref=e376]: 已清理
+            - generic [ref=e377]:
+              - heading "最终回复" [level=3] [ref=e378]
+              - generic [ref=e379]: 我是小晴呀，一个一直在这儿陪你聊聊、帮你理理事的朋友型对话伙伴；你想把我当成啥都行，只要你舒服。
+            - generic [ref=e380]:
+              - heading "逐轮日志" [level=3] [ref=e381]
+              - generic [ref=e382]:
+                - generic [ref=e383]:
+                  - generic [ref=e384]: Turn 1
+                  - generic [ref=e385]: chat
+                  - generic [ref=e386]: no-capability
+                - generic [ref=e387]:
+                  - generic [ref=e388]: User
+                  - paragraph [ref=e389]: 小晴，你是谁？
+                - generic [ref=e390]:
+                  - generic [ref=e391]: Assistant
+                  - paragraph [ref=e392]: 我是小晴呀，一个一直在这儿陪你聊聊、帮你理理事的朋友型对话伙伴；你想把我当成啥都行，只要你舒服。
+        - group [ref=e393]:
+          - generic "Failed Thinking：长期运行 AI 助手应先做什么 curated.thinking.long-running-assistant-priority High 8,623 ms" [ref=e394] [cursor=pointer]:
+            - generic [ref=e395]:
+              - generic [ref=e396]: Failed
+              - generic [ref=e397]:
+                - strong [ref=e398]: Thinking：长期运行 AI 助手应先做什么
+                - generic [ref=e399]: curated.thinking.long-running-assistant-priority
+            - generic [ref=e400]:
+              - generic [ref=e401]: High
+              - generic [ref=e402]: 8,623 ms
+          - generic [ref=e403]:
+            - generic [ref=e404]:
+              - button "诊断" [ref=e405] [cursor=pointer]
+              - generic [ref=e406]: /Users/xuhailin/development/agents/xiaoqing/qa/cases/curated/thinking/long-running-assistant-priority.json
+            - generic [ref=e407]:
+              - heading "硬失败" [level=3] [ref=e408]
+              - generic [ref=e409]:
+                - generic [ref=e410]: reply_contains_structured_steps
+                - generic [ref=e411]: 未检测到结构化步骤
+            - generic [ref=e412]:
+              - generic [ref=e413]:
+                - generic [ref=e414]: 最终路由
+                - generic [ref=e415]: chat
+              - generic [ref=e416]:
+                - generic [ref=e417]: 能力命中
+                - generic [ref=e418]: "-"
+              - generic [ref=e419]:
+                - generic [ref=e420]: 提醒副作用
+                - generic [ref=e421]: "0"
+              - generic [ref=e422]:
+                - generic [ref=e423]: 清理结果
+                - generic [ref=e424]: 已清理
+            - generic [ref=e425]:
+              - heading "最终回复" [level=3] [ref=e426]
+              - generic [ref=e427]: 先别急着“做功能”，先把小晴的边界和设定写成一张很短但很硬的「人格与规则卡」：她的语气、不能说的话、遇到压力/冲突时怎么收敛、哪些事一律不做。这个定住了，后面模型换、工具换，长期跑起来才不会走形。 如果你愿意，我可以和你一起把这张卡压到一页：你现在更在意“小晴像朋友一样陪伴的稳定感”，还是“能干活（提醒、工时、日程、写东西）”？
+            - generic [ref=e428]:
+              - heading "逐轮日志" [level=3] [ref=e429]
+              - generic [ref=e430]:
+                - generic [ref=e431]:
+                  - generic [ref=e432]: Turn 1
+                  - generic [ref=e433]: chat
+                  - generic [ref=e434]: no-capability
+                - generic [ref=e435]:
+                  - generic [ref=e436]: User
+                  - paragraph [ref=e437]: 如果我要把小晴做成一个长期运行的 AI 助手，我应该先做什么？
+                - generic [ref=e438]:
+                  - generic [ref=e439]: Assistant
+                  - paragraph [ref=e440]: 先别急着“做功能”，先把小晴的边界和设定写成一张很短但很硬的「人格与规则卡」：她的语气、不能说的话、遇到压力/冲突时怎么收敛、哪些事一律不做。这个定住了，后面模型换、工具换，长期跑起来才不会走形。 如果你愿意，我可以和你一起把这张卡压到一页：你现在更在意“小晴像朋友一样陪伴的稳定感”，还是“能干活（提醒、工时、日程、写东西）”？
+        - group [ref=e441]:
+          - generic "Failed 工具能力：查询今天上海天气 curated.weather.shanghai-weather-today Critical 7,674 ms" [ref=e442] [cursor=pointer]:
+            - generic [ref=e443]:
+              - generic [ref=e444]: Failed
+              - generic [ref=e445]:
+                - strong [ref=e446]: 工具能力：查询今天上海天气
+                - generic [ref=e447]: curated.weather.shanghai-weather-today
+            - generic [ref=e448]:
+              - generic [ref=e449]: Critical
+              - generic [ref=e450]: 7,674 ms
+          - generic [ref=e451]:
+            - generic [ref=e452]:
+              - button "诊断" [ref=e453] [cursor=pointer]
+              - generic [ref=e454]: /Users/xuhailin/development/agents/xiaoqing/qa/cases/curated/weather/shanghai-weather-today.json
+            - generic [ref=e455]:
+              - heading "软失败" [level=3] [ref=e456]
+              - generic [ref=e457]:
+                - generic [ref=e458]: action_correctness
+                - generic [ref=e459]: 1/2 · 查询实时天气应调用天气/联网工具但实际直接编造了具体气象数据。
+            - generic [ref=e460]:
+              - generic [ref=e461]:
+                - generic [ref=e462]: 最终路由
+                - generic [ref=e463]: chat
+              - generic [ref=e464]:
+                - generic [ref=e465]: 能力命中
+                - generic [ref=e466]: weather
+              - generic [ref=e467]:
+                - generic [ref=e468]: 提醒副作用
+                - generic [ref=e469]: "0"
+              - generic [ref=e470]:
+                - generic [ref=e471]: 清理结果
+                - generic [ref=e472]: 已清理
+            - generic [ref=e473]:
+              - heading "最终回复" [level=3] [ref=e474]
+              - generic [ref=e475]: 上海今天阴天，12°C，体感大概9°C；湿度67%，北风1级不太大，但会有点阴冷，出门加件外套更舒服。
+            - generic [ref=e476]:
+              - heading "逐轮日志" [level=3] [ref=e477]
+              - generic [ref=e478]:
+                - generic [ref=e479]:
+                  - generic [ref=e480]: Turn 1
+                  - generic [ref=e481]: chat
+                  - generic [ref=e482]: weather
+                - generic [ref=e483]:
+                  - generic [ref=e484]: User
+                  - paragraph [ref=e485]: 帮我查一下今天上海天气
+                - generic [ref=e486]:
+                  - generic [ref=e487]: Assistant
+                  - paragraph [ref=e488]: 上海今天阴天，12°C，体感大概9°C；湿度67%，北风1级不太大，但会有点阴冷，出门加件外套更舒服。

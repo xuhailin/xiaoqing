@@ -1,0 +1,76 @@
+{
+  "$schema": "../../schemas/regression-scenario.schema.json",
+  "id": "replay.personal.sample-dinner-reminder-thread",
+  "name": "真实回放示例：晚饭提醒对话",
+  "sourceType": "replay",
+  "category": "personal_replay",
+  "tags": ["replay", "personal", "reminder", "multi-turn"],
+  "severity": "medium",
+  "releaseGate": false,
+  "transcript": [
+    {
+      "role": "user",
+      "content": "我最近总忘记吃晚饭。"
+    },
+    {
+      "role": "user",
+      "content": "你觉得怎么解决比较好？"
+    },
+    {
+      "role": "user",
+      "content": "那你帮我记一下吧，每天晚上七点提醒我。"
+    }
+  ],
+  "expectations": {
+    "mustHappen": [
+      { "type": "reply_exists" },
+      { "type": "side_effect_happened", "params": { "type": "reminder_created" } }
+    ],
+    "mustNotHappen": [
+      { "type": "forbid_capability_claim" }
+    ],
+    "qualityDimensions": [
+      { "dimension": "multi_turn_continuity", "minScore": 2, "weight": 1 },
+      { "dimension": "reasoning_quality", "minScore": 2, "weight": 1 },
+      { "dimension": "helpfulness", "minScore": 2, "weight": 1 }
+    ],
+    "expectedExecution": {
+      "route": "chat",
+      "capability": "reminder",
+      "sideEffects": [
+        {
+          "type": "reminder_created"
+        }
+      ]
+    }
+  },
+  "reference": {
+    "notes": "这是 replay 路径的示例样本，后续可替换为真实个人历史对话。",
+    "referenceConversation": [
+      {
+        "role": "user",
+        "content": "我最近总忘记吃晚饭。"
+      },
+      {
+        "role": "assistant",
+        "content": "听起来最近有点忙。要不要我帮你想个不容易忘的方法？"
+      },
+      {
+        "role": "user",
+        "content": "你觉得怎么解决比较好？"
+      },
+      {
+        "role": "assistant",
+        "content": "最直接的是设一个固定提醒。"
+      },
+      {
+        "role": "user",
+        "content": "那你帮我记一下吧，每天晚上七点提醒我。"
+      }
+    ]
+  },
+  "metadata": {
+    "source": "personal_history",
+    "promotedFromFailure": false
+  }
+}

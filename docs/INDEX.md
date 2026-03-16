@@ -62,6 +62,14 @@
 |------|------|
 | [debug-trace-design.md](debug-trace-design.md) | Trace 与调试元数据设计 |
 
+## 质量保障
+
+| 文档 | 说明 |
+|------|------|
+| [dialogue-regression-standard.md](dialogue-regression-standard.md) | 对话回归评估标准：固定回归集、真实对话回放、评分与门禁规则 |
+| [intent-policy-regression.md](intent-policy-regression.md) | 意图策略回放基线 |
+| [requirements/TECH-DIALOGUE-REGRESSION-SYSTEM.md](requirements/TECH-DIALOGUE-REGRESSION-SYSTEM.md) | 对话回归系统技术需求与架构方案：数据模型、执行链路、报告与首版验收 |
+
 ## 需求文档
 
 | 文档 | 说明 |

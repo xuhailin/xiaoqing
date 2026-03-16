@@ -7,6 +7,8 @@ import { ChatCompletionRunner } from './chat-completion-runner.service';
 import { TurnContextAssembler } from './turn-context-assembler.service';
 import { SummarizeTriggerService } from './summarize-trigger.service';
 import { FeatureFlagConfig } from './feature-flag.config';
+import { DecisionSummaryBuilder } from './decision-summary.builder';
+import { ResponseComposer } from './response-composer.service';
 import { ActionReasonerModule } from '../action-reasoner/action-reasoner.module';
 import { ReflectionModule } from '../reflection/reflection.module';
 import { LlmModule } from '../../infra/llm/llm.module';
@@ -24,10 +26,9 @@ import { MetaLayerService } from '../meta-layer/meta-layer.service';
 import { DailyMomentModule } from '../daily-moment/daily-moment.module';
 import { PostTurnPipeline } from '../post-turn/post-turn.pipeline';
 import { SystemSelfModule } from '../../system-self/system-self.module';
-import { ReasoningModule } from '../../reasoning/reasoning.module';
 
 @Module({
-  imports: [ActionReasonerModule, ReflectionModule, LlmModule, PromptRouterModule, MemoryModule, PersonaModule, IntentModule, OpenClawModule, ActionModule, WorldStateModule, IdentityAnchorModule, SummarizerModule, CognitivePipelineModule, DailyMomentModule, SystemSelfModule, ReasoningModule],
+  imports: [ActionReasonerModule, ReflectionModule, LlmModule, PromptRouterModule, MemoryModule, PersonaModule, IntentModule, OpenClawModule, ActionModule, WorldStateModule, IdentityAnchorModule, SummarizerModule, CognitivePipelineModule, DailyMomentModule, SystemSelfModule],
   controllers: [ConversationController],
   providers: [
     ConversationService,
@@ -39,6 +40,8 @@ import { ReasoningModule } from '../../reasoning/reasoning.module';
     FeatureFlagConfig,
     PostTurnPipeline,
     MetaLayerService,
+    DecisionSummaryBuilder,
+    ResponseComposer,
   ],
   exports: [ConversationService],
 })

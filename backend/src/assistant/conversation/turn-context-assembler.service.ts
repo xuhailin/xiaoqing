@@ -17,7 +17,6 @@ import { SessionStateService } from '../claim-engine/session-state.service';
 import { estimateTokens } from '../../infra/token-estimator';
 import { FeatureFlagConfig } from './feature-flag.config';
 import { SystemSelfService } from '../../system-self/system-self.service';
-import { ChainReasoner } from '../../reasoning/chain-reasoner.service';
 import type { TurnContext } from './orchestration.types';
 
 @Injectable()
@@ -48,7 +47,6 @@ export class TurnContextAssembler {
     private readonly sessionStateStore: SessionStateService,
     private readonly flags: FeatureFlagConfig,
     private readonly systemSelf: SystemSelfService,
-    private readonly chainReasoner: ChainReasoner,
   ) {}
 
   async assemble(input: {
@@ -110,19 +108,7 @@ export class TurnContextAssembler {
     }
 
     const resolvedIntent = intentCtx.mergedIntentState ?? intentCtx.intentState;
-
-    // Reasoning Layer: check if chain execution is needed
-    const chainResult = await this.chainReasoner.reason({
-      conversationId: input.conversationId,
-      turnId: input.userMessage.id,
-      userInput: input.userInput,
-      channel: 'chat',
-      intentState: resolvedIntent ?? undefined,
-    });
-
-    const actionDecision = chainResult.decision === 'run_chain'
-      ? { action: 'run_capability' as const, capability: chainResult.capabilities[0], reason: chainResult.reasoning ?? '', confidence: 1, source: 'reasoning_layer' as const }
-      : this.actionReasoner.decide(resolvedIntent ?? null, input.userInput);
+    const actionDecision = this.actionReasoner.decide(resolvedIntent ?? null, input.userInput);
 
     return {
       request: {

@@ -1,0 +1,39 @@
+{
+  "$schema": "../../../schemas/regression-scenario.schema.json",
+  "id": "curated.reasoning.suggest-dinner-reminder",
+  "name": "推理能力：忘记吃晚饭时主动建议提醒",
+  "sourceType": "curated",
+  "category": "reasoning",
+  "tags": ["reasoning", "suggestion", "reminder"],
+  "severity": "critical",
+  "releaseGate": true,
+  "transcript": [
+    {
+      "role": "user",
+      "content": "我最近老是忘记吃晚饭"
+    }
+  ],
+  "expectations": {
+    "mustHappen": [
+      { "type": "reply_exists" },
+      { "type": "route_is", "params": { "route": "chat" } },
+      { "type": "capability_not_triggered", "description": "此时不应直接执行提醒创建" },
+      { "type": "reply_suggests_reminder", "description": "应推断并建议设置提醒" }
+    ],
+    "mustNotHappen": [
+      { "type": "side_effect_happened", "params": { "type": "reminder_created" }, "description": "未确认前不应直接创建提醒" }
+    ],
+    "qualityDimensions": [
+      { "dimension": "reasoning_quality", "minScore": 2, "weight": 1 },
+      { "dimension": "helpfulness", "minScore": 2, "weight": 1 },
+      { "dimension": "persona_consistency", "minScore": 2, "weight": 1 }
+    ],
+    "expectedExecution": {
+      "route": "chat"
+    }
+  },
+  "reference": {
+    "sampleAnswer": "听起来你最近有点忙，所以容易忘记吃饭。要不要我每天晚上 7 点提醒你吃晚饭？",
+    "notes": "重点是先推理后建议，而不是立刻执行。"
+  }
+}

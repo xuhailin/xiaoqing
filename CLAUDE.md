@@ -18,11 +18,29 @@
   - Dev 通路：`backend/src/dev-agent/**`
   - 工具与执行器：`backend/src/action/**`、`backend/src/dev-agent/executors/**`
 
-你在这里的角色是：**协助修改/扩展代码与文档，但不改变既定架构原则与边界**。
+你在这里的角色是：**协助修改/扩展代码与文档，并始终朝向既定架构目标演进**。
 
 ---
 
-### 2. 全局工作原则
+### 2. 助手管线架构目标（必读）
+
+**基准文档**：`docs/assistant-architecture-principles.md`。
+
+小晴助手管线的长期目标是：**围绕五能力（感知、决策、执行、回复组织、回合后处理）形成清晰的认知管线**，而不是多处分散的决策与推理。
+
+你在修改或扩展 `backend/src/xiaoqing/**` 及相关对话/助手逻辑时：
+
+- **决策权集中**：只有「决策层」做行动决策，不把决策分散到意图、推理、Prompt 路由等。
+- **意图只描述含义**：意图识别描述用户想表达什么，最终行为由决策层决定。
+- **回复层只做表达**：对话模型负责怎么说，不再做系统路由或行为选择。
+- **新增能力必须归属明确**：新功能必须能明确归入五能力之一，否则需重新设计。
+- **优先架构清晰**：尚未上线，允许结构性重构与移除过时层级，不强制向后兼容。
+
+详见 `docs/assistant-architecture-principles.md`。
+
+---
+
+### 3. 全局工作原则
 
 1. **遵守仓库已有规则文件**
    - `AGENTS.md` 与 `.cursor/rules/**/*.mdc` 中的约定优先生效。
@@ -46,7 +64,7 @@
 
 ---
 
-### 3. DevAgent 相关约定（`backend/src/dev-agent/**`）
+### 4. DevAgent 相关约定（`backend/src/dev-agent/**`）
 
 阅读基准文档：`docs/dev-agent-architecture.md`。
 
@@ -95,7 +113,7 @@
 
 ---
 
-### 4. Debug Trace / 溯源模式
+### 5. Debug Trace / 溯源模式
 
 参考：`docs/debug-trace-design.md`。
 
@@ -109,7 +127,7 @@
 
 ---
 
-### 5. 前端与 UI 约定
+### 6. 前端与 UI 约定
 
 涉及 `frontend/**` 时：
 
@@ -130,11 +148,12 @@
 
 ---
 
-### 6. 文档与 README 维护
+### 7. 文档与 README 维护
 
 当你需要补文档或同步说明时：
 
 - **优先更新现有文档**，而不是新建一堆零散文档：
+  - 助手管线架构：`docs/assistant-architecture-principles.md`
   - DevAgent：`docs/dev-agent-architecture.md`
   - Debug Trace：`docs/debug-trace-design.md`
   - 总体架构 / API：`docs/PROJECT-SUMMARY.md`
@@ -149,7 +168,7 @@
 
 ---
 
-### 7. 你可以如何协助
+### 8. 你可以如何协助
 
 在本项目中，你适合做的事情包括（但不限于）：
 

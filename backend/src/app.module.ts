@@ -14,6 +14,10 @@ import { ClaimEngineModule } from './assistant/claim-engine/claim-engine.module'
 import { GatewayModule } from './gateway/gateway.module';
 import { DevAgentModule } from './dev-agent/dev-agent.module';
 import { WechatWorkBotModule } from './channels/wechat-work-bot/wechat-work-bot.module';
+import { RegressionReportsController } from './qa/regression-reports.controller';
+import { RegressionReportsService } from './qa/regression-reports.service';
+import { RegressionRunController } from './qa/regression-runner.controller';
+import { RegressionRunService } from './qa/regression-runner.service';
 
 @Global()
 @Module({
@@ -31,8 +35,8 @@ import { WechatWorkBotModule } from './channels/wechat-work-bot/wechat-work-bot.
     ClaimEngineModule,
     WechatWorkBotModule,
   ],
-  controllers: [AppController],
-  providers: [AppService, PrismaService],
+  controllers: [AppController, RegressionReportsController, RegressionRunController],
+  providers: [AppService, PrismaService, RegressionReportsService, RegressionRunService],
   exports: [PrismaService],
 })
 export class AppModule {}

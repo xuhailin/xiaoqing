@@ -64,7 +64,7 @@ export class DevStepRoutingService {
         strategy: step.strategy,
         executor: selected.name,
         cost: selected.costLevel,
-        reason: `strategy=${step.strategy}, policy=maxCost:${policy.maxCost};shellOrder:${policy.shellOrder}, selected=${selected.name}, cost=${selected.costLevel}`,
+        reason: `strategy=${step.strategy}, claudeCodePreferred=${selected.name === 'claude-code'}, policy=maxCost:${policy.maxCost};shellOrder:${policy.shellOrder}, selected=${selected.name}, cost=${selected.costLevel}`,
       };
     }
 
@@ -93,26 +93,40 @@ export class DevStepRoutingService {
     available: IDevExecutor[],
     policy: StrategyRoutingPolicy,
   ): IDevExecutor[] {
-    const base = available
-      .filter((executor) => executor.supportedStrategies.includes(step.strategy))
+    const supported = available
+      .filter((executor) => executor.supportedStrategies.includes(step.strategy));
+
+    // Claude Code 可用时优先承担 dev 执行，避免 planner 对 search/edit/verify 粒度判断不准时把任务切碎。
+    const preferredClaude = supported.find((executor) => executor.name === 'claude-code');
+    const fallback = supported
+      .filter((executor) => executor.name !== 'claude-code')
       .filter((executor) => this.costRank(executor.costLevel) <= this.costRank(policy.maxCost))
       .sort((a, b) => this.costRank(a.costLevel) - this.costRank(b.costLevel));
 
+    const orderedFallback = this.orderByShellPolicy(step, fallback, policy);
+
+    return preferredClaude ? [preferredClaude, ...orderedFallback] : orderedFallback;
+  }
+
+  private orderByShellPolicy(
+    step: DevPlanStep,
+    executors: IDevExecutor[],
+    policy: StrategyRoutingPolicy,
+  ): IDevExecutor[] {
     if (policy.shellOrder === 'prefer') {
-      return this.prioritizeShell(base);
+      return this.prioritizeShell(executors);
     }
 
     if (policy.shellOrder === 'defer') {
-      return this.deferShell(base);
+      return this.deferShell(executors);
     }
 
-    // dynamic shell order: edit 根据命令形态动态决策
     if (step.strategy === 'edit') {
       const shellReady = inspectShellCommand(step.command).allowed;
-      return shellReady ? this.prioritizeShell(base) : this.deferShell(base);
+      return shellReady ? this.prioritizeShell(executors) : this.deferShell(executors);
     }
 
-    return base;
+    return executors;
   }
 
   private prioritizeShell(executors: IDevExecutor[]): IDevExecutor[] {

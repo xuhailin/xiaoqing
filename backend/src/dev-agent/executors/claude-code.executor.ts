@@ -20,11 +20,11 @@ import { WorkspaceManager } from '../workspace/workspace-manager.service';
 @Injectable()
 export class ClaudeCodeExecutor implements IDevExecutor, ICapability {
   readonly name = 'claude-code';
-  readonly supportedStrategies: DevStepStrategy[] = ['edit', 'autonomous_coding'];
+  readonly supportedStrategies: DevStepStrategy[] = ['inspect', 'edit', 'verify', 'autonomous_coding'];
   readonly costLevel: DevExecutorCost = 'high';
   readonly taskIntent = 'claude_code_agent';
   readonly channels: MessageChannel[] = ['dev'];
-  readonly description = 'Claude Code Agent 自主编码（代码生成/修改/重构/bug 修复）';
+  readonly description = 'Claude Code Agent 自主执行（排查/编码/验证/重构/bug 修复）';
   readonly surface = 'dev' as const;
   readonly scope = 'private' as const;
   readonly portability = 'environment-bound' as const;

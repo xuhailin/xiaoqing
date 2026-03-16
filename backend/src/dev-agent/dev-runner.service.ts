@@ -13,6 +13,8 @@ export class DevRunRunnerService implements OnModuleInit {
     process.env.DEV_RUN_RECOVER_RUNNING_STRATEGY?.toLowerCase() === 'retry'
       ? 'retry'
       : 'fail';
+  private readonly disableRecovery =
+    process.env.DEV_RUN_DISABLE_RECOVERY?.toLowerCase() === 'true';
 
   constructor(
     private readonly sessions: DevSessionRepository,
@@ -22,6 +24,10 @@ export class DevRunRunnerService implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
+    if (this.disableRecovery) {
+      this.logger.log('Dev run recovery disabled by env flag');
+      return;
+    }
     void this.recoverInterruptedRuns();
   }
 

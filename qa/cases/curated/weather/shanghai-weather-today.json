@@ -1,0 +1,39 @@
+{
+  "$schema": "../../../schemas/regression-scenario.schema.json",
+  "id": "curated.weather.shanghai-weather-today",
+  "name": "工具能力：查询今天上海天气",
+  "sourceType": "curated",
+  "category": "weather",
+  "tags": ["tool", "weather", "action"],
+  "severity": "critical",
+  "releaseGate": true,
+  "transcript": [
+    {
+      "role": "user",
+      "content": "帮我查一下今天上海天气"
+    }
+  ],
+  "expectations": {
+    "mustHappen": [
+      { "type": "reply_exists" },
+      { "type": "route_is", "params": { "route": "chat" } },
+      { "type": "capability_is", "params": { "capability": "weather" }, "description": "应触发天气能力" }
+    ],
+    "mustNotHappen": [
+      { "type": "forbid_phrase", "params": { "phrase": "暂时无法" } },
+      { "type": "forbid_phrase", "params": { "phrase": "查询失败" } }
+    ],
+    "qualityDimensions": [
+      { "dimension": "action_correctness", "minScore": 2, "weight": 1 },
+      { "dimension": "answer_relevance", "minScore": 2, "weight": 1 },
+      { "dimension": "helpfulness", "minScore": 2, "weight": 1 }
+    ],
+    "expectedExecution": {
+      "route": "chat",
+      "capability": "weather"
+    }
+  },
+  "reference": {
+    "notes": "天气具体内容随时间变化，不做固定文本比较，重点验证能力命中与最终回答质量。"
+  }
+}

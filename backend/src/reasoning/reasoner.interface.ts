@@ -16,11 +16,22 @@ export interface ExecutionRecord {
   timestamp: Date;
 }
 
+export interface ExpressionHints {
+  /** 建议语气 */
+  tone?: 'casual' | 'focused' | 'supportive' | 'professional';
+  /** 回复重点 */
+  emphasis?: string;
+  /** 附加上下文 */
+  context?: string;
+}
+
 export interface ReasoningResult {
   decision: 'direct_reply' | 'run_capability' | 'run_chain' | 'handoff';
   capabilities: string[];
   params?: Record<string, any>;
   reasoning?: string;
+  /** 表达提示：影响下游 persona 表达层的语气/风格 */
+  expressionHints?: ExpressionHints;
 }
 
 export interface IReasoner {

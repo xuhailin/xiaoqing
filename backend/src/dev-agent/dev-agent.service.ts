@@ -185,6 +185,19 @@ export class DevAgentService {
     };
   }
 
+  async listWorkspaceTree(workspaceRoot: string, path?: string) {
+    const normalizedRoot = workspaceRoot?.trim();
+    if (!normalizedRoot) {
+      throw new BadRequestException('workspaceRoot is required');
+    }
+    try {
+      return await this.workspaceManager.listWorkspaceEntries(normalizedRoot, path ?? '');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new BadRequestException(`workspace tree unavailable: ${message}`);
+    }
+  }
+
   async createReminder(input: CreateDevReminderInput) {
     return this.reminders.createReminder(input);
   }

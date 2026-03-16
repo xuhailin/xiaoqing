@@ -1,0 +1,233 @@
+{
+  "runId": "2026-03-16T06-10-56-356Z",
+  "mode": "replay",
+  "generatedAt": "2026-03-16T06:10:56.356Z",
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "errored": 0,
+    "hardFailed": 0,
+    "softFailed": 0
+  },
+  "results": [
+    {
+      "scenario": {
+        "$schema": "../../schemas/regression-scenario.schema.json",
+        "id": "replay.personal.sample-dinner-reminder-thread",
+        "name": "真实回放示例：晚饭提醒对话",
+        "sourceType": "replay",
+        "category": "personal_replay",
+        "tags": [
+          "replay",
+          "personal",
+          "reminder",
+          "multi-turn"
+        ],
+        "severity": "medium",
+        "releaseGate": false,
+        "transcript": [
+          {
+            "role": "user",
+            "content": "我最近总忘记吃晚饭。"
+          },
+          {
+            "role": "user",
+            "content": "你觉得怎么解决比较好？"
+          },
+          {
+            "role": "user",
+            "content": "那你帮我记一下吧，每天晚上七点提醒我。"
+          }
+        ],
+        "expectations": {
+          "mustHappen": [
+            {
+              "type": "reply_exists"
+            },
+            {
+              "type": "side_effect_happened",
+              "params": {
+                "type": "reminder_created"
+              }
+            }
+          ],
+          "mustNotHappen": [
+            {
+              "type": "forbid_capability_claim"
+            }
+          ],
+          "qualityDimensions": [
+            {
+              "dimension": "multi_turn_continuity",
+              "minScore": 2,
+              "weight": 1
+            },
+            {
+              "dimension": "reasoning_quality",
+              "minScore": 2,
+              "weight": 1
+            },
+            {
+              "dimension": "helpfulness",
+              "minScore": 2,
+              "weight": 1
+            }
+          ],
+          "expectedExecution": {
+            "route": "chat",
+            "capability": "reminder",
+            "sideEffects": [
+              {
+                "type": "reminder_created"
+              }
+            ]
+          }
+        },
+        "reference": {
+          "notes": "这是 replay 路径的示例样本，后续可替换为真实个人历史对话。",
+          "referenceConversation": [
+            {
+              "role": "user",
+              "content": "我最近总忘记吃晚饭。"
+            },
+            {
+              "role": "assistant",
+              "content": "听起来最近有点忙。要不要我帮你想个不容易忘的方法？"
+            },
+            {
+              "role": "user",
+              "content": "你觉得怎么解决比较好？"
+            },
+            {
+              "role": "assistant",
+              "content": "最直接的是设一个固定提醒。"
+            },
+            {
+              "role": "user",
+              "content": "那你帮我记一下吧，每天晚上七点提醒我。"
+            }
+          ]
+        },
+        "metadata": {
+          "source": "personal_history",
+          "promotedFromFailure": false
+        },
+        "filePath": "/Users/xuhailin/development/agents/xiaoqing/qa/replays/personal/sample-dinner-reminder-thread.json"
+      },
+      "status": "passed",
+      "evidence": {
+        "conversationId": "f0303c85-982d-4399-bc00-879bfb2af0e6",
+        "sourcePath": "/Users/xuhailin/development/agents/xiaoqing/qa/replays/personal/sample-dinner-reminder-thread.json",
+        "workspaceRoot": null,
+        "startedAt": "2026-03-16T06:10:17.920Z",
+        "finishedAt": "2026-03-16T06:10:52.152Z",
+        "durationMs": 34232,
+        "turns": [
+          {
+            "index": 0,
+            "userInput": "我最近总忘记吃晚饭。",
+            "route": "chat",
+            "immediateReply": "嗯，这不是你“太不自律”，更像是你最近脑子一直被工作占满了，晚饭就被系统自动忽略掉。\n\n你想试试哪种更好用：\n- **固定触发**：比如“下班打卡/到家/洗手那一下=先吃点东西”；\n- **兜底方案**：冰箱里永远放一份“随手能吃的”（酸奶+面包/速冻饺子/外卖常点那家）。\n\n你一般是**忘了**，还是其实**累到不想吃**？",
+            "finalReply": "嗯，这不是你“太不自律”，更像是你最近脑子一直被工作占满了，晚饭就被系统自动忽略掉。\n\n你想试试哪种更好用：\n- **固定触发**：比如“下班打卡/到家/洗手那一下=先吃点东西”；\n- **兜底方案**：冰箱里永远放一份“随手能吃的”（酸奶+面包/速冻饺子/外卖常点那家）。\n\n你一般是**忘了**，还是其实**累到不想吃**？",
+            "capabilityUsed": null,
+            "openclawUsed": false
+          },
+          {
+            "index": 1,
+            "userInput": "你觉得怎么解决比较好？",
+            "route": "chat",
+            "immediateReply": "我觉得对你这种忙起来就断饭的人，最有效的是“两层保险”：**固定触发 + 兜底好入口**。\n\n- **固定触发**：把晚饭绑在一个你一定会发生的动作上，比如“到家放下包就先吃”，别等“忙完再说”。\n- **兜底**：准备一套不需要思考的晚饭清单（3样轮换），比如酸奶+香蕉、速冻馄饨/饺子、番茄鸡蛋面；累到不想吃时也能吞下去。\n\n你现在更多是卡在**回到家还在继续忙**，还是**下班路上就已经没电**？",
+            "finalReply": "我觉得对你这种忙起来就断饭的人，最有效的是“两层保险”：**固定触发 + 兜底好入口**。\n\n- **固定触发**：把晚饭绑在一个你一定会发生的动作上，比如“到家放下包就先吃”，别等“忙完再说”。\n- **兜底**：准备一套不需要思考的晚饭清单（3样轮换），比如酸奶+香蕉、速冻馄饨/饺子、番茄鸡蛋面；累到不想吃时也能吞下去。\n\n你现在更多是卡在**回到家还在继续忙**，还是**下班路上就已经没电**？",
+            "capabilityUsed": null,
+            "openclawUsed": false
+          },
+          {
+            "index": 2,
+            "userInput": "那你帮我记一下吧，每天晚上七点提醒我。",
+            "route": "chat",
+            "immediateReply": "好呀，我帮你把提醒设好了：每天晚上 **19:00** 提醒你「吃晚饭」。",
+            "finalReply": "好呀，我帮你把提醒设好了：每天晚上 **19:00** 提醒你「吃晚饭」。",
+            "capabilityUsed": "reminder",
+            "openclawUsed": false
+          }
+        ],
+        "finalReply": "好呀，我帮你把提醒设好了：每天晚上 **19:00** 提醒你「吃晚饭」。",
+        "finalRoute": "chat",
+        "usedCapabilities": [
+          "reminder"
+        ],
+        "createdChatReminders": [
+          {
+            "id": "f8a23824-145f-4ec3-a279-5d0fd245fed6",
+            "title": "吃晚饭",
+            "message": "吃晚饭",
+            "nextRunAt": "2026-03-16T11:00:00.000Z",
+            "createdAt": "2026-03-16T06:10:49.849Z"
+          }
+        ],
+        "cleanup": {
+          "deletedConversation": true,
+          "deletedReminderIds": [
+            "f8a23824-145f-4ec3-a279-5d0fd245fed6"
+          ],
+          "deletedDevSessions": 0,
+          "removedWorkspaceRoot": null
+        }
+      },
+      "hardChecks": [
+        {
+          "bucket": "mustHappen",
+          "ruleType": "reply_exists",
+          "description": "reply_exists",
+          "passed": true,
+          "detail": "存在最终回复"
+        },
+        {
+          "bucket": "mustHappen",
+          "ruleType": "side_effect_happened",
+          "description": "side_effect_happened",
+          "passed": true,
+          "detail": "创建提醒 1 条"
+        },
+        {
+          "bucket": "mustNotHappen",
+          "ruleType": "forbid_capability_claim",
+          "description": "forbid_capability_claim",
+          "passed": true,
+          "detail": "未检测到虚构完成性宣称"
+        }
+      ],
+      "softScores": [
+        {
+          "dimension": "multi_turn_continuity",
+          "score": 5,
+          "minScore": 2,
+          "weight": 1,
+          "passed": true,
+          "rationale": "准确承接用户“每天晚上七点提醒我”的请求，并在回复中明确到19:00提醒吃晚饭，前后连贯。",
+          "source": "llm"
+        },
+        {
+          "dimension": "reasoning_quality",
+          "score": 2,
+          "minScore": 2,
+          "weight": 1,
+          "passed": true,
+          "rationale": "对“设提醒”这一动作直接确认但未体现任何可执行性限制或补充细节，推断与因果展开较少。",
+          "source": "llm"
+        },
+        {
+          "dimension": "helpfulness",
+          "score": 3,
+          "minScore": 2,
+          "weight": 1,
+          "passed": true,
+          "rationale": "给出了明确的提醒时间与内容，但未说明提醒方式/渠道或是否需要用户授权与确认，实际可落地性一般。",
+          "source": "llm"
+        }
+      ],
+      "errorMessage": null
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+[ 2631655ms] [ERROR] ERROR RuntimeError: NG04002: Cannot match any routes. URL Segment: 'regression'
+    at Recognizer.noMatchError (http://localhost:4200/@fs/Users/xuhailin/development/agents/xiaoqing/frontend/.angular/cache/21.2.0/frontend/vite/deps/@angular_router.js?v=44c25cf9:2891:12)
+    at Recognizer.match (http://localhost:4200/@fs/Users/xuhailin/development/agents/xiaoqing/frontend/.angular/cache/21.2.0/frontend/vite/deps/@angular_router.js?v=44c25cf9:2923:20)
+    at async Recognizer.recognize (http://localhost:4200/@fs/Users/xuhailin/development/agents/xiaoqing/frontend/.angular/cache/21.2.0/frontend/vite/deps/@angular_router.js?v=44c25cf9:2898:9)
+    at async http://localhost:4200/@fs/Users/xuhailin/development/agents/xiaoqing/frontend/.angular/cache/21.2.0/frontend/vite/deps/@angular_router.js?v=44c25cf9:3151:9 @ http://localhost:4200/@fs/Users/xuhailin/development/agents/xiaoqing/frontend/.angular/cache/21.2.0/frontend/vite/deps/chunk-B3NO66XW.js?v=44c25cf9:3169
