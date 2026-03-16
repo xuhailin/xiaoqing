@@ -1,9 +1,11 @@
 import { Component, Input } from '@angular/core';
 import { ToolCallMessage } from '../dev-agent.view-model';
+import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
 
 @Component({
   selector: 'app-tool-call-message',
   standalone: true,
+  imports: [AppBadgeComponent],
   template: `
     <article class="tool-card">
       <div class="tool-head">
@@ -11,7 +13,9 @@ import { ToolCallMessage } from '../dev-agent.view-model';
           <span class="kind">Tool</span>
           <strong>{{ message.tool }}</strong>
         </div>
-        <span class="badge" [class]="message.status">{{ statusLabel(message.status) }}</span>
+        <app-badge [tone]="statusTone(message.status)" [caps]="true" size="sm">
+          {{ statusLabel(message.status) }}
+        </app-badge>
       </div>
       <code>{{ message.command }}</code>
       <div class="summary">{{ message.summary }}</div>
@@ -19,13 +23,13 @@ import { ToolCallMessage } from '../dev-agent.view-model';
   `,
   styles: [`
     .tool-card {
-      border: 1px solid rgba(120, 111, 96, 0.12);
-      border-radius: 16px;
-      background: rgba(255, 255, 255, 0.9);
-      padding: 14px 16px;
+      border: 1px solid var(--color-border-light);
+      border-radius: var(--radius-lg);
+      background: rgba(255, 255, 255, 0.92);
+      padding: var(--space-3) var(--space-4);
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: var(--space-2);
     }
 
     .tool-head {
@@ -53,40 +57,16 @@ import { ToolCallMessage } from '../dev-agent.view-model';
     code {
       white-space: pre-wrap;
       word-break: break-all;
-      font-size: 12px;
-      color: #4d4337;
-      background: rgba(44, 40, 32, 0.04);
-      border-radius: 12px;
-      padding: 10px 12px;
+      font-size: var(--font-size-xs);
+      color: var(--color-workbench-muted);
+      background: rgba(20, 27, 39, 0.04);
+      border-radius: var(--radius-md);
+      padding: var(--space-2) var(--space-3);
     }
 
     .summary {
       font-size: var(--font-size-sm);
       color: var(--color-text-secondary);
-    }
-
-    .badge {
-      border-radius: 999px;
-      padding: 4px 10px;
-      font-size: 10px;
-      font-weight: var(--font-weight-semibold);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-
-    .badge.running {
-      color: #9a5512;
-      background: #fff3d7;
-    }
-
-    .badge.success {
-      color: var(--color-success);
-      background: var(--color-success-bg);
-    }
-
-    .badge.failed {
-      color: var(--color-error);
-      background: var(--color-error-bg);
     }
   `],
 })
@@ -97,5 +77,11 @@ export class ToolCallMessageComponent {
     if (status === 'running') return 'Running';
     if (status === 'success') return 'Success';
     return 'Failed';
+  }
+
+  statusTone(status: ToolCallMessage['status']) {
+    if (status === 'running') return 'warning';
+    if (status === 'success') return 'success';
+    return 'danger';
   }
 }

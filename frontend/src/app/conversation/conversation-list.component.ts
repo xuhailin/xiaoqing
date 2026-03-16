@@ -3,21 +3,26 @@ import { Router } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import { Subscription } from 'rxjs';
 import { ConversationService, ConversationItem } from '../core/services/conversation.service';
+import { AppBadgeComponent } from '../shared/ui/app-badge.component';
+import { AppButtonComponent } from '../shared/ui/app-button.component';
+import { AppStateComponent } from '../shared/ui/app-state.component';
 
 @Component({
   selector: 'app-conversation-list',
   standalone: true,
-  imports: [DatePipe],
+  imports: [DatePipe, AppBadgeComponent, AppButtonComponent, AppStateComponent],
   template: `
     <div class="conv-list">
-      <button class="btn btn--primary btn--sm new-btn" (click)="createNew()">+ 新对话</button>
+      <app-button class="new-btn" variant="primary" size="sm" [stretch]="true" (click)="createNew()">
+        + 新对话
+      </app-button>
 
       @if (loading()) {
-        <div class="loading">加载中...</div>
+        <app-state [compact]="true" kind="loading" title="加载中..." />
       }
 
       @for (c of conversations(); track c.id) {
-        <div class="conv-item" [class.active]="c.id === activeId()"
+        <div class="conv-item ui-list-card" [class.is-active]="c.id === activeId()"
           (click)="open(c.id)"
           (contextmenu)="onContextMenu($event, c.id)">
           <div class="conv-header">
@@ -26,27 +31,33 @@ import { ConversationService, ConversationItem } from '../core/services/conversa
           </div>
           <div class="conv-meta">
             @if (c.summarizedAt) {
-              <span class="badge badge--done" [title]="'总结于 ' + (c.summarizedAt | date:'yyyy-MM-dd HH:mm')">已总结</span>
+              <app-badge tone="success" [title]="'总结于 ' + (c.summarizedAt | date:'yyyy-MM-dd HH:mm')">
+                已总结
+              </app-badge>
             } @else {
-              <span class="badge badge--none">未总结</span>
+              <app-badge tone="neutral" appearance="outline">未总结</app-badge>
             }
           </div>
         </div>
       }
 
       @if (!loading() && conversations().length === 0) {
-        <div class="empty">暂无对话</div>
+        <app-state
+          [compact]="true"
+          title="暂无对话"
+          description="从这里创建新对话，或切回主区继续当前会话。"
+        />
       }
     </div>
 
     @if (contextMenuConvId()) {
-      <div class="context-menu" [style.left.px]="contextMenuPos().x" [style.top.px]="contextMenuPos().y"
+      <div class="context-menu ui-context-menu" [style.left.px]="contextMenuPos().x" [style.top.px]="contextMenuPos().y"
         (click)="$event.stopPropagation()">
-        <button class="context-menu-item" (click)="onResummarizeFromMenu()"
+        <button class="context-menu-item ui-context-menu__item" (click)="onResummarizeFromMenu()"
           [disabled]="summarizing() === contextMenuConvId()">
           {{ summarizing() === contextMenuConvId() ? '总结中...' : '重新总结' }}
         </button>
-        <button class="context-menu-item context-menu-item--danger" (click)="onDeleteFromMenu()"
+        <button class="context-menu-item ui-context-menu__item ui-context-menu__item--danger" (click)="onDeleteFromMenu()"
           [disabled]="deleting() === contextMenuConvId()">
           {{ deleting() === contextMenuConvId() ? '删除中...' : '删除' }}
         </button>
@@ -61,6 +72,7 @@ import { ConversationService, ConversationItem } from '../core/services/conversa
       overflow-y: auto;
       flex: 1;
       min-height: 0;
+      padding-bottom: var(--space-2);
     }
 
     .new-btn {
@@ -72,18 +84,6 @@ import { ConversationService, ConversationItem } from '../core/services/conversa
       padding: var(--space-2) var(--space-3);
       border-radius: var(--radius-md);
       cursor: pointer;
-      border: 1px solid transparent;
-      transition: all var(--transition-fast);
-    }
-
-    .conv-item:hover {
-      background: var(--color-primary-light, rgba(92, 103, 242, 0.06));
-    }
-
-    .conv-item.active {
-      background: var(--color-surface);
-      border-color: var(--color-primary);
-      box-shadow: var(--shadow-sm);
     }
 
     .conv-header {
@@ -115,73 +115,6 @@ import { ConversationService, ConversationItem } from '../core/services/conversa
       display: flex;
       align-items: center;
       gap: var(--space-2);
-    }
-
-    .badge {
-      font-size: 11px;
-      padding: 1px 6px;
-      border-radius: var(--radius-sm);
-      font-weight: var(--font-weight-medium);
-    }
-
-    .badge--done {
-      background: rgba(34, 197, 94, 0.12);
-      color: #16a34a;
-    }
-
-    .badge--none {
-      background: var(--color-bg);
-      color: var(--color-text-secondary);
-    }
-
-    .context-menu {
-      position: fixed;
-      z-index: 1000;
-      min-width: 120px;
-      padding: var(--space-1);
-      background: var(--color-surface);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-md);
-      box-shadow: var(--shadow-md);
-    }
-
-    .context-menu-item {
-      display: block;
-      width: 100%;
-      padding: var(--space-2) var(--space-3);
-      border: none;
-      border-radius: var(--radius-sm);
-      background: transparent;
-      font-size: var(--font-size-sm);
-      font-family: var(--font-family);
-      color: var(--color-text);
-      text-align: left;
-      cursor: pointer;
-      transition: background var(--transition-fast);
-    }
-
-    .context-menu-item:hover:not(:disabled) {
-      background: var(--color-bg);
-    }
-
-    .context-menu-item:disabled {
-      opacity: 0.7;
-      cursor: not-allowed;
-    }
-
-    .context-menu-item--danger {
-      color: var(--color-error);
-    }
-
-    .context-menu-item--danger:hover:not(:disabled) {
-      background: var(--color-error-bg);
-    }
-
-    .loading, .empty {
-      text-align: center;
-      padding: var(--space-4);
-      color: var(--color-text-secondary);
-      font-size: var(--font-size-sm);
     }
   `],
 })

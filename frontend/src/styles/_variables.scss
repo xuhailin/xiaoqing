@@ -1,137 +1,143 @@
 // =============================================================================
-// Design Tokens — LongMemory AI Companion
-// Single source of truth for all visual values.
-// Reference these via var(--token-name) in all component styles.
+// Design Tokens — XiaoQing Design System v1
+// Single source of truth for workspace-facing UI primitives and layout rules.
 // =============================================================================
 
 :root {
   // ---------------------------------------------------------------------------
-  // Color — Primary (warm indigo)
+  // Color — Core palette
   // ---------------------------------------------------------------------------
-  --color-primary: #5c67f2;
-  --color-primary-hover: #4a55e8;
-  --color-primary-light: #eef0ff;
+  --color-primary: #4f6df5;
+  --color-primary-hover: #3f5ddd;
+  --color-primary-light: #eef2ff;
 
   // ---------------------------------------------------------------------------
-  // Color — Background layers (warm off-white progression)
+  // Color — Surface layers
   // ---------------------------------------------------------------------------
-  --color-bg: #faf9f6;        // Page / chat background
-  --color-surface: #ffffff;   // Cards, inputs, modal panels
-  --color-sidebar: #f2f0eb;   // Left sidebar
+  --color-bg: #f4f6fb;
+  --color-surface: #ffffff;
+  --color-sidebar: #eef2f7;
 
   // ---------------------------------------------------------------------------
   // Color — Text hierarchy
   // ---------------------------------------------------------------------------
-  --color-text: #2c2820;           // Primary body text (warm dark)
-  --color-text-secondary: #6b7280; // Labels, descriptions
-  --color-text-muted: #9ca3af;     // Placeholders, metadata
+  --color-text: #141b27;
+  --color-text-secondary: #516072;
+  --color-text-muted: #7b8799;
+  --color-text-tertiary: var(--color-text-muted);
 
   // ---------------------------------------------------------------------------
-  // Color — Borders (warm-tinted grays)
+  // Color — Borders
   // ---------------------------------------------------------------------------
-  --color-border: #e5e3de;
-  --color-border-light: #eeece8;
+  --color-border: #d8e0ea;
+  --color-border-light: #e7ecf2;
 
   // ---------------------------------------------------------------------------
   // Color — Semantic
   // ---------------------------------------------------------------------------
-  --color-success: #2d7a4f;
-  --color-success-bg: #f0fdf4;
-  --color-success-border: #bbf7d0;
+  --color-success: #1f7a46;
+  --color-success-bg: #eefaf2;
+  --color-success-border: #c5ead2;
 
-  --color-error: #c0392b;
-  --color-error-bg: #fef2f2;
-  --color-error-border: #fecaca;
+  --color-error: #b64734;
+  --color-error-bg: #fdf1ef;
+  --color-error-border: #f4cfc8;
 
-  --color-warning: #b76b13;
-  --color-warning-bg: #fff4dd;
-  --color-warning-border: #f3d6a2;
+  --color-warning: #a85d12;
+  --color-warning-bg: #fff4de;
+  --color-warning-border: #f1d6a8;
 
   // ---------------------------------------------------------------------------
   // Color — Workbench surfaces
   // ---------------------------------------------------------------------------
-  --color-workbench-bg: #f6f2ea;
-  --color-workbench-panel: rgba(255, 252, 246, 0.9);
-  --color-workbench-panel-strong: rgba(255, 254, 250, 0.96);
-  --color-workbench-border: rgba(120, 111, 96, 0.14);
-  --color-workbench-muted: #6f685c;
-  --color-workbench-accent: rgba(92, 103, 242, 0.08);
-  --color-workbench-accent-strong: rgba(92, 103, 242, 0.14);
+  --color-workbench-bg: #f2f5fa;
+  --color-workbench-panel: rgba(255, 255, 255, 0.82);
+  --color-workbench-panel-strong: rgba(255, 255, 255, 0.94);
+  --color-workbench-border: rgba(116, 130, 151, 0.18);
+  --color-workbench-muted: #5b6778;
+  --color-workbench-accent: rgba(79, 109, 245, 0.08);
+  --color-workbench-accent-strong: rgba(79, 109, 245, 0.18);
 
   // ---------------------------------------------------------------------------
-  // Color — Accents
+  // Color — Context accents
   // ---------------------------------------------------------------------------
-  // Memory injection (amber warmth)
-  --color-memory-bg: #fffbeb;
-  --color-memory-border: #fde68a;
-  --color-memory-tag-bg: #fef3c7;
-  --color-memory-tag-border: #fcd34d;
+  --color-memory-bg: #fff8e8;
+  --color-memory-border: #f2d49a;
+  --color-memory-tag-bg: #fff1c7;
+  --color-memory-tag-border: #eabf6b;
 
-  // Persona evolution suggestions
-  --color-evolve-green-bg: #f0fdf4;
-  --color-evolve-green-border: #bbf7d0;
-  --color-evolve-blue-bg: #eff6ff;
-  --color-evolve-blue-border: #bfdbfe;
+  --color-evolve-green-bg: var(--color-success-bg);
+  --color-evolve-green-border: var(--color-success-border);
+  --color-evolve-blue-bg: #eef4ff;
+  --color-evolve-blue-border: #cad9ff;
 
-  // Chat message bubbles
-  --color-user-bubble: #eef0ff;        // Light indigo — user messages
-  --color-user-label: #5c67f2;
-  --color-assistant-bubble: #f5f4f0;   // Warm gray — AI messages
-  --color-assistant-label: #6b7280;
+  --color-user-bubble: #eef2ff;
+  --color-user-label: var(--color-primary);
+  --color-assistant-bubble: #f8fafc;
+  --color-assistant-label: var(--color-text-secondary);
 
   // ---------------------------------------------------------------------------
   // Typography
   // ---------------------------------------------------------------------------
-  --font-family: 'Inter', -apple-system, BlinkMacSystemFont,
+  --font-family: 'IBM Plex Sans', 'Inter', -apple-system, BlinkMacSystemFont,
     'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
 
-  --font-size-xs: 0.7rem;    // Badges, metadata, tiny labels
-  --font-size-sm: 0.78rem;   // Sidebar/panel secondary text
-  --font-size-md: 0.875rem;  // Body text, inputs, chat bubbles
+  --font-size-xxs: 0.6875rem;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-md: 0.9375rem;
   --font-size-base: 1rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.75rem;
 
   --font-weight-normal: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
+  --font-weight-bold: 700;
 
-  --line-height-tight: 1.4;    // Headings, button labels
-  --line-height-base: 1.6;     // UI elements
-  --line-height-relaxed: 1.75; // Chat bubbles, readable paragraphs
+  --line-height-tight: 1.35;
+  --line-height-base: 1.6;
+  --line-height-relaxed: 1.72;
 
   // ---------------------------------------------------------------------------
-  // Spacing (rem-based, mobile-first)
+  // Spacing — 4 / 8 / 12 / 16 / 24 / 32
   // ---------------------------------------------------------------------------
+  --space-0: 0;
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
-  --space-5: 1.25rem;
-  --space-6: 1.5rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
 
   // ---------------------------------------------------------------------------
   // Border Radius
   // ---------------------------------------------------------------------------
-  --radius-sm: 4px;       // Small chips, filter buttons
-  --radius-md: 8px;       // Buttons, inputs, small panels
-  --radius-lg: 12px;      // Message bubbles, cards
-  --radius-xl: 16px;      // Large modals
-  --radius-pill: 9999px;  // Tags, scrollbar thumbs
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-pill: 999px;
 
   // ---------------------------------------------------------------------------
-  // Shadows (warm-tinted — never pure black)
+  // Shadows
   // ---------------------------------------------------------------------------
-  --shadow-sm: 0 1px 3px rgba(44, 40, 32, 0.06), 0 1px 2px rgba(44, 40, 32, 0.04);
-  --shadow-md: 0 4px 12px rgba(44, 40, 32, 0.08), 0 2px 4px rgba(44, 40, 32, 0.04);
-  --shadow-lg: 0 18px 36px rgba(44, 40, 32, 0.1), 0 8px 18px rgba(44, 40, 32, 0.06);
+  --shadow-sm: 0 1px 2px rgba(20, 27, 39, 0.06), 0 6px 18px rgba(20, 27, 39, 0.04);
+  --shadow-md: 0 12px 32px rgba(20, 27, 39, 0.08), 0 2px 6px rgba(20, 27, 39, 0.04);
+  --shadow-lg: 0 22px 48px rgba(20, 27, 39, 0.12), 0 8px 18px rgba(20, 27, 39, 0.06);
 
   // ---------------------------------------------------------------------------
   // Transitions
   // ---------------------------------------------------------------------------
   --transition-fast: 0.15s ease;
-  --transition-base: 0.2s ease;
+  --transition-base: 0.22s ease;
 
   // ---------------------------------------------------------------------------
   // Layout
   // ---------------------------------------------------------------------------
-  --sidebar-width: 320px;
+  --sidebar-width: 336px;
+  --content-max-width: 1440px;
+  --section-gap: var(--space-4);
+  --section-gap-lg: var(--space-5);
 }

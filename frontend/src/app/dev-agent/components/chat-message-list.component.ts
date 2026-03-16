@@ -4,6 +4,7 @@ import { UserMessageComponent } from './user-message.component';
 import { AssistantMessageComponent } from './assistant-message.component';
 import { ToolCallMessageComponent } from './tool-call-message.component';
 import { ToolResultMessageComponent } from './tool-result-message.component';
+import { AppStateComponent } from '../../shared/ui/app-state.component';
 
 @Component({
   selector: 'app-chat-message-list',
@@ -13,14 +14,15 @@ import { ToolResultMessageComponent } from './tool-result-message.component';
     AssistantMessageComponent,
     ToolCallMessageComponent,
     ToolResultMessageComponent,
+    AppStateComponent,
   ],
   template: `
-    <section class="message-list" #scrollContainer>
+    <section class="message-list ui-scrollbar" #scrollContainer>
       @if (!messages.length) {
-        <div class="empty-state">
-          <div class="title">AI 开发助手</div>
-          <p>直接描述你的开发任务，右侧会按 User → Assistant → Tool → Result 的顺序展开执行过程。</p>
-        </div>
+        <app-state
+          title="AI 开发助手"
+          description="直接描述你的开发任务，右侧会按 User → Assistant → Tool → Result 的顺序展开执行过程。"
+        />
       } @else {
         @for (message of messages; track message.id) {
           @switch (message.kind) {
@@ -50,31 +52,6 @@ import { ToolResultMessageComponent } from './tool-result-message.component';
       display: flex;
       flex-direction: column;
       gap: var(--space-4);
-      scrollbar-width: thin;
-      scrollbar-color: var(--color-border) transparent;
-    }
-
-    .empty-state {
-      margin: auto 0;
-      max-width: 40rem;
-      padding: 32px;
-      border-radius: 24px;
-      background: linear-gradient(135deg, rgba(255, 250, 244, 0.98), rgba(247, 242, 235, 0.98));
-      border: 1px solid rgba(120, 111, 96, 0.1);
-      box-shadow: var(--shadow-md);
-    }
-
-    .empty-state .title {
-      font-size: 1.5rem;
-      font-weight: 600;
-      color: var(--color-text);
-      margin-bottom: var(--space-2);
-    }
-
-    .empty-state p {
-      margin: 0;
-      color: var(--color-text-secondary);
-      line-height: 1.8;
     }
   `],
 })

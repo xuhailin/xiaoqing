@@ -1,87 +1,45 @@
 <div class="memory-list">
   <div class="header">
-    <div class="header-title">记忆</div>
-    <div class="filter filter--type">
-      <button
-        type="button"
-        [class.active]="typeFilter() === 'all'"
-        (click)="setTypeFilterAndLoad('all')"
-      >
-        全部
-      </button>
-      <button
-        type="button"
-        [class.active]="typeFilter() === 'mid'"
-        (click)="setTypeFilterAndLoad('mid')"
-      >
-        阶段
-      </button>
-      <button
-        type="button"
-        [class.active]="typeFilter() === 'long'"
-        (click)="setTypeFilterAndLoad('long')"
-      >
-        长期
-      </button>
-      <button
-        type="button"
-        [class.active]="typeFilter() === 'pending'"
-        (click)="setTypeFilterAndLoad('pending')"
-        class="pending-tab"
-      >
-        待确认
-      </button>
-    </div>
+    <app-section-header
+      title="记忆"
+      description="按类型与认知类别查看阶段、长期与待确认成长记录。"
+    />
+    <app-tabs
+      class="filter"
+      [items]="typeTabs"
+      [value]="typeFilter()"
+      [fullWidth]="true"
+      [size]="'sm'"
+      (valueChange)="setTypeFromTab($event)"
+    />
     @if (typeFilter() !== 'pending') {
-      <div class="filter filter--category">
-        <button
-          type="button"
-          [class.active]="categoryFilter() === 'all'"
-          (click)="setCategoryFilterAndLoad('all')"
-        >
-          全部认知
-        </button>
-        <button
-          type="button"
-          [class.active]="categoryFilter() === 'judgment_pattern'"
-          (click)="setCategoryFilterAndLoad('judgment_pattern')"
-        >
-          判断模式
-        </button>
-        <button
-          type="button"
-          [class.active]="categoryFilter() === 'value_priority'"
-          (click)="setCategoryFilterAndLoad('value_priority')"
-        >
-          价值排序
-        </button>
-        <button
-          type="button"
-          [class.active]="categoryFilter() === 'rhythm_pattern'"
-          (click)="setCategoryFilterAndLoad('rhythm_pattern')"
-        >
-          关系节奏
-        </button>
-      </div>
+      <app-tabs
+        class="filter filter--category"
+        [items]="categoryTabs"
+        [value]="categoryFilter()"
+        [fullWidth]="true"
+        [size]="'sm'"
+        (valueChange)="setCategoryFromTab($event)"
+      />
     }
   </div>
 
   <!-- Memory list (normal view) -->
   @if (typeFilter() !== 'pending') {
-    <ul class="list">
+    <ul class="list ui-scrollbar">
       @for (m of memories(); track m.id) {
-        <li (click)="select(m)" (contextmenu)="onMemoryContextMenu($event, m.id)">
-          <span class="type">{{ getTypeLabel(m.type) }}</span>
-          <span class="category">{{ getCategoryLabel(m.category) }}</span>
+        <li class="ui-list-card" (click)="select(m)" (contextmenu)="onMemoryContextMenu($event, m.id)">
+          <app-badge tone="neutral" appearance="outline">{{ getTypeLabel(m.type) }}</app-badge>
+          <app-badge tone="info">{{ getCategoryLabel(m.category) }}</app-badge>
           <span class="preview">{{ m.content.slice(0, 40) }}{{ m.content.length > 40 ? '…' : '' }}</span>
         </li>
       }
     </ul>
 
     @if (contextMenuMemoryId()) {
-      <div class="context-menu" [style.left.px]="contextMenuPos().x" [style.top.px]="contextMenuPos().y"
+      <div class="context-menu ui-context-menu" [style.left.px]="contextMenuPos().x" [style.top.px]="contextMenuPos().y"
         (click)="$event.stopPropagation()">
-        <button type="button" class="context-menu-item context-menu-item--danger"
+        <button type="button" class="context-menu-item ui-context-menu__item ui-context-menu__item--danger"
           (click)="onDeleteMemoryFromMenu()"
           [disabled]="deletingMemoryId() === contextMenuMemoryId()">
           {{ deletingMemoryId() === contextMenuMemoryId() ? '删除中...' : '删除' }}
@@ -90,67 +48,67 @@
     }
 
     @if (selected(); as m) {
-      <div class="detail">
+      <app-panel class="detail" padding="md">
         <div class="detail-header">
           <span>{{ getTypeLabel(m.type) }} · {{ getCategoryLabel(m.category) }} · {{ m.id.slice(0, 8) }}</span>
-          <button type="button" (click)="closeDetail()">关闭</button>
+          <app-button variant="ghost" size="xs" (click)="closeDetail()">关闭</app-button>
         </div>
         <p class="source">来源 messageIds: {{ (m.sourceMessageIds || []).length }} 条</p>
         <p class="source">置信度: {{ getConfidencePercent(m.confidence) }}</p>
         <textarea
+          class="ui-textarea"
           [value]="editContent()"
           (input)="editContent.set($any($event.target).value)"
           rows="4"
         ></textarea>
-        <button
-          type="button"
-          class="save"
-          (click)="save()"
-          [disabled]="saving()"
-        >
+        <app-button type="button" variant="primary" size="sm" (click)="save()" [disabled]="saving()">
           {{ saving() ? '保存中...' : '保存' }}
-        </button>
-      </div>
+        </app-button>
+      </app-panel>
     }
   }
 
   <!-- Pending growth view -->
   @if (typeFilter() === 'pending') {
     @if (pendingItems().length === 0) {
-      <div class="empty-hint">暂无待确认的成长记录</div>
+      <app-state
+        [compact]="true"
+        title="暂无待确认成长记录"
+        description="新的成长提议会在这里等待人工确认。"
+      />
     }
-    <ul class="list">
+    <ul class="list ui-scrollbar">
       @for (item of pendingItems(); track item.id) {
-        <li class="pending-item">
+        <li class="pending-item ui-list-card">
           <div class="pending-content">
             <div class="pending-tags">
-              <span class="type">{{ getGrowthTypeLabel(item.type) }}</span>
+              <app-badge tone="neutral" appearance="outline">{{ getGrowthTypeLabel(item.type) }}</app-badge>
               @if (item.kind) {
-                <span class="category">{{ getGrowthKindLabel(item.kind) }}</span>
+                <app-badge tone="info">{{ getGrowthKindLabel(item.kind) }}</app-badge>
               }
               @if (item.stage) {
-                <span class="category">{{ item.stage }}</span>
+                <app-badge tone="info">{{ item.stage }}</app-badge>
               }
             </div>
             <div class="preview">{{ item.content }}</div>
           </div>
           <div class="pending-actions">
-            <button
-              type="button"
-              class="btn-confirm"
+            <app-button
+              variant="primary"
+              size="sm"
               (click)="confirmGrowth(item); $event.stopPropagation()"
               [disabled]="processingId() === item.id"
             >
               确认
-            </button>
-            <button
-              type="button"
-              class="btn-reject"
+            </app-button>
+            <app-button
+              variant="ghost"
+              size="sm"
               (click)="rejectGrowth(item); $event.stopPropagation()"
               [disabled]="processingId() === item.id"
             >
               拒绝
-            </button>
+            </app-button>
           </div>
         </li>
       }

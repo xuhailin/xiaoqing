@@ -11,9 +11,9 @@
     <div class="injected-bar">
       <span class="injected-label">本次注入记忆：</span>
       @for (m of injectedMemories(); track m.id) {
-        <span class="injected-tag" [title]="m.content">
+        <app-badge class="injected-tag" tone="warning" appearance="outline" [title]="m.content">
           [{{ m.type }}] {{ m.content.slice(0, 30) }}{{ m.content.length > 30 ? '…' : '' }}
-        </span>
+        </app-badge>
       }
     </div>
   }
@@ -23,13 +23,13 @@
       <div class="world-state-bar">
         <span class="world-state-label">当前会话前提：</span>
         @if (ws.city) {
-          <span class="world-state-tag">地点 {{ ws.city }}</span>
+          <app-badge class="world-state-tag" tone="info" appearance="outline">地点 {{ ws.city }}</app-badge>
         }
         @if (ws.timezone) {
-          <span class="world-state-tag">时区 {{ ws.timezone }}</span>
+          <app-badge class="world-state-tag" tone="info" appearance="outline">时区 {{ ws.timezone }}</app-badge>
         }
         @if (ws.language) {
-          <span class="world-state-tag">语言 {{ ws.language }}</span>
+          <app-badge class="world-state-tag" tone="info" appearance="outline">语言 {{ ws.language }}</app-badge>
         }
       </div>
     }
@@ -45,22 +45,19 @@
           <div class="trace-bar">
             <div class="trace-badges">
               @for (step of traceSteps(); track step.seq; let isLast = $last) {
-                <span class="trace-badge"
-                  [class.trace-badge--success]="step.status === 'success'"
-                  [class.trace-badge--fail]="step.status === 'fail'"
-                  [class.trace-badge--skip]="step.status === 'skip'">
+                <app-badge class="trace-badge" [tone]="traceTone(step.status)">
                   {{ step.title }}
-                </span>
+                </app-badge>
                 @if (!isLast) {
                   <span class="trace-arrow">→</span>
                 }
               }
             </div>
             @if (traceSteps().length) {
-              <button type="button" class="btn btn--ghost btn--xs trace-toggle"
+              <app-button type="button" variant="ghost" size="xs" class="trace-toggle"
                 (click)="toggleTraceDetail()">
                 {{ showTraceDetail() ? '收起' : '详情' }}
-              </button>
+              </app-button>
             }
           </div>
 
@@ -72,10 +69,10 @@
                     <span class="trace-step-seq">Step {{ index + 1 }}</span>
                     <span class="trace-step-title">{{ step.title }}</span>
                     @if (isPipelineTraceStep(step)) {
-                      <span class="trace-step-tag">管道</span>
+                      <app-badge class="trace-step-tag" tone="info" size="sm">管道</app-badge>
                     }
                     @if (hasPipelineInDetail(step) && !isPipelineTraceStep(step)) {
-                      <span class="trace-step-tag trace-step-tag--muted">含管道</span>
+                      <app-badge class="trace-step-tag trace-step-tag--muted" tone="neutral" appearance="outline" size="sm">含管道</app-badge>
                     }
                     <span class="trace-step-status"
                       [class.trace-step-status--success]="step.status === 'success'"
@@ -95,7 +92,7 @@
         }
 
         @if (last && m.role === 'assistant' && !traceSteps().length && openclawUsed()) {
-          <span class="openclaw-tag">via OpenClaw</span>
+          <app-badge class="openclaw-tag" tone="info" appearance="outline" size="sm">via OpenClaw</app-badge>
         }
       </div>
     }
@@ -106,26 +103,26 @@
       <div class="evolve-title">人格进化建议</div>
       @for (c of changes; track c.field) {
         <div class="evolve-change">
-          <span class="evolve-field">{{ c.field }}</span>
+          <app-badge class="evolve-field" tone="info" size="sm">{{ c.field }}</app-badge>
           <p class="evolve-text">{{ c.content }}</p>
           <p class="evolve-reason">{{ c.reason }}</p>
         </div>
       }
       <div class="evolve-actions">
-        <button type="button" class="btn btn--success btn--sm"
+        <app-button type="button" variant="success" size="sm"
           (click)="confirmEvolve()" [disabled]="evolveConfirming()">
           {{ evolveConfirming() ? '写入中...' : '确认写入' }}
-        </button>
-        <button type="button" class="btn btn--ghost btn--sm" (click)="dismissEvolve()">丢弃</button>
+        </app-button>
+        <app-button type="button" variant="ghost" size="sm" (click)="dismissEvolve()">丢弃</app-button>
       </div>
     </div>
   }
 
   @if (debugMeta()) {
     <div class="debug-bar">
-      <button type="button" class="btn btn--ghost btn--xs" (click)="toggleDebugPanel()">
+      <app-button type="button" variant="ghost" size="xs" (click)="toggleDebugPanel()">
         {{ showDebugPanel() ? '收起调试' : '调试信息' }}
-      </button>
+      </app-button>
     </div>
   }
 
@@ -287,6 +284,7 @@
 
   <div class="input-row">
     <textarea
+      class="ui-textarea"
       #inputEl
       (input)="inputText.set(inputEl.value)"
       (keydown)="onKeydown($event)"
@@ -294,10 +292,10 @@
       rows="2"
       [disabled]="loading()"
     ></textarea>
-    <button type="button" class="btn btn--primary btn--send"
+    <app-button type="button" variant="primary" class="btn--send"
       (click)="send()" [disabled]="loading() || !inputText().trim()">
       {{ loading() ? '发送中...' : '发送' }}
-    </button>
+    </app-button>
   </div>
 
 </div>

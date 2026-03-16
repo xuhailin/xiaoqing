@@ -2,13 +2,22 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { ChatInputComponent } from './chat-input.component';
 import { ChatMessageListComponent } from './chat-message-list.component';
 import { DevChatMessage, DevChatRunState } from '../dev-agent.view-model';
+import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
+import { AppButtonComponent } from '../../shared/ui/app-button.component';
+import { AppPanelComponent } from '../../shared/ui/app-panel.component';
 
 @Component({
   selector: 'app-dev-chat-panel',
   standalone: true,
-  imports: [ChatMessageListComponent, ChatInputComponent],
+  imports: [
+    ChatMessageListComponent,
+    ChatInputComponent,
+    AppBadgeComponent,
+    AppButtonComponent,
+    AppPanelComponent,
+  ],
   template: `
-    <section class="dev-chat-panel">
+    <app-panel variant="workbench" padding="none" class="dev-chat-panel">
       <header class="chat-header">
         <div class="header-left">
           <span class="header-title">Dev Chat</span>
@@ -22,15 +31,21 @@ import { DevChatMessage, DevChatRunState } from '../dev-agent.view-model';
 
         <div class="header-actions">
           @if (runState) {
-            <span class="status-badge" [class]="runState.status">{{ runState.statusLabel }}</span>
+            <app-badge
+              class="status-badge"
+              [tone]="statusTone(runState.status)"
+              [caps]="true"
+            >
+              {{ runState.statusLabel }}
+            </app-badge>
           }
           @if (canCancel) {
-            <button type="button" class="action ghost" [disabled]="cancelling" (click)="cancel.emit()">
+            <app-button variant="ghost" size="sm" [disabled]="cancelling" (click)="cancel.emit()">
               {{ cancelling ? '取消中...' : '停止' }}
-            </button>
+            </app-button>
           }
           @if (canRerun) {
-            <button type="button" class="action" (click)="rerun.emit()">重试</button>
+            <app-button variant="primary" size="sm" (click)="rerun.emit()">重试</app-button>
           }
         </div>
       </header>
@@ -43,20 +58,21 @@ import { DevChatMessage, DevChatRunState } from '../dev-agent.view-model';
         (taskInputChange)="taskInputChange.emit($event)"
         (submit)="submit.emit()"
       />
-    </section>
+    </app-panel>
   `,
   styles: [`
+    :host {
+      display: block;
+      height: 100%;
+      min-height: 0;
+    }
+
     .dev-chat-panel {
       height: 100%;
       min-height: 0;
       display: flex;
       flex-direction: column;
-      border: 1px solid rgba(120, 111, 96, 0.12);
-      border-radius: 24px;
       overflow: hidden;
-      background:
-        radial-gradient(circle at top right, rgba(218, 119, 79, 0.08), transparent 20%),
-        linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(252, 249, 245, 0.98));
     }
 
     .chat-header {
@@ -104,50 +120,6 @@ import { DevChatMessage, DevChatRunState } from '../dev-agent.view-model';
       flex-shrink: 0;
     }
 
-    .status-badge,
-    .action {
-      border-radius: 999px;
-      padding: 8px 14px;
-      font-size: 11px;
-      font-weight: var(--font-weight-semibold);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-
-    .status-badge.running {
-      color: #9a5512;
-      background: #fff3d7;
-    }
-
-    .status-badge.success {
-      color: var(--color-success);
-      background: var(--color-success-bg);
-    }
-
-    .status-badge.failed {
-      color: var(--color-error);
-      background: var(--color-error-bg);
-    }
-
-    .action {
-      border: none;
-      cursor: pointer;
-      background: linear-gradient(135deg, #c45a2d, #da774f);
-      color: #fff;
-      font-family: var(--font-family);
-    }
-
-    .action.ghost {
-      border: 1px solid var(--color-border);
-      background: rgba(255, 255, 255, 0.88);
-      color: var(--color-text-secondary);
-    }
-
-    .action:disabled {
-      opacity: 0.55;
-      cursor: not-allowed;
-    }
-
     @media (max-width: 900px) {
       .chat-header {
         flex-wrap: wrap;
@@ -172,4 +144,11 @@ export class DevChatPanelComponent {
   @Output() submit = new EventEmitter<void>();
   @Output() cancel = new EventEmitter<void>();
   @Output() rerun = new EventEmitter<void>();
+
+  protected statusTone(status: DevChatRunState['status']) {
+    if (status === 'running') return 'warning';
+    if (status === 'success') return 'success';
+    if (status === 'failed') return 'danger';
+    return 'neutral';
+  }
 }

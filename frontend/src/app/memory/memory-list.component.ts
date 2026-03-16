@@ -1,10 +1,24 @@
 import { Component, OnInit, signal, inject, HostListener } from '@angular/core';
 import { MemoryService, Memory } from '../core/services/memory.service';
 import { GrowthService, PendingGrowthItem } from '../core/services/growth.service';
+import { AppBadgeComponent } from '../shared/ui/app-badge.component';
+import { AppButtonComponent } from '../shared/ui/app-button.component';
+import { AppPanelComponent } from '../shared/ui/app-panel.component';
+import { AppSectionHeaderComponent } from '../shared/ui/app-section-header.component';
+import { AppStateComponent } from '../shared/ui/app-state.component';
+import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.component';
 
 @Component({
   selector: 'app-memory-list',
   standalone: true,
+  imports: [
+    AppBadgeComponent,
+    AppButtonComponent,
+    AppPanelComponent,
+    AppSectionHeaderComponent,
+    AppStateComponent,
+    AppTabsComponent,
+  ],
   templateUrl: './memory-list.component.html',
   styleUrl: './memory-list.component.scss',
 })
@@ -25,6 +39,18 @@ export class MemoryListComponent implements OnInit {
   // Pending growth state
   pendingItems = signal<PendingGrowthItem[]>([]);
   processingId = signal<string | null>(null);
+  protected readonly typeTabs: AppTabItem[] = [
+    { value: 'all', label: '全部' },
+    { value: 'mid', label: '阶段' },
+    { value: 'long', label: '长期' },
+    { value: 'pending', label: '待确认' },
+  ];
+  protected readonly categoryTabs: AppTabItem[] = [
+    { value: 'all', label: '全部认知' },
+    { value: 'judgment_pattern', label: '判断模式' },
+    { value: 'value_priority', label: '价值排序' },
+    { value: 'rhythm_pattern', label: '关系节奏' },
+  ];
 
   async ngOnInit() {
     await this.load();
@@ -48,6 +74,23 @@ export class MemoryListComponent implements OnInit {
   ) {
     this.categoryFilter.set(f);
     this.load();
+  }
+
+  setTypeFromTab(value: string) {
+    if (value === 'all' || value === 'mid' || value === 'long' || value === 'pending') {
+      this.setTypeFilterAndLoad(value);
+    }
+  }
+
+  setCategoryFromTab(value: string) {
+    if (
+      value === 'all'
+      || value === 'judgment_pattern'
+      || value === 'value_priority'
+      || value === 'rhythm_pattern'
+    ) {
+      this.setCategoryFilterAndLoad(value);
+    }
   }
 
   async load() {

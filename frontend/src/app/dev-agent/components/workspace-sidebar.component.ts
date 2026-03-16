@@ -2,154 +2,127 @@ import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DevSession } from '../../core/services/dev-agent.service';
+import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
+import { AppPanelComponent } from '../../shared/ui/app-panel.component';
+import { AppSectionHeaderComponent } from '../../shared/ui/app-section-header.component';
+import { AppStateComponent } from '../../shared/ui/app-state.component';
 
 @Component({
   selector: 'app-workspace-sidebar',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [
+    CommonModule,
+    FormsModule,
+    AppBadgeComponent,
+    AppPanelComponent,
+    AppSectionHeaderComponent,
+    AppStateComponent,
+  ],
   template: `
-    <aside class="workspace-sidebar">
+    <app-panel variant="workbench" padding="none" class="workspace-sidebar">
       <header class="sidebar-header">
-        <div>
-          <div class="eyebrow">Workspace</div>
-          <h2>{{ workspaceName() }}</h2>
-        </div>
-        @if (workspaceOptions.length > 1) {
-          <select
-            [ngModel]="workspaceRoot"
-            (ngModelChange)="workspaceRootSelect.emit($event)"
-          >
-            @for (option of workspaceOptions; track option) {
-              <option [value]="option">{{ option }}</option>
-            }
-          </select>
-        }
+        <app-section-header
+          eyebrow="Workspace"
+          [title]="workspaceName()"
+          [description]="workspaceRoot || '等待任务绑定 workspace'"
+        >
+          @if (workspaceOptions.length > 1) {
+            <div actions>
+              <select
+                class="ui-select workspace-select"
+                [ngModel]="workspaceRoot"
+                (ngModelChange)="workspaceRootSelect.emit($event)"
+              >
+                @for (option of workspaceOptions; track option) {
+                  <option [value]="option">{{ option }}</option>
+                }
+              </select>
+            </div>
+          }
+        </app-section-header>
       </header>
 
-      <div class="sidebar-path">{{ workspaceRoot || '等待任务绑定 workspace' }}</div>
-
-      <div class="session-list">
+      <div class="session-list ui-scrollbar">
         @if (!sessions.length) {
-          <div class="empty">
-            发送第一条开发任务后，这里会显示当前 workspace 的会话列表。
-          </div>
+          <app-state
+            [compact]="true"
+            title="还没有 workspace 会话"
+            description="发送第一条开发任务后，这里会显示当前 workspace 的会话列表。"
+          />
         } @else {
           @for (session of sessions; track session.id) {
             <button
               type="button"
-              class="session-item"
-              [class.active]="session.id === activeSessionId"
+              class="session-item ui-list-card"
+              [class.is-active]="session.id === activeSessionId"
               (click)="selectSession.emit(session.id)"
             >
               <div class="session-title">{{ sessionTitle(session) }}</div>
               <div class="session-meta">
                 <span class="session-dot" [class]="normalizeStatus(session)"></span>
                 <span>{{ sessionTime(session) }}</span>
-                @if (session.runs?.length) {
-                  <span class="run-count">{{ session.runs.length }} run</span>
+                @if (session.runs.length) {
+                  <app-badge tone="neutral" size="sm">{{ session.runs.length }} run</app-badge>
                 }
               </div>
             </button>
           }
         }
       </div>
-    </aside>
+    </app-panel>
   `,
   styles: [`
+    :host {
+      display: block;
+      height: 100%;
+      min-height: 0;
+    }
+
     .workspace-sidebar {
       height: 100%;
       min-height: 0;
       display: flex;
       flex-direction: column;
-      border: 1px solid var(--color-border);
-      border-radius: 18px;
-      background:
-        radial-gradient(circle at top left, rgba(218, 119, 79, 0.08), transparent 24%),
-        linear-gradient(180deg, rgba(255, 253, 249, 0.98), #f8f5ef);
       overflow: hidden;
     }
 
     .sidebar-header {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: var(--space-3);
       padding: var(--space-4);
       border-bottom: 1px solid var(--color-border-light);
       flex-shrink: 0;
     }
 
-    .eyebrow {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      color: var(--color-text-muted);
-      margin-bottom: 4px;
-    }
-
-    .sidebar-header h2 {
-      margin: 0;
-      font-size: 1rem;
-      color: var(--color-text);
-    }
-
-    .sidebar-header select {
-      max-width: 160px;
-      border: 1px solid var(--color-border);
-      background: rgba(255, 255, 255, 0.92);
-      border-radius: var(--radius-md);
-      padding: 8px 10px;
+    .workspace-select {
+      max-width: 172px;
       font-size: var(--font-size-xs);
-      color: var(--color-text-secondary);
-      font-family: var(--font-family);
-    }
-
-    .sidebar-path {
-      padding: 0 var(--space-4) var(--space-3);
-      font-size: var(--font-size-xs);
-      color: var(--color-text-secondary);
-      border-bottom: 1px solid var(--color-border-light);
-      word-break: break-all;
-      flex-shrink: 0;
     }
 
     .session-list {
       flex: 1 1 auto;
       min-height: 0;
       overflow-y: auto;
-      padding: var(--space-2);
-      scrollbar-width: thin;
-      scrollbar-color: var(--color-border) transparent;
+      padding: var(--space-3);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
     }
 
     .session-item {
       width: 100%;
       display: flex;
       flex-direction: column;
-      gap: 4px;
-      padding: 10px 12px;
-      border: none;
-      background: transparent;
-      border-radius: 12px;
+      gap: var(--space-1);
+      padding: var(--space-3);
+      border: 1px solid var(--color-border-light);
       cursor: pointer;
       text-align: left;
       font-family: var(--font-family);
       color: var(--color-text);
-      transition: background 0.15s;
-    }
-
-    .session-item:hover {
-      background: rgba(255, 255, 255, 0.72);
-    }
-
-    .session-item.active {
-      background: rgba(255, 255, 255, 0.92);
-      box-shadow: var(--shadow-sm);
     }
 
     .session-title {
       font-size: var(--font-size-sm);
-      font-weight: var(--font-weight-medium);
+      font-weight: var(--font-weight-semibold);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -158,8 +131,9 @@ import { DevSession } from '../../core/services/dev-agent.service';
     .session-meta {
       display: flex;
       align-items: center;
-      gap: 6px;
-      font-size: 11px;
+      flex-wrap: wrap;
+      gap: var(--space-1);
+      font-size: var(--font-size-xs);
       color: var(--color-text-muted);
     }
 
@@ -170,25 +144,9 @@ import { DevSession } from '../../core/services/dev-agent.service';
       flex-shrink: 0;
     }
 
-    .session-dot.running { background: #e8a033; }
+    .session-dot.running { background: var(--color-warning); }
     .session-dot.success { background: var(--color-success); }
     .session-dot.failed { background: var(--color-error); }
-
-    .run-count {
-      background: rgba(44, 40, 32, 0.06);
-      border-radius: 999px;
-      padding: 1px 6px;
-      font-size: 10px;
-    }
-
-    .empty {
-      font-size: var(--font-size-sm);
-      color: var(--color-text-secondary);
-      background: rgba(255, 255, 255, 0.65);
-      border-radius: var(--radius-md);
-      padding: var(--space-3);
-      margin: var(--space-2);
-    }
   `],
 })
 export class WorkspaceSidebarComponent {

@@ -1,13 +1,15 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { AppButtonComponent } from '../../shared/ui/app-button.component';
 
 @Component({
   selector: 'app-chat-input',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, AppButtonComponent],
   template: `
     <section class="chat-input">
       <textarea
+        class="ui-textarea"
         [ngModel]="taskInput"
         (ngModelChange)="taskInputChange.emit($event)"
         (keydown.enter)="handleEnter($event)"
@@ -17,14 +19,13 @@ import { FormsModule } from '@angular/forms';
 
       <div class="input-actions">
         <div class="hint">例如：检查 dev-agent executor / 修复 typescript error</div>
-        <button
-          type="button"
-          class="send-btn"
+        <app-button
+          variant="primary"
           [disabled]="sending || !taskInput.trim()"
           (click)="submit.emit()"
         >
           {{ sending ? 'Running...' : '发送任务' }}
-        </button>
+        </app-button>
       </div>
     </section>
   `,
@@ -40,25 +41,10 @@ import { FormsModule } from '@angular/forms';
     }
 
     textarea {
-      width: 100%;
       min-height: 96px;
       max-height: 220px;
-      resize: vertical;
-      border: 1px solid rgba(120, 111, 96, 0.18);
-      border-radius: 18px;
-      padding: 14px 16px;
-      background: rgba(255, 255, 255, 0.94);
-      color: var(--color-text);
-      font-family: var(--font-family);
-      font-size: 0.95rem;
+      font-size: var(--font-size-md);
       line-height: 1.7;
-      outline: none;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
-    }
-
-    textarea:focus {
-      border-color: rgba(218, 119, 79, 0.45);
-      box-shadow: 0 0 0 3px rgba(218, 119, 79, 0.12);
     }
 
     .input-actions {
@@ -73,32 +59,13 @@ import { FormsModule } from '@angular/forms';
       font-size: var(--font-size-sm);
     }
 
-    .send-btn {
-      border: none;
-      border-radius: 999px;
-      background: linear-gradient(135deg, #c45a2d, #da774f);
-      color: #fff;
-      font-family: var(--font-family);
-      font-size: var(--font-size-sm);
-      font-weight: var(--font-weight-semibold);
-      padding: 10px 18px;
-      cursor: pointer;
-      box-shadow: 0 10px 24px rgba(196, 90, 45, 0.22);
-    }
-
-    .send-btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-      box-shadow: none;
-    }
-
     @media (max-width: 900px) {
       .input-actions {
         align-items: stretch;
         flex-direction: column;
       }
 
-      .send-btn {
+      app-button {
         width: 100%;
       }
     }

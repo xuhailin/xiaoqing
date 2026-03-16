@@ -1,15 +1,19 @@
 import { Component, Input } from '@angular/core';
 import { AssistantMessage } from '../dev-agent.view-model';
+import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
 
 @Component({
   selector: 'app-assistant-message',
   standalone: true,
+  imports: [AppBadgeComponent],
   template: `
     <article class="message assistant">
       <div class="meta">
         <span class="label">Assistant</span>
         @if (message.status) {
-          <span class="badge" [class]="message.status">{{ statusLabel(message.status) }}</span>
+          <app-badge [tone]="statusTone(message.status)" [caps]="true" size="sm">
+            {{ statusLabel(message.status) }}
+          </app-badge>
         }
       </div>
       <div class="bubble" [class.progress]="message.tone === 'progress'">{{ message.text }}</div>
@@ -30,17 +34,17 @@ import { AssistantMessage } from '../dev-agent.view-model';
     }
 
     .label {
-      font-size: 11px;
+      font-size: var(--font-size-xs);
       color: var(--color-text-secondary);
       text-transform: uppercase;
       letter-spacing: 0.08em;
     }
 
     .bubble {
-      padding: 14px 16px;
-      border-radius: 20px 20px 20px 6px;
-      background: rgba(247, 243, 237, 0.98);
-      border: 1px solid rgba(120, 111, 96, 0.08);
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-lg);
+      background: var(--color-assistant-bubble);
+      border: 1px solid var(--color-border-light);
       color: var(--color-text);
       line-height: 1.7;
       white-space: pre-wrap;
@@ -49,31 +53,7 @@ import { AssistantMessage } from '../dev-agent.view-model';
     }
 
     .bubble.progress {
-      background: linear-gradient(135deg, rgba(255, 250, 244, 0.98), rgba(247, 240, 233, 0.98));
-    }
-
-    .badge {
-      border-radius: 999px;
-      padding: 2px 8px;
-      font-size: 10px;
-      font-weight: var(--font-weight-semibold);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-
-    .badge.running {
-      color: #9a5512;
-      background: #fff3d7;
-    }
-
-    .badge.success {
-      color: var(--color-success);
-      background: var(--color-success-bg);
-    }
-
-    .badge.failed {
-      color: var(--color-error);
-      background: var(--color-error-bg);
+      background: linear-gradient(180deg, #ffffff, #f8fafc);
     }
   `],
 })
@@ -85,5 +65,12 @@ export class AssistantMessageComponent {
     if (status === 'success') return 'Success';
     if (status === 'failed') return 'Failed';
     return '';
+  }
+
+  statusTone(status: AssistantMessage['status']) {
+    if (status === 'running') return 'warning';
+    if (status === 'success') return 'success';
+    if (status === 'failed') return 'danger';
+    return 'neutral';
   }
 }

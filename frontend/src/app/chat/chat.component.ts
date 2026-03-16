@@ -4,11 +4,13 @@ import { Subscription } from 'rxjs';
 import { ConversationService, Message, DebugMeta, TraceStep, WorldState } from '../core/services/conversation.service';
 import { JsonPipe } from '@angular/common';
 import { PersonaService, EvolutionChange } from '../core/services/persona.service';
+import { AppBadgeComponent } from '../shared/ui/app-badge.component';
+import { AppButtonComponent } from '../shared/ui/app-button.component';
 
 @Component({
   selector: 'app-chat',
   standalone: true,
-  imports: [JsonPipe],
+  imports: [JsonPipe, AppBadgeComponent, AppButtonComponent],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss',
 })
@@ -230,5 +232,12 @@ export class ChatComponent implements OnInit, OnDestroy {
     return step.label === 'pipeline-cognition'
       || step.label === 'pipeline-decision'
       || step.label === 'pipeline-expression';
+  }
+
+  traceTone(status: TraceStep['status']) {
+    if (status === 'success') return 'success';
+    if (status === 'fail') return 'danger';
+    if (status === 'skip') return 'neutral';
+    return 'info';
   }
 }

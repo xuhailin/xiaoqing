@@ -21,16 +21,17 @@ import { UserMessage } from '../dev-agent.view-model';
     }
 
     .label {
-      font-size: 11px;
-      color: #b15b34;
+      font-size: var(--font-size-xs);
+      color: var(--color-user-label);
       text-transform: uppercase;
       letter-spacing: 0.08em;
     }
 
     .bubble {
-      padding: 14px 16px;
-      border-radius: 20px 20px 6px 20px;
-      background: linear-gradient(135deg, #fff0e8, #ffe1cf);
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-lg);
+      background: var(--color-user-bubble);
+      border: 1px solid rgba(79, 109, 245, 0.12);
       color: var(--color-text);
       box-shadow: var(--shadow-sm);
       white-space: pre-wrap;

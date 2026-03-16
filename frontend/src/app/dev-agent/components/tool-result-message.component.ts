@@ -1,9 +1,11 @@
 import { Component, Input, signal } from '@angular/core';
 import { ToolResultMessage } from '../dev-agent.view-model';
+import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
 
 @Component({
   selector: 'app-tool-result-message',
   standalone: true,
+  imports: [AppBadgeComponent],
   template: `
     <article class="tool-result">
       <button type="button" class="result-head" (click)="toggleExpanded()">
@@ -15,7 +17,9 @@ import { ToolResultMessage } from '../dev-agent.view-model';
           <div class="summary">{{ message.summary }}</div>
         </div>
         <div class="head-right">
-          <span class="badge" [class]="message.status">{{ statusLabel(message.status) }}</span>
+          <app-badge [tone]="statusTone(message.status)" [caps]="true" size="sm">
+            {{ statusLabel(message.status) }}
+          </app-badge>
           @if (hasDetail()) {
             <span class="toggle">{{ expanded() ? '收起' : '展开' }}</span>
           }
@@ -43,9 +47,9 @@ import { ToolResultMessage } from '../dev-agent.view-model';
   `,
   styles: [`
     .tool-result {
-      border: 1px solid rgba(120, 111, 96, 0.12);
-      border-radius: 16px;
-      background: rgba(250, 248, 244, 0.92);
+      border: 1px solid var(--color-border-light);
+      border-radius: var(--radius-lg);
+      background: rgba(248, 250, 252, 0.96);
       overflow: hidden;
     }
 
@@ -128,34 +132,10 @@ import { ToolResultMessage } from '../dev-agent.view-model';
       line-height: 1.6;
       white-space: pre-wrap;
       word-break: break-word;
-      color: #4d4337;
+      color: var(--color-workbench-muted);
     }
 
     .error {
-      background: #fff4f2;
-      color: #993126;
-    }
-
-    .badge {
-      border-radius: 999px;
-      padding: 4px 10px;
-      font-size: 10px;
-      font-weight: var(--font-weight-semibold);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-
-    .badge.running {
-      color: #9a5512;
-      background: #fff3d7;
-    }
-
-    .badge.success {
-      color: var(--color-success);
-      background: var(--color-success-bg);
-    }
-
-    .badge.failed {
       color: var(--color-error);
       background: var(--color-error-bg);
     }
@@ -181,5 +161,11 @@ export class ToolResultMessageComponent {
     if (status === 'running') return 'Running';
     if (status === 'success') return 'Success';
     return 'Failed';
+  }
+
+  statusTone(status: ToolResultMessage['status']) {
+    if (status === 'running') return 'warning';
+    if (status === 'success') return 'success';
+    return 'danger';
   }
 }
