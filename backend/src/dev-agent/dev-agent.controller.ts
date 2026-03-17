@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { DevAgentService } from './dev-agent.service';
 import type { CreateDevReminderInput } from './dev-reminder.service';
 
@@ -40,6 +40,27 @@ export class DevAgentController {
   @Post('runs/:runId/rerun')
   async rerunRun(@Param('runId') runId: string) {
     return this.devAgent.rerunRun(runId);
+  }
+
+  @Post('runs/:runId/resume')
+  async resumeRun(
+    @Param('runId') runId: string,
+    @Body() body?: { userInput?: string },
+  ) {
+    return this.devAgent.resumeRun(runId, body?.userInput);
+  }
+
+  @Get('sessions/:id/cost')
+  async getSessionCost(@Param('id') id: string) {
+    return this.devAgent.getSessionCost(id);
+  }
+
+  @Patch('sessions/:id/budget')
+  async setSessionBudget(
+    @Param('id') id: string,
+    @Body() body: { budgetUsd: number | null },
+  ) {
+    return this.devAgent.setSessionBudget(id, body.budgetUsd);
   }
 
   @Get('reminders')

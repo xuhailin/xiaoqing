@@ -26,6 +26,10 @@
 
 ## 长期
 
-- [ ] **成本追踪与预算治理**：per-run 的 costUsd 汇总、per-session 的预算上限、超额告警
+- [x] **成本追踪与预算治理**：per-run 的 costUsd 汇总、per-session 的预算上限、超额告警
+- [x] **agent 模式 resume**：利用 SDK 的 session resume 能力，支持中断后继续执行
+  - Schema: DevRun 新增 `agentSessionId`、`resumedFromRunId` + 自引用关系
+  - SDK: `persistSession: true`，通过 `resume` 参数传入前次 sessionId
+  - API: `POST /dev-agent/runs/:runId/resume`，可选 `userInput` 追加指令
+  - 成本: resume 链的每个 run 独立计费，累加到 session.totalCostUsd
 - [ ] **多 agent 协作**：一个 run 内启动多个 Claude Code Agent 并行处理不同子任务
-- [ ] **agent 模式 resume**：利用 SDK 的 session resume 能力，支持中断后继续执行

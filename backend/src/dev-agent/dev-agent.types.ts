@@ -3,6 +3,56 @@ import type { DevWorkspaceMeta } from './workspace/workspace-meta';
 /** DevAgent 执行模式 */
 export type DevRunMode = 'orchestrated' | 'agent';
 
+// ── Run-level Agent Executor（整个任务委派给一个 agent） ──
+
+/** agent executor 的输入 */
+export interface AgentExecutorInput {
+  runId: string;
+  sessionId: string;
+  userInput: string;
+  cwd: string;
+  workspace: DevWorkspaceMeta | null;
+  abortSignal?: AbortSignal;
+  /** 传入前次 agent session ID，SDK 将恢复对话上下文 */
+  resumeSessionId?: string;
+}
+
+/** agent executor 的进度事件 */
+export interface AgentProgressEvent {
+  type: string;
+  text?: string;
+  toolName?: string;
+}
+
+/** agent executor 的输出 */
+export interface AgentExecutorOutput {
+  success: boolean;
+  content: string | null;
+  error: string | null;
+  durationMs: number;
+  costUsd: number;
+  numTurns: number;
+  sessionId: string | null;
+  stopReason: string | null;
+  artifacts?: Record<string, unknown>;
+}
+
+/**
+ * Run-level agent executor 接口。
+ *
+ * 与 IDevExecutor（step-level，用于 orchestrated 模式的单步执行）不同，
+ * IDevAgentExecutor 负责接管整个任务的规划与执行（agent 模式）。
+ */
+export interface IDevAgentExecutor {
+  readonly name: string;
+  isAvailable(): boolean;
+  execute(
+    input: AgentExecutorInput,
+    onProgress?: (event: AgentProgressEvent) => void,
+  ): Promise<AgentExecutorOutput>;
+  cancel?(runId: string): boolean;
+}
+
 /** DevAgent 任务执行结果，返回给前端 */
 export interface DevTaskResult {
   session: {

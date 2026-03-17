@@ -4,6 +4,7 @@ import { DevRunStatus } from '@prisma/client';
 import type { DevRunMode, DevTaskResult } from './dev-agent.types';
 import { DevSessionRepository } from './dev-session.repository';
 import { DevRunRunnerService } from './dev-runner.service';
+import { DevCostService } from './dev-cost.service';
 import { DevReminderService, type CreateDevReminderInput } from './dev-reminder.service';
 import type { SendMessageMetadata } from '../gateway/message-router.types';
 import {
@@ -20,6 +21,7 @@ export class DevAgentService {
   constructor(
     private readonly sessions: DevSessionRepository,
     private readonly runner: DevRunRunnerService,
+    private readonly costService: DevCostService,
     private readonly reminders: DevReminderService,
     private readonly workspaceManager: WorkspaceManager,
   ) {}
@@ -32,7 +34,9 @@ export class DevAgentService {
   ): Promise<DevTaskResult> {
     const mode: DevRunMode = options?.mode ?? 'orchestrated';
     const requestedWorkspace = normalizeWorkspaceInput(metadata);
-    const session = await this.resolveSession(conversationId, requestedWorkspace);
+    const session = await this.resolveSession(conversationId, requestedWorkspace, {
+      forceNewSession: metadata?.forceNewSession === true,
+    });
 
     let workspace = await this.resolveSessionWorkspace(session.id);
     if (requestedWorkspace) {
@@ -133,6 +137,81 @@ export class DevAgentService {
     };
   }
 
+  /**
+   * 恢复执行：基于前次 run 的 agent session 继续执行。
+   * 创建一个新的 DevRun，关联到源 run 的 agentSessionId。
+   */
+  async resumeRun(runId: string, userInput?: string): Promise<DevTaskResult> {
+    const sourceRun = await this.sessions.getRunWithSession(runId);
+    if (!sourceRun?.session) {
+      throw new NotFoundException('run not found');
+    }
+
+    const isActive = sourceRun.status === DevRunStatus.queued
+      || sourceRun.status === DevRunStatus.pending
+      || sourceRun.status === DevRunStatus.running;
+    if (isActive) {
+      throw new BadRequestException(`run ${runId} is still ${sourceRun.status}, cannot resume`);
+    }
+
+    // 需要有 agentSessionId 才能 resume
+    const agentSessionId = sourceRun.agentSessionId
+      ?? (sourceRun.result as Record<string, unknown> | null)?.agentSessionId as string | undefined;
+    if (!agentSessionId) {
+      throw new BadRequestException(
+        `run ${runId} 没有可恢复的 agent session（agentSessionId 为空）`,
+      );
+    }
+
+    let workspace = parseWorkspaceMetaFromRunResult(sourceRun.result)
+      ?? await this.resolveSessionWorkspace(sourceRun.sessionId);
+    if (workspace) {
+      try {
+        workspace = await this.workspaceManager.bindSessionWorkspace(sourceRun.sessionId, workspace);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        throw new BadRequestException(`workspaceRoot 不可用：${message}`);
+      }
+    }
+
+    const effectiveInput = userInput?.trim() || '继续上次未完成的任务';
+    const run = await this.sessions.createRun(
+      sourceRun.sessionId,
+      effectiveInput,
+      this.buildQueuedResult(workspace, {
+        mode: 'agent',
+        resumeFromRunId: sourceRun.id,
+        resumeAgentSessionId: agentSessionId,
+      }),
+    );
+
+    // 记录 resume 链关系
+    await this.sessions.updateRunStatus(run.id, { resumedFromRunId: sourceRun.id });
+
+    this.runner.startRun(run.id, sourceRun.sessionId);
+
+    return {
+      session: {
+        id: sourceRun.session.id,
+        status: sourceRun.session.status,
+        workspace,
+      },
+      run: {
+        id: run.id,
+        userInput: effectiveInput,
+        rerunFromRunId: sourceRun.id,
+        status: run.status,
+        executor: run.executor ?? null,
+        plan: null,
+        result: run.result,
+        error: null,
+        artifactPath: null,
+        workspace,
+      },
+      reply: `已基于 run ${sourceRun.id} 创建恢复任务（run: ${run.id}），将恢复 agent 会话上下文继续执行。`,
+    };
+  }
+
   async rerunRun(runId: string): Promise<DevTaskResult> {
     const sourceRun = await this.sessions.getRunWithSession(runId);
     if (!sourceRun?.session) {
@@ -220,10 +299,26 @@ export class DevAgentService {
     return this.reminders.deleteReminder(id);
   }
 
+  async getSessionCost(sessionId: string) {
+    return this.costService.getSessionCostSummary(sessionId);
+  }
+
+  async setSessionBudget(sessionId: string, budgetUsd: number | null) {
+    const session = await this.sessions.getSession(sessionId);
+    if (!session) throw new NotFoundException('session not found');
+    await this.costService.setSessionBudget(sessionId, budgetUsd);
+    return this.costService.getSessionCostSummary(sessionId);
+  }
+
   private async resolveSession(
     conversationId: string,
     requestedWorkspace: DevWorkspaceMeta | null,
+    options?: { forceNewSession?: boolean },
   ) {
+    if (options?.forceNewSession) {
+      return this.sessions.createSession(conversationId);
+    }
+
     if (!requestedWorkspace) {
       return this.sessions.getOrCreateSession(conversationId);
     }
@@ -262,9 +357,16 @@ export class DevAgentService {
 
   private buildQueuedResult(
     workspace: DevWorkspaceMeta | null,
-    options?: { rerunFromRunId?: string | null; mode?: DevRunMode },
+    options?: {
+      rerunFromRunId?: string | null;
+      mode?: DevRunMode;
+      resumeFromRunId?: string | null;
+      resumeAgentSessionId?: string | null;
+    },
   ): Prisma.InputJsonValue {
     const rerunFromRunId = options?.rerunFromRunId ?? null;
+    const resumeFromRunId = options?.resumeFromRunId ?? null;
+    const resumeAgentSessionId = options?.resumeAgentSessionId ?? null;
     const mode = options?.mode ?? 'orchestrated';
     const events: Array<Record<string, unknown>> = [
       {
@@ -281,11 +383,22 @@ export class DevAgentService {
         at: new Date().toISOString(),
       });
     }
+    if (resumeFromRunId) {
+      events.push({
+        type: 'resume',
+        message: `恢复 run ${resumeFromRunId} 的 agent 会话`,
+        sourceRunId: resumeFromRunId,
+        agentSessionId: resumeAgentSessionId,
+        at: new Date().toISOString(),
+      });
+    }
 
     return withWorkspaceMeta({
       phase: 'queued',
       mode,
       rerunFromRunId,
+      resumeFromRunId,
+      resumeAgentSessionId,
       currentStepId: null,
       planRounds: 0,
       completedSteps: 0,
@@ -308,6 +421,8 @@ export class DevAgentService {
       workspace: sessionWorkspace,
       workspaceRoot: sessionWorkspace?.workspaceRoot ?? null,
       projectScope: sessionWorkspace?.projectScope ?? null,
+      budgetUsd: session.budgetUsd ?? null,
+      totalCostUsd: session.totalCostUsd ?? 0,
     };
   }
 

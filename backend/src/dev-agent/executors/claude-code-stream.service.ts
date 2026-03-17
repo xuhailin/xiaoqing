@@ -23,6 +23,8 @@ export interface ClaudeCodeStreamOptions {
   allowedTools?: string[];
   /** AbortController 用于外部取消 */
   abortController?: AbortController;
+  /** 传入前次 session ID 以恢复对话上下文 */
+  resumeSessionId?: string;
 }
 
 export interface ClaudeCodeStreamResult {
@@ -80,7 +82,7 @@ export class ClaudeCodeStreamService {
 
     const abortController = options.abortController ?? new AbortController();
 
-    const sdkOptions = {
+    const sdkOptions: Record<string, unknown> = {
       abortController,
       cwd: options.cwd || process.cwd(),
       model: options.model || this.defaultModel,
@@ -89,12 +91,18 @@ export class ClaudeCodeStreamService {
       allowedTools: options.allowedTools || [
         'Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep',
       ],
-      persistSession: false,
+      persistSession: true,
       env: this.buildChildEnv(),
     };
 
+    // resume: 传入前次 session ID 恢复对话
+    if (options.resumeSessionId) {
+      sdkOptions.resume = options.resumeSessionId;
+    }
+
     this.logger.log(
-      `Starting Claude Code Agent: model=${sdkOptions.model} maxTurns=${sdkOptions.maxTurns} cwd=${sdkOptions.cwd}`,
+      `Starting Claude Code Agent: model=${sdkOptions.model} maxTurns=${sdkOptions.maxTurns} cwd=${sdkOptions.cwd}` +
+      (options.resumeSessionId ? ` resume=${options.resumeSessionId}` : ''),
     );
 
     try {

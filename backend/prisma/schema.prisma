@@ -358,6 +358,8 @@ model DevSession {
   conversationId String?          // 可选：关联发起的聊天会话
   title          String?
   status         DevSessionStatus @default(active)
+  budgetUsd      Float?           // 会话级预算上限（USD），null 表示不限制
+  totalCostUsd   Float            @default(0) // 会话所有 run 的累计成本（USD）
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   runs           DevRun[]
@@ -376,10 +378,16 @@ model DevRun {
   result       Json?
   error        String?      @db.Text
   artifactPath String?
+  costUsd      Float?       // 本次 run 的实际花费（USD）
+  agentSessionId  String?   // Claude Code SDK session ID，用于 resume
+  resumedFromRunId String?  // 若为 resume 产生的 run，指向原 run ID
   startedAt    DateTime?
   finishedAt   DateTime?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
+
+  resumedFromRun DevRun?    @relation("ResumeChain", fields: [resumedFromRunId], references: [id])
+  resumedByRuns  DevRun[]   @relation("ResumeChain")
 
   @@index([sessionId, createdAt])
   @@index([status])

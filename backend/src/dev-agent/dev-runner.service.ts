@@ -3,6 +3,7 @@ import { DevRunStatus } from '@prisma/client';
 import { KeyedFifoQueueService } from '../infra/queue';
 import { DevAgentOrchestrator } from './dev-agent.orchestrator';
 import { DevSessionRepository } from './dev-session.repository';
+import { DevCostService, BudgetExceededError } from './dev-cost.service';
 import { WorkspaceManager } from './workspace/workspace-manager.service';
 import { parseWorkspaceMetaFromRunResult, withWorkspaceMeta } from './workspace/workspace-meta';
 
@@ -19,6 +20,7 @@ export class DevRunRunnerService implements OnModuleInit {
   constructor(
     private readonly sessions: DevSessionRepository,
     private readonly orchestrator: DevAgentOrchestrator,
+    private readonly costService: DevCostService,
     private readonly workspaceManager: WorkspaceManager,
     private readonly queue: KeyedFifoQueueService,
   ) {}
@@ -118,9 +120,40 @@ export class DevRunRunnerService implements OnModuleInit {
         ?? requestedWorkspace
         ?? null;
 
-      // 从 run result 中读取 mode（由 DevAgentService 在创建时写入）
+      // 预算检查：超预算则拒绝执行
+      try {
+        await this.costService.checkBudget(claimedRun.session.id);
+      } catch (err) {
+        if (err instanceof BudgetExceededError) {
+          await this.sessions.updateRunStatus(runId, {
+            status: DevRunStatus.failed,
+            error: err.message,
+            result: withWorkspaceMeta({
+              phase: 'failed',
+              taskId: runId,
+              goal: claimedRun.userInput,
+              errors: [{
+                stepId: 'budget',
+                errorType: 'PERMISSION_DENIED',
+                message: err.message,
+                command: '',
+                createdAt: new Date().toISOString(),
+              }],
+              updatedAt: new Date().toISOString(),
+            }, effectiveWorkspace) as any,
+            finishedAt: new Date(),
+          });
+          return;
+        }
+        throw err;
+      }
+
+      // 从 run result 中读取 mode 和 resume 信息（由 DevAgentService 在创建时写入）
       const runResult = claimedRun.result as Record<string, unknown> | null;
       const mode = (runResult?.mode === 'agent' ? 'agent' : 'orchestrated') as import('./dev-agent.types').DevRunMode;
+      const resumeAgentSessionId = typeof runResult?.resumeAgentSessionId === 'string'
+        ? runResult.resumeAgentSessionId
+        : undefined;
 
       await this.orchestrator.executeRun({
         conversationId: claimedRun.session.conversationId ?? null,
@@ -134,6 +167,7 @@ export class DevRunRunnerService implements OnModuleInit {
           userInput: claimedRun.userInput,
         },
         mode,
+        resumeAgentSessionId,
       });
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);

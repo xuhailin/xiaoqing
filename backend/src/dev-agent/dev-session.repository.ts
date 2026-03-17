@@ -206,6 +206,9 @@ export class DevSessionRepository {
       result?: Prisma.InputJsonValue;
       error?: string;
       artifactPath?: string;
+      costUsd?: number;
+      agentSessionId?: string;
+      resumedFromRunId?: string;
       startedAt?: Date;
       finishedAt?: Date;
     },
