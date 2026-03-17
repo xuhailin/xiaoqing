@@ -14,17 +14,17 @@ import { AppButtonComponent } from '../../shared/ui/app-button.component';
         (ngModelChange)="taskInputChange.emit($event)"
         (keydown.enter)="handleEnter($event)"
         [disabled]="sending"
-        placeholder="输入开发任务"
+        [placeholder]="placeholder"
       ></textarea>
 
       <div class="input-actions">
-        <div class="hint">例如：检查 dev-agent executor / 修复 typescript error</div>
+        <div class="hint">{{ hint }}</div>
         <app-button
           variant="primary"
           [disabled]="sending || !taskInput.trim()"
           (click)="submit.emit()"
         >
-          {{ sending ? 'Running...' : '发送任务' }}
+          {{ sending ? 'Running...' : submitLabel }}
         </app-button>
       </div>
     </section>
@@ -74,6 +74,9 @@ import { AppButtonComponent } from '../../shared/ui/app-button.component';
 export class ChatInputComponent {
   @Input() taskInput = '';
   @Input() sending = false;
+  @Input() placeholder = '输入开发任务';
+  @Input() hint = '例如：检查 dev-agent executor / 修复 typescript error';
+  @Input() submitLabel = '发送任务';
 
   @Output() taskInputChange = new EventEmitter<string>();
   @Output() submit = new EventEmitter<void>();

@@ -57,7 +57,7 @@ import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
       width: 100%;
       border: none;
       background: transparent;
-      padding: 14px 16px;
+      padding: 10px 14px;
       display: flex;
       align-items: flex-start;
       justify-content: space-between;

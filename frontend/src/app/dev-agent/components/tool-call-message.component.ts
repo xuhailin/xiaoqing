@@ -26,7 +26,7 @@ import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
       border: 1px solid var(--color-border-light);
       border-radius: var(--radius-lg);
       background: rgba(255, 255, 255, 0.92);
-      padding: var(--space-3) var(--space-4);
+      padding: var(--space-2) var(--space-3);
       display: flex;
       flex-direction: column;
       gap: var(--space-2);

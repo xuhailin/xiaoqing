@@ -52,7 +52,6 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       </header>
 
       <section class="new-session">
-        <div class="section-label">+ New Session</div>
         <app-chat-input
           [taskInput]="taskInput"
           [sending]="sending"
@@ -164,14 +163,6 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       border-bottom: 1px solid var(--color-border-light);
     }
 
-    .section-label {
-      padding: var(--space-3) var(--space-4) 0;
-      font-size: var(--font-size-xs);
-      color: var(--color-text-secondary);
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-    }
-
     .session-feed {
       flex: 1 1 auto;
       min-height: 0;
@@ -250,12 +241,6 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       -webkit-line-clamp: 3;
       -webkit-box-orient: vertical;
       overflow: hidden;
-    }
-
-    @media (max-width: 1180px) {
-      .workspace-summary {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
     }
   `],
 })

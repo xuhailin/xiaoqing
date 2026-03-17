@@ -8,6 +8,8 @@ export interface SendMessageMetadata {
   projectScope?: string;
   /** DevAgent 执行模式：agent 直接委派 Claude Code，orchestrated 走编排（默认 orchestrated） */
   devRunMode?: 'orchestrated' | 'agent';
+  /** 是否强制创建新的 session，而不是复用当前会话线程 */
+  forceNewSession?: boolean;
 }
 
 /** 路由判定结果 */

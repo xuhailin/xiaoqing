@@ -44,14 +44,20 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
     </section>
   `,
   styles: [`
+    :host {
+      display: flex;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
     .message-list {
       flex: 1 1 auto;
       min-height: 0;
       overflow: auto;
-      padding: var(--space-5);
+      padding: var(--space-4);
       display: flex;
       flex-direction: column;
-      gap: var(--space-4);
+      gap: var(--space-3);
     }
   `],
 })

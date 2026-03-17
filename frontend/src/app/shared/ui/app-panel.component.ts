@@ -13,6 +13,17 @@ import { Component, Input } from '@angular/core';
   styles: [`
     :host {
       display: block;
+      min-width: 0;
+      min-height: 0;
+      height: 100%;
+    }
+
+    .ui-panel {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+      height: 100%;
     }
   `],
 })

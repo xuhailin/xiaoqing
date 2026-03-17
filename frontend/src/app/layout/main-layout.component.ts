@@ -63,7 +63,7 @@ import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.compone
                 @if (currentWorkbench() === 'chat') {
                   当前对话与调试信息
                 } @else if (currentWorkbench() === 'dev-agent') {
-                  开发执行与 sessions 状态
+                  DevAgent 总览与 session 对话
                 } @else {
                   固定回归与真实回放报告
                 }

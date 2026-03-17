@@ -21,6 +21,7 @@ import { AppPanelComponent } from '../../shared/ui/app-panel.component';
       <div class="dev-chat-panel__body">
         <header class="chat-header">
           <div class="header-left">
+            <app-button variant="ghost" size="sm" class="back-btn" (click)="back.emit()">← 返回总览</app-button>
             <span class="header-title">Dev Chat</span>
             @if (runState?.mode; as mode) {
               <app-badge tone="neutral" [appearance]="'outline'" class="mode-badge">
@@ -110,6 +111,10 @@ import { AppPanelComponent } from '../../shared/ui/app-panel.component';
       min-width: 0;
     }
 
+    .back-btn {
+      flex-shrink: 0;
+    }
+
     .header-title {
       font-size: var(--font-size-sm);
       font-weight: var(--font-weight-semibold);
@@ -165,6 +170,7 @@ export class DevChatPanelComponent {
   @Output() cancel = new EventEmitter<void>();
   @Output() rerun = new EventEmitter<void>();
   @Output() resume = new EventEmitter<void>();
+  @Output() back = new EventEmitter<void>();
 
   protected statusTone(status: DevChatRunState['status']) {
     if (status === 'running') return 'warning';

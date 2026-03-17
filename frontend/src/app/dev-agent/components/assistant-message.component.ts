@@ -41,12 +41,13 @@ import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
     }
 
     .bubble {
-      padding: var(--space-3) var(--space-4);
+      padding: var(--space-2) var(--space-3);
       border-radius: var(--radius-lg);
       background: var(--color-assistant-bubble);
       border: 1px solid var(--color-border-light);
       color: var(--color-text);
-      line-height: 1.7;
+      font-size: var(--font-size-sm);
+      line-height: 1.55;
       white-space: pre-wrap;
       word-break: break-word;
       box-shadow: var(--shadow-sm);

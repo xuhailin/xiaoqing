@@ -114,7 +114,11 @@ export class ChatComponent implements OnInit, OnDestroy {
   }
 
   onKeydown(event: KeyboardEvent) {
-    if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
+    // 输入法合成中（中文/日文等 IME）直接忽略，避免确认候选词时误触发发送
+    if (event.isComposing || (event as any).keyCode === 229) {
+      return;
+    }
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
       event.preventDefault();
       if (!this.loading() && this.inputText().trim()) {
         this.send();

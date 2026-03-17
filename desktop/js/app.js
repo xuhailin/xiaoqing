@@ -6,6 +6,22 @@
   const container = document.getElementById('canvas-container');
   const tauri = window.__TAURI__;
 
+  // ── 坐标调试悬浮层 ─────────────────────────────────────
+  const coordOverlay = document.createElement('div');
+  coordOverlay.id = 'coord-overlay';
+  Object.assign(coordOverlay.style, {
+    position:      'fixed',
+    left:          '8px',
+    top:           '8px',
+    zIndex:        '99999',
+    background:    'rgba(0,0,0,.6)',
+    color:         '#fff',
+    padding:       '6px 8px',
+    fontSize:      '12px',
+    pointerEvents: 'none',
+  });
+  document.body.appendChild(coordOverlay);
+
   // ── 检查 Live2D Core 是否加载 ──────────────────────────
   if (typeof Live2DCubismCore === 'undefined') {
     console.error('[app] Live2DCubismCore not loaded. Please place live2dcubismcore.min.js in public/lib/');
@@ -85,6 +101,7 @@
 
   // 鼠标跟随（眼球追踪）；任意交互清除失焦 1 分钟定时器
   container.addEventListener('mousemove', (e) => {
+    coordOverlay.textContent = `client: ${e.clientX},${e.clientY}  offset: ${e.offsetX},${e.offsetY}`;
     clearIdleMarkTimer();
     const rect = container.getBoundingClientRect();
     modelManager.focusAt(e.clientX - rect.left, e.clientY - rect.top);
@@ -109,6 +126,7 @@
 
   // mousemove：超过阈值则启动原生窗口拖拽
   container.addEventListener('mousemove', async (e) => {
+    coordOverlay.textContent = `client: ${e.clientX},${e.clientY}  offset: ${e.offsetX},${e.offsetY}`;
     if (!pointerDown || dragging) return;
     const d = Math.hypot(e.clientX - pStartX, e.clientY - pStartY);
     if (d < CLICK_THRESHOLD) return;

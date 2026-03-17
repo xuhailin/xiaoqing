@@ -28,15 +28,16 @@ import { UserMessage } from '../dev-agent.view-model';
     }
 
     .bubble {
-      padding: var(--space-3) var(--space-4);
+      padding: var(--space-2) var(--space-3);
       border-radius: var(--radius-lg);
       background: var(--color-user-bubble);
       border: 1px solid rgba(79, 109, 245, 0.12);
       color: var(--color-text);
+      font-size: var(--font-size-sm);
       box-shadow: var(--shadow-sm);
       white-space: pre-wrap;
       word-break: break-word;
-      line-height: 1.7;
+      line-height: 1.55;
     }
   `],
 })
