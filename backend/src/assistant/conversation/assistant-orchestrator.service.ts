@@ -12,6 +12,7 @@ import { SessionStateService } from '../claim-engine/session-state.service';
 import { DailyMomentService } from '../daily-moment/daily-moment.service';
 import { CognitiveGrowthService } from '../cognitive-pipeline/cognitive-growth.service';
 import type { SendMessageResult, ToolPolicyDecision, TurnContext } from './orchestration.types';
+import { toConversationMessageDto } from './message.dto';
 
 @Injectable()
 export class AssistantOrchestrator {
@@ -89,13 +90,8 @@ export class AssistantOrchestrator {
         },
       });
       result = {
-        userMessage: input.userMessage,
-        assistantMessage: {
-          id: assistantMsg.id,
-          role: assistantMsg.role,
-          content: assistantMsg.content,
-          createdAt: assistantMsg.createdAt,
-        },
+        userMessage: toConversationMessageDto(input.userMessage),
+        assistantMessage: toConversationMessageDto(assistantMsg),
         injectedMemories: context.memory.injectedMemories,
       };
     }
@@ -191,12 +187,7 @@ export class AssistantOrchestrator {
       currentPlan.turn.assistantOutput = assistantMsg.content;
       result = {
         ...result,
-        assistantMessage: {
-          id: assistantMsg.id,
-          role: assistantMsg.role,
-          content: assistantMsg.content,
-          createdAt: assistantMsg.createdAt,
-        },
+        assistantMessage: toConversationMessageDto(assistantMsg),
         dailyMoment: {
           mode: 'suggestion',
           suggestion,

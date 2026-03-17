@@ -21,6 +21,7 @@ import type { PostTurnPlan } from '../post-turn/post-turn.types';
 import { SkillRunner } from '../../action/local-skills/skill-runner.service';
 import { FeatureFlagConfig } from './feature-flag.config';
 import { ResponseComposer } from './response-composer.service';
+import { toConversationMessageDto } from './message.dto';
 
 type PipelineStepName = 'cognition' | 'decision' | 'expression';
 
@@ -198,18 +199,8 @@ export class ChatCompletionEngine {
       this.pet.setStateWithAutoIdle('speaking', 2000);
 
       return this.wrapResult({
-        userMessage: {
-          id: userMsg.id,
-          role: userMsg.role,
-          content: userMsg.content,
-          createdAt: userMsg.createdAt,
-        },
-        assistantMessage: {
-          id: assistantMsg.id,
-          role: assistantMsg.role,
-          content: assistantMsg.content,
-          createdAt: assistantMsg.createdAt,
-        },
+        userMessage: toConversationMessageDto(userMsg),
+        assistantMessage: toConversationMessageDto(assistantMsg),
         injectedMemories: [],
         dailyMoment: {
           mode: 'entry',
@@ -380,18 +371,8 @@ export class ChatCompletionEngine {
     });
 
     return this.wrapResult({
-      userMessage: {
-        id: userMsg.id,
-        role: userMsg.role,
-        content: userMsg.content,
-        createdAt: userMsg.createdAt,
-      },
-      assistantMessage: {
-        id: assistantMsg.id,
-        role: assistantMsg.role,
-        content: assistantMsg.content,
-        createdAt: assistantMsg.createdAt,
-      },
+      userMessage: toConversationMessageDto(userMsg),
+      assistantMessage: toConversationMessageDto(assistantMsg),
       injectedMemories: [],
       meta: {
         localSkillRun,
@@ -974,18 +955,8 @@ export class ChatCompletionEngine {
       : undefined;
 
     return this.wrapResult({
-      userMessage: {
-        id: userMsg.id,
-        role: userMsg.role,
-        content: userMsg.content,
-        createdAt: userMsg.createdAt,
-      },
-      assistantMessage: {
-        id: assistantMsg.id,
-        role: assistantMsg.role,
-        content: assistantMsg.content,
-        createdAt: assistantMsg.createdAt,
-      },
+      userMessage: toConversationMessageDto(userMsg),
+      assistantMessage: toConversationMessageDto(assistantMsg),
       injectedMemories: [],
       ...(opts.openclawUsed !== undefined && { openclawUsed: opts.openclawUsed }),
       ...(opts.localSkillUsed !== undefined && { localSkillUsed: opts.localSkillUsed }),
@@ -1250,8 +1221,8 @@ export class ChatCompletionEngine {
     });
 
     return this.wrapResult({
-      userMessage: { id: userMsg.id, role: userMsg.role, content: userMsg.content, createdAt: userMsg.createdAt },
-      assistantMessage: { id: assistantMsg.id, role: assistantMsg.role, content: assistantMsg.content, createdAt: assistantMsg.createdAt },
+      userMessage: toConversationMessageDto(userMsg),
+      assistantMessage: toConversationMessageDto(assistantMsg),
       injectedMemories: [],
       ...(debugMeta && { debugMeta }),
       trace: trace.getTrace(),
@@ -1453,18 +1424,8 @@ export class ChatCompletionEngine {
     } : undefined;
 
     return this.wrapResult({
-      userMessage: {
-        id: userMsg.id,
-        role: userMsg.role,
-        content: userMsg.content,
-        createdAt: userMsg.createdAt,
-      },
-      assistantMessage: {
-        id: assistantMsg.id,
-        role: assistantMsg.role,
-        content: assistantMsg.content,
-        createdAt: assistantMsg.createdAt,
-      },
+      userMessage: toConversationMessageDto(userMsg),
+      assistantMessage: toConversationMessageDto(assistantMsg),
       injectedMemories: finalMemories,
       ...(debugMeta && { debugMeta }),
       trace: trace.getTrace(),

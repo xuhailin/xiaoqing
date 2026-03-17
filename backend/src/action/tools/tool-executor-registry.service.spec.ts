@@ -1,9 +1,7 @@
 import { ToolExecutorRegistry } from './tool-executor-registry.service';
-import type { WeatherSkillService } from '../skills/weather/weather-skill.service';
-import type { BookDownloadSkillService } from '../skills/book-download/book-download-skill.service';
-import type { GeneralActionSkillService } from '../skills/general-action/general-action-skill.service';
-import type { TimesheetSkillService } from '../skills/timesheet/timesheet-skill.service';
+import { CapabilityRegistry } from '../capability-registry.service';
 import type { OpenClawService } from '../../openclaw/openclaw.service';
+import type { ICapability } from '../capability.interface';
 import type { DialogueIntentState } from '../../assistant/intent/intent.types';
 
 const intentState = {
@@ -19,41 +17,59 @@ const intentState = {
   missingParams: [],
 } as unknown as DialogueIntentState;
 
-describe('ToolExecutorRegistry local-general-action', () => {
+function createMockCapability(overrides: Partial<ICapability> = {}): ICapability {
+  return {
+    name: 'mock',
+    taskIntent: 'mock',
+    channels: ['chat'],
+    description: 'mock',
+    surface: 'assistant',
+    scope: 'private',
+    portability: 'portable',
+    requiresAuth: false,
+    requiresUserContext: false,
+    visibility: 'default',
+    isAvailable: jest.fn().mockReturnValue(true),
+    execute: jest.fn(),
+    ...overrides,
+  } as ICapability;
+}
+
+describe('ToolExecutorRegistry', () => {
   function createRegistry() {
-    const weather = {
-      isAvailable: jest.fn().mockReturnValue(true),
-      execute: jest.fn(),
-    } as unknown as WeatherSkillService;
-    const book = {
-      isAvailable: jest.fn().mockReturnValue(true),
-      execute: jest.fn(),
-    } as unknown as BookDownloadSkillService;
-    const general = {
-      isAvailable: jest.fn().mockReturnValue(true),
-      execute: jest.fn(),
-    } as unknown as GeneralActionSkillService;
-    const timesheet = {
+    const capabilityRegistry = new CapabilityRegistry();
+
+    const generalAction = createMockCapability({
+      name: 'general-action',
+      taskIntent: 'general_tool',
+    });
+    const timesheet = createMockCapability({
+      name: 'timesheet',
+      taskIntent: 'timesheet_submit',
       isAvailable: jest.fn().mockReturnValue(false),
-      execute: jest.fn(),
-    } as unknown as TimesheetSkillService;
+    });
+
+    capabilityRegistry.register(generalAction);
+    capabilityRegistry.register(timesheet);
+
     const openclaw = {
       delegateTask: jest.fn(),
     } as unknown as OpenClawService;
+
     return {
-      registry: new ToolExecutorRegistry(weather, book, general, timesheet, openclaw),
-      general,
+      registry: new ToolExecutorRegistry(capabilityRegistry, openclaw),
+      generalAction,
       timesheet,
     };
   }
 
   it('returns success with reasonCode meta when local general action succeeds', async () => {
-    const { registry, general } = createRegistry();
-    (general.execute as jest.Mock).mockResolvedValue({
+    const { registry, generalAction } = createRegistry();
+    (generalAction.execute as jest.Mock).mockResolvedValue({
       success: true,
       content: 'done',
-      code: 'OK',
-      meta: { actionType: 'file.read' },
+      error: null,
+      meta: { reasonCode: 'OK', actionType: 'file.read' },
     });
 
     const result = await registry.execute({
@@ -75,8 +91,11 @@ describe('ToolExecutorRegistry local-general-action', () => {
     });
   });
 
-  it('returns fail when general action params are invalid', async () => {
-    const { registry } = createRegistry();
+  it('returns fail when capability is not registered', async () => {
+    const capabilityRegistry = new CapabilityRegistry();
+    const openclaw = { delegateTask: jest.fn() } as unknown as OpenClawService;
+    const registry = new ToolExecutorRegistry(capabilityRegistry, openclaw);
+
     const result = await registry.execute({
       conversationId: 'c1',
       turnId: 't1',
@@ -88,67 +107,6 @@ describe('ToolExecutorRegistry local-general-action', () => {
     });
 
     expect(result.success).toBe(false);
-    expect(result.error).toBe('general_action params invalid');
-  });
-
-  it('passes preview timesheet action to local timesheet skill', async () => {
-    const { registry, timesheet } = createRegistry();
-    (timesheet.execute as jest.Mock).mockResolvedValue({
-      success: true,
-      content: 'preview',
-      previewEntries: [],
-      totalHours: 8,
-    });
-
-    const result = await registry.execute({
-      conversationId: 'c1',
-      turnId: 't1',
-      userInput: '先预览今天工时',
-      executor: 'local-timesheet',
-      capability: 'timesheet',
-      intentState,
-      params: {
-        timesheetAction: 'preview',
-        timesheetDate: '2026-03-10',
-      },
-    });
-
-    expect(timesheet.execute).toHaveBeenCalledWith({
-      action: 'preview',
-      targetDate: '2026-03-10',
-    });
-    expect(result.success).toBe(true);
-    expect(result.content).toBe('preview');
-  });
-
-  it('passes confirm rawOverride to local timesheet skill', async () => {
-    const { registry, timesheet } = createRegistry();
-    (timesheet.execute as jest.Mock).mockResolvedValue({
-      success: true,
-      content: 'confirmed',
-      totalHours: 8,
-    });
-
-    const result = await registry.execute({
-      conversationId: 'c1',
-      turnId: 't1',
-      userInput: '住院医生 松江现场支持 8',
-      executor: 'local-timesheet',
-      capability: 'timesheet',
-      intentState,
-      params: {
-        timesheetAction: 'confirm',
-        timesheetDate: '2026-03-10',
-        timesheetRawOverride: '住院医生 松江现场支持 8',
-      },
-    });
-
-    expect(timesheet.execute).toHaveBeenCalledWith({
-      action: 'confirm',
-      targetDate: '2026-03-10',
-      rawOverride: '住院医生 松江现场支持 8',
-    });
-    expect(result.success).toBe(true);
-    expect(result.content).toBe('confirmed');
+    expect(result.error).toContain('not registered');
   });
 });

@@ -372,6 +372,8 @@ export class PromptRouterService {
       }
     }
 
+    text += '\n当结构化表达更清晰时，可使用标准 Markdown（标题、列表、引用、代码块、链接、粗斜体）；普通闲聊保持自然文本，不要为了格式而格式化。';
+
     return text;
   }
 

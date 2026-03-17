@@ -8,7 +8,9 @@ import type { DevExecutorCost, DevStepStrategy } from '../dev-agent.types';
 
 /**
  * OpenClaw 执行器 — 将任务委派给远端 Agent 执行。
- * 复用现有 OpenClawService 的 delegateTask 接口。
+ *
+ * 支持多 Agent：通过 params.agentId 指定目标 Agent，
+ * 不指定时使用 OpenClawRegistryService 中的默认 Agent。
  *
  * 同时实现 IDevExecutor（DevAgent 向后兼容）和 ICapability（统一能力接口）。
  */
@@ -39,20 +41,27 @@ export class OpenClawExecutor implements IDevExecutor, ICapability {
   async execute(request: CapabilityRequest): Promise<CapabilityResult>;
   async execute(input: DevExecutorInput): Promise<DevExecutorOutput>;
   async execute(input: CapabilityRequest | DevExecutorInput): Promise<CapabilityResult | DevExecutorOutput> {
-    const message = 'params' in input && 'conversationId' in input
+    const isCapabilityRequest = 'params' in input && 'conversationId' in input;
+
+    const message = isCapabilityRequest
       ? (typeof input.params.taskMessage === 'string' ? input.params.taskMessage : input.userInput)
       : (input as DevExecutorInput).userInput;
 
-    const sessionKey = 'params' in input && 'conversationId' in input
+    const sessionKey = isCapabilityRequest
       ? input.conversationId
       : (input as DevExecutorInput).sessionId;
 
+    const agentId = isCapabilityRequest
+      ? (typeof input.params.agentId === 'string' ? input.params.agentId : undefined)
+      : undefined;
+
     const runId = 'runId' in input ? (input as DevExecutorInput).runId : undefined;
-    this.logger.log(`[openclaw] ${runId ? `runId=${runId} ` : ''}delegating task`);
+    this.logger.log(`[openclaw] ${runId ? `runId=${runId} ` : ''}${agentId ? `agent=${agentId} ` : ''}delegating task`);
 
     const result = await this.openclaw.delegateTask({
       message,
       sessionKey,
+      agentId,
     });
 
     return {

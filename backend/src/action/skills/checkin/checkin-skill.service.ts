@@ -68,7 +68,7 @@ export class CheckinSkillService implements ICapability {
     });
 
     const page = await browser.newPage();
-    await browser.goto(page, config.targetUrl, 'networkidle');
+    await this.openTargetPage(browser, page);
 
     // 2. 检查是否需要登录
     const currentUrl = page.url();
@@ -177,12 +177,19 @@ export class CheckinSkillService implements ICapability {
   /** 等待页面回到目标页 */
   private async waitForTargetPage(browser: BrowserTool, page: PageHandle): Promise<void> {
     const config = this.config!;
-    // 登录后可能已自动跳转，等待 networkidle
     await this.sleep(3000);
     const url = page.url();
     if (!url.includes(new URL(config.targetUrl).hostname)) {
-      await browser.goto(page, config.targetUrl, 'networkidle');
+      await this.openTargetPage(browser, page);
     }
+  }
+
+  /** 企业站常驻轮询较多，避免使用 networkidle 导致误判超时 */
+  private async openTargetPage(browser: BrowserTool, page: PageHandle): Promise<void> {
+    const config = this.config!;
+    await browser.goto(page, config.targetUrl, 'domcontentloaded');
+    await browser.waitFor(page, 'body');
+    await this.sleep(1000);
   }
 
   /** 点击打卡入口（首页的打卡图标） */

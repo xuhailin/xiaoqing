@@ -1,16 +1,23 @@
-import { Component, OnInit, OnDestroy, signal, inject, viewChild, ElementRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, inject, viewChild, ElementRef, HostListener } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { ConversationService, Message, DebugMeta, TraceStep, WorldState } from '../core/services/conversation.service';
-import { JsonPipe } from '@angular/common';
+import { JsonPipe, DOCUMENT } from '@angular/common';
 import { PersonaService, EvolutionChange } from '../core/services/persona.service';
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
+import { MessageContentComponent } from './message-content.component';
+
+type MessageDebugEntry = {
+  debugMeta: DebugMeta | null;
+  traceSteps: TraceStep[];
+  openclawUsed: boolean;
+};
 
 @Component({
   selector: 'app-chat',
   standalone: true,
-  imports: [JsonPipe, AppBadgeComponent, AppButtonComponent],
+  imports: [JsonPipe, AppBadgeComponent, AppButtonComponent, MessageContentComponent],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss',
 })
@@ -18,6 +25,7 @@ export class ChatComponent implements OnInit, OnDestroy {
   private conversation = inject(ConversationService);
   private personaService = inject(PersonaService);
   private route = inject(ActivatedRoute);
+  private document = inject(DOCUMENT);
   private routeSub?: Subscription;
 
   private inputEl = viewChild<ElementRef<HTMLTextAreaElement>>('inputEl');
@@ -30,13 +38,10 @@ export class ChatComponent implements OnInit, OnDestroy {
 
   injectedMemories = signal<Array<{ id: string; type: string; content: string }>>([]);
   worldState = signal<WorldState | null>(null);
-  debugMeta = signal<DebugMeta | null>(null);
-  showDebugPanel = signal(false);
-  openclawUsed = signal(false);
-
-  // ── Trace ──────────────────────────────────────────────
-  traceSteps = signal<TraceStep[]>([]);
-  showTraceDetail = signal(false);
+  messageDebugState = signal<Record<string, MessageDebugEntry>>({});
+  expandedTraceMessageId = signal<string | null>(null);
+  activeDebugMessageId = signal<string | null>(null);
+  copyDebugFeedback = signal<string | null>(null);
 
   evolveSuggestion = signal<EvolutionChange[] | null>(null);
   evolveConfirming = signal(false);
@@ -57,6 +62,13 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.routeSub?.unsubscribe();
   }
 
+  @HostListener('document:keydown.escape')
+  handleEscapeKey() {
+    if (this.activeDebugMessageId()) {
+      this.closeDebugDialog();
+    }
+  }
+
   private async loadConversation(id: string) {
     // flush 旧会话（fire-and-forget，不阻塞切换）
     const previousId = this.conversationId();
@@ -72,10 +84,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.evolveSuggestion.set(null);
     this.injectedMemories.set([]);
     this.worldState.set(null);
-    this.debugMeta.set(null);
-    this.traceSteps.set([]);
-    this.showDebugPanel.set(false);
-    this.showTraceDetail.set(false);
+    this.resetMessageDebugState();
     await this.loadMessages(id);
     await this.fetchWorldState(id);
     this.checkPendingEvolution();
@@ -83,6 +92,7 @@ export class ChatComponent implements OnInit, OnDestroy {
 
   private async loadCurrent() {
     this.error.set(null);
+    this.resetMessageDebugState();
     try {
       const res = await this.conversation.getOrCreateCurrent().toPromise();
       if (res?.id) {
@@ -146,10 +156,16 @@ export class ChatComponent implements OnInit, OnDestroy {
         if (res.injectedMemories) {
           this.injectedMemories.set(res.injectedMemories);
         }
-        this.debugMeta.set(res.debugMeta ?? null);
-        this.openclawUsed.set(!!res.openclawUsed);
-        this.traceSteps.set(res.trace ?? []);
-        this.showTraceDetail.set(false);
+        if (res.debugMeta || res.trace?.length || res.openclawUsed) {
+          this.attachMessageDebugState(res.assistantMessage.id, {
+            debugMeta: res.debugMeta ?? null,
+            openclawUsed: !!res.openclawUsed,
+            traceSteps: res.trace ?? [],
+          });
+        }
+        this.expandedTraceMessageId.set(null);
+        this.activeDebugMessageId.set(null);
+        this.copyDebugFeedback.set(null);
         this.conversation.notifyListRefresh();
         await this.fetchWorldState(cid);
         this.checkPendingEvolution();
@@ -198,12 +214,67 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.personaService.clearPendingEvolution().subscribe();
   }
 
-  toggleDebugPanel() {
-    this.showDebugPanel.update((v) => !v);
+  private resetMessageDebugState() {
+    this.messageDebugState.set({});
+    this.expandedTraceMessageId.set(null);
+    this.activeDebugMessageId.set(null);
+    this.copyDebugFeedback.set(null);
   }
 
-  toggleTraceDetail() {
-    this.showTraceDetail.update((v) => !v);
+  private attachMessageDebugState(messageId: string, entry: MessageDebugEntry) {
+    this.messageDebugState.update((state) => ({
+      ...state,
+      [messageId]: entry,
+    }));
+  }
+
+  toggleTraceDetail(messageId: string) {
+    this.expandedTraceMessageId.update((current) => current === messageId ? null : messageId);
+  }
+
+  openDebugDialog(messageId: string) {
+    this.activeDebugMessageId.set(messageId);
+    this.copyDebugFeedback.set(null);
+  }
+
+  closeDebugDialog() {
+    this.activeDebugMessageId.set(null);
+    this.copyDebugFeedback.set(null);
+  }
+
+  async copyDebugInfo(messageId: string) {
+    const entry = this.messageDebugState()[messageId];
+    if (!entry?.debugMeta) return;
+    try {
+      await this.writeToClipboard(JSON.stringify(entry.debugMeta, null, 2));
+      this.copyDebugFeedback.set('已复制');
+    } catch {
+      this.copyDebugFeedback.set('复制失败');
+    }
+  }
+
+  private async writeToClipboard(text: string) {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+
+    const textarea = this.document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    this.document.body.appendChild(textarea);
+    textarea.select();
+    const copied = this.document.execCommand('copy');
+    this.document.body.removeChild(textarea);
+    if (!copied) {
+      throw new Error('copy failed');
+    }
+  }
+
+  formatDebugJson(debugMeta: DebugMeta): string {
+    return JSON.stringify(debugMeta, null, 2);
   }
 
   /** 将 trace detail 对象格式化为可读的键值对行；pipeline 单独格式化为「管道状态」小节 */

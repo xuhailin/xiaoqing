@@ -1,15 +1,17 @@
 import { ConfigService } from '@nestjs/config';
+import { OpenClawRegistryService } from './openclaw-registry.service';
 import { OpenClawService } from './openclaw.service';
 
 describe('OpenClawService', () => {
   describe('FEATURE_OPENCLAW disabled', () => {
-    it('delegateTask returns without remote call when FEATURE_OPENCLAW is not true', async () => {
+    it('delegateTask returns error when no agents registered', async () => {
       const config = new ConfigService({
         FEATURE_OPENCLAW: 'false',
         OPENCLAW_PLUGIN_BASE_URL: 'https://example.com',
         OPENCLAW_TOKEN: 'token',
       });
-      const service = new OpenClawService(config);
+      const registry = new OpenClawRegistryService(config);
+      const service = new OpenClawService(registry);
       const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true, text: () => Promise.resolve('') } as Response);
 
       const result = await service.delegateTask({
@@ -17,24 +19,18 @@ describe('OpenClawService', () => {
         sessionKey: 'sk',
       });
 
-      expect(result).toEqual({ success: false, content: '', error: 'OpenClaw 已禁用' });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('无可用 Agent');
       expect(fetchSpy).not.toHaveBeenCalled();
       fetchSpy.mockRestore();
     });
 
-    it('delegateTask returns without remote call when FEATURE_OPENCLAW is unset', async () => {
-      const config = new ConfigService({
-        OPENCLAW_PLUGIN_BASE_URL: 'https://example.com',
-      });
-      const service = new OpenClawService(config);
-      const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true, text: () => Promise.resolve('') } as Response);
+    it('isAvailable returns false when no agents', () => {
+      const config = new ConfigService({});
+      const registry = new OpenClawRegistryService(config);
+      const service = new OpenClawService(registry);
 
-      const result = await service.delegateTask({ message: 'test' });
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('OpenClaw 已禁用');
-      expect(fetchSpy).not.toHaveBeenCalled();
-      fetchSpy.mockRestore();
+      expect(service.isAvailable()).toBe(false);
     });
   });
 });

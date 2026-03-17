@@ -20,6 +20,16 @@ import type { LocalSkillRunResult } from '../../action/local-skills/local-skill.
 import type { SystemSelf } from '../../system-self/system-self.types';
 import type { PostTurnPlan } from '../post-turn/post-turn.types';
 
+export type MessageContentType = 'text' | 'markdown';
+
+export interface ConversationMessageDto {
+  id: string;
+  role: string;
+  content: string;
+  contentType: MessageContentType;
+  createdAt: Date;
+}
+
 export interface MemoryRecallPlan {
   candidatesCount: number;
   selectedCount: number;
@@ -93,8 +103,8 @@ export interface TurnContext {
 }
 
 export interface SendMessageResult {
-  userMessage: { id: string; role: string; content: string; createdAt: Date };
-  assistantMessage: { id: string; role: string; content: string; createdAt: Date };
+  userMessage: ConversationMessageDto;
+  assistantMessage: ConversationMessageDto;
   injectedMemories: Array<{ id: string; type: string; content: string }>;
   openclawUsed?: boolean;
   localSkillUsed?: 'weather' | 'book_download' | 'general_action' | 'timesheet' | 'reminder';

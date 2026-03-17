@@ -3,10 +3,13 @@ import { HttpClient } from '@angular/common/http';
 import { Subject } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
+export type MessageContentType = 'text' | 'markdown';
+
 export interface Message {
   id: string;
   role: string;
   content: string;
+  contentType?: MessageContentType;
   createdAt: string;
 }
 

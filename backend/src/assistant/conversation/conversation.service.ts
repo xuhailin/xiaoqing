@@ -7,9 +7,10 @@ import type { WorldStateUpdate } from '../../infra/world-state/world-state.types
 import { DailyMomentService } from '../daily-moment/daily-moment.service';
 import { CognitiveGrowthService } from '../cognitive-pipeline/cognitive-growth.service';
 import { AssistantOrchestrator } from './assistant-orchestrator.service';
-import type { SendMessageResult } from './orchestration.types';
+import type { ConversationMessageDto, SendMessageResult } from './orchestration.types';
 import { FeatureFlagConfig } from './feature-flag.config';
 import { SummarizeTriggerService } from './summarize-trigger.service';
+import { toConversationMessageDto } from './message.dto';
 
 type ConversationWithCount = Prisma.ConversationGetPayload<{
   include: { _count: { select: { messages: true } } };
@@ -96,19 +97,12 @@ export class ConversationService {
     return { deletedMemories, growthCleanup };
   }
 
-  async getMessages(conversationId: string): Promise<
-    Array<{ id: string; role: string; content: string; createdAt: Date }>
-  > {
+  async getMessages(conversationId: string): Promise<ConversationMessageDto[]> {
     const messages = await this.prisma.message.findMany({
       where: { conversationId },
       orderBy: { createdAt: 'asc' },
     });
-    return messages.map((m) => ({
-      id: m.id,
-      role: m.role,
-      content: m.content,
-      createdAt: m.createdAt,
-    }));
+    return messages.map(toConversationMessageDto);
   }
 
   async listDailyMoments(conversationId: string) {

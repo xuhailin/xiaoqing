@@ -36,63 +36,90 @@
   }
 
   <div class="messages" #messagesEl>
-    @for (m of messages(); track m.id; let last = $last) {
+    @for (m of messages(); track m.id) {
       <div class="message" [class.user]="m.role === 'user'" [class.assistant]="m.role === 'assistant'">
         <span class="role-label">{{ m.role === 'user' ? '我' : 'AI' }}</span>
-        <div class="bubble">{{ m.content }}</div>
+        <div class="bubble">
+          <app-message-content
+            [content]="m.content"
+            [contentType]="m.contentType"
+            [role]="m.role"
+          />
+        </div>
 
-        @if (last && m.role === 'assistant' && traceSteps().length) {
-          <div class="trace-bar">
-            <div class="trace-badges">
-              @for (step of traceSteps(); track step.seq; let isLast = $last) {
-                <app-badge class="trace-badge" [tone]="traceTone(step.status)">
-                  {{ step.title }}
-                </app-badge>
-                @if (!isLast) {
-                  <span class="trace-arrow">→</span>
-                }
-              }
-            </div>
-            @if (traceSteps().length) {
-              <app-button type="button" variant="ghost" size="xs" class="trace-toggle"
-                (click)="toggleTraceDetail()">
-                {{ showTraceDetail() ? '收起' : '详情' }}
-              </app-button>
-            }
-          </div>
+        @if (m.role === 'assistant') {
+          @if (messageDebugState()[m.id]; as messageDebug) {
+            @if (messageDebug.traceSteps.length) {
+              <div class="trace-bar">
+                <div class="trace-badges">
+                  @for (step of messageDebug.traceSteps; track step.seq; let isLast = $last) {
+                    <app-badge class="trace-badge" [tone]="traceTone(step.status)">
+                      {{ step.title }}
+                    </app-badge>
+                    @if (!isLast) {
+                      <span class="trace-arrow">→</span>
+                    }
+                  }
+                </div>
 
-          @if (showTraceDetail()) {
-            <div class="trace-detail">
-              @for (step of traceSteps(); track step.seq; let index = $index) {
-                <div class="trace-step-card">
-                  <div class="trace-step-header">
-                    <span class="trace-step-seq">Step {{ index + 1 }}</span>
-                    <span class="trace-step-title">{{ step.title }}</span>
-                    @if (isPipelineTraceStep(step)) {
-                      <app-badge class="trace-step-tag" tone="info" size="sm">管道</app-badge>
-                    }
-                    @if (hasPipelineInDetail(step) && !isPipelineTraceStep(step)) {
-                      <app-badge class="trace-step-tag trace-step-tag--muted" tone="neutral" appearance="outline" size="sm">含管道</app-badge>
-                    }
-                    <span class="trace-step-status"
-                      [class.trace-step-status--success]="step.status === 'success'"
-                      [class.trace-step-status--fail]="step.status === 'fail'"
-                      [class.trace-step-status--skip]="step.status === 'skip'">
-                      {{ step.status === 'success' ? '✓' : step.status === 'fail' ? '✗' : '—' }}
-                    </span>
-                    @if (step.durationMs > 0) {
-                      <span class="trace-step-duration">{{ step.durationMs }}ms</span>
-                    }
-                  </div>
-                  <pre class="trace-step-detail">{{ formatDetail(step.detail) }}</pre>
+                <div class="trace-actions">
+                  <app-button type="button" variant="ghost" size="xs" class="trace-toggle"
+                    (click)="toggleTraceDetail(m.id)">
+                    {{ expandedTraceMessageId() === m.id ? '收起步骤' : '步骤详情' }}
+                  </app-button>
+                  @if (messageDebug.debugMeta) {
+                    <app-button type="button" variant="ghost" size="xs" class="trace-debug-trigger"
+                      (click)="openDebugDialog(m.id)">
+                      调试信息
+                    </app-button>
+                  }
+                </div>
+              </div>
+
+              @if (expandedTraceMessageId() === m.id) {
+                <div class="trace-detail">
+                  @for (step of messageDebug.traceSteps; track step.seq; let index = $index) {
+                    <div class="trace-step-card">
+                      <div class="trace-step-header">
+                        <span class="trace-step-seq">Step {{ index + 1 }}</span>
+                        <span class="trace-step-title">{{ step.title }}</span>
+                        @if (isPipelineTraceStep(step)) {
+                          <app-badge class="trace-step-tag" tone="info" size="sm">管道</app-badge>
+                        }
+                        @if (hasPipelineInDetail(step) && !isPipelineTraceStep(step)) {
+                          <app-badge class="trace-step-tag trace-step-tag--muted" tone="neutral" appearance="outline" size="sm">含管道</app-badge>
+                        }
+                        <span class="trace-step-status"
+                          [class.trace-step-status--success]="step.status === 'success'"
+                          [class.trace-step-status--fail]="step.status === 'fail'"
+                          [class.trace-step-status--skip]="step.status === 'skip'">
+                          {{ step.status === 'success' ? '✓' : step.status === 'fail' ? '✗' : '—' }}
+                        </span>
+                        @if (step.durationMs > 0) {
+                          <span class="trace-step-duration">{{ step.durationMs }}ms</span>
+                        }
+                      </div>
+                      <pre class="trace-step-detail">{{ formatDetail(step.detail) }}</pre>
+                    </div>
+                  }
                 </div>
               }
-            </div>
+            } @else {
+              <div class="trace-bar trace-bar--meta-only">
+                @if (messageDebug.openclawUsed) {
+                  <app-badge class="openclaw-tag" tone="info" appearance="outline" size="sm">via OpenClaw</app-badge>
+                }
+                @if (messageDebug.debugMeta) {
+                  <div class="trace-actions">
+                    <app-button type="button" variant="ghost" size="xs" class="trace-debug-trigger"
+                      (click)="openDebugDialog(m.id)">
+                      调试信息
+                    </app-button>
+                  </div>
+                }
+              </div>
+            }
           }
-        }
-
-        @if (last && m.role === 'assistant' && !traceSteps().length && openclawUsed()) {
-          <app-badge class="openclaw-tag" tone="info" appearance="outline" size="sm">via OpenClaw</app-badge>
         }
       </div>
     }
@@ -118,170 +145,6 @@
     </div>
   }
 
-  @if (debugMeta()) {
-    <div class="debug-bar">
-      <app-button type="button" variant="ghost" size="xs" (click)="toggleDebugPanel()">
-        {{ showDebugPanel() ? '收起调试' : '调试信息' }}
-      </app-button>
-    </div>
-  }
-
-  @if (showDebugPanel()) {
-    @if (debugMeta(); as dm) {
-      <div class="debug-panel">
-        <div class="debug-panel-header">
-          <div class="debug-panel-title">调试信息</div>
-          @if (dm.model) {
-            <div class="debug-panel-meta">
-              <span class="debug-panel-meta-item">{{ dm.model.provider }}</span>
-              <span class="debug-panel-meta-item">{{ dm.model.modelName }}</span>
-              <span class="debug-panel-meta-item">
-                <span class="debug-flag-pill" [class.debug-flag-pill--on]="dm.model.isMock">
-                  {{ dm.model.isMock ? 'Mock' : '真实' }}
-                </span>
-              </span>
-            </div>
-          }
-        </div>
-
-        @if (dm.context) {
-          <div class="debug-section">
-            <div class="debug-section-header">上下文 & Token</div>
-            <div class="debug-section-body debug-stat-grid">
-              <div class="debug-stat-item">
-                <div class="debug-stat-label">历史轮数</div>
-                <div class="debug-stat-value">{{ dm.context.historyRounds }}</div>
-              </div>
-              <div class="debug-stat-item">
-                <div class="debug-stat-label">实际消息数</div>
-                <div class="debug-stat-value">{{ dm.context.actualMessagesUsed }}</div>
-              </div>
-              <div class="debug-stat-item">
-                <div class="debug-stat-label">估算 Token</div>
-                <div class="debug-stat-value">{{ dm.context.estimatedTokens }}</div>
-              </div>
-              <div class="debug-stat-item">
-                <div class="debug-stat-label">上下文上限</div>
-                <div class="debug-stat-value">{{ dm.context.maxContextTokens }}</div>
-              </div>
-              <div class="debug-stat-item">
-                <div class="debug-stat-label">是否截断</div>
-                <div class="debug-stat-value">
-                  <span class="debug-flag-pill" [class.debug-flag-pill--on]="dm.context.truncated">
-                    {{ dm.context.truncated ? '是' : '否' }}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        }
-
-        @if (dm.memory) {
-          <div class="debug-section">
-            <div class="debug-section-header">记忆注入</div>
-            <div class="debug-section-body debug-stat-grid">
-              <div class="debug-stat-item">
-                <div class="debug-stat-label">候选记忆数</div>
-                <div class="debug-stat-value">{{ dm.memory.candidatesCount }}</div>
-              </div>
-              <div class="debug-stat-item">
-                <div class="debug-stat-label">注入记忆数</div>
-                <div class="debug-stat-value">{{ dm.memory.injectedCount }}</div>
-              </div>
-              <div class="debug-stat-item">
-                <div class="debug-stat-label">记忆预算 Token</div>
-                <div class="debug-stat-value">{{ dm.memory.memoryBudgetTokens }}</div>
-              </div>
-              <div class="debug-stat-item">
-                <div class="debug-stat-label">需要详情</div>
-                <div class="debug-stat-value">
-                  <span class="debug-flag-pill" [class.debug-flag-pill--on]="dm.memory.needDetail">
-                    {{ dm.memory.needDetail ? '是' : '否' }}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        }
-
-        @if (dm.prompt) {
-          <div class="debug-section">
-            <div class="debug-section-header">Prompt</div>
-            <div class="debug-section-body">
-              <div class="debug-stat-grid">
-                <div class="debug-stat-item">
-                  <div class="debug-stat-label">版本</div>
-                  <div class="debug-stat-value">{{ dm.prompt.version }}</div>
-                </div>
-                <div class="debug-stat-item">
-                  <div class="debug-stat-label">系统 Prompt Token</div>
-                  <div class="debug-stat-value">{{ dm.prompt.systemPromptTokens }}</div>
-                </div>
-              </div>
-              @if (dm.prompt.systemPromptPreview) {
-                <div class="debug-text-block-label">System Prompt 预览</div>
-                <pre class="debug-text-block">{{ dm.prompt.systemPromptPreview }}</pre>
-              }
-              @if (dm.prompt.messagePreview?.length) {
-                <div class="debug-text-block-label">消息预览</div>
-                <pre class="debug-text-block">{{ dm.prompt.messagePreview | json }}</pre>
-              }
-            </div>
-          </div>
-        }
-
-        @if (dm.pipeline) {
-          <div class="debug-section">
-            <div class="debug-section-header">认知管道</div>
-            <div class="debug-section-body">
-              <div class="debug-stat-grid">
-                <div class="debug-stat-item">
-                  <div class="debug-stat-label">当前步骤</div>
-                  <div class="debug-stat-value">{{ dm.pipeline.currentStep }}</div>
-                </div>
-                <div class="debug-stat-item">
-                  <div class="debug-stat-label">事件数</div>
-                  <div class="debug-stat-value">{{ dm.pipeline.events }}</div>
-                </div>
-                <div class="debug-stat-item">
-                  <div class="debug-stat-label">严格匹配</div>
-                  <div class="debug-stat-value">
-                    <span class="debug-flag-pill" [class.debug-flag-pill--on]="dm.pipeline.strictCanonical">
-                      {{ dm.pipeline.strictCanonical ? '是' : '否' }}
-                    </span>
-                  </div>
-                </div>
-                <div class="debug-stat-item">
-                  <div class="debug-stat-label">已匹配顺序</div>
-                  <div class="debug-stat-value">{{ dm.pipeline.canonicalMatchSoFar ? '已对齐' : '偏离' }}</div>
-                </div>
-              </div>
-              @if (dm.pipeline.firstSeenOrder.length) {
-                <div class="debug-text-row">
-                  <span class="debug-text-row-label">首次出现顺序：</span>
-                  <span class="debug-text-row-value">{{ dm.pipeline.firstSeenOrder.join(' → ') }}</span>
-                </div>
-              }
-              @if (dm.pipeline.canonicalOrder.length) {
-                <div class="debug-text-row">
-                  <span class="debug-text-row-label">期望顺序：</span>
-                  <span class="debug-text-row-value">{{ dm.pipeline.canonicalOrder.join(' → ') }}</span>
-                </div>
-              }
-            </div>
-          </div>
-        }
-
-        <div class="debug-section debug-section--raw">
-          <div class="debug-section-header">Raw JSON</div>
-          <div class="debug-section-body">
-            <pre class="debug-raw-json">{{ dm | json }}</pre>
-          </div>
-        </div>
-      </div>
-    }
-  }
-
   <div class="input-row">
     <textarea
       class="ui-textarea"
@@ -297,5 +160,184 @@
       {{ loading() ? '发送中...' : '发送' }}
     </app-button>
   </div>
+
+  @if (activeDebugMessageId(); as activeMessageId) {
+    @if (messageDebugState()[activeMessageId]; as activeDebug) {
+      @if (activeDebug.debugMeta; as dm) {
+        <div class="debug-modal-backdrop" (click)="closeDebugDialog()">
+          <div class="debug-modal ui-scrollbar" (click)="$event.stopPropagation()">
+            <div class="debug-modal-header">
+              <div>
+                <div class="debug-modal-title">调试信息</div>
+                <div class="debug-modal-subtitle">仅针对这一次 assistant 回复</div>
+              </div>
+
+              <div class="debug-modal-header-actions">
+                @if (copyDebugFeedback()) {
+                  <span class="debug-copy-feedback">{{ copyDebugFeedback() }}</span>
+                }
+                <app-button type="button" variant="secondary" size="xs"
+                  (click)="copyDebugInfo(activeMessageId)">
+                  复制 JSON
+                </app-button>
+                <app-button type="button" variant="ghost" size="xs" (click)="closeDebugDialog()">
+                  关闭
+                </app-button>
+              </div>
+            </div>
+
+            @if (dm.model) {
+              <div class="debug-panel-meta">
+                <span class="debug-panel-meta-item">{{ dm.model.provider }}</span>
+                <span class="debug-panel-meta-item">{{ dm.model.modelName }}</span>
+                <span class="debug-panel-meta-item">
+                  <span class="debug-flag-pill" [class.debug-flag-pill--on]="dm.model.isMock">
+                    {{ dm.model.isMock ? 'Mock' : '真实' }}
+                  </span>
+                </span>
+              </div>
+            }
+
+            <div class="debug-modal-content">
+              @if (dm.context) {
+                <div class="debug-section">
+                  <div class="debug-section-header">上下文 & Token</div>
+                  <div class="debug-section-body debug-stat-grid">
+                    <div class="debug-stat-item">
+                      <div class="debug-stat-label">历史轮数</div>
+                      <div class="debug-stat-value">{{ dm.context.historyRounds }}</div>
+                    </div>
+                    <div class="debug-stat-item">
+                      <div class="debug-stat-label">实际消息数</div>
+                      <div class="debug-stat-value">{{ dm.context.actualMessagesUsed }}</div>
+                    </div>
+                    <div class="debug-stat-item">
+                      <div class="debug-stat-label">估算 Token</div>
+                      <div class="debug-stat-value">{{ dm.context.estimatedTokens }}</div>
+                    </div>
+                    <div class="debug-stat-item">
+                      <div class="debug-stat-label">上下文上限</div>
+                      <div class="debug-stat-value">{{ dm.context.maxContextTokens }}</div>
+                    </div>
+                    <div class="debug-stat-item">
+                      <div class="debug-stat-label">是否截断</div>
+                      <div class="debug-stat-value">
+                        <span class="debug-flag-pill" [class.debug-flag-pill--on]="dm.context.truncated">
+                          {{ dm.context.truncated ? '是' : '否' }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              }
+
+              @if (dm.memory) {
+                <div class="debug-section">
+                  <div class="debug-section-header">记忆注入</div>
+                  <div class="debug-section-body debug-stat-grid">
+                    <div class="debug-stat-item">
+                      <div class="debug-stat-label">候选记忆数</div>
+                      <div class="debug-stat-value">{{ dm.memory.candidatesCount }}</div>
+                    </div>
+                    <div class="debug-stat-item">
+                      <div class="debug-stat-label">注入记忆数</div>
+                      <div class="debug-stat-value">{{ dm.memory.injectedCount }}</div>
+                    </div>
+                    <div class="debug-stat-item">
+                      <div class="debug-stat-label">记忆预算 Token</div>
+                      <div class="debug-stat-value">{{ dm.memory.memoryBudgetTokens }}</div>
+                    </div>
+                    <div class="debug-stat-item">
+                      <div class="debug-stat-label">需要详情</div>
+                      <div class="debug-stat-value">
+                        <span class="debug-flag-pill" [class.debug-flag-pill--on]="dm.memory.needDetail">
+                          {{ dm.memory.needDetail ? '是' : '否' }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              }
+
+              @if (dm.prompt) {
+                <div class="debug-section">
+                  <div class="debug-section-header">Prompt</div>
+                  <div class="debug-section-body">
+                    <div class="debug-stat-grid">
+                      <div class="debug-stat-item">
+                        <div class="debug-stat-label">版本</div>
+                        <div class="debug-stat-value">{{ dm.prompt.version }}</div>
+                      </div>
+                      <div class="debug-stat-item">
+                        <div class="debug-stat-label">系统 Prompt Token</div>
+                        <div class="debug-stat-value">{{ dm.prompt.systemPromptTokens }}</div>
+                      </div>
+                    </div>
+                    @if (dm.prompt.systemPromptPreview) {
+                      <div class="debug-text-block-label">System Prompt 预览</div>
+                      <pre class="debug-text-block">{{ dm.prompt.systemPromptPreview }}</pre>
+                    }
+                    @if (dm.prompt.messagePreview?.length) {
+                      <div class="debug-text-block-label">消息预览</div>
+                      <pre class="debug-text-block">{{ dm.prompt.messagePreview | json }}</pre>
+                    }
+                  </div>
+                </div>
+              }
+
+              @if (dm.pipeline) {
+                <div class="debug-section">
+                  <div class="debug-section-header">认知管道</div>
+                  <div class="debug-section-body">
+                    <div class="debug-stat-grid">
+                      <div class="debug-stat-item">
+                        <div class="debug-stat-label">当前步骤</div>
+                        <div class="debug-stat-value">{{ dm.pipeline.currentStep }}</div>
+                      </div>
+                      <div class="debug-stat-item">
+                        <div class="debug-stat-label">事件数</div>
+                        <div class="debug-stat-value">{{ dm.pipeline.events }}</div>
+                      </div>
+                      <div class="debug-stat-item">
+                        <div class="debug-stat-label">严格匹配</div>
+                        <div class="debug-stat-value">
+                          <span class="debug-flag-pill" [class.debug-flag-pill--on]="dm.pipeline.strictCanonical">
+                            {{ dm.pipeline.strictCanonical ? '是' : '否' }}
+                          </span>
+                        </div>
+                      </div>
+                      <div class="debug-stat-item">
+                        <div class="debug-stat-label">已匹配顺序</div>
+                        <div class="debug-stat-value">{{ dm.pipeline.canonicalMatchSoFar ? '已对齐' : '偏离' }}</div>
+                      </div>
+                    </div>
+                    @if (dm.pipeline.firstSeenOrder.length) {
+                      <div class="debug-text-row">
+                        <span class="debug-text-row-label">首次出现顺序：</span>
+                        <span class="debug-text-row-value">{{ dm.pipeline.firstSeenOrder.join(' → ') }}</span>
+                      </div>
+                    }
+                    @if (dm.pipeline.canonicalOrder.length) {
+                      <div class="debug-text-row">
+                        <span class="debug-text-row-label">期望顺序：</span>
+                        <span class="debug-text-row-value">{{ dm.pipeline.canonicalOrder.join(' → ') }}</span>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+
+              <div class="debug-section debug-section--raw">
+                <div class="debug-section-header">Raw JSON</div>
+                <div class="debug-section-body">
+                  <pre class="debug-raw-json">{{ formatDebugJson(dm) }}</pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      }
+    }
+  }
 
 </div>
