@@ -19,6 +19,7 @@ import { ClaimEngineConfig } from '../claim-engine/claim-engine.config';
 import { ClaimUpdateService } from '../claim-engine/claim-update.service';
 import { SessionStateService } from '../claim-engine/session-state.service';
 import { ClaimSchemaRegistry } from '../claim-engine/claim-schema.registry';
+import { isFeatureEnabled } from '../../config/feature-flags';
 
 const COGNITIVE_TYPE_SET = new Set<string>(COGNITIVE_CATEGORIES);
 
@@ -91,9 +92,9 @@ export class SummarizerService {
     private sessionState: SessionStateService,
     config: ConfigService,
   ) {
-    this.featureAutoImpression = config.get('FEATURE_AUTO_IMPRESSION') !== 'false'; // default on
-    this.featureAutoAnchor = config.get('FEATURE_AUTO_ANCHOR') !== 'false'; // default on
-    this.featureImpressionRequireConfirm = config.get('FEATURE_IMPRESSION_REQUIRE_CONFIRM') === 'true'; // default off
+    this.featureAutoImpression = isFeatureEnabled(config, 'autoImpression');
+    this.featureAutoAnchor = isFeatureEnabled(config, 'autoAnchor');
+    this.featureImpressionRequireConfirm = isFeatureEnabled(config, 'impressionRequireConfirm');
   }
 
   async summarize(

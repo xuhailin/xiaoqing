@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../infra/prisma.service';
 import { PersonaService, EvolutionChange } from './persona.service';
 import { COGNITIVE_CATEGORIES } from '../memory/memory-category';
+import { isFeatureEnabled } from '../../config/feature-flags';
 
 /** 待确认的进化建议（存储在内存中，前端轮询获取） */
 export interface PendingEvolutionSuggestion {
@@ -27,7 +28,7 @@ export class EvolutionSchedulerService {
     private persona: PersonaService,
     config: ConfigService,
   ) {
-    this.enabled = config.get('FEATURE_EVOLUTION_SCHEDULER') !== 'false'; // default on
+    this.enabled = isFeatureEnabled(config, 'evolutionScheduler');
     this.densityThreshold = Number(config.get('EVOLUTION_DENSITY_THRESHOLD')) || 5;
   }
 

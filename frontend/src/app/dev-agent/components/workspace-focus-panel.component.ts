@@ -2,8 +2,8 @@ import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DevSession } from '../../core/services/dev-agent.service';
-import { ChatInputComponent } from './chat-input.component';
 import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
+import { AppButtonComponent } from '../../shared/ui/app-button.component';
 import { AppPanelComponent } from '../../shared/ui/app-panel.component';
 import { AppSectionHeaderComponent } from '../../shared/ui/app-section-header.component';
 import { AppStateComponent } from '../../shared/ui/app-state.component';
@@ -14,8 +14,8 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
   imports: [
     CommonModule,
     FormsModule,
-    ChatInputComponent,
     AppBadgeComponent,
+    AppButtonComponent,
     AppPanelComponent,
     AppSectionHeaderComponent,
     AppStateComponent,
@@ -52,15 +52,9 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       </header>
 
       <section class="new-session">
-        <app-chat-input
-          [taskInput]="taskInput"
-          [sending]="sending"
-          placeholder="描述你想在当前 workspace 发起的新 session"
-          hint="例如：排查回归失败 / 修复编译错误 / 帮我梳理 devagent workspace 结构"
-          submitLabel="新建 Session"
-          (taskInputChange)="taskInputChange.emit($event)"
-          (submit)="submit.emit()"
-        />
+        <app-button variant="primary" [stretch]="true" class="new-session-button" (click)="createSession.emit()">
+          新建 Session
+        </app-button>
       </section>
 
       <section class="session-feed">
@@ -84,7 +78,7 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
             <app-state
               [compact]="true"
               title="这个 workspace 还没有 session"
-              description="先从上面的 New Session 发起第一条任务。"
+              description="点上面的 新建 Session，在右侧空白会话里开始第一条任务。"
             />
           } @else {
             @for (session of sortedSessions(); track session.id) {
@@ -132,13 +126,12 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
     }
 
     .focus-header {
-      padding: var(--space-4);
+      padding: var(--workbench-panel-padding);
       display: flex;
       flex-direction: column;
-      gap: var(--space-4);
+      gap: var(--workbench-stack-gap);
       border-bottom: 1px solid var(--color-border-light);
-      background:
-        linear-gradient(180deg, rgba(79, 109, 245, 0.08), rgba(255, 255, 255, 0));
+      background: var(--workbench-surface-gradient-soft);
     }
 
     .header-actions {
@@ -160,7 +153,12 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
     }
 
     .new-session {
+      padding: var(--workbench-panel-padding);
       border-bottom: 1px solid var(--color-border-light);
+    }
+
+    .new-session-button {
+      width: 100%;
     }
 
     .session-feed {
@@ -171,7 +169,7 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
     }
 
     .section-head {
-      padding: var(--space-4);
+      padding: var(--workbench-panel-padding);
       border-bottom: 1px solid var(--color-border-light);
     }
 
@@ -192,15 +190,15 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       flex: 1 1 auto;
       min-height: 0;
       overflow-y: auto;
-      padding: var(--space-3);
+      padding: 0.75rem;
       display: flex;
       flex-direction: column;
-      gap: var(--space-3);
+      gap: var(--workbench-stack-gap);
     }
 
     .session-card {
       width: 100%;
-      padding: var(--space-4);
+      padding: var(--workbench-card-padding);
       text-align: left;
       color: var(--color-text);
       cursor: pointer;
@@ -227,16 +225,16 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       display: flex;
       flex-wrap: wrap;
       gap: 6px 12px;
-      margin-top: var(--space-3);
+      margin-top: 0.625rem;
       font-size: var(--font-size-xs);
       color: var(--color-text-secondary);
     }
 
     .card-task {
-      margin-top: var(--space-3);
+      margin-top: 0.625rem;
       font-size: var(--font-size-sm);
       color: var(--color-workbench-muted);
-      line-height: 1.6;
+      line-height: 1.55;
       display: -webkit-box;
       -webkit-line-clamp: 3;
       -webkit-box-orient: vertical;
@@ -249,12 +247,9 @@ export class WorkspaceFocusPanelComponent {
   @Input() workspaceOptions: string[] = [];
   @Input() sessions: DevSession[] = [];
   @Input() activeSessionId: string | null = null;
-  @Input() taskInput = '';
-  @Input() sending = false;
 
   @Output() workspaceRootChange = new EventEmitter<string>();
-  @Output() taskInputChange = new EventEmitter<string>();
-  @Output() submit = new EventEmitter<void>();
+  @Output() createSession = new EventEmitter<void>();
   @Output() selectSession = new EventEmitter<string>();
 
   protected readonly workspaceListId = 'dev-agent-workspace-options';

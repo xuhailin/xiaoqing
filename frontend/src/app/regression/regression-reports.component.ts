@@ -20,7 +20,7 @@ import {
   imports: [DatePipe, DecimalPipe, NgClass],
   template: `
     <div class="regression-page">
-      <section class="hero">
+      <section class="hero ui-workbench-surface ui-workbench-surface--soft ui-workbench-surface--compact">
         <div>
           <p class="eyebrow">QA / Replay</p>
           <h1>回归日志</h1>
@@ -38,7 +38,7 @@ import {
       <section class="mode-grid">
         @for (card of reportCards(); track card.mode) {
           <div
-            class="mode-card"
+            class="mode-card ui-workbench-card"
             [class.active]="selectedMode() === card.mode"
             [class.empty]="!card.report"
             (click)="selectedMode.set(card.mode)"
@@ -119,19 +119,19 @@ import {
 
       @if (currentEnvelope()?.report; as report) {
         <section class="summary-strip">
-          <div class="summary-card">
+          <div class="summary-card ui-workbench-card">
             <span class="summary-label">Run ID</span>
             <span class="summary-value mono">{{ report.runId }}</span>
           </div>
-          <div class="summary-card">
+          <div class="summary-card ui-workbench-card">
             <span class="summary-label">生成时间</span>
             <span class="summary-value">{{ report.generatedAt | date:'yyyy-MM-dd HH:mm:ss' }}</span>
           </div>
-          <div class="summary-card">
+          <div class="summary-card ui-workbench-card">
             <span class="summary-label">硬失败</span>
             <span class="summary-value">{{ report.summary.hardFailed }}</span>
           </div>
-          <div class="summary-card">
+          <div class="summary-card ui-workbench-card">
             <span class="summary-label">软失败</span>
             <span class="summary-value">{{ report.summary.softFailed }}</span>
           </div>
@@ -139,7 +139,7 @@ import {
 
         <section class="results-list">
           @for (result of report.results; track result.scenario.id) {
-            <details class="result-card" [attr.open]="result.status !== 'passed' ? true : null">
+            <details class="result-card ui-workbench-surface" [attr.open]="result.status !== 'passed' ? true : null">
               <summary>
                 <div class="summary-main">
                   <span class="status-badge" [ngClass]="statusClass(result.status)">{{ statusLabel(result.status) }}</span>
@@ -204,19 +204,19 @@ import {
 
                 @if (result.evidence) {
                   <div class="meta-grid">
-                    <div class="meta-card">
+                    <div class="meta-card ui-workbench-card">
                       <span class="meta-label">最终路由</span>
                       <span class="meta-value">{{ result.evidence.finalRoute || '-' }}</span>
                     </div>
-                    <div class="meta-card">
+                    <div class="meta-card ui-workbench-card">
                       <span class="meta-label">能力命中</span>
                       <span class="meta-value">{{ joinValues(result.evidence.usedCapabilities) }}</span>
                     </div>
-                    <div class="meta-card">
+                    <div class="meta-card ui-workbench-card">
                       <span class="meta-label">提醒副作用</span>
                       <span class="meta-value">{{ result.evidence.createdChatReminders.length }}</span>
                     </div>
-                    <div class="meta-card">
+                    <div class="meta-card ui-workbench-card">
                       <span class="meta-label">清理结果</span>
                       <span class="meta-value">{{ result.evidence.cleanup.deletedConversation ? '已清理' : '未清理' }}</span>
                     </div>
@@ -230,7 +230,7 @@ import {
                   <div class="turn-log">
                     <h3>逐轮日志</h3>
                     @for (turn of result.evidence.turns; track turn.index) {
-                      <div class="turn-card">
+                      <div class="turn-card ui-workbench-card">
                         <div class="turn-head">
                           <span>Turn {{ turn.index + 1 }}</span>
                           <span>{{ turn.route }}</span>
@@ -265,10 +265,10 @@ import {
     }
 
     .regression-page {
-      padding: var(--space-4);
+      padding: var(--workbench-shell-padding);
       display: flex;
       flex-direction: column;
-      gap: 24px;
+      gap: var(--workbench-section-gap);
       min-height: 100%;
       background: transparent;
       color: var(--color-text);
@@ -277,15 +277,8 @@ import {
     .hero {
       display: flex;
       justify-content: space-between;
-      gap: 24px;
+      gap: 20px;
       align-items: flex-start;
-      padding: 24px 28px;
-      border-radius: 24px;
-      background:
-        radial-gradient(circle at top right, rgba(92, 103, 242, 0.08), transparent 28%),
-        var(--color-workbench-panel-strong);
-      border: 1px solid var(--color-workbench-border);
-      box-shadow: var(--shadow-md);
     }
 
     .eyebrow {
@@ -298,14 +291,14 @@ import {
 
     h1 {
       margin: 0;
-      font-size: 36px;
+      font-size: 32px;
       line-height: 1;
       letter-spacing: -0.04em;
       color: var(--color-text);
     }
 
     .hero-copy {
-      margin: 12px 0 0;
+      margin: 10px 0 0;
       max-width: 720px;
       color: var(--color-text-secondary);
       line-height: 1.6;
@@ -316,7 +309,7 @@ import {
       border-radius: 999px;
       background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover));
       color: #f4f6f1;
-      padding: 12px 18px;
+      padding: 10px 16px;
       font-size: 14px;
       cursor: pointer;
       box-shadow: var(--shadow-sm);
@@ -324,8 +317,8 @@ import {
 
     .error-banner,
     .empty-state {
-      padding: 16px 18px;
-      border-radius: 18px;
+      padding: var(--workbench-card-padding);
+      border-radius: var(--workbench-card-radius);
       background: var(--color-error-bg);
       border: 1px solid var(--color-error-border);
       color: var(--color-error);
@@ -334,18 +327,14 @@ import {
     .mode-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 16px;
+      gap: var(--workbench-stack-gap);
     }
 
     .mode-card {
       text-align: left;
-      border: 1px solid var(--color-workbench-border);
-      background: var(--color-workbench-panel);
-      border-radius: 22px;
-      padding: 18px;
+      padding: var(--workbench-card-padding);
       cursor: pointer;
       transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
-      box-shadow: var(--shadow-sm);
     }
 
     .mode-card:hover,
@@ -366,7 +355,7 @@ import {
     }
 
     .mode-actions {
-      margin-top: 16px;
+      margin-top: 12px;
       display: flex;
       justify-content: space-between;
       gap: 12px;
@@ -427,16 +416,16 @@ import {
     .mode-stats {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 10px;
-      margin-top: 16px;
+      gap: 8px;
+      margin-top: 12px;
     }
 
     .mode-stats div {
       display: flex;
       flex-direction: column;
       gap: 4px;
-      padding: 10px 12px;
-      border-radius: 16px;
+      padding: 8px 10px;
+      border-radius: 14px;
       background: rgba(255, 255, 255, 0.74);
     }
 
@@ -452,38 +441,39 @@ import {
     }
 
     .console-panel {
-      border-radius: 24px;
-      background: #17211f;
-      color: #d9e1db;
-      padding: 18px 20px 20px;
+      border-radius: var(--workbench-panel-radius);
+      background: linear-gradient(180deg, #182235 0%, #101827 100%);
+      color: #dce5fb;
+      padding: 16px 18px 18px;
+      box-shadow: 0 18px 36px rgba(16, 24, 39, 0.18);
     }
 
     .console-head {
       display: flex;
       justify-content: space-between;
-      gap: 16px;
+      gap: 12px;
       align-items: flex-start;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
     }
 
     .console-title {
       margin: 0;
       font-size: 15px;
       font-weight: 700;
-      color: #f1f5ef;
+      color: #f4f7ff;
     }
 
     .console-subtitle {
       margin: 6px 0 0;
       font-size: 12px;
-      color: #8ea098;
+      color: #93a4cc;
     }
 
     .console-meta {
       display: flex;
       gap: 12px;
       flex-wrap: wrap;
-      color: #9db0a8;
+      color: #9fb0d6;
       font-size: 12px;
       font-family: "SFMono-Regular", "JetBrains Mono", monospace;
     }
@@ -496,30 +486,27 @@ import {
       overflow: auto;
       border-radius: 18px;
       background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(218, 231, 223, 0.08);
+      border: 1px solid rgba(180, 198, 255, 0.1);
       white-space: pre-wrap;
       word-break: break-word;
       font-size: 12px;
       line-height: 1.55;
       font-family: "SFMono-Regular", "JetBrains Mono", monospace;
-      color: #dce6e0;
+      color: #dce5fb;
     }
 
     .summary-strip {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 14px;
+      gap: var(--workbench-stack-gap);
     }
 
     .summary-card,
     .meta-card {
-      border-radius: 18px;
-      background: var(--color-workbench-panel-strong);
-      border: 1px solid var(--color-workbench-border);
-      padding: 16px;
+      padding: var(--workbench-card-padding);
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
     }
 
     .summary-label,
@@ -532,7 +519,7 @@ import {
 
     .summary-value,
     .meta-value {
-      font-size: 18px;
+      font-size: 1rem;
       color: var(--color-text);
       font-weight: 600;
     }
@@ -545,13 +532,10 @@ import {
     .results-list {
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: var(--workbench-stack-gap);
     }
 
     .result-card {
-      border: 1px solid var(--color-workbench-border);
-      border-radius: 22px;
-      background: var(--color-workbench-panel-strong);
       overflow: hidden;
     }
 
@@ -562,7 +546,7 @@ import {
       justify-content: space-between;
       gap: 16px;
       align-items: center;
-      padding: 18px 20px;
+      padding: var(--workbench-card-padding);
     }
 
     summary::-webkit-details-marker {
@@ -626,15 +610,15 @@ import {
     }
 
     .result-body {
-      padding: 0 20px 20px;
+      padding: 0 1rem 1rem;
       display: flex;
       flex-direction: column;
-      gap: 18px;
+      gap: 0.875rem;
     }
 
     .error-box {
-      padding: 14px 16px;
-      border-radius: 16px;
+      padding: 0.75rem 0.875rem;
+      border-radius: var(--workbench-card-radius);
       background: var(--color-error-bg);
       color: var(--color-error);
       white-space: pre-wrap;
@@ -644,10 +628,10 @@ import {
     .result-actions {
       display: flex;
       justify-content: space-between;
-      gap: 14px;
+      gap: 12px;
       align-items: center;
-      padding: 12px 14px;
-      border-radius: 16px;
+      padding: 0.625rem 0.75rem;
+      border-radius: var(--workbench-card-radius);
       background: rgba(255, 255, 255, 0.66);
       border: 1px solid var(--color-workbench-border);
     }
@@ -655,7 +639,7 @@ import {
     .diagnose-btn {
       border: none;
       border-radius: 999px;
-      padding: 10px 15px;
+      padding: 8px 12px;
       background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover));
       color: #f4f7f6;
       font-size: 13px;
@@ -677,8 +661,8 @@ import {
     .signal-block h3,
     .final-reply h3,
     .turn-log h3 {
-      margin: 0 0 10px;
-      font-size: 14px;
+      margin: 0 0 8px;
+      font-size: 13px;
       color: var(--color-workbench-muted);
       text-transform: uppercase;
       letter-spacing: 0.06em;
@@ -687,10 +671,10 @@ import {
     .signal-row {
       display: grid;
       grid-template-columns: 220px 1fr;
-      gap: 12px;
-      padding: 10px 12px;
+      gap: 10px;
+      padding: 8px 10px;
       border-radius: 14px;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     .signal-row.fail {
@@ -716,15 +700,15 @@ import {
     .meta-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 12px;
+      gap: var(--workbench-stack-gap);
     }
 
     .final-reply pre {
       margin: 0;
       white-space: pre-wrap;
       word-break: break-word;
-      padding: 16px;
-      border-radius: 18px;
+      padding: 0.875rem;
+      border-radius: var(--workbench-card-radius);
       background: rgba(255, 255, 255, 0.7);
       border: 1px solid var(--color-workbench-border);
       line-height: 1.65;
@@ -734,20 +718,17 @@ import {
     .turn-log {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 0.75rem;
     }
 
     .turn-card {
-      border-radius: 18px;
-      background: rgba(255, 255, 255, 0.72);
-      border: 1px solid var(--color-workbench-border);
-      padding: 14px 16px;
+      padding: 0.75rem 0.875rem;
     }
 
     .turn-head {
       display: flex;
       gap: 10px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
       color: var(--color-text-secondary);
       font-size: 12px;
       font-family: "SFMono-Regular", "JetBrains Mono", monospace;
@@ -758,7 +739,7 @@ import {
       grid-template-columns: 70px 1fr;
       gap: 12px;
       align-items: start;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
     }
 
     .turn-line:last-child {
@@ -781,7 +762,7 @@ import {
 
     @media (max-width: 900px) {
       .regression-page {
-        padding: 18px;
+        padding: var(--workbench-shell-padding-mobile);
       }
 
       .hero {

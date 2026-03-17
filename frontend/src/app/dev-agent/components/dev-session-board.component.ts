@@ -104,7 +104,7 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       min-height: 0;
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: var(--space-4);
+      gap: var(--workbench-section-gap);
     }
 
     .lane {
@@ -119,7 +119,7 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       align-items: flex-start;
       justify-content: space-between;
       gap: var(--space-3);
-      padding: var(--space-4);
+      padding: var(--workbench-panel-padding);
       border-bottom: 1px solid var(--color-border-light);
     }
 
@@ -140,15 +140,15 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       flex: 1 1 auto;
       min-height: 0;
       overflow-y: auto;
-      padding: var(--space-3);
+      padding: 0.75rem;
       display: flex;
       flex-direction: column;
-      gap: var(--space-3);
+      gap: var(--workbench-stack-gap);
     }
 
     .session-card {
       width: 100%;
-      padding: var(--space-4);
+      padding: var(--workbench-card-padding);
       text-align: left;
       cursor: pointer;
       color: var(--color-text);
@@ -176,16 +176,16 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       display: flex;
       flex-wrap: wrap;
       gap: 6px 12px;
-      margin-top: var(--space-3);
+      margin-top: 0.625rem;
       font-size: 11px;
       color: var(--color-text-secondary);
     }
 
     .card-task {
-      margin-top: var(--space-3);
+      margin-top: 0.625rem;
       font-size: var(--font-size-sm);
       color: var(--color-workbench-muted);
-      line-height: 1.6;
+      line-height: 1.55;
       display: -webkit-box;
       -webkit-line-clamp: 3;
       -webkit-box-orient: vertical;
@@ -193,8 +193,8 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
     }
 
     .card-stats {
-      margin-top: var(--space-4);
-      padding-top: var(--space-3);
+      margin-top: 0.75rem;
+      padding-top: 0.625rem;
       border-top: 1px solid var(--color-border-light);
     }
 

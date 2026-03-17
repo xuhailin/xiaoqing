@@ -23,6 +23,7 @@ export class DevAgentPageStore {
   lastResult = signal<DevTaskResult | null>(null);
   selectedSessionId = signal<string | null>(null);
   selectedRunId = signal<string | null>(null);
+  draftSessionActive = signal(false);
   cancellingRunId = signal<string | null>(null);
   workspaceRootInput = signal('');
   actionNotice = signal<string | null>(null);
@@ -128,6 +129,14 @@ export class DevAgentPageStore {
     this.applySelectedSession(session);
   }
 
+  startDraftSession() {
+    this.draftSessionActive.set(true);
+    this.selectedSessionId.set(null);
+    this.selectedRunId.set(null);
+    this.lastResult.set(null);
+    this.clearRunPolling();
+  }
+
   send(
     content: string,
     options?: {
@@ -147,6 +156,7 @@ export class DevAgentPageStore {
       forceNewSession: options?.forceNewSession === true,
     }).subscribe({
       next: (result) => {
+        this.draftSessionActive.set(false);
         this.lastResult.set({
           ...result,
           run: {
@@ -379,6 +389,12 @@ export class DevAgentPageStore {
       next: (sessions) => {
         this.sessions.set(sessions);
 
+        if (this.draftSessionActive() && !preferredSessionId && !preferredRunId) {
+          this.selectedSessionId.set(null);
+          this.selectedRunId.set(null);
+          return;
+        }
+
         const activeSession = this.pickActiveSession(sessions, preferredSessionId, preferredRunId);
         if (!activeSession) {
           this.selectedSessionId.set(null);
@@ -395,6 +411,7 @@ export class DevAgentPageStore {
   }
 
   private applySelectedSession(session: DevSession, preferredRunId?: string) {
+    this.draftSessionActive.set(false);
     const currentRun = this.pickLatestRun(session, preferredRunId);
     this.selectedSessionId.set(session.id);
     this.selectedRunId.set(currentRun?.id ?? null);

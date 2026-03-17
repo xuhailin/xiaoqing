@@ -20,8 +20,8 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
     <section class="message-list ui-scrollbar" #scrollContainer>
       @if (!messages.length) {
         <app-state
-          title="AI 开发助手"
-          description="直接描述你的开发任务，右侧会按 User → Assistant → Tool → Result 的顺序展开执行过程。"
+          title="新的开发 Session"
+          description="先在下方输入你的开发任务，右侧会按 User → Assistant → Tool → Result 的顺序展开执行过程。"
         />
       } @else {
         @for (message of messages; track message.id) {
@@ -54,10 +54,10 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       flex: 1 1 auto;
       min-height: 0;
       overflow: auto;
-      padding: var(--space-4);
+      padding: var(--workbench-chat-padding);
       display: flex;
       flex-direction: column;
-      gap: var(--space-3);
+      gap: var(--workbench-chat-gap);
     }
   `],
 })

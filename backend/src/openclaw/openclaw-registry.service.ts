@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { OpenClawAgentConfig } from './openclaw.types';
+import { isFeatureEnabled } from '../config/feature-flags';
 
 /**
  * OpenClaw Agent 注册表 — 管理多个远端 OpenClaw 实例。
@@ -21,7 +22,7 @@ export class OpenClawRegistryService {
     // 1. 从 OPENCLAW_* 单实例变量构造默认 Agent（向后兼容）
     const legacyBaseUrl = (config.get('OPENCLAW_PLUGIN_BASE_URL') || '').replace(/\/$/, '');
     const legacyToken = config.get('OPENCLAW_TOKEN') || '';
-    const enabled = config.get('FEATURE_OPENCLAW') === 'true';
+    const enabled = isFeatureEnabled(config, 'openclaw');
 
     if (enabled && legacyBaseUrl) {
       const legacyAgent: OpenClawAgentConfig = {

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { isFeatureEnabled } from '../../config/feature-flags';
 
 @Injectable()
 export class ClaimEngineConfig {
@@ -7,31 +8,31 @@ export class ClaimEngineConfig {
 
   // Phase 1 defaults: write is opt-in, read is off by default.
   get writeDualEnabled(): boolean {
-    return this.config.get('FEATURE_CLAIM_WRITE_DUAL') === 'true';
+    return isFeatureEnabled(this.config, 'claimWriteDual');
   }
 
   get readNewEnabled(): boolean {
-    return this.config.get('FEATURE_CLAIM_READ_NEW') === 'true';
+    return isFeatureEnabled(this.config, 'claimReadNew');
   }
 
   get injectionEnabled(): boolean {
-    return this.config.get('FEATURE_CLAIM_INJECTION') === 'true';
+    return isFeatureEnabled(this.config, 'claimInjection');
   }
 
   get sessionStateInjectionEnabled(): boolean {
-    return this.config.get('FEATURE_SESSIONSTATE_INJECTION') === 'true';
+    return isFeatureEnabled(this.config, 'sessionStateInjection');
   }
 
   get writeInteractionEnabled(): boolean {
-    return this.config.get('FEATURE_CLAIM_WRITE_INTERACTION') === 'true';
+    return isFeatureEnabled(this.config, 'claimWriteInteraction');
   }
 
   get writeEmotionEnabled(): boolean {
-    return this.config.get('FEATURE_CLAIM_WRITE_EMOTION') === 'true';
+    return isFeatureEnabled(this.config, 'claimWriteEmotion');
   }
 
   get draftEnabled(): boolean {
-    return this.config.get('FEATURE_CLAIM_DRAFT_ENABLED') === 'true';
+    return isFeatureEnabled(this.config, 'claimDraftEnabled');
   }
 
   get injectionTokenBudget(): number {

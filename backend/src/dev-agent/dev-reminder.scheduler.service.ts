@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { DevReminderService } from './dev-reminder.service';
+import { isFeatureEnabled } from '../config/feature-flags';
 
 @Injectable()
 export class DevReminderSchedulerService implements OnModuleInit {
@@ -12,7 +13,7 @@ export class DevReminderSchedulerService implements OnModuleInit {
     private readonly reminders: DevReminderService,
     config: ConfigService,
   ) {
-    this.enabled = config.get('FEATURE_DEV_REMINDER') !== 'false';
+    this.enabled = isFeatureEnabled(config, 'devReminder');
   }
 
   onModuleInit(): void {

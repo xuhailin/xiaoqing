@@ -103,6 +103,14 @@ import type { MessageContentType } from '../core/services/conversation.service';
       white-space: pre;
     }
 
+    .markdown-content img {
+      max-width: 100%;
+      height: auto;
+      border-radius: var(--radius-md);
+      margin: var(--space-2) 0;
+      cursor: pointer;
+    }
+
     .markdown-content a {
       color: var(--color-primary);
       text-decoration: underline;
@@ -127,7 +135,7 @@ export class MessageContentComponent implements OnChanges {
   } as const;
   private static readonly SANITIZE_OPTIONS = {
     USE_PROFILES: { html: true },
-    FORBID_TAGS: ['audio', 'form', 'iframe', 'img', 'input', 'object', 'script', 'style', 'textarea', 'video'],
+    FORBID_TAGS: ['audio', 'form', 'iframe', 'input', 'object', 'script', 'style', 'textarea', 'video'],
   };
 
   @Input() content = '';

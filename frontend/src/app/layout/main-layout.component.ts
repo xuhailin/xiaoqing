@@ -89,22 +89,23 @@ import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.compone
     .drawer {
       width: var(--sidebar-width);
       min-width: var(--sidebar-width);
-      background: var(--color-sidebar);
+      background: var(--sidebar-surface-background);
       border-right: 1px solid var(--color-border);
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.45);
     }
 
     .tab-bar {
-      margin: 0 var(--space-3) var(--space-2);
+      margin: 0 var(--space-3) var(--space-1);
       flex-shrink: 0;
     }
 
     .tab-content {
       flex: 1;
       overflow-y: auto;
-      padding: 0 var(--space-3) var(--space-3);
+      padding: 0 var(--space-3) var(--space-2);
       display: flex;
       flex-direction: column;
       min-height: 0;
@@ -121,9 +122,7 @@ import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.compone
       flex: 1;
       overflow: hidden;
       min-width: 0;
-      background:
-        radial-gradient(circle at top right, rgba(92, 103, 242, 0.05), transparent 24%),
-        linear-gradient(180deg, var(--color-workbench-bg) 0%, #f3efe7 100%);
+      background: var(--workbench-shell-background);
     }
 
     .workbench-shell {
@@ -137,10 +136,12 @@ import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.compone
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: var(--space-4);
-      padding: var(--space-4) var(--space-5) var(--space-4);
-      border-bottom: 1px solid rgba(120, 111, 96, 0.08);
+      gap: var(--space-3);
+      padding: var(--workbench-header-padding);
+      border-bottom: 1px solid rgba(79, 109, 245, 0.08);
       flex-shrink: 0;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.18));
+      backdrop-filter: blur(10px);
     }
 
     .workbench-tabs {
@@ -155,16 +156,16 @@ import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.compone
 
     .workbench-eyebrow {
       display: block;
-      margin-bottom: 4px;
-      font-size: 11px;
+      margin-bottom: 2px;
+      font-size: 10px;
       letter-spacing: 0.12em;
       text-transform: uppercase;
       color: var(--color-text-muted);
     }
 
     .workbench-copy {
-      font-size: var(--font-size-sm);
-      line-height: 1.5;
+      font-size: var(--font-size-xs);
+      line-height: 1.45;
     }
 
     .workbench-stage {
@@ -177,6 +178,7 @@ import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.compone
       .workbench-header {
         flex-direction: column;
         align-items: flex-start;
+        padding: var(--workbench-header-padding-mobile);
       }
 
       .workbench-meta {

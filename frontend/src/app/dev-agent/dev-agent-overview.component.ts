@@ -11,24 +11,24 @@ import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.compone
   imports: [DevSessionBoardComponent, AppTabsComponent],
   template: `
     <div class="overview">
-      <div class="board-header">
+      <div class="board-header ui-workbench-surface ui-workbench-surface--soft ui-workbench-surface--compact">
         <div class="board-header__copy">
           <div class="board-header__eyebrow">Sessions Overview</div>
           <div class="board-header__title">会话状态总览</div>
           <div class="board-metrics">
-            <div class="metric-card">
+            <div class="metric-card ui-workbench-card">
               <span class="metric-card__value">{{ visibleBoard().summary.total }}</span>
               <span class="metric-card__label">总 sessions</span>
             </div>
-            <div class="metric-card metric-card--running">
+            <div class="metric-card metric-card--running ui-workbench-card">
               <span class="metric-card__value">{{ visibleBoard().summary.running }}</span>
               <span class="metric-card__label">进行中</span>
             </div>
-            <div class="metric-card metric-card--failed">
+            <div class="metric-card metric-card--failed ui-workbench-card">
               <span class="metric-card__value">{{ visibleBoard().summary.failed }}</span>
               <span class="metric-card__label">失败</span>
             </div>
-            <div class="metric-card metric-card--success">
+            <div class="metric-card metric-card--success ui-workbench-card">
               <span class="metric-card__value">{{ visibleBoard().summary.success }}</span>
               <span class="metric-card__label">成功</span>
             </div>
@@ -61,19 +61,14 @@ import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.compone
       min-height: 100%;
       display: flex;
       flex-direction: column;
-      gap: var(--space-3);
+      gap: var(--workbench-stack-gap);
     }
 
     .board-header {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
-      gap: var(--space-4);
-      padding: var(--space-4);
-      border: 1px solid rgba(116, 130, 151, 0.16);
-      border-radius: var(--radius-xl);
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(250, 251, 255, 0.96));
-      box-shadow: var(--shadow-sm);
+      gap: var(--workbench-section-gap);
     }
 
     .board-header__copy {
@@ -96,20 +91,17 @@ import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.compone
     }
 
     .board-metrics {
-      margin-top: var(--space-3);
+      margin-top: 0.75rem;
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: var(--space-2);
+      gap: 0.625rem;
     }
 
     .metric-card {
       display: flex;
       flex-direction: column;
       gap: 2px;
-      padding: var(--space-3);
-      border-radius: var(--radius-md);
-      border: 1px solid rgba(116, 130, 151, 0.14);
-      background: rgba(255, 255, 255, 0.72);
+      padding: 0.75rem;
     }
 
     .metric-card__value {

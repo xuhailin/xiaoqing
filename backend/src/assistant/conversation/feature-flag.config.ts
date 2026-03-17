@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { isFeatureEnabled } from '../../config/feature-flags';
 
 @Injectable()
 export class FeatureFlagConfig {
@@ -37,17 +38,17 @@ export class FeatureFlagConfig {
     this.memoryContentMaxChars = Number(config.get('MEMORY_CONTENT_MAX_CHARS')) || 300;
     this.memoryMinRelevanceScore = Number(config.get('MEMORY_MIN_RELEVANCE_SCORE')) || 0.05;
 
-    this.featureImpressionCore = config.get('FEATURE_IMPRESSION_CORE') !== 'false';
-    this.featureImpressionDetail = config.get('FEATURE_IMPRESSION_DETAIL') === 'true';
-    this.featureKeywordPrefilter = config.get('FEATURE_KEYWORD_PREFILTER') !== 'false';
-    this.featureLlmRank = config.get('FEATURE_LLM_RANK') === 'true';
-    this.featureDynamicTopK = config.get('FEATURE_DYNAMIC_TOPK') !== 'false';
-    this.featureShortSummary = config.get('FEATURE_MEMORY_SHORT_SUMMARY') === 'true';
-    this.featureDebugMeta = config.get('FEATURE_DEBUG_META') === 'true';
-    this.featureOpenClaw = config.get('FEATURE_OPENCLAW') === 'true';
-    this.featureAutoSummarize = config.get('FEATURE_AUTO_SUMMARIZE') !== 'false';
+    this.featureImpressionCore = isFeatureEnabled(config, 'impressionCore');
+    this.featureImpressionDetail = isFeatureEnabled(config, 'impressionDetail');
+    this.featureKeywordPrefilter = isFeatureEnabled(config, 'keywordPrefilter');
+    this.featureLlmRank = isFeatureEnabled(config, 'llmRank');
+    this.featureDynamicTopK = isFeatureEnabled(config, 'dynamicTopK');
+    this.featureShortSummary = isFeatureEnabled(config, 'memoryShortSummary');
+    this.featureDebugMeta = isFeatureEnabled(config, 'debugMeta');
+    this.featureOpenClaw = isFeatureEnabled(config, 'openclaw');
+    this.featureAutoSummarize = isFeatureEnabled(config, 'autoSummarize');
     this.autoSummarizeThreshold = Number(config.get('AUTO_SUMMARIZE_THRESHOLD')) || 15;
     this.openclawConfidenceThreshold = Number(config.get('OPENCLAW_CONFIDENCE_THRESHOLD')) || 0.7;
-    this.featureInstantSummarize = config.get('FEATURE_INSTANT_SUMMARIZE') !== 'false';
+    this.featureInstantSummarize = isFeatureEnabled(config, 'instantSummarize');
   }
 }

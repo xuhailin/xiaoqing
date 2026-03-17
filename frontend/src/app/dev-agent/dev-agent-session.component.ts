@@ -11,6 +11,7 @@ import { DevChatPanelComponent } from './components/dev-chat-panel.component';
     <app-dev-chat-panel
       [messages]="store.chatMessages()"
       [runState]="store.runState()"
+      [title]="store.draftSessionActive() ? '新 Session' : 'Dev Chat'"
       [taskInput]="taskInput"
       [sending]="store.sending()"
       [canCancel]="isCurrentRunCancellable()"
@@ -43,7 +44,12 @@ export class DevAgentSessionComponent {
 
   submitTask() {
     const task = this.taskInput;
-    this.store.send(task);
+    this.store.send(task, {
+      forceNewSession: this.store.draftSessionActive(),
+      onSuccess: (result) => {
+        this.router.navigate(['/dev-agent/sessions', result.session.id]);
+      },
+    });
     this.taskInput = '';
   }
 

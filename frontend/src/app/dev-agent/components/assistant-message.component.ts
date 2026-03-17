@@ -21,10 +21,10 @@ import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
   `,
   styles: [`
     .message {
-      max-width: min(76ch, 86%);
+      max-width: min(var(--workbench-message-measure), var(--workbench-message-max-width));
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 0.35rem;
     }
 
     .meta {
@@ -41,20 +41,20 @@ import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
     }
 
     .bubble {
-      padding: var(--space-2) var(--space-3);
-      border-radius: var(--radius-lg);
-      background: var(--color-assistant-bubble);
-      border: 1px solid var(--color-border-light);
+      padding: var(--workbench-message-padding);
+      border-radius: var(--workbench-card-radius);
+      background: linear-gradient(180deg, rgba(245, 249, 255, 0.96), rgba(255, 255, 255, 0.92));
+      border: 1px solid rgba(116, 130, 151, 0.14);
       color: var(--color-text);
       font-size: var(--font-size-sm);
-      line-height: 1.55;
+      line-height: 1.62;
       white-space: pre-wrap;
       word-break: break-word;
       box-shadow: var(--shadow-sm);
     }
 
     .bubble.progress {
-      background: linear-gradient(180deg, #ffffff, #f8fafc);
+      background: linear-gradient(180deg, rgba(240, 246, 255, 0.98), rgba(248, 251, 255, 0.94));
     }
   `],
 })

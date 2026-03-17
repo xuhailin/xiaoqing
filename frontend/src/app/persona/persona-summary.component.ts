@@ -46,23 +46,24 @@ import { UserProfileService, UserProfileDto } from '../core/services/user-profil
   `,
   styles: [`
     .persona-top {
-      padding: var(--space-4) var(--space-4) var(--space-3);
+      padding: 0.875rem 1rem 0.75rem;
       border-bottom: 1px solid var(--color-border-light);
       flex-shrink: 0;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0));
     }
 
     .header-row {
       display: flex;
       align-items: baseline;
       gap: var(--space-1);
-      margin-bottom: var(--space-2);
+      margin-bottom: 0.375rem;
     }
 
     .app-name {
       font-size: var(--font-size-md);
-      font-weight: var(--font-weight-semibold);
-      color: var(--color-primary);
-      letter-spacing: -0.01em;
+      font-weight: var(--font-weight-bold);
+      color: #3b56d6;
+      letter-spacing: -0.02em;
     }
 
     .version-sup {
@@ -79,7 +80,7 @@ import { UserProfileService, UserProfileDto } from '../core/services/user-profil
 
     .identity-row,
     .impression-row {
-      margin-bottom: var(--space-2);
+      margin-bottom: 0.375rem;
     }
 
     .identity-row:last-child,

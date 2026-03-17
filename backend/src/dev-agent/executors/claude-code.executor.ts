@@ -7,6 +7,7 @@ import type { CapabilityRequest, CapabilityResult } from '../../action/capabilit
 import type { MessageChannel } from '../../gateway/message-router.types';
 import { ClaudeCodeStreamService } from './claude-code-stream.service';
 import { WorkspaceManager } from '../workspace/workspace-manager.service';
+import { isFeatureEnabled } from '../../config/feature-flags';
 
 /**
  * Claude Code Agent 执行器 — 将任务委派给 Claude Code Agent SDK 执行。
@@ -43,7 +44,7 @@ export class ClaudeCodeExecutor implements IDevExecutor, ICapability {
     private readonly workspaceManager: WorkspaceManager,
     config: ConfigService,
   ) {
-    this.enabled = config.get('FEATURE_CLAUDE_CODE') === 'true';
+    this.enabled = isFeatureEnabled(config, 'claudeCode');
   }
 
   isAvailable(): boolean {

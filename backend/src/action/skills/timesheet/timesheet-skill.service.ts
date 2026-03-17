@@ -13,6 +13,7 @@ import type {
   TimesheetPreviewEntry,
   TimesheetOverrideEntry,
 } from './timesheet-skill.types';
+import { isFeatureEnabled } from '../../../config/feature-flags';
 
 @Injectable()
 export class TimesheetSkillService implements ICapability {
@@ -36,7 +37,7 @@ export class TimesheetSkillService implements ICapability {
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
   ) {
-    this.featureEnabled = config.get('FEATURE_TIMESHEET') === 'true';
+    this.featureEnabled = isFeatureEnabled(config, 'timesheet');
     this.loginId = config.get('TIMESHEET_LOGIN_ID') || '';
   }
 

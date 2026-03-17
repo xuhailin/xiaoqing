@@ -22,7 +22,7 @@ import { AppPanelComponent } from '../../shared/ui/app-panel.component';
         <header class="chat-header">
           <div class="header-left">
             <app-button variant="ghost" size="sm" class="back-btn" (click)="back.emit()">← 返回总览</app-button>
-            <span class="header-title">Dev Chat</span>
+            <span class="header-title">{{ title }}</span>
             @if (runState?.mode; as mode) {
               <app-badge tone="neutral" [appearance]="'outline'" class="mode-badge">
                 {{ mode === 'agent' ? 'Agent' : 'Orchestrated' }}
@@ -98,8 +98,8 @@ import { AppPanelComponent } from '../../shared/ui/app-panel.component';
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: var(--space-3);
-      padding: var(--space-3) var(--space-4);
+      gap: 0.625rem;
+      padding: var(--workbench-header-padding);
       border-bottom: 1px solid var(--color-border-light);
       flex-shrink: 0;
     }
@@ -107,7 +107,7 @@ import { AppPanelComponent } from '../../shared/ui/app-panel.component';
     .header-left {
       display: flex;
       align-items: center;
-      gap: var(--space-3);
+      gap: 0.625rem;
       min-width: 0;
     }
 
@@ -147,6 +147,7 @@ import { AppPanelComponent } from '../../shared/ui/app-panel.component';
     @media (max-width: 900px) {
       .chat-header {
         flex-wrap: wrap;
+        padding: var(--workbench-header-padding-mobile);
       }
 
       .header-left {
@@ -158,6 +159,7 @@ import { AppPanelComponent } from '../../shared/ui/app-panel.component';
 export class DevChatPanelComponent {
   @Input() messages: DevChatMessage[] = [];
   @Input() runState: DevChatRunState | null = null;
+  @Input() title = 'Dev Chat';
   @Input() taskInput = '';
   @Input() sending = false;
   @Input() canCancel = false;

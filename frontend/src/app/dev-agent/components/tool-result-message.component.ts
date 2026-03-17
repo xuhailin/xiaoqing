@@ -47,9 +47,9 @@ import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
   `,
   styles: [`
     .tool-result {
-      border: 1px solid var(--color-border-light);
-      border-radius: var(--radius-lg);
-      background: rgba(248, 250, 252, 0.96);
+      border: 1px solid var(--color-workbench-border);
+      border-radius: var(--workbench-card-radius);
+      background: linear-gradient(180deg, rgba(244, 248, 255, 0.95), rgba(255, 255, 255, 0.92));
       overflow: hidden;
     }
 
@@ -57,7 +57,7 @@ import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
       width: 100%;
       border: none;
       background: transparent;
-      padding: 10px 14px;
+      padding: 0.625rem 0.875rem;
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
@@ -83,7 +83,7 @@ import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
     }
 
     .summary {
-      margin-top: 6px;
+      margin-top: 4px;
       font-size: var(--font-size-sm);
       color: var(--color-text-secondary);
     }
@@ -101,10 +101,10 @@ import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
 
     .detail {
       border-top: 1px solid var(--color-border-light);
-      padding: 12px 16px 16px;
+      padding: 0.75rem 0.875rem 0.875rem;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 0.625rem;
     }
 
     .meta {
@@ -116,7 +116,7 @@ import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
     .meta span {
       font-size: 11px;
       color: var(--color-text-secondary);
-      background: rgba(255, 255, 255, 0.85);
+      background: rgba(244, 248, 255, 0.92);
       border-radius: 999px;
       padding: 4px 8px;
       border: 1px solid var(--color-border-light);
@@ -124,9 +124,9 @@ import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
 
     pre {
       margin: 0;
-      padding: 12px 14px;
+      padding: 0.75rem 0.875rem;
       border-radius: 12px;
-      background: rgba(255, 255, 255, 0.92);
+      background: rgba(246, 249, 255, 0.94);
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       font-size: 12px;
       line-height: 1.6;

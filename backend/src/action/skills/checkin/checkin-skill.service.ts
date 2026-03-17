@@ -104,7 +104,8 @@ export class CheckinSkillService implements ICapability {
 
     // 7. 截图确认
     const screenshotPath = await this.takeScreenshot(browser, page, 'checkin-result');
-    await this.pushMessage(conversationId, `打卡完成！结果截图已保存：${screenshotPath}`);
+    const resultUrl = this.toAssetUrl(screenshotPath);
+    await this.pushMessage(conversationId, `打卡完成！\n\n![打卡结果](${resultUrl})`);
 
     return {
       success: true,
@@ -135,10 +136,11 @@ export class CheckinSkillService implements ICapability {
         'qr-code',
       );
 
-      // 推送消息给用户
+      // 推送消息给用户（markdown 图片可在前端直接预览）
+      const qrUrl = this.toAssetUrl(qrScreenshotPath);
       await this.pushMessage(
         conversationId,
-        `需要扫码登录，请打开截图扫码：${qrScreenshotPath}`,
+        `需要扫码登录，请扫描下方二维码：\n\n![扫码登录](${qrUrl})`,
       );
 
       // 轮询等待登录成功（URL 不再包含 sso/login）
@@ -288,6 +290,14 @@ export class CheckinSkillService implements ICapability {
     } catch (err) {
       this.logger.warn(`Failed to push checkin message: ${String(err)}`);
     }
+  }
+
+  /** Convert an absolute screenshot path to a relative /assets/... URL */
+  private toAssetUrl(absolutePath: string): string {
+    const assetsRoot = path.join(process.cwd(), 'assets');
+    const relative = path.relative(assetsRoot, absolutePath);
+    const port = process.env.PORT ?? '3000';
+    return `http://localhost:${port}/assets/${relative}`;
   }
 
   private sleep(ms: number): Promise<void> {

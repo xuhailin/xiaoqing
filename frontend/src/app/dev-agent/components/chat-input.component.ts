@@ -32,17 +32,16 @@ import { AppButtonComponent } from '../../shared/ui/app-button.component';
   styles: [`
     .chat-input {
       border-top: 1px solid var(--color-border-light);
-      background:
-        linear-gradient(180deg, rgba(255, 250, 244, 0.82), rgba(255, 255, 255, 0.98));
-      padding: var(--space-4);
+      background: var(--workbench-surface-gradient-soft);
+      padding: var(--workbench-panel-padding);
       display: flex;
       flex-direction: column;
-      gap: var(--space-3);
+      gap: var(--workbench-stack-gap);
     }
 
     textarea {
-      min-height: 96px;
-      max-height: 220px;
+      min-height: var(--workbench-input-min-height);
+      max-height: 200px;
       font-size: var(--font-size-md);
       line-height: 1.7;
     }
@@ -60,6 +59,10 @@ import { AppButtonComponent } from '../../shared/ui/app-button.component';
     }
 
     @media (max-width: 900px) {
+      .chat-input {
+        padding: var(--space-3);
+      }
+
       .input-actions {
         align-items: stretch;
         flex-direction: column;

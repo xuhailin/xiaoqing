@@ -5,6 +5,7 @@ import type { CapabilityRequest, CapabilityResult } from '../../capability.types
 import type { MessageChannel } from '../../../gateway/message-router.types';
 import { executeGeneralAction } from '../../tools/general-action/executor';
 import type { GeneralActionSkillExecuteParams, GeneralActionSkillResult } from './general-action-skill.types';
+import { isFeatureEnabled } from '../../../config/feature-flags';
 
 @Injectable()
 export class GeneralActionSkillService implements ICapability {
@@ -24,7 +25,7 @@ export class GeneralActionSkillService implements ICapability {
   readonly visibility = 'optional' as const;
 
   constructor(config: ConfigService) {
-    this.enabled = config.get('FEATURE_LOCAL_GENERAL_ACTION') === 'true';
+    this.enabled = isFeatureEnabled(config, 'localGeneralAction');
   }
 
   /** 本地基础行动能力开关（默认关闭） */

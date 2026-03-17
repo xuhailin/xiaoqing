@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, computed, effect, signal, untracked } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, effect, untracked } from '@angular/core';
 import { ActivatedRoute, NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { Subscription, filter } from 'rxjs';
 import { DevAgentPageStore } from './dev-agent-page.store';
@@ -16,11 +16,8 @@ import { WorkspaceFocusPanelComponent } from './components/workspace-focus-panel
         [workspaceOptions]="store.workspaceOptions()"
         [sessions]="currentWorkspaceSessions()"
         [activeSessionId]="store.selectedSessionId()"
-        [taskInput]="taskInput()"
-        [sending]="store.sending()"
         (workspaceRootChange)="store.setWorkspaceRootInput($event)"
-        (taskInputChange)="taskInput.set($event)"
-        (submit)="submitTask()"
+        (createSession)="openDraftSession()"
         (selectSession)="openSession($event)"
       />
 
@@ -45,8 +42,8 @@ import { WorkspaceFocusPanelComponent } from './components/workspace-focus-panel
       min-height: 0;
       display: grid;
       grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
-      gap: var(--space-4);
-      padding: var(--space-4);
+      gap: var(--workbench-section-gap);
+      padding: var(--workbench-shell-padding);
       overflow: hidden;
       position: relative;
     }
@@ -66,14 +63,14 @@ import { WorkspaceFocusPanelComponent } from './components/workspace-focus-panel
       border: 1px solid rgba(39, 174, 96, 0.3);
       background: rgba(240, 253, 244, 0.95);
       border-radius: var(--radius-md);
-      padding: var(--space-2) var(--space-3);
+      padding: 0.5rem 0.75rem;
       box-shadow: var(--shadow-sm);
       max-width: min(340px, 72vw);
     }
 
     @media (max-width: 980px) {
       .dev-agent-layout {
-        padding: var(--space-3);
+        padding: var(--workbench-shell-padding-mobile);
         grid-template-columns: 1fr;
         grid-template-rows: minmax(220px, 32vh) minmax(0, 1fr);
       }
@@ -81,7 +78,6 @@ import { WorkspaceFocusPanelComponent } from './components/workspace-focus-panel
   `],
 })
 export class DevAgentComponent implements OnInit, OnDestroy {
-  taskInput = signal('');
   private workspaceSeeded = false;
   private routerSub?: Subscription;
 
@@ -110,12 +106,21 @@ export class DevAgentComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     const initialSessionId = this.route.firstChild?.snapshot.paramMap.get('id') ?? null;
-    this.store.init({ preferredSessionId: initialSessionId });
+    if (initialSessionId === 'new') {
+      this.store.startDraftSession();
+      this.store.init();
+    } else {
+      this.store.init({ preferredSessionId: initialSessionId });
+    }
 
     this.routerSub = this.router.events
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
       .subscribe(() => {
         const sessionId = this.route.firstChild?.snapshot.paramMap.get('id');
+        if (sessionId === 'new') {
+          this.store.startDraftSession();
+          return;
+        }
         if (sessionId) {
           this.store.selectSession(sessionId);
         }
@@ -127,17 +132,12 @@ export class DevAgentComponent implements OnInit, OnDestroy {
     this.store.destroy();
   }
 
-  submitTask() {
-    const task = this.taskInput();
-    this.store.send(task, {
-      onSuccess: (result) => {
-        this.router.navigate(['/dev-agent/sessions', result.session.id]);
-      },
-    });
-    this.taskInput.set('');
-  }
-
   openSession(sessionId: string) {
     this.router.navigate(['/dev-agent/sessions', sessionId]);
+  }
+
+  openDraftSession() {
+    this.store.startDraftSession();
+    this.router.navigate(['/dev-agent/sessions', 'new']);
   }
 }

@@ -35,7 +35,7 @@
     }
   }
 
-  <div class="messages" #messagesEl>
+  <div class="messages ui-scrollbar ui-workbench-surface ui-workbench-surface--chat" #messagesEl>
     @for (m of messages(); track m.id) {
       <div class="message" [class.user]="m.role === 'user'" [class.assistant]="m.role === 'assistant'">
         <span class="role-label">{{ m.role === 'user' ? '我' : 'AI' }}</span>
@@ -145,7 +145,7 @@
     </div>
   }
 
-  <div class="input-row">
+  <div class="input-row ui-workbench-surface ui-workbench-surface--soft">
     <textarea
       class="ui-textarea"
       #inputEl
@@ -164,15 +164,15 @@
   @if (activeDebugMessageId(); as activeMessageId) {
     @if (messageDebugState()[activeMessageId]; as activeDebug) {
       @if (activeDebug.debugMeta; as dm) {
-        <div class="debug-modal-backdrop" (click)="closeDebugDialog()">
-          <div class="debug-modal ui-scrollbar" (click)="$event.stopPropagation()">
-            <div class="debug-modal-header">
+        <div class="debug-modal-backdrop ui-dialog-backdrop" (click)="closeDebugDialog()">
+          <div class="debug-modal ui-dialog ui-scrollbar" (click)="$event.stopPropagation()">
+            <div class="debug-modal-header ui-dialog__header">
               <div>
-                <div class="debug-modal-title">调试信息</div>
-                <div class="debug-modal-subtitle">仅针对这一次 assistant 回复</div>
+                <div class="debug-modal-title ui-dialog__title">调试信息</div>
+                <div class="debug-modal-subtitle ui-dialog__subtitle">仅针对这一次 assistant 回复</div>
               </div>
 
-              <div class="debug-modal-header-actions">
+              <div class="debug-modal-header-actions ui-dialog__actions">
                 @if (copyDebugFeedback()) {
                   <span class="debug-copy-feedback">{{ copyDebugFeedback() }}</span>
                 }

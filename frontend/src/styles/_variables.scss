@@ -14,9 +14,9 @@
   // ---------------------------------------------------------------------------
   // Color — Surface layers
   // ---------------------------------------------------------------------------
-  --color-bg: #f4f6fb;
+  --color-bg: #edf2fa;
   --color-surface: #ffffff;
-  --color-sidebar: #eef2f7;
+  --color-sidebar: #e9eff9;
 
   // ---------------------------------------------------------------------------
   // Color — Text hierarchy
@@ -29,8 +29,8 @@
   // ---------------------------------------------------------------------------
   // Color — Borders
   // ---------------------------------------------------------------------------
-  --color-border: #d8e0ea;
-  --color-border-light: #e7ecf2;
+  --color-border: #cfdaea;
+  --color-border-light: #e3eaf5;
 
   // ---------------------------------------------------------------------------
   // Color — Semantic
@@ -50,13 +50,31 @@
   // ---------------------------------------------------------------------------
   // Color — Workbench surfaces
   // ---------------------------------------------------------------------------
-  --color-workbench-bg: #f2f5fa;
-  --color-workbench-panel: rgba(255, 255, 255, 0.82);
-  --color-workbench-panel-strong: rgba(255, 255, 255, 0.94);
-  --color-workbench-border: rgba(116, 130, 151, 0.18);
-  --color-workbench-muted: #5b6778;
+  --color-workbench-bg: #eef3fb;
+  --color-workbench-panel: rgba(255, 255, 255, 0.86);
+  --color-workbench-panel-strong: rgba(255, 255, 255, 0.96);
+  --color-workbench-border: rgba(96, 122, 170, 0.18);
+  --color-workbench-muted: #5a6883;
   --color-workbench-accent: rgba(79, 109, 245, 0.08);
-  --color-workbench-accent-strong: rgba(79, 109, 245, 0.18);
+  --color-workbench-accent-strong: rgba(79, 109, 245, 0.22);
+  --color-workbench-glow: rgba(79, 109, 245, 0.04);
+  --color-workbench-glow-strong: rgba(79, 109, 245, 0.08);
+  --color-workbench-glow-soft: rgba(117, 143, 255, 0.08);
+  --color-workbench-glow-faint: rgba(221, 231, 255, 0.34);
+  --workbench-shell-background:
+    linear-gradient(180deg, #f5f8fe 0%, var(--color-workbench-bg) 100%);
+  --workbench-surface-gradient:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 249, 255, 0.97));
+  --workbench-surface-gradient-soft:
+    linear-gradient(180deg, rgba(241, 246, 255, 0.92), rgba(252, 253, 255, 0.98));
+  --workbench-chat-surface-gradient:
+    linear-gradient(180deg, rgba(252, 253, 255, 0.99), rgba(246, 249, 255, 0.98));
+  --sidebar-surface-background:
+    linear-gradient(180deg, #edf2fb 0%, #e7eef8 46%, #f1f5fb 100%);
+  --sidebar-card-background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(247, 250, 255, 0.96));
+  --sidebar-card-background-active:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(239, 244, 255, 0.98));
 
   // ---------------------------------------------------------------------------
   // Color — Context accents
@@ -71,7 +89,7 @@
   --color-evolve-blue-bg: #eef4ff;
   --color-evolve-blue-border: #cad9ff;
 
-  --color-user-bubble: #eef2ff;
+  --color-user-bubble: linear-gradient(180deg, #edf2ff 0%, #e4ebff 100%);
   --color-user-label: var(--color-primary);
   --color-assistant-bubble: #f8fafc;
   --color-assistant-label: var(--color-text-secondary);
@@ -123,9 +141,9 @@
   // ---------------------------------------------------------------------------
   // Shadows
   // ---------------------------------------------------------------------------
-  --shadow-sm: 0 1px 2px rgba(20, 27, 39, 0.06), 0 6px 18px rgba(20, 27, 39, 0.04);
-  --shadow-md: 0 12px 32px rgba(20, 27, 39, 0.08), 0 2px 6px rgba(20, 27, 39, 0.04);
-  --shadow-lg: 0 22px 48px rgba(20, 27, 39, 0.12), 0 8px 18px rgba(20, 27, 39, 0.06);
+  --shadow-sm: 0 6px 18px rgba(30, 52, 98, 0.06), 0 1px 2px rgba(20, 27, 39, 0.04);
+  --shadow-md: 0 14px 32px rgba(30, 52, 98, 0.08), 0 2px 6px rgba(20, 27, 39, 0.03);
+  --shadow-lg: 0 24px 56px rgba(30, 52, 98, 0.12), 0 10px 22px rgba(20, 27, 39, 0.05);
 
   // ---------------------------------------------------------------------------
   // Transitions
@@ -136,6 +154,25 @@
   // ---------------------------------------------------------------------------
   // Layout
   // ---------------------------------------------------------------------------
+  --workbench-shell-padding: 0.875rem;
+  --workbench-shell-padding-mobile: 0.75rem;
+  --workbench-header-padding: 0.875rem 1.25rem;
+  --workbench-header-padding-mobile: 0.75rem 1rem;
+  --workbench-panel-radius: 18px;
+  --workbench-card-radius: 16px;
+  --workbench-panel-padding: 1rem;
+  --workbench-panel-padding-lg: 1.25rem;
+  --workbench-card-padding: 0.875rem 1rem;
+  --workbench-stack-gap: 0.75rem;
+  --workbench-section-gap: 1rem;
+  --workbench-chat-padding: 1rem 1.125rem;
+  --workbench-chat-gap: 0.75rem;
+  --workbench-message-padding: 0.625rem 0.875rem;
+  --workbench-message-measure: 92ch;
+  --workbench-message-max-width: 88%;
+  --workbench-banner-padding: 0.5rem 1rem;
+  --workbench-input-padding: 0.75rem 0.875rem;
+  --workbench-input-min-height: 84px;
   --sidebar-width: 336px;
   --content-max-width: 1440px;
   --section-gap: var(--space-4);

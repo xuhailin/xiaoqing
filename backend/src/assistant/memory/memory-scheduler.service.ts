@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../infra/prisma.service';
 import { MemoryDecayService } from './memory-decay.service';
+import { isFeatureEnabled } from '../../config/feature-flags';
 
 /** 记忆晋升/降级候选 */
 export interface PromotionCandidate {
@@ -32,7 +33,7 @@ export class MemorySchedulerService {
     private decay: MemoryDecayService,
     config: ConfigService,
   ) {
-    this.enabled = config.get('FEATURE_MEMORY_SCHEDULER') !== 'false'; // default on
+    this.enabled = isFeatureEnabled(config, 'memoryScheduler');
     this.promoteMinHits = Number(config.get('MEMORY_PROMOTE_MIN_HITS')) || 5;
     this.promoteMinAgeDays = Number(config.get('MEMORY_PROMOTE_MIN_AGE_DAYS')) || 7;
     this.demoteInactiveDays = Number(config.get('MEMORY_DEMOTE_INACTIVE_DAYS')) || 30;

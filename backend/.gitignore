@@ -9,3 +9,6 @@ dist
 
 # DevAgent / runtime data (transcript, workspaces, etc.)
 /data/
+
+# Debug assets (do not commit)
+assets/*-debug/

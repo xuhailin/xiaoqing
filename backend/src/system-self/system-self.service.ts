@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CapabilityRegistry } from '../action/capability-registry.service';
 import type { CapabilityMeta } from '../action/capability.types';
+import { isFeatureEnabled } from '../config/feature-flags';
 import {
   SystemSelf,
   SystemInfo,
@@ -93,9 +94,9 @@ export class SystemSelfService {
 
   private getFeatureFlags(): FeatureFlags {
     return {
-      claudeCode: this.config.get('FEATURE_CLAUDE_CODE') === 'true',
-      devReminder: this.config.get('FEATURE_DEV_REMINDER') === 'true',
-      openclaw: this.config.get('FEATURE_OPENCLAW') === 'true',
+      claudeCode: isFeatureEnabled(this.config, 'claudeCode'),
+      devReminder: isFeatureEnabled(this.config, 'devReminder'),
+      openclaw: isFeatureEnabled(this.config, 'openclaw'),
     };
   }
 

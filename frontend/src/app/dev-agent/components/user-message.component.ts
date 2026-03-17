@@ -12,11 +12,11 @@ import { UserMessage } from '../dev-agent.view-model';
   `,
   styles: [`
     .message {
-      max-width: min(72ch, 82%);
+      max-width: min(var(--workbench-message-measure), var(--workbench-message-max-width));
       display: flex;
       flex-direction: column;
       align-items: flex-end;
-      gap: 6px;
+      gap: 0.35rem;
       margin-left: auto;
     }
 
@@ -28,8 +28,8 @@ import { UserMessage } from '../dev-agent.view-model';
     }
 
     .bubble {
-      padding: var(--space-2) var(--space-3);
-      border-radius: var(--radius-lg);
+      padding: var(--workbench-message-padding);
+      border-radius: var(--workbench-card-radius);
       background: var(--color-user-bubble);
       border: 1px solid rgba(79, 109, 245, 0.12);
       color: var(--color-text);

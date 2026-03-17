@@ -7,6 +7,7 @@ import type {
   AgentProgressEvent,
 } from '../dev-agent.types';
 import { ClaudeCodeStreamService } from './claude-code-stream.service';
+import { isFeatureEnabled } from '../../config/feature-flags';
 
 /**
  * Claude Code Agent Executor — run-level 整任务委派。
@@ -26,7 +27,7 @@ export class ClaudeCodeAgentExecutor implements IDevAgentExecutor {
     private readonly streamService: ClaudeCodeStreamService,
     config: ConfigService,
   ) {
-    this.enabled = config.get('FEATURE_CLAUDE_CODE') === 'true';
+    this.enabled = isFeatureEnabled(config, 'claudeCode');
   }
 
   isAvailable(): boolean {

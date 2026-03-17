@@ -78,12 +78,32 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
     .new-btn {
       width: 100%;
       flex-shrink: 0;
+      margin-top: var(--space-2);
+      margin-bottom: var(--space-2);
     }
 
     .conv-item {
-      padding: var(--space-2) var(--space-3);
-      border-radius: var(--radius-md);
+      padding: 0.75rem 0.875rem;
+      border-radius: var(--workbench-card-radius);
       cursor: pointer;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .conv-item::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 10px;
+      bottom: 10px;
+      width: 3px;
+      border-radius: 999px;
+      background: transparent;
+      transition: background var(--transition-fast);
+    }
+
+    .conv-item.is-active::before {
+      background: linear-gradient(180deg, #6e89ff 0%, #4f6df5 100%);
     }
 
     .conv-header {
@@ -116,6 +136,7 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
       align-items: center;
       gap: var(--space-2);
     }
+
   `],
 })
 export class ConversationListComponent implements OnInit, OnDestroy {

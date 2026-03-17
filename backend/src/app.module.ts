@@ -18,6 +18,7 @@ import { RegressionReportsController } from './qa/regression-reports.controller'
 import { RegressionReportsService } from './qa/regression-reports.service';
 import { RegressionRunController } from './qa/regression-runner.controller';
 import { RegressionRunService } from './qa/regression-runner.service';
+import { AssetsController } from './assets.controller';
 
 @Global()
 @Module({
@@ -35,7 +36,7 @@ import { RegressionRunService } from './qa/regression-runner.service';
     ClaimEngineModule,
     WechatWorkBotModule,
   ],
-  controllers: [AppController, RegressionReportsController, RegressionRunController],
+  controllers: [AppController, AssetsController, RegressionReportsController, RegressionRunController],
   providers: [AppService, PrismaService, RegressionReportsService, RegressionRunService],
   exports: [PrismaService],
 })
