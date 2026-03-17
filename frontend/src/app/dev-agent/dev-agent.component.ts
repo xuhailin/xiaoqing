@@ -1,94 +1,78 @@
-import { Component, OnDestroy, OnInit, computed, signal } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { Component, OnDestroy, OnInit, computed, effect, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { DevAgentPageStore } from './dev-agent-page.store';
-import { WorkspaceSidebarComponent } from './components/workspace-sidebar.component';
-import { DevChatPanelComponent } from './components/dev-chat-panel.component';
 import { DevSessionBoardComponent } from './components/dev-session-board.component';
+import { WorkspaceFocusPanelComponent } from './components/workspace-focus-panel.component';
 import { buildSessionBoard } from './dev-agent.view-model';
-import { AppPageHeaderComponent } from '../shared/ui/app-page-header.component';
-import { AppPanelComponent } from '../shared/ui/app-panel.component';
 import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.component';
 
 @Component({
   selector: 'app-dev-agent',
   standalone: true,
   imports: [
-    WorkspaceSidebarComponent,
-    DevChatPanelComponent,
     DevSessionBoardComponent,
-    AppPageHeaderComponent,
-    AppPanelComponent,
+    WorkspaceFocusPanelComponent,
     AppTabsComponent,
   ],
   providers: [DevAgentPageStore],
   template: `
     <div class="dev-agent-page">
-      <app-panel variant="workbench" padding="lg" class="page-header-panel">
-        <app-page-header
-          eyebrow="Workbench / DevAgent"
-          title="开发执行台"
-          description="一边直接下发开发任务，一边从 sessions 泳道快速扫全局执行状态。"
-        >
-          <div actions class="page-summary">
-            <div class="ui-stat-card summary-card">
-              <span class="ui-stat-card__value">{{ sessionBoard().summary.total }}</span>
-              <span class="ui-stat-card__label">总 sessions</span>
-            </div>
-            <div class="ui-stat-card summary-card summary-card--running">
-              <span class="ui-stat-card__value">{{ sessionBoard().summary.running }}</span>
-              <span class="ui-stat-card__label">进行中</span>
-            </div>
-            <div class="ui-stat-card summary-card summary-card--failed">
-              <span class="ui-stat-card__value">{{ sessionBoard().summary.failed }}</span>
-              <span class="ui-stat-card__label">失败</span>
-            </div>
-            <div class="ui-stat-card summary-card summary-card--success">
-              <span class="ui-stat-card__value">{{ sessionBoard().summary.success }}</span>
-              <span class="ui-stat-card__label">成功</span>
-            </div>
-          </div>
-        </app-page-header>
-      </app-panel>
-
-      <app-tabs
-        class="view-tabs"
-        [items]="viewTabs"
-        [value]="activeView()"
-        (valueChange)="activeView.set($any($event))"
-      />
-
       <div class="layout-grid">
-        <app-workspace-sidebar
-          [workspaceRoot]="store.workspaceRootInput()"
+        <app-workspace-focus-panel
+          [workspaceRoot]="currentWorkspaceRoot()"
           [workspaceOptions]="store.workspaceOptions()"
-          [sessions]="store.sessions()"
+          [sessions]="currentWorkspaceSessions()"
           [activeSessionId]="store.selectedSessionId()"
-          (workspaceRootSelect)="store.selectWorkspaceRoot($event)"
-          (selectSession)="store.selectSession($event)"
+          [taskInput]="taskInput()"
+          [sending]="store.sending()"
+          (workspaceRootChange)="currentWorkspaceRoot.set($event)"
+          (taskInputChange)="taskInput.set($event)"
+          (submit)="submitTask()"
+          (selectSession)="openSession($event)"
         />
 
-        <div class="main-panel">
-          @if (activeView() === 'run') {
-            <app-dev-chat-panel
-              [messages]="store.chatMessages()"
-              [runState]="store.runState()"
-              [taskInput]="taskInput()"
-              [sending]="store.sending()"
-              [canCancel]="isCurrentRunCancellable()"
-              [canRerun]="isCurrentRunRerunnable()"
-              [cancelling]="isCancellingCurrentRun()"
-              (taskInputChange)="taskInput.set($event)"
-              (submit)="submitTask()"
-              (cancel)="store.cancelCurrentRun()"
-              (rerun)="store.rerunCurrentRun()"
+        <div class="board-column">
+          <div class="board-header">
+            <div class="board-header__copy">
+              <div class="board-header__eyebrow">Sessions Overview</div>
+              <div class="board-header__title">会话状态总览</div>
+              <p class="board-header__description">
+                右侧统计和泳道会跟当前筛选一起变化；切到“当前 workspace”时，会同步只看当前 workspace。
+              </p>
+              <div class="board-metrics">
+                <div class="metric-card">
+                  <span class="metric-card__value">{{ visibleBoard().summary.total }}</span>
+                  <span class="metric-card__label">总 sessions</span>
+                </div>
+                <div class="metric-card metric-card--running">
+                  <span class="metric-card__value">{{ visibleBoard().summary.running }}</span>
+                  <span class="metric-card__label">进行中</span>
+                </div>
+                <div class="metric-card metric-card--failed">
+                  <span class="metric-card__value">{{ visibleBoard().summary.failed }}</span>
+                  <span class="metric-card__label">失败</span>
+                </div>
+                <div class="metric-card metric-card--success">
+                  <span class="metric-card__value">{{ visibleBoard().summary.success }}</span>
+                  <span class="metric-card__label">成功</span>
+                </div>
+              </div>
+            </div>
+
+            <app-tabs
+              class="board-tabs"
+              [items]="boardScopeTabs()"
+              [value]="boardScope()"
+              (valueChange)="boardScope.set($any($event))"
             />
-          } @else {
+          </div>
+
+          <div class="board-panel">
             <app-dev-session-board
-              [board]="sessionBoard()"
-              [selectedSessionId]="store.selectedSessionId()"
-              (selectSession)="openSessionFromBoard($event)"
+              [board]="visibleBoard()"
+              (selectSession)="openSession($event)"
             />
-          }
+          </div>
         </div>
       </div>
 
@@ -100,14 +84,12 @@ import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.compone
   styles: [`
     :host {
       display: block;
-      height: 100%;
-      min-height: 0;
+      min-height: 100%;
     }
 
     .dev-agent-page {
-      height: 100%;
-      min-height: 0;
-      overflow: hidden;
+      min-height: 100%;
+      overflow: visible;
       padding: var(--space-4);
       position: relative;
       display: flex;
@@ -116,53 +98,106 @@ import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.compone
       background: transparent;
     }
 
-    .page-header-panel {
-      flex-shrink: 0;
+    .board-header__eyebrow {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
     }
 
-    .page-summary {
+    .board-header__title {
+      font-size: var(--font-size-lg);
+      font-weight: var(--font-weight-semibold);
+      color: var(--color-text);
+    }
+
+    .board-header__description {
+      margin: 8px 0 0;
+      font-size: var(--font-size-sm);
+      line-height: 1.7;
+      color: var(--color-text-secondary);
+    }
+
+    .layout-grid {
+      display: grid;
+      grid-template-columns: minmax(360px, 420px) minmax(0, 1fr);
+      gap: var(--space-4);
+      align-items: start;
+    }
+
+    .board-column {
+      min-height: 0;
       display: flex;
-      flex-wrap: wrap;
-      justify-content: flex-end;
+      flex-direction: column;
       gap: var(--space-3);
-      flex-shrink: 0;
     }
 
-    .summary-card {
-      min-width: 116px;
+    .board-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-4);
+      padding: var(--space-4);
+      border: 1px solid rgba(116, 130, 151, 0.16);
+      border-radius: var(--radius-xl);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(250, 251, 255, 0.96));
+      box-shadow: var(--shadow-sm);
     }
 
-    .summary-card .ui-stat-card__label {
-      color: var(--color-workbench-muted);
+    .board-header__copy {
+      min-width: 0;
     }
 
-    .summary-card--running .ui-stat-card__value {
+    .board-metrics {
+      margin-top: var(--space-3);
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: var(--space-2);
+    }
+
+    .metric-card {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: var(--space-3);
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(116, 130, 151, 0.14);
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    .metric-card__value {
+      font-size: 1.125rem;
+      font-weight: var(--font-weight-semibold);
+      color: var(--color-text);
+    }
+
+    .metric-card__label {
+      font-size: var(--font-size-xs);
+      color: var(--color-text-secondary);
+    }
+
+    .metric-card--running .metric-card__value {
       color: var(--color-warning);
     }
 
-    .summary-card--failed .ui-stat-card__value {
+    .metric-card--failed .metric-card__value {
       color: var(--color-error);
     }
 
-    .summary-card--success .ui-stat-card__value {
+    .metric-card--success .metric-card__value {
       color: var(--color-success);
     }
 
-    .view-tabs {
+    .board-tabs {
       width: fit-content;
       max-width: 100%;
       flex-shrink: 0;
     }
 
-    .layout-grid {
+    .board-panel {
       flex: 1 1 auto;
-      min-height: 0;
-      display: grid;
-      grid-template-columns: minmax(260px, 300px) minmax(0, 1fr);
-      gap: var(--space-4);
-    }
-
-    .main-panel {
       min-height: 0;
     }
 
@@ -186,40 +221,73 @@ import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.compone
         padding: var(--space-3);
       }
 
-      .page-summary {
-        justify-content: flex-start;
+      .board-header {
+        flex-direction: column;
+      }
+
+      .board-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
       .layout-grid {
         grid-template-columns: 1fr;
-        grid-template-rows: minmax(220px, 32vh) minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr);
       }
     }
   `],
 })
 export class DevAgentComponent implements OnInit, OnDestroy {
   taskInput = signal('');
-  activeView = signal<'run' | 'sessions'>('run');
-  readonly sessionBoard = computed(() => buildSessionBoard(this.store.sessions()));
-  protected readonly viewTabs: AppTabItem[] = [
-    { value: 'run', label: '当前执行' },
-    { value: 'sessions', label: 'Sessions 概览' },
-  ];
+  boardScope = signal<'all' | 'current'>('all');
+  currentWorkspaceRoot = signal('');
+  private workspaceSeeded = false;
+
+  readonly globalBoard = computed(() => buildSessionBoard(this.store.sessions()));
+  readonly currentWorkspaceSessions = computed(() => {
+    const root = this.currentWorkspaceRoot().trim();
+    if (!root) {
+      return [];
+    }
+    return this.store.sessions().filter((session) => session.workspaceRoot === root);
+  });
+  readonly currentWorkspaceBoard = computed(() => buildSessionBoard(this.currentWorkspaceSessions()));
+  readonly visibleBoard = computed(() =>
+    this.boardScope() === 'current' ? this.currentWorkspaceBoard() : this.globalBoard(),
+  );
+
+  readonly boardScopeTabs = computed<AppTabItem[]>(() => [
+    {
+      value: 'all',
+      label: '全部',
+      count: this.globalBoard().summary.total,
+    },
+    {
+      value: 'current',
+      label: '当前 workspace',
+      count: this.currentWorkspaceBoard().summary.total,
+    },
+  ]);
 
   constructor(
     public readonly store: DevAgentPageStore,
-    private readonly route: ActivatedRoute,
-  ) {}
+    private readonly router: Router,
+  ) {
+    effect(() => {
+      const options = this.store.workspaceOptions();
+      const preferred = this.store.workspaceRootInput().trim();
+      if (this.workspaceSeeded || this.currentWorkspaceRoot().trim()) {
+        return;
+      }
+      const nextRoot = preferred || options[0] || '';
+      if (nextRoot) {
+        this.currentWorkspaceRoot.set(nextRoot);
+        this.workspaceSeeded = true;
+      }
+    });
+  }
 
   ngOnInit() {
-    const query = this.route.snapshot.queryParamMap;
-    const navState = (history.state ?? {}) as Record<string, unknown>;
-    this.store.init({
-      preferredSessionId: query.get('sessionId'),
-      preferredRunId: query.get('runId'),
-      workspaceRoot: query.get('workspaceRoot'),
-      notice: typeof navState['notice'] === 'string' ? navState['notice'] : null,
-    });
+    this.store.init();
   }
 
   ngOnDestroy() {
@@ -228,29 +296,16 @@ export class DevAgentComponent implements OnInit, OnDestroy {
 
   submitTask() {
     const task = this.taskInput();
-    this.store.send(task);
+    this.store.setWorkspaceRootInput(this.currentWorkspaceRoot());
+    this.store.send(task, {
+      onSuccess: (result) => {
+        this.router.navigate(['/dev-agent/sessions', result.session.id]);
+      },
+    });
     this.taskInput.set('');
-    this.activeView.set('run');
   }
 
-  openSessionFromBoard(sessionId: string) {
-    this.store.selectSession(sessionId);
-    this.activeView.set('run');
+  openSession(sessionId: string) {
+    this.router.navigate(['/dev-agent/sessions', sessionId]);
   }
-
-  isCurrentRunCancellable(): boolean {
-    const status = this.store.currentResult()?.run.status;
-    return status ? this.store.isRunCancellable(status) : false;
-  }
-
-  isCurrentRunRerunnable(): boolean {
-    const status = this.store.currentResult()?.run.status;
-    return !!status && !this.store.isRunCancellable(status);
-  }
-
-  isCancellingCurrentRun(): boolean {
-    const runId = this.store.currentResult()?.run.id;
-    return !!runId && this.store.cancellingRunId() === runId;
-  }
-
 }
