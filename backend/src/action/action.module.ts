@@ -7,11 +7,13 @@ import { BookDownloadSkillModule } from './skills/book-download/book-download-sk
 import { GeneralActionSkillModule } from './skills/general-action/general-action-skill.module';
 import { TimesheetSkillModule } from './skills/timesheet/timesheet-skill.module';
 import { ReminderSkillModule } from './skills/reminder/reminder-skill.module';
+import { CheckinSkillModule } from './skills/checkin/checkin-skill.module';
 import { WeatherSkillService } from './skills/weather/weather-skill.service';
 import { BookDownloadSkillService } from './skills/book-download/book-download-skill.service';
 import { GeneralActionSkillService } from './skills/general-action/general-action-skill.service';
 import { TimesheetSkillService } from './skills/timesheet/timesheet-skill.service';
 import { ReminderSkillService } from './skills/reminder/reminder-skill.service';
+import { CheckinSkillService } from './skills/checkin/checkin-skill.service';
 import { OpenClawModule } from '../openclaw/openclaw.module';
 import { ReadonlyFileCapabilityService } from './capabilities/readonly-file-capability.service';
 import { LocalSkillModule } from './local-skills/local-skill.module';
@@ -41,6 +43,7 @@ import { CapabilityChainExecutor } from './capability-chain-executor.service';
     GeneralActionSkillModule,
     TimesheetSkillModule,
     ReminderSkillModule,
+    CheckinSkillModule,
     LocalSkillModule,
     OpenClawModule,
   ],
@@ -55,6 +58,7 @@ export class ActionModule implements OnModuleInit {
     private readonly generalAction: GeneralActionSkillService,
     private readonly timesheet: TimesheetSkillService,
     private readonly reminder: ReminderSkillService,
+    private readonly checkin: CheckinSkillService,
     private readonly readonlyFileCapability: ReadonlyFileCapabilityService,
   ) {}
 
@@ -64,6 +68,7 @@ export class ActionModule implements OnModuleInit {
     this.registry.register(this.generalAction);
     this.registry.register(this.timesheet);
     this.registry.register(this.reminder);
+    this.registry.register(this.checkin);
     this.registry.register(this.readonlyFileCapability);
   }
 }

@@ -19,6 +19,7 @@ function fakeConfig(overrides?: Partial<SiteAuthConfig>): SiteAuthConfig {
 
 function fakePage(): PageHandle {
   return {
+    url: jest.fn().mockReturnValue('https://example.com'),
     goto: jest.fn().mockResolvedValue(undefined),
     click: jest.fn().mockResolvedValue(undefined),
     fill: jest.fn().mockResolvedValue(undefined),

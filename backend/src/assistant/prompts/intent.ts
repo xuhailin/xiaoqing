@@ -51,6 +51,7 @@ export const INTENT_SYSTEM_PROMPT = `
 - timesheet：工时上报（用户说「填下今天工时」「帮我录工时」「工时录入了吗」「这个月哪天没录入工时」「补一下昨天的工时」等涉及工时/考勤录入的请求）
 - dev_task：开发任务（用户明确要求写代码、跑脚本、改项目、执行命令、调试、修 bug、做开发相关操作等，需要交给开发代理执行）
 - set_reminder：设置/查看/取消提醒（用户说「提醒我xxx」「每天xx点提醒我」「帮我设个闹钟」「取消吃饭的提醒」「我有哪些提醒」等）。也包括**确认式请求**：如果上轮小晴提议了设提醒（如「要不要我帮你记一下」），用户本轮回复「好」「可以」「帮我提醒」「设吧」等确认性回复，应判为 set_reminder 并从上文补全 reminderReason 等槽位
+- checkin：打卡（用户说「帮我打卡」「打个卡」「上班打卡」「下班打卡」等考勤打卡请求）
 - general_tool：其他工具型请求（搜索、邮件、日历、外部查询等）
 
 7. 建议工具（suggestedTool，可选）
@@ -184,7 +185,7 @@ export const INTENT_SYSTEM_PROMPT = `
   "actionDecision": { "action": "direct_reply", "reason": "" }
 }
 
-taskIntent 说明：必须是 "none" | "weather_query" | "book_download" | "timesheet" | "dev_task" | "set_reminder" | "general_tool" 之一。
+taskIntent 说明：必须是 "none" | "weather_query" | "book_download" | "timesheet" | "dev_task" | "set_reminder" | "checkin" | "general_tool" 之一。
 
 suggestedTool 说明：查天气时填 "weather"，电子书下载时填 "book_download"，工时上报时填 "timesheet"，设置提醒时填 "reminder"，否则不输出或空字符串。
 

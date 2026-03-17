@@ -12,6 +12,7 @@ export class IntentCapabilityMapper {
     this.register('book_download', 'chat', 'book-download');
     this.register('timesheet', 'chat', 'timesheet');
     this.register('set_reminder', 'chat', 'reminder');
+    this.register('checkin', 'chat', 'checkin');
     this.register('general_tool', 'chat', 'general-action');
   }
 

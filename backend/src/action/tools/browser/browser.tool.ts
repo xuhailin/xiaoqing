@@ -25,9 +25,11 @@ export interface LocatorHandle {
   getAttribute(name: string): Promise<string | null>;
   textContent(): Promise<string | null>;
   all?(): Promise<LocatorHandle[]>;
+  screenshot?(opts?: { path?: string }): Promise<Buffer>;
 }
 
 export interface PageHandle {
+  url(): string;
   goto(url: string, opts?: { waitUntil?: WaitUntil; timeout?: number }): Promise<void>;
   click(selector: string, opts?: { timeout?: number }): Promise<void>;
   fill(selector: string, value: string, opts?: { timeout?: number }): Promise<void>;
@@ -46,8 +48,14 @@ export interface StorageState {
   origins: Array<Record<string, unknown>>;
 }
 
+export interface BrowserContextOptions {
+  storageState?: StorageState;
+  geolocation?: { latitude: number; longitude: number };
+  permissions?: string[];
+}
+
 interface BrowserLike {
-  newContext(opts?: { storageState?: StorageState }): Promise<ContextLike>;
+  newContext(opts?: BrowserContextOptions): Promise<ContextLike>;
   close(): Promise<void>;
 }
 
@@ -86,8 +94,8 @@ export class BrowserTool {
     }
   }
 
-  /** 创建新 context（可选注入 storageState 以复用 session） */
-  async createContext(storageState?: StorageState): Promise<void> {
+  /** 创建新 context（可选注入 storageState / geolocation） */
+  async createContext(opts?: StorageState | BrowserContextOptions): Promise<void> {
     await this.launch();
     // 关闭旧 context
     if (this.context) {
@@ -95,8 +103,14 @@ export class BrowserTool {
       this.context = null;
     }
     try {
-      this.context = storageState
-        ? await this.browser!.newContext({ storageState })
+      // 兼容旧签名：如果传入的是 StorageState（有 cookies 数组），包装为 options
+      const ctxOpts: BrowserContextOptions | undefined = opts
+        ? Array.isArray((opts as StorageState).cookies)
+          ? { storageState: opts as StorageState }
+          : (opts as BrowserContextOptions)
+        : undefined;
+      this.context = ctxOpts
+        ? await this.browser!.newContext(ctxOpts)
         : await this.browser!.newContext();
     } catch (e) {
       throw new ToolError('EXECUTION_ERROR', '无法创建浏览器上下文', e);

@@ -5,7 +5,7 @@ export type DialogueSeriousness = 'casual' | 'semi' | 'focused';
 export type DialogueExpectation = '陪聊' | '一起想' | '直接给结果';
 export type DialogueAgency = '朋友' | '并肩思考者' | '顾问' | '执行器';
 export type DialogueEscalation = '不推进' | '可记录' | '应转任务';
-export type DialogueTaskIntent = 'none' | 'weather_query' | 'book_download' | 'general_tool' | 'timesheet' | 'dev_task' | 'set_reminder';
+export type DialogueTaskIntent = 'none' | 'weather_query' | 'book_download' | 'general_tool' | 'timesheet' | 'dev_task' | 'set_reminder' | 'checkin';
 /** LLM 给出的建议工具；最终是否调用由策略层决定 */
 export type DialogueSuggestedTool = 'weather' | 'book_download' | 'timesheet' | 'reminder';
 

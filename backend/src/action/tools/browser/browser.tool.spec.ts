@@ -3,6 +3,7 @@ import { BrowserTool, type PageHandle } from './browser.tool';
 describe('BrowserTool', () => {
   function fakePage(): PageHandle {
     return {
+      url: jest.fn().mockReturnValue('https://example.com'),
       goto: jest.fn().mockResolvedValue(undefined),
       click: jest.fn().mockResolvedValue(undefined),
       fill: jest.fn().mockResolvedValue(undefined),

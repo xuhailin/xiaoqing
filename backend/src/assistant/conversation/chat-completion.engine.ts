@@ -835,6 +835,13 @@ export class ChatCompletionEngine {
       };
     }
 
+    if (capability === 'checkin') {
+      return {
+        capabilityName: 'checkin',
+        params: {},
+      };
+    }
+
     return null;
   }
 
