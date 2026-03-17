@@ -16,7 +16,7 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       @if (!board.summary.total) {
         <app-state
           title="还没有 dev sessions"
-          description="先在“当前执行”里发起一个任务，这里就会按进行中、失败、成功自动归类。"
+          description="先创建一个 New Session，这里会按进行中、失败、成功自动归类。"
         />
       } @else {
         <div class="lane-grid">
@@ -77,6 +77,9 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
                         <span>{{ card.runningCount }} running</span>
                         <span>{{ card.failedCount }} failed</span>
                         <span>{{ card.successCount }} success</span>
+                        @if (card.totalCostUsd != null) {
+                          <span class="card-cost">\${{ formatCost(card.totalCostUsd) }}</span>
+                        }
                       </div>
                     </button>
                   }
@@ -195,6 +198,10 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       border-top: 1px solid var(--color-border-light);
     }
 
+    .card-cost {
+      font-variant-numeric: tabular-nums;
+    }
+
     @media (max-width: 1180px) {
       .lane-grid {
         grid-template-columns: 1fr;
@@ -220,6 +227,10 @@ export class DevSessionBoardComponent {
     if (status === 'failed') return 'danger';
     if (status === 'success') return 'success';
     return 'neutral';
+  }
+
+  protected formatCost(value: number): string {
+    return value < 0.01 ? value.toFixed(4) : value.toFixed(2);
   }
 
   trackCard(_index: number, card: DevSessionBoardCard) {

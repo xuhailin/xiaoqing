@@ -109,13 +109,15 @@ export class DevAgentPageStore {
     }
   }
 
-  selectWorkspaceRoot(root: string) {
+  selectWorkspaceRoot(root: string): string | null {
     const normalizedRoot = root.trim();
     this.setWorkspaceRootInput(normalizedRoot);
     const matched = this.sessions().find((session) => session.workspaceRoot === normalizedRoot);
     if (matched) {
       this.selectSession(matched.id);
+      return matched.id;
     }
+    return null;
   }
 
   selectSession(sessionId: string) {
@@ -126,7 +128,13 @@ export class DevAgentPageStore {
     this.applySelectedSession(session);
   }
 
-  send(content: string) {
+  send(
+    content: string,
+    options?: {
+      forceNewSession?: boolean;
+      onSuccess?: (result: DevTaskResult) => void;
+    },
+  ) {
     const trimmed = content.trim();
     if (!trimmed || this.sending()) return;
 
@@ -134,7 +142,10 @@ export class DevAgentPageStore {
     const convId = this.devConversationId || 'dev-default';
     const workspaceRoot = this.resolveWorkspaceRootForSend();
 
-    this.devAgent.sendDevMessage(convId, trimmed, { workspaceRoot }).subscribe({
+    this.devAgent.sendDevMessage(convId, trimmed, {
+      workspaceRoot,
+      forceNewSession: options?.forceNewSession === true,
+    }).subscribe({
       next: (result) => {
         this.lastResult.set({
           ...result,
@@ -153,6 +164,7 @@ export class DevAgentPageStore {
         this.pollRun(result.run.id, result.session.id);
         this.sending.set(false);
         this.loadSessions(result.session.id);
+        options?.onSuccess?.(result);
       },
       error: (err) => {
         this.lastResult.set({
@@ -214,6 +226,54 @@ export class DevAgentPageStore {
         this.sending.set(false);
         const msg = err?.error?.message || err?.message || '未知错误';
         this.notify(`重跑失败：${msg}`);
+      },
+    });
+  }
+
+  resumeCurrentRun() {
+    if (this.sending()) {
+      this.notify('当前已有任务发送中，请稍后重试。');
+      return;
+    }
+    const currentRun = this.currentRun();
+    const sourceRunId = currentRun?.id ?? this.lastResult()?.run.id;
+    if (!sourceRunId) {
+      this.notify('当前没有可恢复的 run。');
+      return;
+    }
+    if (!this.isRunResumable(currentRun)) {
+      this.notify('当前 run 没有可恢复的 agent session。');
+      return;
+    }
+
+    this.sending.set(true);
+    this.devAgent.resumeRun(sourceRunId).subscribe({
+      next: (result) => {
+        this.lastResult.set({
+          ...result,
+          run: {
+            ...result.run,
+            userInput: result.run.userInput ?? '继续上次未完成的任务',
+            rerunFromRunId: result.run.rerunFromRunId ?? null,
+            startedAt: result.run.startedAt ?? null,
+            finishedAt: result.run.finishedAt ?? null,
+            createdAt: result.run.createdAt ?? null,
+          },
+        });
+        this.selectedSessionId.set(result.session.id);
+        this.selectedRunId.set(result.run.id);
+        this.setWorkspaceRootInput(
+          result.run.workspace?.workspaceRoot ?? this.workspaceRootInput(),
+        );
+        this.pollRun(result.run.id, result.session.id);
+        this.sending.set(false);
+        this.loadSessions(result.session.id);
+        this.notify('已创建恢复任务，将继续 agent 会话。');
+      },
+      error: (err) => {
+        this.sending.set(false);
+        const msg = err?.error?.message || err?.message || '未知错误';
+        this.notify(`恢复失败：${msg}`);
       },
     });
   }
@@ -281,6 +341,37 @@ export class DevAgentPageStore {
 
   isRunCancellable(status: string): boolean {
     return status === 'queued' || status === 'pending' || status === 'running';
+  }
+
+  isRunResumable(run: DevRun | null | undefined): boolean {
+    if (!run) return false;
+    if (this.isRunCancellable(run.status)) return false;
+    const agentSessionId = run.agentSessionId
+      ?? (this.asRecord(run.result)?.['agentSessionId'] as string | undefined);
+    return !!agentSessionId;
+  }
+
+  /** 从 run.result 中提取执行模式 */
+  getRunMode(run: DevRun | null | undefined): 'agent' | 'orchestrated' | null {
+    if (!run) return null;
+    const resultObj = this.asRecord(run.result);
+    const mode = resultObj?.['mode'];
+    if (mode === 'agent') return 'agent';
+    if (mode === 'orchestrated') return 'orchestrated';
+    return null;
+  }
+
+  /** 从 run 中提取成本 */
+  getRunCostUsd(run: DevRun | null | undefined): number | null {
+    if (!run) return null;
+    if (typeof run.costUsd === 'number') return run.costUsd;
+    const resultObj = this.asRecord(run.result);
+    const summaryObj = this.asRecord(resultObj?.['summary']);
+    const costFromSummary = summaryObj?.['costUsd'];
+    if (typeof costFromSummary === 'number') return costFromSummary;
+    const costFromResult = resultObj?.['costUsd'];
+    if (typeof costFromResult === 'number') return costFromResult;
+    return null;
   }
 
   private loadSessions(preferredSessionId?: string, preferredRunId?: string) {

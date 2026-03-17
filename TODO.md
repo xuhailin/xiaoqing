@@ -32,4 +32,14 @@
   - SDK: `persistSession: true`，通过 `resume` 参数传入前次 sessionId
   - API: `POST /dev-agent/runs/:runId/resume`，可选 `userInput` 追加指令
   - 成本: resume 链的每个 run 独立计费，累加到 session.totalCostUsd
+- [x] **前端补齐成本/resume/模式展示**：将后端已完成的成本追踪、resume、agent 模式标识展示到 UI
+  - 前端类型: DevRun/DevSession 新增 costUsd、agentSessionId、resumedFromRunId 等字段
+  - API 调用: resumeRun、getSessionCost、setSessionBudget
+  - UI: chat panel header 展示成本与模式 badge、resume 按钮
+  - Board: session 卡片展示累计成本
+
+## 远期探索
+
 - [ ] **多 agent 协作**：一个 run 内启动多个 Claude Code Agent 并行处理不同子任务
+  - 前置条件：单 agent 模式稳定、workspace 隔离方案成熟、明确的大型任务场景驱动
+  - 涉及：任务分解器、workspace 隔离（git worktree pool）、结果合并、并行进度展示

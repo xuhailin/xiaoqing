@@ -18,46 +18,56 @@ import { AppPanelComponent } from '../../shared/ui/app-panel.component';
   ],
   template: `
     <app-panel variant="workbench" padding="none" class="dev-chat-panel">
-      <header class="chat-header">
-        <div class="header-left">
-          <span class="header-title">Dev Chat</span>
-          @if (runState?.workspaceLabel) {
-            <span class="header-workspace">{{ runState?.workspaceLabel }}</span>
-          }
-          @if (runState?.updatedAtLabel) {
-            <span class="header-time">{{ runState?.updatedAtLabel }}</span>
-          }
-        </div>
+      <div class="dev-chat-panel__body">
+        <header class="chat-header">
+          <div class="header-left">
+            <span class="header-title">Dev Chat</span>
+            @if (runState?.mode; as mode) {
+              <app-badge tone="neutral" [appearance]="'outline'" class="mode-badge">
+                {{ mode === 'agent' ? 'Agent' : 'Orchestrated' }}
+              </app-badge>
+            }
+            @if (runState?.updatedAtLabel) {
+              <span class="header-time">{{ runState?.updatedAtLabel }}</span>
+            }
+            @if (runState && runState.costUsd != null) {
+              <span class="header-cost">\${{ formatCost(runState!.costUsd!) }}</span>
+            }
+          </div>
 
-        <div class="header-actions">
-          @if (runState) {
-            <app-badge
-              class="status-badge"
-              [tone]="statusTone(runState.status)"
-              [caps]="true"
-            >
-              {{ runState.statusLabel }}
-            </app-badge>
-          }
-          @if (canCancel) {
-            <app-button variant="ghost" size="sm" [disabled]="cancelling" (click)="cancel.emit()">
-              {{ cancelling ? '取消中...' : '停止' }}
-            </app-button>
-          }
-          @if (canRerun) {
-            <app-button variant="primary" size="sm" (click)="rerun.emit()">重试</app-button>
-          }
-        </div>
-      </header>
+          <div class="header-actions">
+            @if (runState) {
+              <app-badge
+                class="status-badge"
+                [tone]="statusTone(runState.status)"
+                [caps]="true"
+              >
+                {{ runState.statusLabel }}
+              </app-badge>
+            }
+            @if (canCancel) {
+              <app-button variant="ghost" size="sm" [disabled]="cancelling" (click)="cancel.emit()">
+                {{ cancelling ? '取消中...' : '停止' }}
+              </app-button>
+            }
+            @if (canResume) {
+              <app-button variant="ghost" size="sm" (click)="resume.emit()">恢复</app-button>
+            }
+            @if (canRerun) {
+              <app-button variant="primary" size="sm" (click)="rerun.emit()">重试</app-button>
+            }
+          </div>
+        </header>
 
-      <app-chat-message-list [messages]="messages" />
+        <app-chat-message-list [messages]="messages" />
 
-      <app-chat-input
-        [taskInput]="taskInput"
-        [sending]="sending"
-        (taskInputChange)="taskInputChange.emit($event)"
-        (submit)="submit.emit()"
-      />
+        <app-chat-input
+          [taskInput]="taskInput"
+          [sending]="sending"
+          (taskInputChange)="taskInputChange.emit($event)"
+          (submit)="submit.emit()"
+        />
+      </div>
     </app-panel>
   `,
   styles: [`
@@ -68,6 +78,14 @@ import { AppPanelComponent } from '../../shared/ui/app-panel.component';
     }
 
     .dev-chat-panel {
+      height: 100%;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .dev-chat-panel__body {
       height: 100%;
       min-height: 0;
       display: flex;
@@ -99,18 +117,19 @@ import { AppPanelComponent } from '../../shared/ui/app-panel.component';
       white-space: nowrap;
     }
 
-    .header-workspace {
-      font-size: var(--font-size-xs);
-      color: var(--color-text-secondary);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .header-time {
+    .header-time,
+    .header-cost {
       font-size: var(--font-size-xs);
       color: var(--color-text-muted);
       white-space: nowrap;
+    }
+
+    .header-cost {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .mode-badge {
+      flex-shrink: 0;
     }
 
     .header-actions {
@@ -138,17 +157,23 @@ export class DevChatPanelComponent {
   @Input() sending = false;
   @Input() canCancel = false;
   @Input() canRerun = false;
+  @Input() canResume = false;
   @Input() cancelling = false;
 
   @Output() taskInputChange = new EventEmitter<string>();
   @Output() submit = new EventEmitter<void>();
   @Output() cancel = new EventEmitter<void>();
   @Output() rerun = new EventEmitter<void>();
+  @Output() resume = new EventEmitter<void>();
 
   protected statusTone(status: DevChatRunState['status']) {
     if (status === 'running') return 'warning';
     if (status === 'success') return 'success';
     if (status === 'failed') return 'danger';
     return 'neutral';
+  }
+
+  protected formatCost(value: number): string {
+    return value < 0.01 ? value.toFixed(4) : value.toFixed(2);
   }
 }

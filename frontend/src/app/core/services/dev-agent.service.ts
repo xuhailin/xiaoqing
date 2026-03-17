@@ -20,6 +20,13 @@ export interface DevWorkspaceTreeResponse {
   entries: DevWorkspaceTreeEntry[];
 }
 
+export interface DevSessionCostSummary {
+  totalCostUsd: number;
+  budgetUsd: number | null;
+  remainingUsd: number | null;
+  budgetExhausted: boolean;
+}
+
 export interface DevSession {
   id: string;
   conversationId: string | null;
@@ -28,6 +35,8 @@ export interface DevSession {
   workspace: DevWorkspaceMeta | null;
   workspaceRoot: string | null;
   projectScope: string | null;
+  budgetUsd?: number | null;
+  totalCostUsd?: number;
   createdAt: string;
   updatedAt: string;
   runs: DevRun[];
@@ -38,6 +47,7 @@ export interface DevRun {
   sessionId: string;
   userInput: string;
   rerunFromRunId?: string | null;
+  resumedFromRunId?: string | null;
   plan: DevPlan | null;
   status: string;
   executor: string | null;
@@ -47,6 +57,8 @@ export interface DevRun {
   workspace: DevWorkspaceMeta | null;
   workspaceRoot: string | null;
   projectScope: string | null;
+  costUsd?: number | null;
+  agentSessionId?: string | null;
   startedAt: string | null;
   finishedAt: string | null;
   createdAt: string;
@@ -137,6 +149,20 @@ export class DevAgentService {
     return this.http.post<DevTaskResult>(`${this.base}/runs/${runId}/rerun`, {});
   }
 
+  resumeRun(runId: string, userInput?: string) {
+    return this.http.post<DevTaskResult>(`${this.base}/runs/${runId}/resume`, {
+      ...(userInput?.trim() ? { userInput: userInput.trim() } : {}),
+    });
+  }
+
+  getSessionCost(sessionId: string) {
+    return this.http.get<DevSessionCostSummary>(`${this.base}/sessions/${sessionId}/cost`);
+  }
+
+  setSessionBudget(sessionId: string, budgetUsd: number | null) {
+    return this.http.patch<void>(`${this.base}/sessions/${sessionId}/budget`, { budgetUsd });
+  }
+
   /** 通过 gateway 发送 dev 模式消息 */
   sendDevMessage(
     conversationId: string,
@@ -146,16 +172,20 @@ export class DevAgentService {
       projectScope?: string;
       /** 执行模式：agent 直接委派 Claude Code，orchestrated 走编排 */
       devRunMode?: 'orchestrated' | 'agent';
+      /** 是否强制创建新的 session */
+      forceNewSession?: boolean;
     },
   ) {
     const workspaceRoot = options?.workspaceRoot?.trim();
     const projectScope = options?.projectScope?.trim();
     const devRunMode = options?.devRunMode;
+    const forceNewSession = options?.forceNewSession === true;
 
-    const metadata: Record<string, string> = {};
+    const metadata: Record<string, string | boolean> = {};
     if (workspaceRoot) metadata['workspaceRoot'] = workspaceRoot;
     if (projectScope) metadata['projectScope'] = projectScope;
     if (devRunMode) metadata['devRunMode'] = devRunMode;
+    if (forceNewSession) metadata['forceNewSession'] = true;
 
     return this.http.post<DevTaskResult>(
       `${this.msgBase}/${conversationId}/messages`,

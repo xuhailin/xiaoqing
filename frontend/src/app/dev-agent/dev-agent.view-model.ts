@@ -14,6 +14,9 @@ export interface DevChatRunState {
   statusLabel: string;
   workspaceLabel: string;
   updatedAtLabel: string | null;
+  mode: 'agent' | 'orchestrated' | null;
+  costUsd: number | null;
+  resumable: boolean;
 }
 
 export interface DevChatMessageBase {
@@ -77,6 +80,7 @@ export interface DevSessionBoardCard {
   successCount: number;
   failedCount: number;
   runningCount: number;
+  totalCostUsd: number | null;
 }
 
 export interface DevSessionLane {
@@ -143,6 +147,19 @@ export function buildRunState(result: DevTaskResult | null): DevChatRunState | n
   }
   const run = taskResultToRun(result);
   const parsed = parseRunData(run);
+  const resultRecord = asRecord(run.result);
+  const summaryRecord = asRecord(resultRecord?.['summary']);
+  const mode = resultRecord?.['mode'] === 'agent' ? 'agent' as const
+    : resultRecord?.['mode'] === 'orchestrated' ? 'orchestrated' as const
+    : null;
+  const costUsd = typeof run.costUsd === 'number' ? run.costUsd
+    : readNumber(summaryRecord, 'costUsd') ?? readNumber(resultRecord, 'costUsd');
+  const agentSessionId = run.agentSessionId
+    ?? readString(summaryRecord, 'agentSessionId')
+    ?? readString(resultRecord, 'agentSessionId');
+  const isTerminal = run.status === 'success' || run.status === 'failed' || run.status === 'cancelled';
+  const resumable = isTerminal && !!agentSessionId;
+
   return {
     title: normalizedText(run.userInput) ?? '新的开发任务',
     status: normalizeRunStatus(run.status),
@@ -151,6 +168,9 @@ export function buildRunState(result: DevTaskResult | null): DevChatRunState | n
     updatedAtLabel: formatDateTime(
       parsed.updatedAt ?? run.finishedAt ?? run.startedAt ?? run.createdAt ?? null,
     ),
+    mode,
+    costUsd,
+    resumable,
   };
 }
 
@@ -509,6 +529,7 @@ function taskResultToRun(task: DevTaskResult): DevRun {
     sessionId: task.session.id,
     userInput: task.run.userInput ?? '',
     rerunFromRunId: task.run.rerunFromRunId ?? null,
+    resumedFromRunId: null,
     plan: task.run.plan,
     status: task.run.status,
     executor: task.run.executor,
@@ -518,6 +539,8 @@ function taskResultToRun(task: DevTaskResult): DevRun {
     workspace: task.run.workspace,
     workspaceRoot: task.run.workspace?.workspaceRoot ?? null,
     projectScope: task.run.workspace?.projectScope ?? null,
+    costUsd: null,
+    agentSessionId: null,
     startedAt: task.run.startedAt ?? null,
     finishedAt: task.run.finishedAt ?? null,
     createdAt: task.run.createdAt ?? new Date().toISOString(),
@@ -596,6 +619,10 @@ function buildSessionBoardCard(session: DevSession): DevSessionBoardCard {
         }
       : null);
 
+  const totalCostUsd = typeof session.totalCostUsd === 'number' && session.totalCostUsd > 0
+    ? session.totalCostUsd
+    : null;
+
   return {
     id: session.id,
     title: sessionTitle(session, latestRun),
@@ -610,6 +637,7 @@ function buildSessionBoardCard(session: DevSession): DevSessionBoardCard {
     successCount,
     failedCount,
     runningCount,
+    totalCostUsd,
   };
 }
 
