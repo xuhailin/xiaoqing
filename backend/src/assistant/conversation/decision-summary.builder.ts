@@ -39,6 +39,10 @@ export class DecisionSummaryBuilder {
       if (intent.taskIntent !== 'none' && intent.requiresTool) {
         parts.push(`用户意图：${this.translateTaskIntent(intent.taskIntent)}（置信度 ${intent.confidence.toFixed(2)}）`);
         tone = 'focused';
+        if (intent.taskIntent === 'device_screenshot') {
+          emphasis = '明确说明当前不能直接替用户截设备屏幕，可引导对方手动截图或把图片发来';
+          context = '这是设备侧执行请求，不要假装已经完成截图';
+        }
       } else if (intent.mode === 'thinking') {
         parts.push('用户在思考或讨论，不需要执行工具');
         tone = 'supportive';
@@ -96,6 +100,7 @@ export class DecisionSummaryBuilder {
       dev_task: '开发任务',
       set_reminder: '设置提醒',
       timesheet: '工时管理',
+      device_screenshot: '设备截图请求',
     };
     return map[taskIntent] ?? taskIntent;
   }

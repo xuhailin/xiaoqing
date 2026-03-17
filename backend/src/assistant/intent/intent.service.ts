@@ -150,6 +150,7 @@ export class IntentService {
         'dev_task',
         'set_reminder',
         'checkin',
+        'device_screenshot',
       ]);
 
     // 兼容旧字段 toolNeed，避免模型短期内输出旧结构导致行为跳变。

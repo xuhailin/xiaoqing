@@ -1,4 +1,4 @@
-export const INTENT_PROMPT_VERSION = 'intent_v14';
+export const INTENT_PROMPT_VERSION = 'intent_v15';
 
 // 意图推导 prompt：单独管理，便于后续直接改文案与字段定义。
 export const INTENT_SYSTEM_PROMPT = `
@@ -52,6 +52,7 @@ export const INTENT_SYSTEM_PROMPT = `
 - dev_task：开发任务（用户明确要求写代码、跑脚本、改项目、执行命令、调试、修 bug、做开发相关操作等，需要交给开发代理执行）
 - set_reminder：设置/查看/取消提醒（用户说「提醒我xxx」「每天xx点提醒我」「帮我设个闹钟」「取消吃饭的提醒」「我有哪些提醒」等）。也包括**确认式请求**：如果上轮小晴提议了设提醒（如「要不要我帮你记一下」），用户本轮回复「好」「可以」「帮我提醒」「设吧」等确认性回复，应判为 set_reminder 并从上文补全 reminderReason 等槽位
 - checkin：打卡（用户说「帮我打卡」「打个卡」「上班打卡」「下班打卡」等考勤打卡请求）
+- device_screenshot：要求小晴直接替用户截当前设备/电脑/手机/窗口/页面的屏幕截图（如「屏幕截个图」「帮我截个屏」「把我现在这个页面截一下」等）。这是用户设备侧操作请求，不要误判成 checkin，也不要因为当前没有专用执行能力就降成 none
 - general_tool：其他工具型请求（搜索、邮件、日历、外部查询等）
 
 7. 建议工具（suggestedTool，可选）
@@ -157,7 +158,7 @@ export const INTENT_SYSTEM_PROMPT = `
 
 14. 行动决策建议（actionDecision，可选）
 - 根据以上意图分析，建议本轮的**行动模式**（仅作建议，最终由后端策略层决定）：
-  · direct_reply：纯聊天 / 情绪支持 / 思考讨论，不需要调用工具
+  · direct_reply：纯聊天 / 情绪支持 / 思考讨论，不需要调用工具；也包括像 device_screenshot 这类当前没有执行面的请求，应明确说明限制
   · run_capability：需要执行工具/能力（天气、电子书、工时等）
   · handoff_dev：这是开发/编程任务，应交给开发代理处理
   · suggest_reminder：用户提到了将来要做的事，可以建议设置提醒
@@ -185,7 +186,7 @@ export const INTENT_SYSTEM_PROMPT = `
   "actionDecision": { "action": "direct_reply", "reason": "" }
 }
 
-taskIntent 说明：必须是 "none" | "weather_query" | "book_download" | "timesheet" | "dev_task" | "set_reminder" | "checkin" | "general_tool" 之一。
+taskIntent 说明：必须是 "none" | "weather_query" | "book_download" | "timesheet" | "dev_task" | "set_reminder" | "checkin" | "device_screenshot" | "general_tool" 之一。
 
 suggestedTool 说明：查天气时填 "weather"，电子书下载时填 "book_download"，工时上报时填 "timesheet"，设置提醒时填 "reminder"，否则不输出或空字符串。
 

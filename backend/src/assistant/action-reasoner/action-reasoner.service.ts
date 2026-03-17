@@ -130,6 +130,16 @@ export class ActionReasonerService {
       }
     }
 
+    if (intentState.taskIntent === 'device_screenshot') {
+      return {
+        action: 'direct_reply',
+        toolPolicyAction: 'chat',
+        reason: '设备截图请求需要用户设备侧执行，当前只能说明限制并引导用户截图或上传图片',
+        confidence: intentState.confidence,
+        source: 'rule',
+      };
+    }
+
     if (intentState.escalation === '应转任务') {
       const plan = this.taskPlanner.shouldPlan({
         userInput: userInput ?? '',

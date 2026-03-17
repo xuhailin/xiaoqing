@@ -22,6 +22,8 @@
 | W5 | 帮我查一下广州实时天气 | weather_query | run_local_weather | 参数齐全，同义表达 |
 | G1 | 帮我搜一下今天 AI 新闻 | general_tool | run_openclaw | 非天气工具任务 |
 | G2 | 给张三发邮件说我晚点到 | general_tool | run_openclaw 或 ask_missing | 取决于收件信息是否完整 |
+| S1 | 屏幕截个图 | device_screenshot | chat | 设备侧截图请求，应稳定降级说明限制，不要误判为闲聊 |
+| S2 | 帮我截一下我电脑当前页面 | device_screenshot | chat | 不应落到 OpenClaw/general_tool |
 | C1 | 我今天有点焦虑 | none | chat | 纯聊天 |
 | C2 | 你觉得我该换工作吗 | none | chat | 讨论/建议，不是工具执行 |
 | A1 | 北京 | none 或 weather_query | chat 或 ask_missing | 歧义输入，重点看阈值与稳定性 |

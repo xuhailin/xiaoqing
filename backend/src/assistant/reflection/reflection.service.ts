@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import type { ReflectionInput, ReflectionResult } from './reflection.types';
 
+const DIRECT_REPLY_ALLOWED_TOOL_INTENTS = new Set(['device_screenshot']);
+
 @Injectable()
 export class ReflectionService {
   /**
@@ -29,7 +31,11 @@ export class ReflectionService {
         issues.push('dev_task 意图未路由到 dev');
       }
 
-      if (requiresTool && action === 'direct_reply') {
+      if (
+        requiresTool &&
+        action === 'direct_reply' &&
+        !DIRECT_REPLY_ALLOWED_TOOL_INTENTS.has(taskIntent)
+      ) {
         issues.push('工具意图被降级为聊天');
       }
     }
