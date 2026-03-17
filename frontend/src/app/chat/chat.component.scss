@@ -97,12 +97,10 @@
   flex-direction: column;
   gap: var(--workbench-chat-gap);
   min-height: 0;
-  border: 1px solid rgba(96, 122, 170, 0.16);
-  border-radius: 24px;
-  background:
-    radial-gradient(circle at top right, rgba(92, 103, 242, 0.05), transparent 20%),
-    var(--color-workbench-panel-strong);
-  box-shadow: var(--shadow-md);
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 
   &::-webkit-scrollbar { width: 4px; }
   &::-webkit-scrollbar-track { background: transparent; }
@@ -486,11 +484,11 @@
 // Input row
 // ---------------------------------------------------------------------------
 .input-row {
-  border: 1px solid var(--color-workbench-border);
-  border-radius: 24px;
+  border: none;
+  border-radius: 0;
   padding: var(--space-3) var(--space-4);
-  background: var(--color-workbench-panel-strong);
-  box-shadow: var(--shadow-sm);
+  background: transparent;
+  box-shadow: none;
   display: flex;
   flex-direction: row;
   align-items: flex-end;
