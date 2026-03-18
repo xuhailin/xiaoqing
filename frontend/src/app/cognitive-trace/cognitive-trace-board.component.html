@@ -1,0 +1,223 @@
+<section class="home-timeline ui-workbench-surface ui-workbench-surface--soft">
+  <header class="home-timeline__header">
+    <div class="home-timeline__copy">
+      <span class="home-timeline__eyebrow">AI 认知轨迹</span>
+      <h2 class="home-timeline__title">小晴认知 Trace</h2>
+      <p class="home-timeline__description">
+        这里只放小晴自己的认知变化，包括感知、记忆、提醒编排、关系洞察和能力演进。
+        它描述的是“AI 这一侧发生了什么”，和用户生活轨迹完全分开。
+      </p>
+    </div>
+
+    <div class="home-timeline__metrics">
+      @for (metric of heroMetrics; track metric.label) {
+        <div class="home-timeline__metric">
+          <span class="home-timeline__metric-label">{{ metric.label }}</span>
+          <strong class="home-timeline__metric-value">{{ metric.value }}</strong>
+        </div>
+      }
+    </div>
+  </header>
+
+  <div class="home-timeline__toolbar">
+    <app-tabs
+      class="home-timeline__tabs"
+      [items]="tabs"
+      [value]="viewMode()"
+      [size]="'sm'"
+      (valueChange)="selectViewMode($event)"
+    />
+
+    <div class="home-timeline__toolbar-copy">
+      <span class="home-timeline__toolbar-label">当前主线</span>
+      <span class="home-timeline__toolbar-value">{{ topTheme }}</span>
+    </div>
+  </div>
+
+  @if (viewMode() === 'points') {
+    <div class="timeline-stream">
+      <div class="timeline-stream__now">
+        <div class="timeline-stream__now-spacer" aria-hidden="true"></div>
+        <div class="timeline-stream__now-node">
+          <span class="timeline-stream__now-ping"></span>
+        </div>
+        <div class="timeline-stream__now-card">
+          <span class="timeline-stream__now-label">当前时刻</span>
+          <p class="timeline-stream__now-copy">
+            这条轨迹只看小晴如何感知、记忆、洞察和演进，用来单独观察 AI 侧的内部变化。
+          </p>
+        </div>
+      </div>
+
+      @for (point of points; track point.id; let index = $index) {
+        <article class="timeline-entry" [ngClass]="'timeline-entry--' + point.kind" [style.--entry-delay]="(index * 70) + 'ms'">
+          <div class="timeline-entry__meta">
+            <span class="timeline-entry__segment">{{ point.segment }}</span>
+            <span class="timeline-entry__time">{{ point.time }}</span>
+          </div>
+
+          <div class="timeline-entry__node">
+            <div class="timeline-entry__glyph">{{ kindGlyph(point.kind) }}</div>
+          </div>
+
+          <div class="timeline-entry__card">
+            <div class="timeline-entry__head">
+              <div class="timeline-entry__badges">
+                <app-badge [tone]="kindTone(point.kind)" size="sm">{{ kindLabel(point.kind) }}</app-badge>
+                <app-badge tone="neutral" appearance="outline" size="sm">{{ point.source }}</app-badge>
+              </div>
+              <span class="timeline-entry__confidence">可信 {{ point.confidence }}%</span>
+            </div>
+
+            <h3 class="timeline-entry__title">{{ point.title }}</h3>
+            <p class="timeline-entry__summary">{{ point.summary }}</p>
+
+            <div class="timeline-entry__chips">
+              @for (actor of point.actors; track actor) {
+                <span class="timeline-chip timeline-chip--actor">{{ actor }}</span>
+              }
+              @for (tag of point.tags; track tag) {
+                <span class="timeline-chip timeline-chip--tag">#{{ tag }}</span>
+              }
+            </div>
+          </div>
+        </article>
+      }
+
+      <div class="timeline-stream__tail" aria-hidden="true">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </div>
+  } @else if (viewMode() === 'day') {
+    <div class="summary-grid summary-grid--day">
+      <section class="summary-card summary-card--glow">
+        <span class="summary-card__label">平均可信度</span>
+        <strong class="summary-card__value">{{ averageConfidence }}%</strong>
+        <p class="summary-card__hint">这一页聚焦的是 AI 认知链路本身，而不是用户生活记录。</p>
+      </section>
+
+      <section class="summary-card">
+        <span class="summary-card__label">认知层级</span>
+        <strong class="summary-card__value">{{ kinds().length }}</strong>
+        <p class="summary-card__hint">
+          @for (kind of kinds(); track kind.kind; let isLast = $last) {
+            <span>{{ kind.label }}{{ isLast ? '' : ' · ' }}</span>
+          }
+        </p>
+      </section>
+
+      <section class="summary-card">
+        <span class="summary-card__label">当前重心</span>
+        <strong class="summary-card__value">关系节奏</strong>
+        <p class="summary-card__hint">先接住情绪，再给方案，再把执行路径说清楚。</p>
+      </section>
+
+      <section class="detail-card">
+        <div class="detail-card__header">
+          <span class="detail-card__title">类型分布</span>
+          <span class="detail-card__caption">认知轨迹当前由哪些节点构成</span>
+        </div>
+
+        <div class="detail-list">
+          @for (kind of kinds(); track kind.kind) {
+            <div class="detail-list__row">
+              <div class="detail-list__label">
+                <app-badge [tone]="kind.tone" size="sm">{{ kind.label }}</app-badge>
+              </div>
+              <span class="detail-list__value">{{ kind.count }}</span>
+            </div>
+          }
+        </div>
+      </section>
+
+      <section class="detail-card">
+        <div class="detail-card__header">
+          <span class="detail-card__title">关联角色</span>
+          <span class="detail-card__caption">这条认知线里反复出现了谁</span>
+        </div>
+
+        <div class="detail-card__chips">
+          @for (actor of actors; track actor) {
+            <span class="timeline-chip timeline-chip--actor">{{ actor }}</span>
+          }
+        </div>
+      </section>
+
+      <section class="detail-card">
+        <div class="detail-card__header">
+          <span class="detail-card__title">高频标签</span>
+          <span class="detail-card__caption">当前演进主要集中在哪些能力面向</span>
+        </div>
+
+        <div class="detail-card__chips">
+          @for (tag of tags; track tag) {
+            <span class="timeline-chip timeline-chip--tag">#{{ tag }}</span>
+          }
+        </div>
+      </section>
+    </div>
+  } @else {
+    <div class="summary-grid summary-grid--week">
+      <section class="summary-card summary-card--glow">
+        <span class="summary-card__label">本周节点</span>
+        <strong class="summary-card__value">{{ totalWeekly }}</strong>
+        <p class="summary-card__hint">这一周里，AI 侧发生了多少次显性的认知变化。</p>
+      </section>
+
+      <section class="summary-card">
+        <span class="summary-card__label">日均演进</span>
+        <strong class="summary-card__value">{{ averageDaily }}</strong>
+        <p class="summary-card__hint">认知更新保持在稳定节奏，没有突然堆叠。</p>
+      </section>
+
+      <section class="summary-card">
+        <span class="summary-card__label">本周主线</span>
+        <strong class="summary-card__value">{{ topTheme }}</strong>
+        <p class="summary-card__hint">这一周最明显的认知重点已经开始成形。</p>
+      </section>
+
+      <section class="detail-card detail-card--wide">
+        <div class="detail-card__header">
+          <span class="detail-card__title">每周热度</span>
+          <span class="detail-card__caption">把认知节点的活跃度放进七天横截面里看</span>
+        </div>
+
+        <div class="week-activity">
+          @for (item of weeklyActivity; track item.day) {
+            <div class="week-activity__item">
+              <span class="week-activity__count">{{ item.count }}</span>
+              <div class="week-activity__bar-shell">
+                <div class="week-activity__bar" [style.height.%]="item.intensity"></div>
+              </div>
+              <span class="week-activity__day">{{ item.day }}</span>
+            </div>
+          }
+        </div>
+      </section>
+
+      <section class="detail-card detail-card--wide">
+        <div class="detail-card__header">
+          <span class="detail-card__title">主题占比</span>
+          <span class="detail-card__caption">更适合单独观察小晴如何逐步形成自己的工作方式</span>
+        </div>
+
+        <div class="theme-list">
+          @for (theme of weeklyThemes; track theme.label) {
+            <div class="theme-list__row">
+              <div class="theme-list__copy">
+                <span class="theme-list__label">{{ theme.label }}</span>
+                <span class="theme-list__hint">{{ theme.hint }}</span>
+              </div>
+              <div class="theme-list__progress">
+                <div class="theme-list__progress-bar" [style.width.%]="theme.share"></div>
+              </div>
+              <span class="theme-list__value">{{ theme.share }}%</span>
+            </div>
+          }
+        </div>
+      </section>
+    </div>
+  }
+</section>

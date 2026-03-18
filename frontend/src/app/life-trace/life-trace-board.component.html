@@ -1,0 +1,245 @@
+<section class="home-timeline ui-workbench-surface ui-workbench-surface--soft">
+  <header class="home-timeline__header">
+    <div class="home-timeline__copy">
+      <span class="home-timeline__eyebrow">生活轨迹</span>
+      <h2 class="home-timeline__title">LifeTrace</h2>
+      <p class="home-timeline__description">
+        把对话里出现的事件、情绪、人物和计划串成一条可浏览的生活轨迹。
+        这条线只描述“用户这边发生了什么”，不混入小晴自己的认知变化。
+      </p>
+    </div>
+
+    <div class="home-timeline__metrics">
+      @for (metric of heroMetrics; track metric.label) {
+        <div class="home-timeline__metric">
+          <span class="home-timeline__metric-label">{{ metric.label }}</span>
+          <strong class="home-timeline__metric-value">{{ metric.value }}</strong>
+        </div>
+      }
+    </div>
+  </header>
+
+  <div class="home-timeline__toolbar">
+    <app-tabs
+      class="home-timeline__tabs"
+      [items]="tabs"
+      [value]="viewMode()"
+      [size]="'sm'"
+      (valueChange)="selectViewMode($event)"
+    />
+
+    <div class="home-timeline__toolbar-copy">
+      <span class="home-timeline__toolbar-label">当前主题</span>
+      <span class="home-timeline__toolbar-value">{{ topTheme }}</span>
+    </div>
+  </div>
+
+  @if (viewMode() === 'points') {
+    <div class="timeline-stream">
+      <div class="timeline-stream__now">
+        <div class="timeline-stream__now-spacer" aria-hidden="true"></div>
+        <div class="timeline-stream__now-node">
+          <span class="timeline-stream__now-ping"></span>
+        </div>
+        <div class="timeline-stream__now-card">
+          <span class="timeline-stream__now-label">今天</span>
+          <p class="timeline-stream__now-copy">{{ todaySummary.body }}</p>
+        </div>
+      </div>
+
+      @for (point of points; track point.id; let index = $index) {
+        <article class="timeline-entry" [ngClass]="'timeline-entry--' + point.kind" [style.--entry-delay]="(index * 70) + 'ms'">
+          <div class="timeline-entry__meta">
+            <span class="timeline-entry__segment">{{ timeSegment(point.happenedAt, point.createdAt) }}</span>
+            <span class="timeline-entry__time">{{ shortTime(point.happenedAt, point.createdAt) }}</span>
+          </div>
+
+          <div class="timeline-entry__node">
+            <div class="timeline-entry__glyph">{{ kindGlyph(point.kind) }}</div>
+          </div>
+
+          <div class="timeline-entry__card">
+            <div class="timeline-entry__head">
+              <div class="timeline-entry__badges">
+                <app-badge [tone]="kindTone(point.kind)" size="sm">{{ kindLabel(point.kind) }}</app-badge>
+                @if (point.mood) {
+                  <app-badge tone="neutral" appearance="outline" size="sm">{{ moodLabel(point.mood) }}</app-badge>
+                }
+              </div>
+              <span class="timeline-entry__confidence">可信 {{ point.confidence }}%</span>
+            </div>
+
+            <p class="timeline-entry__summary">{{ point.content }}</p>
+
+            <div class="timeline-entry__chips">
+              @for (person of point.people; track person) {
+                <span class="timeline-chip timeline-chip--actor">{{ person }}</span>
+              }
+              @for (tag of point.tags; track tag) {
+                <span class="timeline-chip timeline-chip--tag">#{{ tag }}</span>
+              }
+            </div>
+          </div>
+        </article>
+      }
+
+      <div class="timeline-stream__tail" aria-hidden="true">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </div>
+  } @else if (viewMode() === 'day') {
+    <div class="summary-grid summary-grid--day">
+      <section class="summary-card summary-card--glow">
+        <span class="summary-card__label">今日情绪</span>
+        <strong class="summary-card__value">{{ moodLabel(dayGroups[0]?.moodSummary) }}</strong>
+        <p class="summary-card__hint">{{ todaySummary.title }}</p>
+      </section>
+
+      <section class="summary-card">
+        <span class="summary-card__label">活跃层级</span>
+        <strong class="summary-card__value">{{ kinds().length }}</strong>
+        <p class="summary-card__hint">
+          @for (kind of kinds(); track kind.kind; let isLast = $last) {
+            <span>{{ kind.label }}{{ isLast ? '' : ' · ' }}</span>
+          }
+        </p>
+      </section>
+
+      <section class="summary-card">
+        <span class="summary-card__label">今日片段</span>
+        <strong class="summary-card__value">{{ points.length }}</strong>
+        <p class="summary-card__hint">对话里被提取出的生活碎片会在这里集中可视化。</p>
+      </section>
+
+      <section class="detail-card">
+        <div class="detail-card__header">
+          <span class="detail-card__title">类型分布</span>
+          <span class="detail-card__caption">看看今天主要记录了哪些内容</span>
+        </div>
+
+        <div class="detail-list">
+          @for (kind of kinds(); track kind.kind) {
+            <div class="detail-list__row">
+              <div class="detail-list__label">
+                <app-badge [tone]="kind.tone" size="sm">{{ kind.label }}</app-badge>
+              </div>
+              <span class="detail-list__value">{{ kind.count }}</span>
+            </div>
+          }
+        </div>
+      </section>
+
+      <section class="detail-card">
+        <div class="detail-card__header">
+          <span class="detail-card__title">关联人物</span>
+          <span class="detail-card__caption">今天的片段里持续出现了谁</span>
+        </div>
+
+        <div class="detail-card__chips">
+          @if (people.length) {
+            @for (person of people; track person) {
+              <span class="timeline-chip timeline-chip--actor">{{ person }}</span>
+            }
+          } @else {
+            <span class="timeline-chip timeline-chip--tag">今天还没有人物提及</span>
+          }
+        </div>
+      </section>
+
+      <section class="detail-card">
+        <div class="detail-card__header">
+          <span class="detail-card__title">高频标签</span>
+          <span class="detail-card__caption">这些主题构成了今天的生活轮廓</span>
+        </div>
+
+        <div class="detail-card__chips">
+          @for (tag of tags; track tag) {
+            <span class="timeline-chip timeline-chip--tag">#{{ tag }}</span>
+          }
+        </div>
+      </section>
+
+      <section class="detail-card detail-card--wide">
+        <div class="detail-card__header">
+          <span class="detail-card__title">最近几天</span>
+          <span class="detail-card__caption">把日摘要和每日片段数放在一起看</span>
+        </div>
+
+        <div class="detail-list">
+          @for (summary of dailySummaries; track summary.dayKey) {
+            <div class="detail-list__row">
+              <div class="detail-list__label">
+                <app-badge tone="info" size="sm">{{ formatDayKey(summary.dayKey) }}</app-badge>
+                <span class="detail-list__summary-title">{{ summary.title }}</span>
+              </div>
+              <span class="detail-list__value">{{ summary.pointCount }}</span>
+            </div>
+          }
+        </div>
+      </section>
+    </div>
+  } @else {
+    <div class="summary-grid summary-grid--week">
+      <section class="summary-card summary-card--glow">
+        <span class="summary-card__label">本周总片段</span>
+        <strong class="summary-card__value">{{ totalWeekly }}</strong>
+        <p class="summary-card__hint">一周里从对话中沉淀出来的生活碎片总量。</p>
+      </section>
+
+      <section class="summary-card">
+        <span class="summary-card__label">日均记录</span>
+        <strong class="summary-card__value">{{ averageDaily }}</strong>
+        <p class="summary-card__hint">当前节奏比较稳定，能看到连续性的主题。</p>
+      </section>
+
+      <section class="summary-card">
+        <span class="summary-card__label">本周主线</span>
+        <strong class="summary-card__value">{{ topTheme }}</strong>
+        <p class="summary-card__hint">这是这一周里最反复浮出的生活主题。</p>
+      </section>
+
+      <section class="detail-card detail-card--wide">
+        <div class="detail-card__header">
+          <span class="detail-card__title">每周热度</span>
+          <span class="detail-card__caption">一周七天的生活片段活跃度</span>
+        </div>
+
+        <div class="week-activity">
+          @for (item of weeklyActivity; track item.day) {
+            <div class="week-activity__item">
+              <span class="week-activity__count">{{ item.count }}</span>
+              <div class="week-activity__bar-shell">
+                <div class="week-activity__bar" [style.height.%]="item.intensity"></div>
+              </div>
+              <span class="week-activity__day">{{ item.day }}</span>
+            </div>
+          }
+        </div>
+      </section>
+
+      <section class="detail-card detail-card--wide">
+        <div class="detail-card__header">
+          <span class="detail-card__title">主题占比</span>
+          <span class="detail-card__caption">一周主要围绕哪些生活面向展开</span>
+        </div>
+
+        <div class="theme-list">
+          @for (theme of weeklyThemes; track theme.label) {
+            <div class="theme-list__row">
+              <div class="theme-list__copy">
+                <span class="theme-list__label">{{ theme.label }}</span>
+                <span class="theme-list__hint">{{ theme.hint }}</span>
+              </div>
+              <div class="theme-list__progress">
+                <div class="theme-list__progress-bar" [style.width.%]="theme.share"></div>
+              </div>
+              <span class="theme-list__value">{{ theme.share }}%</span>
+            </div>
+          }
+        </div>
+      </section>
+    </div>
+  }
+</section>

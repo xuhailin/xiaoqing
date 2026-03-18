@@ -63,7 +63,9 @@ import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.compone
                 @if (currentWorkbench() === 'chat') {
                   当前对话与调试信息
                 } @else if (currentWorkbench() === 'life-trace') {
-                  Life Trace 视图中的记忆节点与周览摘要
+                  用户生活轨迹、日览与周览摘要
+                } @else if (currentWorkbench() === 'cognitive-trace') {
+                  小晴认知轨迹、记忆决策与演进摘要
                 } @else if (currentWorkbench() === 'dev-agent') {
                   DevAgent 总览与 session 对话
                 } @else {
@@ -202,15 +204,19 @@ export class MainLayoutComponent {
     { value: 'chat', label: '对话' },
     { value: 'dev-agent', label: 'DevAgent' },
     { value: 'regression', label: '回归' },
-    { value: 'life-trace', label: 'Life Trace' },
+    { value: 'life-trace', label: 'LifeTrace' },
+    { value: 'cognitive-trace', label: '认知 AI' },
   ];
 
   constructor(private router: Router) {}
 
-  currentWorkbench(): 'chat' | 'life-trace' | 'dev-agent' | 'regression' {
+  currentWorkbench(): 'chat' | 'life-trace' | 'cognitive-trace' | 'dev-agent' | 'regression' {
     const url = this.router.url;
     if (url.startsWith('/life-trace')) {
       return 'life-trace';
+    }
+    if (url.startsWith('/cognitive-trace')) {
+      return 'cognitive-trace';
     }
     if (url.startsWith('/dev-agent')) {
       return 'dev-agent';
@@ -230,6 +236,10 @@ export class MainLayoutComponent {
       this.openLifeTrace();
       return;
     }
+    if (value === 'cognitive-trace') {
+      this.openCognitiveTrace();
+      return;
+    }
     if (value === 'dev-agent') {
       this.openDevAgent();
       return;
@@ -247,6 +257,10 @@ export class MainLayoutComponent {
 
   openLifeTrace() {
     this.router.navigate(['/life-trace']);
+  }
+
+  openCognitiveTrace() {
+    this.router.navigate(['/cognitive-trace']);
   }
 
   openRegression() {

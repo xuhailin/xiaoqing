@@ -1,13 +1,13 @@
 import { Component } from '@angular/core';
-import { LifeTraceBoardComponent } from './life-trace-board.component';
+import { CognitiveTraceBoardComponent } from './cognitive-trace-board.component';
 
 @Component({
-  selector: 'app-life-trace',
+  selector: 'app-cognitive-trace',
   standalone: true,
-  imports: [LifeTraceBoardComponent],
+  imports: [CognitiveTraceBoardComponent],
   template: `
-    <div class="life-trace-page">
-      <app-life-trace-board />
+    <div class="cognitive-trace-page">
+      <app-cognitive-trace-board />
     </div>
   `,
   styles: [`
@@ -16,16 +16,16 @@ import { LifeTraceBoardComponent } from './life-trace-board.component';
       min-height: 100%;
     }
 
-    .life-trace-page {
+    .cognitive-trace-page {
       min-height: 100%;
       padding: var(--workbench-shell-padding);
     }
 
     @media (max-width: 760px) {
-      .life-trace-page {
+      .cognitive-trace-page {
         padding: var(--workbench-shell-padding-mobile);
       }
     }
   `],
 })
-export class LifeTraceComponent {}
+export class CognitiveTraceComponent {}
