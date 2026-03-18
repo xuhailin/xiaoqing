@@ -57,6 +57,7 @@ export class ConversationService {
     );
 
     const conversations: ConversationWithCount[] = await this.prisma.conversation.findMany({
+      where: { isInternal: false },
       orderBy: { updatedAt: 'desc' },
       include: {
         _count: { select: { messages: true } },
@@ -92,7 +93,7 @@ export class ConversationService {
     entryAgentId: EntryAgentId = DEFAULT_ENTRY_AGENT_ID,
   ): Promise<{ id: string; entryAgentId: EntryAgentId }> {
     const latest = await this.prisma.conversation.findFirst({
-      where: { entryAgentId },
+      where: { entryAgentId, isInternal: false },
       orderBy: { createdAt: 'desc' },
     });
     if (latest) return { id: latest.id, entryAgentId: latest.entryAgentId as EntryAgentId };
@@ -219,6 +220,41 @@ export class ConversationService {
         createdAt: userMsg.createdAt,
       },
       recentRounds: this.lastNRounds,
+    });
+  }
+
+  async sendDelegatedMessage(input: {
+    conversationId: string;
+    content: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<SendMessageResult> {
+    const userMsg = await this.prisma.message.create({
+      data: {
+        conversationId: input.conversationId,
+        role: 'user',
+        kind: 'user',
+        content: input.content,
+        ...(input.metadata
+          ? { metadata: input.metadata as Prisma.InputJsonValue }
+          : {}),
+        tokenCount: estimateTokens(input.content),
+      },
+    });
+
+    return this.assistantOrchestrator.processTurn({
+      conversationId: input.conversationId,
+      userInput: input.content,
+      userMessage: {
+        id: userMsg.id,
+        role: 'user',
+        content: userMsg.content,
+        createdAt: userMsg.createdAt,
+      },
+      recentRounds: this.lastNRounds,
+      runtimePolicy: {
+        allowPostTurn: false,
+        allowReflection: false,
+      },
     });
   }
 

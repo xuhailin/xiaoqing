@@ -11,6 +11,8 @@ import { SummarizeTriggerService } from './summarize-trigger.service';
 import { SessionStateService } from '../claim-engine/session-state.service';
 import { DailyMomentService } from '../life-record/daily-moment/daily-moment.service';
 import { CognitiveGrowthService } from '../cognitive-pipeline/cognitive-growth.service';
+import { ObservationEmitterService } from '../cognitive-trace/observation/observation-emitter.service';
+import type { TurnCognitiveResult } from '../cognitive-trace/cognitive-trace.types';
 import type { SendMessageResult, ToolPolicyDecision, TurnContext } from './orchestration.types';
 import { toConversationMessageDto } from './message.dto';
 
@@ -28,6 +30,7 @@ export class AssistantOrchestrator {
     private readonly sessionState: SessionStateService,
     private readonly dailyMoment: DailyMomentService,
     private readonly cognitiveGrowth: CognitiveGrowthService,
+    private readonly observationEmitter: ObservationEmitterService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -36,7 +39,13 @@ export class AssistantOrchestrator {
     userInput: string;
     userMessage: { id: string; role: 'user'; content: string; createdAt: Date };
     recentRounds: number;
+    runtimePolicy?: {
+      allowPostTurn?: boolean;
+      allowReflection?: boolean;
+    };
   }): Promise<SendMessageResult> {
+    const allowPostTurn = input.runtimePolicy?.allowPostTurn !== false;
+    const allowReflection = input.runtimePolicy?.allowReflection !== false;
     let context: TurnContext;
     try {
       context = await this.assembler.assemble({
@@ -101,7 +110,7 @@ export class AssistantOrchestrator {
       };
     }
 
-    if (postTurnPlan) {
+    if (postTurnPlan && allowPostTurn) {
       try {
         result = await this.runBeforeReturnPostTurn(postTurnPlan, result);
       } catch (err) {
@@ -110,56 +119,58 @@ export class AssistantOrchestrator {
     }
 
     // Reflection: 评估本轮决策质量
-    try {
-      const resolvedIntent = context.runtime.mergedIntentState ?? context.runtime.intentState;
-      const reflection = this.reflectionService.reflect({
-        userInput: input.userInput,
-        intentState: resolvedIntent ? {
-          taskIntent: resolvedIntent.taskIntent,
-          confidence: resolvedIntent.confidence,
-          requiresTool: resolvedIntent.requiresTool,
-        } : undefined,
-        actionDecision: context.runtime.actionDecision ? {
-          action: context.runtime.actionDecision.action,
-          reason: context.runtime.actionDecision.reason,
-          confidence: context.runtime.actionDecision.confidence,
-        } : undefined,
-        toolPolicy: { action: policy.action, capability: policy.capability },
-        assistantOutput: result.assistantMessage.content,
-        hasError: false,
-      });
+    if (allowReflection) {
+      try {
+        const resolvedIntent = context.runtime.mergedIntentState ?? context.runtime.intentState;
+        const reflection = this.reflectionService.reflect({
+          userInput: input.userInput,
+          intentState: resolvedIntent ? {
+            taskIntent: resolvedIntent.taskIntent,
+            confidence: resolvedIntent.confidence,
+            requiresTool: resolvedIntent.requiresTool,
+          } : undefined,
+          actionDecision: context.runtime.actionDecision ? {
+            action: context.runtime.actionDecision.action,
+            reason: context.runtime.actionDecision.reason,
+            confidence: context.runtime.actionDecision.confidence,
+          } : undefined,
+          toolPolicy: { action: policy.action, capability: policy.capability },
+          assistantOutput: result.assistantMessage.content,
+          hasError: false,
+        });
 
-      if (reflection.quality !== 'good') {
-        this.logger.warn(`Reflection: ${reflection.quality} - ${reflection.issues?.join('; ')}`);
-      }
-
-      // 持久化反思结果到 SessionState（如果有 adjustmentHint）
-      if (reflection.adjustmentHint) {
-        try {
-          const userKey = 'default-user'; // 当前系统使用固定 userKey
-          await this.sessionState.upsertState({
-            userKey,
-            sessionId: input.conversationId,
-            state: {
-              lastReflection: {
-                quality: reflection.quality,
-                adjustmentHint: reflection.adjustmentHint,
-                timestamp: new Date(),
-              },
-            },
-            confidence: 0.8,
-            ttlSeconds: 21600, // 6 小时
-            sourceModel: 'reflection-service',
-          });
-        } catch (err) {
-          this.logger.warn(`Failed to persist reflection: ${String(err)}`);
+        if (reflection.quality !== 'good') {
+          this.logger.warn(`Reflection: ${reflection.quality} - ${reflection.issues?.join('; ')}`);
         }
+
+        // 持久化反思结果到 SessionState（如果有 adjustmentHint）
+        if (reflection.adjustmentHint) {
+          try {
+            const userKey = 'default-user'; // 当前系统使用固定 userKey
+            await this.sessionState.upsertState({
+              userKey,
+              sessionId: input.conversationId,
+              state: {
+                lastReflection: {
+                  quality: reflection.quality,
+                  adjustmentHint: reflection.adjustmentHint,
+                  timestamp: new Date(),
+                },
+              },
+              confidence: 0.8,
+              ttlSeconds: 21600, // 6 小时
+              sourceModel: 'reflection-service',
+            });
+          } catch (err) {
+            this.logger.warn(`Failed to persist reflection: ${String(err)}`);
+          }
+        }
+      } catch (err) {
+        this.logger.warn(`reflection failed: ${String(err)}`);
       }
-    } catch (err) {
-      this.logger.warn(`reflection failed: ${String(err)}`);
     }
 
-    if (postTurnPlan) {
+    if (postTurnPlan && allowPostTurn) {
       this.postTurnPipeline.runAfterReturn(
         postTurnPlan,
         async (task, plan) => this.runAfterReturnTask(task, plan),
@@ -212,6 +223,41 @@ export class AssistantOrchestrator {
         plan.turn.userMessageId,
         plan.turn.assistantMessageId,
       ]);
+      return;
+    }
+
+    if (task.type === 'record_cognitive_observation') {
+      if (!plan.context.cognitiveState) return;
+      const cs = plan.context.cognitiveState;
+
+      // 从 userModelDelta 推断 growthOps（record_growth 已在前面执行完毕）
+      const growthOps: TurnCognitiveResult['growthOps'] = [];
+      if (cs.userModelDelta.shouldWriteCognitive) {
+        growthOps.push({ type: 'profile_pending', detail: cs.userModelDelta.rationale.join('; ') });
+      }
+      if (cs.userModelDelta.shouldWriteRelationship) {
+        growthOps.push({ type: 'stage_check', detail: `relationship stage: ${cs.relationship.stage}` });
+      }
+      if (cs.safety.notes.length > 0) {
+        growthOps.push({ type: 'boundary', detail: cs.safety.notes.join('; ') });
+      }
+
+      // 策略是否偏离"默认"：非 casual_chat 情境或非 companion 模式视为有意义的策略选择
+      const strategyShifted =
+        cs.situation.kind !== 'casual_chat' ||
+        cs.responseStrategy.primaryMode !== 'companion';
+
+      const turnCogResult: TurnCognitiveResult = {
+        conversationId: plan.conversationId,
+        messageId: plan.turn.assistantMessageId,
+        happenedAt: plan.turn.now,
+        cognitiveState: cs,
+        memoryOps: [], // 记忆写入在 summarize_trigger 中，晚于本任务执行
+        claimOps: [],
+        growthOps,
+        strategyShifted,
+      };
+      await this.observationEmitter.emit(turnCogResult);
       return;
     }
 

@@ -953,7 +953,7 @@ export class ChatCompletionEngine {
       intentState,
       cognitiveState: composition.cognitiveState,
       beforeReturn: [],
-      afterReturn: [{ type: 'record_growth' }, { type: 'summarize_trigger', trigger: this.resolveSummarizeTrigger(userInput) }],
+      afterReturn: [{ type: 'record_growth' }, { type: 'record_cognitive_observation' }, { type: 'summarize_trigger', trigger: this.resolveSummarizeTrigger(userInput) }],
     });
 
     const debugMeta = this.featureDebugMeta && pipelineState
@@ -1266,7 +1266,7 @@ export class ChatCompletionEngine {
       intentState,
       cognitiveState: composition.cognitiveState,
       beforeReturn: [],
-      afterReturn: [{ type: 'record_growth' }],
+      afterReturn: [{ type: 'record_growth' }, { type: 'record_cognitive_observation' }],
     });
 
     return this.wrapResult({
@@ -1416,6 +1416,7 @@ export class ChatCompletionEngine {
       beforeReturn: [{ type: 'daily_moment_suggestion' }],
       afterReturn: [
         { type: 'record_growth' },
+        { type: 'record_cognitive_observation' },
         { type: 'summarize_trigger', trigger: this.resolveSummarizeTrigger(userMsg.content) },
       ],
     });

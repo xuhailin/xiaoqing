@@ -33,6 +33,7 @@ model Conversation {
   id           String    @id @default(uuid())
   title        String?
   entryAgentId EntryAgentId @default(xiaoqing)
+  isInternal   Boolean   @default(false)
   summarizedAt DateTime?
   /** 默认世界状态（地点/时区/语言等），用于意图补全与推理前提，不写入记忆 */
   worldState   Json?
@@ -40,12 +41,14 @@ model Conversation {
   updatedAt    DateTime  @updatedAt
   messages     Message[]
   delegations  AgentDelegation[]
+  agentLinks   AgentConversationLink[]
   reminders    DevReminder[]
   dailyMoments DailyMoment[]
   dailyMomentSuggestions DailyMomentSuggestion[]
   dailyMomentSignals DailyMomentSignal[]
 
   @@index([entryAgentId, updatedAt])
+  @@index([isInternal, updatedAt])
 }
 
 enum EntryAgentId {
@@ -137,6 +140,19 @@ model AgentDelegationEvent {
 
   @@index([delegationId, createdAt])
   @@index([actorAgentId, createdAt])
+}
+
+model AgentConversationLink {
+  id                     String       @id @default(uuid())
+  requesterAgentId       EntryAgentId
+  requesterConversationRef String
+  localConversationId    String
+  localConversation      Conversation @relation(fields: [localConversationId], references: [id], onDelete: Cascade)
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+
+  @@unique([requesterAgentId, requesterConversationRef])
+  @@index([localConversationId])
 }
 
 model Memory {
@@ -458,6 +474,99 @@ model DailySummary {
 
   @@unique([dayKey])
   @@index([dayKey])
+}
+
+// ── Cognitive Trace: XiaoQing 认知轨迹 ───────────────────────
+
+// L1: 回合级认知观测，从管线信号中提取有意义的认知事件
+model CognitiveObservation {
+  id              String   @id @default(cuid())
+  dimension       String   // 'perception' | 'decision' | 'memory' | 'expression' | 'growth'
+  kind            String   // 具体类型，按 dimension 细分
+  title           String   // 一句话描述
+  detail          String?  @db.Text
+  source          String   // 产出模块：'cognitive-pipeline' | 'memory' | 'persona' | ...
+  conversationId  String?
+  messageId       String?
+  significance    Float    @default(0.5) // 0-1，重要性
+  happenedAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+  payload         Json?
+  insightId       String?
+  insight         CognitiveInsight? @relation(fields: [insightId], references: [id])
+  relatedTracePointIds String[] @default([])
+
+  @@index([dimension, happenedAt])
+  @@index([kind, happenedAt])
+  @@index([conversationId])
+  @@index([insightId])
+}
+
+// L2: 日/周级认知洞察，LLM 聚合分析
+model CognitiveInsight {
+  id               String   @id @default(cuid())
+  scope            String   // 'daily' | 'weekly' | 'monthly'
+  periodKey        String   // '2026-03-18' | '2026-W12' | '2026-03'
+  dimension        String?  // 聚焦维度，null 表示综合
+  title            String
+  narrative        String   @db.Text
+  patterns         Json?    // [{pattern, frequency, trend}]
+  metrics          Json?    // {memoryWrites: 12, strategyShifts: 3, ...}
+  observationCount Int
+  status           String   @default("generated") // 'generated' | 'reviewed' | 'acted_upon'
+  createdAt        DateTime @default(now())
+  observations     CognitiveObservation[]
+
+  @@unique([scope, periodKey, dimension])
+  @@index([scope, periodKey])
+}
+
+// L3: 进化记录，洞察驱动的行为变化，需用户确认
+model CognitiveEvolution {
+  id               String    @id @default(cuid())
+  title            String
+  description      String    @db.Text
+  evolutionType    String    // 'persona_drift' | 'strategy_default_shift' | 'memory_priority_change' | 'capability_expansion'
+  triggerInsightId String?
+  changeDiff       Json      // {field, before, after}
+  status           String    @default("proposed") // 'proposed' | 'applied' | 'reverted'
+  appliedAt        DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@index([evolutionType, createdAt])
+  @@index([status])
+}
+
+// ── Agent Bus: Memory Proposal ───────────────────────────────
+
+enum MemoryProposalStatus {
+  pending
+  approved
+  rejected
+  merged
+}
+
+// 外部 Agent 提交的记忆提议，需小晴审批后才写入主记忆
+model MemoryProposal {
+  id               String               @id @default(cuid())
+  delegationId     String?
+  proposerAgentId  EntryAgentId
+  ownerAgentId     EntryAgentId         @default(xiaoqing)
+  kind             String               // 'preference' | 'fact' | 'boundary' | 'correction' | ...
+  content          String               @db.Text
+  reason           String?              @db.Text
+  confidence       Float                @default(0.5)
+  scope            String               @default("long_term") // 'long_term' | 'session' | 'ephemeral'
+  status           MemoryProposalStatus @default(pending)
+  reviewNote       String?              @db.Text // 审批备注
+  resultMemoryId   String?              // 审批通过后写入的 Memory ID
+  reviewedAt       DateTime?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@index([status, createdAt])
+  @@index([delegationId])
+  @@index([proposerAgentId, createdAt])
 }
 
 // ── DevAgent ─────────────────────────────────────────────────

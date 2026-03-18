@@ -51,6 +51,7 @@ export interface AgentDelegationEnvelope {
 }
 
 export interface CreateAgentDelegationInput {
+  delegationId?: string;
   originConversationId: string;
   originMessageId?: string;
   requesterAgentId: EntryAgentId;

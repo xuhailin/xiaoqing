@@ -11,6 +11,7 @@
 | [PROJECT-SUMMARY.md](PROJECT-SUMMARY.md) | 项目全景：模块、数据模型、API、环境变量、阶段状态 |
 | [architecture-design.md](architecture-design.md) | 架构设计：分层状态、权衡取舍、模块交互（面向工程师/面试） |
 | [context-boundary.md](context-boundary.md) | Chat / DevAgent / Tool 三条硬边界，防止上下文越界 |
+| [agent-collaboration-protocol.md](agent-collaboration-protocol.md) | Agent 协作统一协议：entryAgent、delegation、回执、memory proposal、双向接入约定 |
 
 ## 消息路由与执行
 
@@ -26,6 +27,7 @@
 |------|------|
 | [dev-agent-architecture.md](dev-agent-architecture.md) | DevAgent 完整架构：路由、编排、规划、执行、安全策略 |
 | [context-boundary.md](context-boundary.md) | Chat/Dev/Tool 隔离规则 |
+| [agent-collaboration-protocol.md](agent-collaboration-protocol.md) | 小晴与外部 Agent 的受控协作协议，适用于小勤及未来其他 Agent |
 
 ## 记忆与认知
 

@@ -14,6 +14,7 @@ export class AgentBusRepository {
   async createDelegation(input: CreateAgentDelegationInput) {
     return this.prisma.agentDelegation.create({
       data: {
+        ...(input.delegationId ? { id: input.delegationId } : {}),
         originConversationId: input.originConversationId,
         originMessageId: input.originMessageId ?? null,
         requesterAgentId: input.requesterAgentId,

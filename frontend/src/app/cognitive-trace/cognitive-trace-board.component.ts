@@ -1,27 +1,23 @@
 import { NgClass } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
+import {
+  CognitiveTraceService,
+  type CognitiveObservationRecord,
+  type ObservationDayGroup,
+  type ObservationDimension,
+} from '../core/services/cognitive-trace.service';
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
 import { AppIconComponent, type AppIconName } from '../shared/ui/app-icon.component';
+import { AppStateComponent } from '../shared/ui/app-state.component';
 import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.component';
 
 type TimelineViewMode = 'points' | 'day' | 'week';
-type CognitivePointKind = 'conversation' | 'memory' | 'reminder' | 'insight' | 'growth';
-
-type CognitivePoint = {
-  id: string;
-  segment: string;
-  time: string;
-  kind: CognitivePointKind;
-  title: string;
-  summary: string;
-  source: string;
-  confidence: number;
-  tags: string[];
-  actors: string[];
-};
 
 type WeeklyActivity = {
+  dayKey: string;
   day: string;
+  label: string;
   count: number;
   intensity: number;
 };
@@ -32,153 +28,137 @@ type WeeklyTheme = {
   hint: string;
 };
 
-const COGNITIVE_POINTS: CognitivePoint[] = [
-  {
-    id: 'xq-opening',
-    segment: '清晨',
-    time: '08:15',
-    kind: 'conversation',
-    title: '晨间开场切到更柔和的提问方式',
-    summary: '默认先问一句“今天想先聊什么”，把进入对话的门槛压低，让小晴的节奏更容易被接住。',
-    source: '即时感知',
-    confidence: 96,
-    tags: ['开场', '陪伴'],
-    actors: ['用户', '小晴'],
-  },
-  {
-    id: 'xq-memory',
-    segment: '上午',
-    time: '09:40',
-    kind: 'memory',
-    title: '把“先给计划再展开”的偏好写进记忆',
-    summary: '最近几轮对话反复出现这个倾向，所以在说明和建议区里先给结构，再补细节。',
-    source: '回合沉淀',
-    confidence: 93,
-    tags: ['偏好', '规划', '结构化'],
-    actors: ['用户'],
-  },
-  {
-    id: 'xq-reminder',
-    segment: '中午',
-    time: '11:25',
-    kind: 'reminder',
-    title: '轻提醒队列补上周四复盘节点',
-    summary: '提醒本身保持在轻推而不打断的范围里，更像伴随而不是命令。',
-    source: '提醒编排',
-    confidence: 89,
-    tags: ['提醒', '复盘'],
-    actors: ['调度器'],
-  },
-  {
-    id: 'xq-insight',
-    segment: '午后',
-    time: '14:05',
-    kind: 'insight',
-    title: '提炼出“先稳情绪，再给方案”的回应主线',
-    summary: '当用户处在压力里时，先确认感受再给行动路径，整体气质会更贴合小晴当前的人格风格。',
-    source: '关系洞察',
-    confidence: 95,
-    tags: ['洞察', '情绪', '关系'],
-    actors: ['用户', '小晴'],
-  },
-  {
-    id: 'xq-growth',
-    segment: '傍晚',
-    time: '17:10',
-    kind: 'growth',
-    title: '工作台能力扩到 DevAgent 协作场景',
-    summary: '技术支持能力和主对话气质开始并存，所以认知轨迹里也要能看到执行向的节点。',
-    source: '能力演进',
-    confidence: 91,
-    tags: ['执行', '协作', '前端'],
-    actors: ['DevAgent'],
-  },
-  {
-    id: 'xq-night',
-    segment: '夜间',
-    time: '20:45',
-    kind: 'conversation',
-    title: '晚间总结改成短句重点卡片',
-    summary: '把长段落总结收束成几条重点卡，让信息密度更干净，也更适合移动端浏览。',
-    source: '样式整理',
-    confidence: 94,
-    tags: ['总结', '短句', '移动端'],
-    actors: ['用户', '小晴'],
-  },
-];
+const LOOKBACK_DAYS = 30;
+const WEEKLY_WINDOW_DAYS = 7;
 
-const WEEKLY_ACTIVITY: WeeklyActivity[] = [
-  { day: '一', count: 5, intensity: 54 },
-  { day: '二', count: 7, intensity: 74 },
-  { day: '三', count: 6, intensity: 66 },
-  { day: '四', count: 8, intensity: 88 },
-  { day: '五', count: 7, intensity: 76 },
-  { day: '六', count: 4, intensity: 42 },
-  { day: '日', count: 6, intensity: 68 },
-];
-
-const WEEKLY_THEMES: WeeklyTheme[] = [
-  { label: '对话节奏', share: 82, hint: '先接住，再推进' },
-  { label: '记忆联结', share: 71, hint: '偏好会沿着页面持续被继承' },
-  { label: '提醒陪伴', share: 58, hint: '弱提醒，不生硬' },
-  { label: '执行支持', share: 64, hint: '任务型协助能力更完整' },
-];
-
-const COGNITIVE_KIND_META: Record<CognitivePointKind, {
+const DIMENSION_META: Record<ObservationDimension, {
   label: string;
   icon: AppIconName;
   tone: 'neutral' | 'info' | 'success' | 'warning';
 }> = {
-  conversation: { label: '对话', icon: 'message', tone: 'info' },
+  perception: { label: '感知', icon: 'sparkles', tone: 'info' },
+  decision: { label: '决策', icon: 'brain', tone: 'warning' },
   memory: { label: '记忆', icon: 'bookmark', tone: 'success' },
-  reminder: { label: '提醒', icon: 'bell', tone: 'warning' },
-  insight: { label: '洞察', icon: 'brain', tone: 'info' },
-  growth: { label: '演进', icon: 'trendingUp', tone: 'success' },
+  expression: { label: '表达', icon: 'message', tone: 'neutral' },
+  growth: { label: '成长', icon: 'trendingUp', tone: 'success' },
 };
 
 @Component({
   selector: 'app-cognitive-trace-board',
   standalone: true,
-  imports: [NgClass, AppBadgeComponent, AppIconComponent, AppTabsComponent],
+  imports: [NgClass, AppBadgeComponent, AppIconComponent, AppStateComponent, AppTabsComponent],
   templateUrl: './cognitive-trace-board.component.html',
   styleUrl: './cognitive-trace-board.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CognitiveTraceBoardComponent {
+export class CognitiveTraceBoardComponent implements OnInit {
+  private readonly cognitiveTraceService = inject(CognitiveTraceService);
+
   protected readonly viewMode = signal<TimelineViewMode>('points');
-  protected readonly points = COGNITIVE_POINTS;
-  protected readonly weeklyActivity = WEEKLY_ACTIVITY;
-  protected readonly weeklyThemes = WEEKLY_THEMES;
+  protected readonly loading = signal(true);
+  protected readonly errorMessage = signal('');
+  protected readonly dayGroups = signal<ObservationDayGroup[]>([]);
+  protected readonly allObservations = signal<CognitiveObservationRecord[]>([]);
   protected readonly tabs: AppTabItem[] = [
     { value: 'points', label: '轨迹' },
     { value: 'day', label: '概览' },
     { value: 'week', label: '周览' },
   ];
+
+  // ── Derived: latest points ──
+  protected readonly hasData = computed(() => this.allObservations().length > 0);
+  protected readonly latestPoints = computed(() => {
+    const groups = this.dayGroups();
+    return groups.length > 0 ? groups[0].observations : [];
+  });
+
+  // ── Derived: dimension stats ──
   protected readonly kinds = computed(() => {
-    const counts = new Map<CognitivePointKind, number>();
-    for (const point of this.points) {
-      counts.set(point.kind, (counts.get(point.kind) ?? 0) + 1);
+    const counts = new Map<ObservationDimension, number>();
+    for (const obs of this.allObservations()) {
+      counts.set(obs.dimension, (counts.get(obs.dimension) ?? 0) + 1);
     }
-    return Array.from(counts.entries()).map(([kind, count]) => ({
-      kind,
+    return Array.from(counts.entries()).map(([dim, count]) => ({
+      dimension: dim,
       count,
-      label: this.kindLabel(kind),
-      tone: this.kindTone(kind),
+      label: this.dimensionLabel(dim),
+      tone: this.dimensionTone(dim),
     }));
   });
-  protected readonly actors = [...new Set(COGNITIVE_POINTS.flatMap((point) => point.actors))];
-  protected readonly tags = [...new Set(COGNITIVE_POINTS.flatMap((point) => point.tags))];
-  protected readonly averageConfidence = Math.round(
-    COGNITIVE_POINTS.reduce((sum, point) => sum + point.confidence, 0) / COGNITIVE_POINTS.length,
+  protected readonly averageConfidence = computed(() => {
+    const obs = this.allObservations();
+    if (obs.length === 0) return 0;
+    return Math.round(
+      (obs.reduce((sum, o) => sum + o.significance, 0) / obs.length) * 100,
+    );
+  });
+
+  // ── Derived: weekly ──
+  protected readonly weekWindow = computed(() => {
+    const groupMap = new Map(this.dayGroups().map((g) => [g.dayKey, g]));
+    const endDate = this.today();
+    const days: WeeklyActivity[] = [];
+
+    for (let offset = WEEKLY_WINDOW_DAYS - 1; offset >= 0; offset--) {
+      const date = new Date(endDate);
+      date.setDate(endDate.getDate() - offset);
+      const dayKey = this.toDayKey(date);
+      const group = groupMap.get(dayKey);
+      const count = group?.count ?? 0;
+      days.push({
+        dayKey,
+        day: this.weekdayLabel(date),
+        label: this.formatMonthDay(dayKey),
+        count,
+        intensity: 0,
+      });
+    }
+
+    const max = Math.max(...days.map((d) => d.count), 0);
+    return days.map((d) => ({
+      ...d,
+      intensity: max === 0 ? 18 : Math.max(18, Math.round((d.count / max) * 100)),
+    }));
+  });
+  protected readonly totalWeekly = computed(
+    () => this.weekWindow().reduce((sum, d) => sum + d.count, 0),
   );
-  protected readonly totalWeekly = WEEKLY_ACTIVITY.reduce((sum, item) => sum + item.count, 0);
-  protected readonly averageDaily = (this.totalWeekly / WEEKLY_ACTIVITY.length).toFixed(1);
-  protected readonly topTheme = WEEKLY_THEMES[0]?.label ?? '对话节奏';
-  protected readonly heroMetrics = [
-    { label: '认知节点', value: `${COGNITIVE_POINTS.length}` },
-    { label: '当前焦点', value: '记忆联结' },
-    { label: '连续演进', value: '7 天' },
-  ];
+  protected readonly averageDaily = computed(
+    () => (this.totalWeekly() / WEEKLY_WINDOW_DAYS).toFixed(1),
+  );
+  protected readonly weeklyThemes = computed(() => {
+    const obs = this.allObservations();
+    if (obs.length === 0) return [] as WeeklyTheme[];
+
+    const dimCounts = new Map<ObservationDimension, number>();
+    for (const o of obs) {
+      dimCounts.set(o.dimension, (dimCounts.get(o.dimension) ?? 0) + 1);
+    }
+
+    const total = Array.from(dimCounts.values()).reduce((s, c) => s + c, 0);
+    return Array.from(dimCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([dim, count]) => ({
+        label: DIMENSION_META[dim].label,
+        share: Math.max(8, Math.round((count / total) * 100)),
+        hint: `近期产生 ${count} 条${DIMENSION_META[dim].label}观测`,
+      }));
+  });
+  protected readonly topTheme = computed(
+    () => this.weeklyThemes()[0]?.label ?? '暂无',
+  );
+
+  // ── Hero metrics ──
+  protected readonly heroMetrics = computed(() => [
+    { label: '认知节点', value: `${this.allObservations().length}` },
+    { label: '当前焦点', value: this.topTheme() },
+    { label: '日均观测', value: this.averageDaily() },
+  ]);
+
+  async ngOnInit() {
+    await this.reload();
+  }
 
   protected selectViewMode(value: string) {
     if (value === 'points' || value === 'day' || value === 'week') {
@@ -186,15 +166,97 @@ export class CognitiveTraceBoardComponent {
     }
   }
 
-  protected kindTone(kind: CognitivePointKind): 'neutral' | 'info' | 'success' | 'warning' {
-    return COGNITIVE_KIND_META[kind].tone;
+  protected dimensionTone(dimension: ObservationDimension): 'neutral' | 'info' | 'success' | 'warning' {
+    return DIMENSION_META[dimension]?.tone ?? 'neutral';
   }
 
-  protected kindLabel(kind: CognitivePointKind): string {
-    return COGNITIVE_KIND_META[kind].label;
+  protected dimensionLabel(dimension: ObservationDimension): string {
+    return DIMENSION_META[dimension]?.label ?? dimension;
   }
 
-  protected kindIcon(kind: CognitivePointKind): AppIconName {
-    return COGNITIVE_KIND_META[kind].icon;
+  protected dimensionIcon(dimension: ObservationDimension): AppIconName {
+    return DIMENSION_META[dimension]?.icon ?? 'info';
+  }
+
+  protected timeSegment(isoTime: string): string {
+    const hour = new Date(isoTime).getHours();
+    if (hour < 6) return '凌晨';
+    if (hour < 9) return '清晨';
+    if (hour < 12) return '上午';
+    if (hour < 14) return '中午';
+    if (hour < 17) return '午后';
+    if (hour < 20) return '傍晚';
+    return '夜间';
+  }
+
+  protected shortTime(isoTime: string): string {
+    const d = new Date(isoTime);
+    return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+  }
+
+  protected significancePercent(significance: number): number {
+    return Math.round(significance * 100);
+  }
+
+  protected async reload() {
+    const lookbackStart = this.today();
+    lookbackStart.setDate(lookbackStart.getDate() - (LOOKBACK_DAYS - 1));
+    lookbackStart.setHours(0, 0, 0, 0);
+
+    this.loading.set(true);
+    this.errorMessage.set('');
+
+    try {
+      const [obsResult, dayResult] = await Promise.allSettled([
+        firstValueFrom(
+          this.cognitiveTraceService.queryObservations({
+            from: lookbackStart.toISOString(),
+            limit: 100,
+          }),
+        ),
+        firstValueFrom(
+          this.cognitiveTraceService.queryByDay({
+            from: lookbackStart.toISOString(),
+          }),
+        ),
+      ]);
+
+      if (obsResult.status === 'rejected') throw obsResult.reason;
+
+      this.allObservations.set(obsResult.value ?? []);
+      this.dayGroups.set(
+        dayResult.status === 'fulfilled'
+          ? (dayResult.value ?? []).sort((a, b) => b.dayKey.localeCompare(a.dayKey))
+          : [],
+      );
+    } catch {
+      this.allObservations.set([]);
+      this.dayGroups.set([]);
+      this.errorMessage.set('认知轨迹数据加载失败，请确认后端服务已启动。');
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  private toDayKey(date: Date): string {
+    const y = date.getFullYear();
+    const m = `${date.getMonth() + 1}`.padStart(2, '0');
+    const d = `${date.getDate()}`.padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  private today(): Date {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    return now;
+  }
+
+  private weekdayLabel(date: Date): string {
+    return ['日', '一', '二', '三', '四', '五', '六'][date.getDay()];
+  }
+
+  private formatMonthDay(dayKey: string): string {
+    const target = new Date(`${dayKey}T00:00:00`);
+    return target.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
   }
 }

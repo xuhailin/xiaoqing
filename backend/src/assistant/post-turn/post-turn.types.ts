@@ -24,4 +24,5 @@ export type PostTurnTask =
   | { type: 'daily_moment_suggestion' }
   | { type: 'record_growth' }
   | { type: 'summarize_trigger'; trigger: 'instant' | 'threshold' | 'flush' }
-  | { type: 'auto_evolution_after_summary' };
+  | { type: 'auto_evolution_after_summary' }
+  | { type: 'record_cognitive_observation' };

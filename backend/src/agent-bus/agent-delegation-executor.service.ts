@@ -3,9 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import type { EntryAgentId } from '../gateway/message-router.types';
 import { KeyedFifoQueueService } from '../infra/queue';
 import { OpenClawService } from '../openclaw/openclaw.service';
+import { parseDelegationResultFromText } from './agent-bus.protocol';
 import { AgentBusRepository } from './agent-bus.repository';
 import { AgentBusService } from './agent-bus.service';
 import { AgentDelegationProjectionService } from './agent-delegation-projection.service';
+import { MemoryProposalService } from './memory-proposal.service';
 import type {
   AgentDelegationKind,
   AgentDelegationEnvelope,
@@ -21,6 +23,7 @@ export class AgentDelegationExecutorService {
     private readonly bus: AgentBusService,
     private readonly repo: AgentBusRepository,
     private readonly projection: AgentDelegationProjectionService,
+    private readonly memoryProposal: MemoryProposalService,
     private readonly openClaw: OpenClawService,
     private readonly queue: KeyedFifoQueueService,
     config: ConfigService,
@@ -152,9 +155,32 @@ export class AgentDelegationExecutorService {
       return;
     }
 
-    const summary = delegation.summary?.trim() || payload.userFacingSummary?.trim() || null;
-    const resultContent = result.content.trim()
+    // 尝试解析远端返回的结构化 Delegation Result
+    const parsed = parseDelegationResultFromText(result.content, delegationId);
+    if (parsed.parsed) {
+      this.logger.log(`Parsed structured delegation result for ${delegationId}`);
+    }
+
+    const summary = parsed.result.summary?.trim()
+      || delegation.summary?.trim()
+      || payload.userFacingSummary?.trim()
+      || null;
+    const resultContent = (parsed.content || parsed.result.content || '').trim()
       || `${this.getAgentLabel(delegation.executorAgentId as EntryAgentId)}已完成委托，暂未返回文本结果。`;
+
+    // 如果远端标记为失败
+    if (parsed.parsed && parsed.result.status === 'failed') {
+      await this.failDelegation(delegationId, delegation.originConversationId, {
+        requesterAgentId: delegation.requesterAgentId as EntryAgentId,
+        executorAgentId: delegation.executorAgentId as EntryAgentId,
+        delegationKind,
+        reason: parsed.result.error?.message ?? 'remote executor reported failure',
+        rawContent: resultContent,
+        relatedMessageId: delegation.receiptMessageId,
+      });
+      return;
+    }
+
     const resultMessage = await this.projection.projectResult({
       conversationId: delegation.originConversationId,
       delegationId,
@@ -174,6 +200,7 @@ export class AgentDelegationExecutorService {
         content: resultContent,
         openclawAgentId: result.agentId ?? resolvedAgentId,
         remoteSessionKey: this.buildRemoteSessionKey(delegationId),
+        ...(parsed.result.structuredResult ? { structuredResult: parsed.result.structuredResult } : {}),
       },
       resultMessageId: resultMessage.id,
     });
@@ -186,6 +213,7 @@ export class AgentDelegationExecutorService {
       payload: {
         openclawAgentId: result.agentId ?? resolvedAgentId,
         remoteSessionKey: this.buildRemoteSessionKey(delegationId),
+        parsedStructured: parsed.parsed,
       },
     });
     await this.bus.appendEvent({
@@ -195,6 +223,20 @@ export class AgentDelegationExecutorService {
       message: 'result projected to conversation',
       relatedMessageId: resultMessage.id,
     });
+
+    // 处理 memoryProposals
+    const proposals = parsed.result.memoryProposals ?? [];
+    if (proposals.length > 0) {
+      try {
+        await this.memoryProposal.createFromDelegationResult(
+          delegationId,
+          proposals,
+          delegation.executorAgentId as EntryAgentId,
+        );
+      } catch (err) {
+        this.logger.warn(`Failed to process memory proposals for ${delegationId}: ${String(err)}`);
+      }
+    }
   }
 
   private async failDelegation(

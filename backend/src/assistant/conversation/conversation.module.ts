@@ -26,9 +26,10 @@ import { MetaLayerService } from '../meta-layer/meta-layer.service';
 import { LifeRecordModule } from '../life-record/life-record.module';
 import { PostTurnPipeline } from '../post-turn/post-turn.pipeline';
 import { SystemSelfModule } from '../../system-self/system-self.module';
+import { CognitiveTraceModule } from '../cognitive-trace/cognitive-trace.module';
 
 @Module({
-  imports: [ActionReasonerModule, ReflectionModule, LlmModule, PromptRouterModule, MemoryModule, PersonaModule, IntentModule, OpenClawModule, ActionModule, WorldStateModule, IdentityAnchorModule, SummarizerModule, CognitivePipelineModule, LifeRecordModule, SystemSelfModule],
+  imports: [ActionReasonerModule, ReflectionModule, LlmModule, PromptRouterModule, MemoryModule, PersonaModule, IntentModule, OpenClawModule, ActionModule, WorldStateModule, IdentityAnchorModule, SummarizerModule, CognitivePipelineModule, LifeRecordModule, SystemSelfModule, CognitiveTraceModule],
   controllers: [ConversationController],
   providers: [
     ConversationService,
