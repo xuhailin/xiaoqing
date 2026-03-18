@@ -25,7 +25,8 @@
     "qa:replay": "ts-node src/qa/cli.ts --mode=replay",
     "migrate:claims": "ts-node prisma/migrate-claims-from-legacy.ts",
     "memory:dedup:dryrun": "ts-node scripts/cleanup-memory-duplicates.ts",
-    "memory:dedup:apply": "ts-node scripts/cleanup-memory-duplicates.ts --apply"
+    "memory:dedup:apply": "ts-node scripts/cleanup-memory-duplicates.ts --apply",
+    "trace-point:backfill": "ts-node src/assistant/life-record/trace-point/trace-point-backfill.cli.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.74",

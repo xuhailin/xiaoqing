@@ -1,0 +1,349 @@
+<section class="home-timeline ui-workbench-surface ui-workbench-surface--soft">
+
+  <!-- ═══ Header: switches based on active tab ═══ -->
+  @if (viewMode() !== 'xiaoqing') {
+    <header class="home-timeline__header">
+      <div class="home-timeline__copy">
+        <span class="home-timeline__eyebrow">Life Trace</span>
+        <h2 class="home-timeline__title">Life Trace</h2>
+        <p class="home-timeline__description">
+          Events, moods, people and plans extracted from your conversations -- a browsable timeline of your life.
+        </p>
+      </div>
+
+      <div class="home-timeline__metrics">
+        @for (metric of userHeroMetrics; track metric.label) {
+          <div class="home-timeline__metric">
+            <span class="home-timeline__metric-label">{{ metric.label }}</span>
+            <strong class="home-timeline__metric-value">{{ metric.value }}</strong>
+          </div>
+        }
+      </div>
+    </header>
+  } @else {
+    <header class="home-timeline__header">
+      <div class="home-timeline__copy">
+        <span class="home-timeline__eyebrow">XiaoQing Trace</span>
+        <h2 class="home-timeline__title">XiaoQing Cognitive Trace</h2>
+        <p class="home-timeline__description">
+          How XiaoQing perceives, remembers and adapts -- a transparent view of her cognitive evolution.
+        </p>
+      </div>
+
+      <div class="home-timeline__metrics">
+        @for (metric of xqHeroMetrics; track metric.label) {
+          <div class="home-timeline__metric">
+            <span class="home-timeline__metric-label">{{ metric.label }}</span>
+            <strong class="home-timeline__metric-value">{{ metric.value }}</strong>
+          </div>
+        }
+      </div>
+    </header>
+  }
+
+  <!-- ═══ Toolbar ═══ -->
+  <div class="home-timeline__toolbar">
+    <app-tabs
+      class="home-timeline__tabs"
+      [items]="tabs"
+      [value]="viewMode()"
+      [size]="'sm'"
+      (valueChange)="selectViewMode($event)"
+    />
+
+    <div class="home-timeline__toolbar-copy">
+      @if (viewMode() !== 'xiaoqing') {
+        <span class="home-timeline__toolbar-label">Top theme</span>
+        <span class="home-timeline__toolbar-value">{{ userTopTheme }}</span>
+      } @else {
+        <span class="home-timeline__toolbar-label">Focus</span>
+        <span class="home-timeline__toolbar-value">{{ xqTopTheme }}</span>
+      }
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- ═══ Tab: Stream (User life trace points) ═══ -->
+  <!-- ═══════════════════════════════════════════ -->
+  @if (viewMode() === 'points') {
+    <div class="timeline-stream">
+      <div class="timeline-stream__now">
+        <div class="timeline-stream__now-spacer" aria-hidden="true"></div>
+        <div class="timeline-stream__now-node">
+          <span class="timeline-stream__now-ping"></span>
+        </div>
+        <div class="timeline-stream__now-card">
+          <span class="timeline-stream__now-label">Now</span>
+          @if (todaySummary) {
+            <p class="timeline-stream__now-copy">{{ todaySummary.body }}</p>
+          } @else {
+            <p class="timeline-stream__now-copy">Your life trace will appear here as conversations accumulate.</p>
+          }
+        </div>
+      </div>
+
+      @for (point of userPoints; track point.id; let index = $index) {
+        <article class="timeline-entry" [ngClass]="'timeline-entry--' + point.kind" [style.--entry-delay]="(index * 70) + 'ms'">
+          <div class="timeline-entry__meta">
+            <span class="timeline-entry__segment">{{ timeSegment(point.happenedAt, point.createdAt) }}</span>
+            <span class="timeline-entry__time">{{ shortTime(point.happenedAt, point.createdAt) }}</span>
+          </div>
+
+          <div class="timeline-entry__node">
+            <div class="timeline-entry__glyph">{{ userKindGlyph(point.kind) }}</div>
+          </div>
+
+          <div class="timeline-entry__card">
+            <div class="timeline-entry__head">
+              <div class="timeline-entry__badges">
+                <app-badge [tone]="userKindTone(point.kind)" size="sm">{{ userKindLabel(point.kind) }}</app-badge>
+                @if (point.mood) {
+                  <app-badge tone="neutral" appearance="outline" size="sm">{{ point.mood }}</app-badge>
+                }
+              </div>
+              <span class="timeline-entry__confidence">Score {{ point.confidence }}%</span>
+            </div>
+
+            <p class="timeline-entry__summary">{{ point.content }}</p>
+
+            <div class="timeline-entry__chips">
+              @for (person of point.people; track person) {
+                <span class="timeline-chip timeline-chip--actor">{{ person }}</span>
+              }
+              @for (tag of point.tags; track tag) {
+                <span class="timeline-chip timeline-chip--tag">#{{ tag }}</span>
+              }
+            </div>
+          </div>
+        </article>
+      }
+
+      <div class="timeline-stream__tail" aria-hidden="true">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- ═══ Tab: Daily (User day summaries) ═══ -->
+  <!-- ═══════════════════════════════════════ -->
+  } @else if (viewMode() === 'day') {
+    <div class="summary-grid summary-grid--day">
+      <section class="summary-card summary-card--glow">
+        <span class="summary-card__label">Today's Mood</span>
+        <strong class="summary-card__value">{{ moodEmoji(userDayGroups[0]?.moodSummary) }}</strong>
+        <p class="summary-card__hint">{{ todaySummary.title }}</p>
+      </section>
+
+      <section class="summary-card">
+        <span class="summary-card__label">Types</span>
+        <strong class="summary-card__value">{{ userKinds().length }}</strong>
+        <p class="summary-card__hint">
+          @for (kind of userKinds(); track kind.kind; let isLast = $last) {
+            <span>{{ kind.label }}{{ isLast ? '' : ' · ' }}</span>
+          }
+        </p>
+      </section>
+
+      <section class="summary-card">
+        <span class="summary-card__label">Points Today</span>
+        <strong class="summary-card__value">{{ userPoints.length }}</strong>
+        <p class="summary-card__hint">Life fragments captured from conversation.</p>
+      </section>
+
+      <section class="detail-card">
+        <div class="detail-card__header">
+          <span class="detail-card__title">Type Mix</span>
+          <span class="detail-card__caption">Distribution of today's trace points</span>
+        </div>
+
+        <div class="detail-list">
+          @for (kind of userKinds(); track kind.kind) {
+            <div class="detail-list__row">
+              <div class="detail-list__label">
+                <app-badge [tone]="kind.tone" size="sm">{{ kind.label }}</app-badge>
+              </div>
+              <span class="detail-list__value">{{ kind.count }}</span>
+            </div>
+          }
+        </div>
+      </section>
+
+      <section class="detail-card">
+        <div class="detail-card__header">
+          <span class="detail-card__title">People</span>
+          <span class="detail-card__caption">Who appeared in your trace</span>
+        </div>
+
+        <div class="detail-card__chips">
+          @if (userPeople.length) {
+            @for (person of userPeople; track person) {
+              <span class="timeline-chip timeline-chip--actor">{{ person }}</span>
+            }
+          } @else {
+            <span class="timeline-chip timeline-chip--tag">No mentions today</span>
+          }
+        </div>
+      </section>
+
+      <section class="detail-card">
+        <div class="detail-card__header">
+          <span class="detail-card__title">Tags</span>
+          <span class="detail-card__caption">Topics from your day</span>
+        </div>
+
+        <div class="detail-card__chips">
+          @for (tag of userTags; track tag) {
+            <span class="timeline-chip timeline-chip--tag">#{{ tag }}</span>
+          }
+        </div>
+      </section>
+
+      <!-- Day-by-day summary list -->
+      <section class="detail-card detail-card--wide">
+        <div class="detail-card__header">
+          <span class="detail-card__title">Recent Days</span>
+          <span class="detail-card__caption">Daily summaries at a glance</span>
+        </div>
+
+        <div class="detail-list">
+          @for (summary of userDailySummaries; track summary.dayKey) {
+            <div class="detail-list__row">
+              <div class="detail-list__label">
+                <app-badge tone="info" size="sm">{{ formatDayKey(summary.dayKey) }}</app-badge>
+                <span class="detail-list__summary-title">{{ summary.title }}</span>
+              </div>
+              <span class="detail-list__value">{{ summary.pointCount }}</span>
+            </div>
+          }
+        </div>
+      </section>
+    </div>
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- ═══ Tab: Weekly (User weekly stats) ══ -->
+  <!-- ═══════════════════════════════════════ -->
+  } @else if (viewMode() === 'week') {
+    <div class="summary-grid summary-grid--week">
+      <section class="summary-card summary-card--glow">
+        <span class="summary-card__label">This Week</span>
+        <strong class="summary-card__value">{{ userTotalWeekly }}</strong>
+        <p class="summary-card__hint">Total life fragments captured this week.</p>
+      </section>
+
+      <section class="summary-card">
+        <span class="summary-card__label">Avg. Daily</span>
+        <strong class="summary-card__value">{{ userAvgDaily }}</strong>
+        <p class="summary-card__hint">Trace points per day, steady rhythm.</p>
+      </section>
+
+      <section class="summary-card">
+        <span class="summary-card__label">Top Theme</span>
+        <strong class="summary-card__value">{{ userTopTheme }}</strong>
+        <p class="summary-card__hint">The dominant topic across your week.</p>
+      </section>
+
+      <section class="detail-card detail-card--wide">
+        <div class="detail-card__header">
+          <span class="detail-card__title">Activity</span>
+          <span class="detail-card__caption">Daily trace point counts</span>
+        </div>
+
+        <div class="week-activity">
+          @for (item of userWeeklyActivity; track item.day) {
+            <div class="week-activity__item">
+              <span class="week-activity__count">{{ item.count }}</span>
+              <div class="week-activity__bar-shell">
+                <div class="week-activity__bar" [style.height.%]="item.intensity"></div>
+              </div>
+              <span class="week-activity__day">{{ item.day }}</span>
+            </div>
+          }
+        </div>
+      </section>
+
+      <section class="detail-card detail-card--wide">
+        <div class="detail-card__header">
+          <span class="detail-card__title">Themes</span>
+          <span class="detail-card__caption">What your week revolved around</span>
+        </div>
+
+        <div class="theme-list">
+          @for (theme of userWeeklyThemes; track theme.label) {
+            <div class="theme-list__row">
+              <div class="theme-list__copy">
+                <span class="theme-list__label">{{ theme.label }}</span>
+                <span class="theme-list__hint">{{ theme.hint }}</span>
+              </div>
+              <div class="theme-list__progress">
+                <div class="theme-list__progress-bar" [style.width.%]="theme.share"></div>
+              </div>
+              <span class="theme-list__value">{{ theme.share }}%</span>
+            </div>
+          }
+        </div>
+      </section>
+    </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- ═══ Tab: XiaoQing (Cognitive trace stream) ═══ -->
+  <!-- ══════════════════════════════════════════════ -->
+  } @else {
+    <div class="timeline-stream">
+      <div class="timeline-stream__now">
+        <div class="timeline-stream__now-spacer" aria-hidden="true"></div>
+        <div class="timeline-stream__now-node">
+          <span class="timeline-stream__now-ping"></span>
+        </div>
+        <div class="timeline-stream__now-card">
+          <span class="timeline-stream__now-label">Now</span>
+          <p class="timeline-stream__now-copy">
+            XiaoQing's cognitive stream -- dialogue adjustments, memory operations, insights and growth events.
+          </p>
+        </div>
+      </div>
+
+      @for (point of cognitivePoints; track point.id; let index = $index) {
+        <article class="timeline-entry" [ngClass]="'timeline-entry--' + point.kind" [style.--entry-delay]="(index * 70) + 'ms'">
+          <div class="timeline-entry__meta">
+            <span class="timeline-entry__segment">{{ point.segment }}</span>
+            <span class="timeline-entry__time">{{ point.time }}</span>
+          </div>
+
+          <div class="timeline-entry__node">
+            <div class="timeline-entry__glyph">{{ cognitiveKindGlyph(point.kind) }}</div>
+          </div>
+
+          <div class="timeline-entry__card">
+            <div class="timeline-entry__head">
+              <div class="timeline-entry__badges">
+                <app-badge [tone]="cognitiveKindTone(point.kind)" size="sm">{{ cognitiveKindLabel(point.kind) }}</app-badge>
+                <app-badge tone="neutral" appearance="outline" size="sm">{{ point.source }}</app-badge>
+              </div>
+              <span class="timeline-entry__confidence">Score {{ point.confidence }}%</span>
+            </div>
+
+            <h3 class="timeline-entry__title">{{ point.title }}</h3>
+            <p class="timeline-entry__summary">{{ point.summary }}</p>
+
+            <div class="timeline-entry__chips">
+              @for (actor of point.actors; track actor) {
+                <span class="timeline-chip timeline-chip--actor">{{ actor }}</span>
+              }
+              @for (tag of point.tags; track tag) {
+                <span class="timeline-chip timeline-chip--tag">#{{ tag }}</span>
+              }
+            </div>
+          </div>
+        </article>
+      }
+
+      <div class="timeline-stream__tail" aria-hidden="true">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </div>
+  }
+</section>

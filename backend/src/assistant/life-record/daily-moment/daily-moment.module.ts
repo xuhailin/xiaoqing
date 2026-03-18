@@ -1,18 +1,13 @@
 import { Module } from '@nestjs/common';
-import { LlmModule } from '../../infra/llm/llm.module';
-import { DailyMomentTriggerEvaluator } from './daily-moment-trigger.evaluator';
-import { DailyMomentSnippetExtractor } from './daily-moment-snippet.extractor';
-import { DailyMomentGenerator } from './daily-moment-generator';
+import { TracePointModule } from '../trace-point/trace-point.module';
+import { DailySummaryModule } from '../daily-summary/daily-summary.module';
 import { DailyMomentPolicy } from './daily-moment-policy';
 import { DailyMomentService } from './daily-moment.service';
 import { DailyMomentPrismaRepository } from './daily-moment-prisma.repository';
 
 @Module({
-  imports: [LlmModule],
+  imports: [TracePointModule, DailySummaryModule],
   providers: [
-    DailyMomentTriggerEvaluator,
-    DailyMomentSnippetExtractor,
-    DailyMomentGenerator,
     DailyMomentPolicy,
     DailyMomentPrismaRepository,
     DailyMomentService,

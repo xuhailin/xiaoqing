@@ -350,6 +350,48 @@ model TimesheetRecord {
   @@index([date])
 }
 
+// ── Life Record: Trace Points ────────────────────────────────
+
+model TracePoint {
+  id              String   @id @default(uuid())
+  conversationId  String
+  sourceMessageId String
+
+  kind            String          // 'event' | 'mood' | 'mention' | 'plan' | 'reflection'
+  content         String   @db.Text
+  happenedAt      DateTime?       // 事件实际发生时间（null 时按 createdAt）
+
+  mood            String?
+  people          String[] @default([])
+  tags            String[] @default([])
+
+  extractedBy     String   @default("batch") // 'batch' | 'realtime' | 'backfill'
+  confidence      Float    @default(1.0)
+  createdAt       DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([kind])
+  @@index([happenedAt])
+  @@index([sourceMessageId])
+}
+
+// 日摘要：基于当天 TracePoints 生成的一段日总结
+model DailySummary {
+  id              String   @id @default(uuid())
+  dayKey          String          // 'YYYY-MM-DD'
+  title           String
+  body            String   @db.Text
+  moodOverall     String?         // 当天整体情绪
+  pointCount      Int      @default(0)
+  sourcePointIds  String[] @default([])
+  generatedBy     String   @default("llm") // 'llm' | 'manual'
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([dayKey])
+  @@index([dayKey])
+}
+
 // ── DevAgent ─────────────────────────────────────────────────
 
 enum DevSessionStatus {

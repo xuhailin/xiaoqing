@@ -1,17 +1,14 @@
-import { Injectable } from '@nestjs/common';
-import { DailyMomentTriggerEvaluator } from './daily-moment-trigger.evaluator';
-import { DailyMomentSnippetExtractor } from './daily-moment-snippet.extractor';
-import { DailyMomentGenerator } from './daily-moment-generator';
+import { Injectable, Logger } from '@nestjs/common';
+import { TracePointService } from '../trace-point/trace-point.service';
+import { DailySummaryService } from '../daily-summary/daily-summary.service';
 import { DailyMomentPolicy } from './daily-moment-policy';
 import { DailyMomentPrismaRepository } from './daily-moment-prisma.repository';
 import {
-  type DailyMomentChatMessage,
   type DailyMomentFeedback,
   type DailyMomentFeedbackSummary,
+  type DailyMomentMoodTag,
   type DailyMomentRecord,
   type DailyMomentSuggestion,
-  type DailyMomentSuggestionCheckResult,
-  type DailyMomentTriggerContext,
   type DailyMomentTriggerMode,
 } from './daily-moment.types';
 
@@ -21,12 +18,22 @@ export interface DailyMomentUserTriggerIntent {
   acceptedSuggestionId?: string;
 }
 
+export interface DailyMomentSuggestionResult {
+  shouldSuggest: boolean;
+  suggestion?: DailyMomentSuggestion;
+  reason: string;
+}
+
+/** 今天至少有 N 个 TracePoint 时才值得生成/建议日记 */
+const MIN_POINTS_FOR_DIARY = 3;
+
 @Injectable()
 export class DailyMomentService {
+  private readonly logger = new Logger(DailyMomentService.name);
+
   constructor(
-    private readonly evaluator: DailyMomentTriggerEvaluator,
-    private readonly extractor: DailyMomentSnippetExtractor,
-    private readonly generator: DailyMomentGenerator,
+    private readonly tracePointService: TracePointService,
+    private readonly dailySummaryService: DailySummaryService,
     private readonly policy: DailyMomentPolicy,
     private readonly repo: DailyMomentPrismaRepository,
   ) {}
@@ -107,32 +114,30 @@ export class DailyMomentService {
     }
   }
 
+  /**
+   * 生成日记条目。
+   * 合并后管线：TracePoints → DailySummaryGenerator → DailyMomentRecord
+   */
   async generateMomentEntry(input: {
     conversationId: string;
-    recentMessages: DailyMomentChatMessage[];
     now: Date;
     triggerMode: DailyMomentTriggerMode;
     acceptedSuggestionId?: string;
   }): Promise<{ record: DailyMomentRecord; renderedText: string }> {
-    const snippet = this.extractor.pickPrimarySnippet(input.conversationId, input.recentMessages);
+    const dayKey = this.dayKey(input.now);
 
-    const draft = await this.generator.generate({
-      now: input.now,
-      triggerMode: input.triggerMode,
-      snippet,
-      lightweightFallback: snippet.messages.length < 3,
-    });
+    const summary = await this.dailySummaryService.generateForDay(dayKey);
 
     const record: DailyMomentRecord = {
       id: this.newId('dmr'),
       conversationId: input.conversationId,
       triggerMode: input.triggerMode,
-      title: draft.title,
-      body: draft.body,
-      closingNote: draft.closingNote,
-      moodTag: draft.moodTag,
-      sourceSnippetIds: draft.sourceSnippetIds,
-      sourceMessageIds: snippet.messageIds,
+      title: summary.title,
+      body: summary.body,
+      closingNote: '',
+      moodTag: this.mapMoodToTag(summary.moodOverall),
+      sourceSnippetIds: [],
+      sourceMessageIds: [],
       createdAt: input.now,
     };
 
@@ -154,66 +159,61 @@ export class DailyMomentService {
     };
   }
 
+  /**
+   * 判断是否应该向用户建议写日记。
+   * 合并后简化：检查今天 TracePoint 数量 + Policy 限流。
+   */
   async maybeSuggest(input: {
     conversationId: string;
-    recentMessages: DailyMomentChatMessage[];
     now: Date;
-    triggerContext: Omit<DailyMomentTriggerContext, 'now' | 'hasRecentTriggerInSession' | 'policyBlocked'>;
-  }): Promise<DailyMomentSuggestionCheckResult> {
+  }): Promise<DailyMomentSuggestionResult> {
+    const dayKey = this.dayKey(input.now);
+    const points = await this.tracePointService.getPointsForDay(dayKey);
+
+    if (points.length < MIN_POINTS_FOR_DIARY) {
+      return {
+        shouldSuggest: false,
+        reason: `only ${points.length} trace points today (need >= ${MIN_POINTS_FOR_DIARY})`,
+      };
+    }
+
     const suggestions = await this.repo.listSuggestionsByConversation(input.conversationId);
     const feedback = await this.getFeedbackSummary(input.conversationId, input.now);
 
     const policyDecision = this.policy.evaluate({
       conversationId: input.conversationId,
       now: input.now,
-      isSeriousTopic: this.isSeriousTopic(input.triggerContext, input.recentMessages),
-      shortReplyStreak: this.countUserShortReplyStreak(input.recentMessages),
+      isSeriousTopic: false,
+      shortReplyStreak: 0,
       feedbackSummary: feedback,
       recentSuggestions: suggestions,
     });
 
-    const evaluation = this.evaluator.evaluate(
-      input.recentMessages,
-      {
-        ...input.triggerContext,
-        now: input.now,
-        hasRecentTriggerInSession: this.policy.hasRecentSessionTrigger(suggestions, input.now),
-        policyBlocked: !policyDecision.allow,
-      },
-      policyDecision.scoreBias,
-    );
-
-    if (!policyDecision.allow || evaluation.decision !== 'suggest') {
+    if (!policyDecision.allow) {
       return {
         shouldSuggest: false,
-        evaluation,
+        reason: policyDecision.reason ?? 'policy_blocked',
       };
     }
 
-    const moodTag = evaluation.moodTag;
-    const sameMoodExists = this.hasSameMoodSuggestionToday(suggestions, input.now, moodTag);
-    if (sameMoodExists) {
+    const dominantMood = this.dominantMood(points);
+    const moodTag = this.mapMoodToTag(dominantMood);
+    if (moodTag && this.hasSameMoodSuggestionToday(suggestions, input.now, moodTag)) {
       return {
         shouldSuggest: false,
-        evaluation: {
-          ...evaluation,
-          decision: 'none',
-          reasons: [...evaluation.reasons, 'same-mood-already-suggested-today'],
-        },
+        reason: 'same-mood-already-suggested-today',
       };
     }
 
-    const snippet = this.extractor.pickPrimarySnippet(input.conversationId, input.recentMessages);
     const hint = this.pickHint(suggestions.length);
-
     const suggestion: DailyMomentSuggestion = {
       id: this.newId('dms'),
       conversationId: input.conversationId,
       hint,
       createdAt: input.now,
-      score: evaluation.score,
+      score: points.length / 10,
       moodTag,
-      sourceMessageIds: snippet.messageIds,
+      sourceMessageIds: [],
       accepted: false,
     };
 
@@ -221,8 +221,8 @@ export class DailyMomentService {
 
     return {
       shouldSuggest: true,
-      evaluation,
       suggestion,
+      reason: `${points.length} trace points today`,
     };
   }
 
@@ -250,8 +250,11 @@ export class DailyMomentService {
     const lines = [
       `今日日记 | ${record.title}`,
       record.body,
-      record.closingNote,
     ];
+
+    if (record.closingNote) {
+      lines.push(record.closingNote);
+    }
 
     if (record.moodTag) {
       lines.push(`#${record.moodTag}`);
@@ -299,20 +302,6 @@ export class DailyMomentService {
     return ageMinutes <= 90 ? latest : null;
   }
 
-  private countUserShortReplyStreak(messages: DailyMomentChatMessage[]): number {
-    let streak = 0;
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-      const msg = messages[i];
-      if (msg.role !== 'user') continue;
-      if (msg.content.trim().length <= 8) {
-        streak += 1;
-      } else {
-        break;
-      }
-    }
-    return streak;
-  }
-
   private hasSameMoodSuggestionToday(
     suggestions: DailyMomentSuggestion[],
     now: Date,
@@ -331,35 +320,41 @@ export class DailyMomentService {
     const suggestions = await this.repo.listSuggestionsByConversation(conversationId);
     const signals = await this.repo.listSignalsByConversation(conversationId);
 
-    const summary: DailyMomentFeedbackSummary = {
+    return {
       likeCount: records.filter((r) => r.feedback === 'like').length,
       awkwardCount: records.filter((r) => r.feedback === 'awkward').length,
       neutralCount: records.filter((r) => r.feedback === 'neutral').length,
-      ignoredCount: 0,
+      ignoredCount: suggestions.filter(
+        (s) => !s.accepted && now.getTime() - s.createdAt.getTime() > 30 * 60 * 1000,
+      ).length,
       positiveSignalCount: signals.filter((s) => s.type === 'positive').length,
       negativeSignalCount: signals.filter((s) => s.type === 'negative').length,
       acceptedSuggestionCount: signals.filter((s) => s.type === 'accepted_suggestion').length,
       repeatRequestCount: signals.filter((s) => s.type === 'repeat_request').length,
       bookmarkOrViewCount: signals.filter((s) => s.type === 'bookmark_or_view').length,
     };
-
-    // 30 分钟仍未接住的提示，视为一次冷处理。
-    summary.ignoredCount = suggestions.filter(
-      (s) => !s.accepted && now.getTime() - s.createdAt.getTime() > 30 * 60 * 1000,
-    ).length;
-
-    return summary;
   }
 
-  private isSeriousTopic(
-    triggerContext: Omit<DailyMomentTriggerContext, 'now' | 'hasRecentTriggerInSession' | 'policyBlocked'>,
-    messages: DailyMomentChatMessage[],
-  ): boolean {
-    if (triggerContext.intentMode === 'task') return true;
-    if (triggerContext.intentSeriousness === 'focused') return true;
+  private dominantMood(points: Array<{ mood: string | null }>): string | null {
+    const counts = new Map<string, number>();
+    for (const p of points) {
+      if (p.mood) counts.set(p.mood, (counts.get(p.mood) ?? 0) + 1);
+    }
+    if (counts.size === 0) return null;
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0][0];
+  }
 
-    const latestUser = [...messages].reverse().find((m) => m.role === 'user')?.content ?? '';
-    return /(撑不住|很难受|崩溃|救命|怎么办|求你|紧急|严重)/.test(latestUser);
+  private mapMoodToTag(mood: string | null | undefined): DailyMomentMoodTag | undefined {
+    if (!mood) return undefined;
+    const mapping: Record<string, DailyMomentMoodTag> = {
+      frustrated: '轻松',
+      relaxed: '轻松',
+      neutral: '轻松',
+      amused: '被逗了一下',
+      warm: '温柔',
+      peaceful: '安静的小幸福',
+    };
+    return mapping[mood] ?? undefined;
   }
 
   private pickHint(existingSuggestionCount: number): string {

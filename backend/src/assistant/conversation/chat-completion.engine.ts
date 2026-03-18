@@ -14,8 +14,7 @@ import type { CognitiveTurnState } from '../cognitive-pipeline/cognitive-pipelin
 import { estimateTokens } from '../../infra/token-estimator';
 import { TraceCollector } from '../../infra/trace/trace-collector';
 import { adaptLegacyTraceToTurnEvents } from '../../infra/trace/turn-trace.adapter';
-import { DailyMomentService } from '../daily-moment/daily-moment.service';
-import type { DailyMomentChatMessage } from '../daily-moment/daily-moment.types';
+import { DailyMomentService } from '../life-record/daily-moment/daily-moment.service';
 import type {
   ChatCompletionResult,
   ConversationMessageKind,
@@ -122,25 +121,7 @@ export class ChatCompletionEngine {
     this.openclawConfidenceThreshold = flags.openclawConfidenceThreshold;
   }
 
-  private async getLastNDailyMomentMessages(
-    conversationId: string,
-    take = 18,
-  ): Promise<DailyMomentChatMessage[]> {
-    const rows = await this.prisma.message.findMany({
-      where: { conversationId },
-      orderBy: { createdAt: 'desc' },
-      take,
-    });
-    return rows
-      .reverse()
-      .filter((m): m is typeof m & { role: 'user' | 'assistant' } => m.role === 'user' || m.role === 'assistant')
-      .map((m) => ({
-        id: m.id,
-        role: m.role,
-        content: m.content,
-        createdAt: m.createdAt,
-      }));
-  }
+
 
   async execute(
     context: TurnContext,
@@ -185,10 +166,8 @@ export class ChatCompletionEngine {
     if (dailyMomentIntent.shouldGenerate && dailyMomentIntent.mode) {
       this.advancePipelineState(pipelineState, 'decision');
 
-      const recentForMoment = await this.getLastNDailyMomentMessages(conversationId);
       const generated = await this.dailyMoment.generateMomentEntry({
         conversationId,
-        recentMessages: recentForMoment,
         now,
         triggerMode: dailyMomentIntent.mode,
         acceptedSuggestionId: dailyMomentIntent.acceptedSuggestionId,

@@ -23,12 +23,12 @@ import { IdentityAnchorModule } from '../identity-anchor/identity-anchor.module'
 import { SummarizerModule } from '../summarizer/summarizer.module';
 import { CognitivePipelineModule } from '../cognitive-pipeline/cognitive-pipeline.module';
 import { MetaLayerService } from '../meta-layer/meta-layer.service';
-import { DailyMomentModule } from '../daily-moment/daily-moment.module';
+import { LifeRecordModule } from '../life-record/life-record.module';
 import { PostTurnPipeline } from '../post-turn/post-turn.pipeline';
 import { SystemSelfModule } from '../../system-self/system-self.module';
 
 @Module({
-  imports: [ActionReasonerModule, ReflectionModule, LlmModule, PromptRouterModule, MemoryModule, PersonaModule, IntentModule, OpenClawModule, ActionModule, WorldStateModule, IdentityAnchorModule, SummarizerModule, CognitivePipelineModule, DailyMomentModule, SystemSelfModule],
+  imports: [ActionReasonerModule, ReflectionModule, LlmModule, PromptRouterModule, MemoryModule, PersonaModule, IntentModule, OpenClawModule, ActionModule, WorldStateModule, IdentityAnchorModule, SummarizerModule, CognitivePipelineModule, LifeRecordModule, SystemSelfModule],
   controllers: [ConversationController],
   providers: [
     ConversationService,

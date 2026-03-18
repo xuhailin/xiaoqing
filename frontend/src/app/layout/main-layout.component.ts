@@ -62,6 +62,8 @@ import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.compone
               <div class="workbench-copy">
                 @if (currentWorkbench() === 'chat') {
                   当前对话与调试信息
+                } @else if (currentWorkbench() === 'life-trace') {
+                  Life Trace 视图中的记忆节点与周览摘要
                 } @else if (currentWorkbench() === 'dev-agent') {
                   DevAgent 总览与 session 对话
                 } @else {
@@ -200,12 +202,16 @@ export class MainLayoutComponent {
     { value: 'chat', label: '对话' },
     { value: 'dev-agent', label: 'DevAgent' },
     { value: 'regression', label: '回归' },
+    { value: 'life-trace', label: 'Life Trace' },
   ];
 
   constructor(private router: Router) {}
 
-  currentWorkbench(): 'chat' | 'dev-agent' | 'regression' {
+  currentWorkbench(): 'chat' | 'life-trace' | 'dev-agent' | 'regression' {
     const url = this.router.url;
+    if (url.startsWith('/life-trace')) {
+      return 'life-trace';
+    }
     if (url.startsWith('/dev-agent')) {
       return 'dev-agent';
     }
@@ -220,6 +226,10 @@ export class MainLayoutComponent {
   }
 
   selectWorkbench(value: string) {
+    if (value === 'life-trace') {
+      this.openLifeTrace();
+      return;
+    }
     if (value === 'dev-agent') {
       this.openDevAgent();
       return;
@@ -233,6 +243,10 @@ export class MainLayoutComponent {
 
   openDevAgent() {
     this.router.navigate(['/dev-agent']);
+  }
+
+  openLifeTrace() {
+    this.router.navigate(['/life-trace']);
   }
 
   openRegression() {

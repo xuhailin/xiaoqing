@@ -4,7 +4,7 @@ import { PrismaService } from '../../infra/prisma.service';
 import { estimateTokens } from '../../infra/token-estimator';
 import { WorldStateService } from '../../infra/world-state/world-state.service';
 import type { WorldStateUpdate } from '../../infra/world-state/world-state.types';
-import { DailyMomentService } from '../daily-moment/daily-moment.service';
+import { DailyMomentService } from '../life-record/daily-moment/daily-moment.service';
 import { CognitiveGrowthService } from '../cognitive-pipeline/cognitive-growth.service';
 import { AssistantOrchestrator } from './assistant-orchestrator.service';
 import type { ConversationMessageDto, SendMessageResult } from './orchestration.types';

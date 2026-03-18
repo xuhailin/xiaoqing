@@ -9,7 +9,7 @@ import { TurnContextAssembler } from './turn-context-assembler.service';
 import { ChatCompletionRunner } from './chat-completion-runner.service';
 import { SummarizeTriggerService } from './summarize-trigger.service';
 import { SessionStateService } from '../claim-engine/session-state.service';
-import { DailyMomentService } from '../daily-moment/daily-moment.service';
+import { DailyMomentService } from '../life-record/daily-moment/daily-moment.service';
 import { CognitiveGrowthService } from '../cognitive-pipeline/cognitive-growth.service';
 import type { SendMessageResult, ToolPolicyDecision, TurnContext } from './orchestration.types';
 import { toConversationMessageDto } from './message.dto';
@@ -230,33 +230,9 @@ export class AssistantOrchestrator {
   private async runDailyMomentSuggestion(
     plan: PostTurnPlan,
   ): Promise<NonNullable<SendMessageResult['dailyMoment']>['suggestion'] | null> {
-    const recentMessages = await this.prisma.message.findMany({
-      where: { conversationId: plan.conversationId },
-      orderBy: { createdAt: 'desc' },
-      take: 18,
-    });
-    const normalized = recentMessages
-      .reverse()
-      .filter((m): m is typeof m & { role: 'user' | 'assistant' } => m.role === 'user' || m.role === 'assistant')
-      .map((m) => ({
-        id: m.id,
-        role: m.role,
-        content: m.content,
-        createdAt: m.createdAt,
-      }));
-    if (normalized.length < 3) return null;
-
     const suggestionCheck = await this.dailyMoment.maybeSuggest({
       conversationId: plan.conversationId,
-      recentMessages: normalized,
       now: plan.turn.now,
-      triggerContext: {
-        intentMode: plan.context.intentState?.mode ?? null,
-        intentRequiresTool: plan.context.intentState?.requiresTool ?? false,
-        intentSeriousness: plan.context.intentState?.seriousness ?? null,
-        detectedEmotion: plan.context.intentState?.detectedEmotion ?? null,
-        isImportantIssueInProgress: !!plan.context.isImportantIssueInProgress,
-      },
     });
 
     return suggestionCheck.shouldSuggest ? suggestionCheck.suggestion ?? null : null;

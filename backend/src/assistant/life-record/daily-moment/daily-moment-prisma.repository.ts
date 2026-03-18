@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../infra/prisma.service';
+import { PrismaService } from '../../../infra/prisma.service';
 import {
   type DailyMomentEngagementSignal,
   type DailyMomentFeedback,

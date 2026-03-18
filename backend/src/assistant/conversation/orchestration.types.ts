@@ -15,7 +15,7 @@ import type { WorldState } from '../../infra/world-state/world-state.types';
 import type {
   DailyMomentRecord,
   DailyMomentSuggestion,
-} from '../daily-moment/daily-moment.types';
+} from '../life-record/daily-moment/daily-moment.types';
 import type { LocalSkillRunResult } from '../../action/local-skills/local-skill.types';
 import type { SystemSelf } from '../../system-self/system-self.types';
 import type { PostTurnPlan } from '../post-turn/post-turn.types';

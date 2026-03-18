@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { OpenAI } from 'openai';
-import { LlmService } from '../../infra/llm/llm.service';
+import { LlmService } from '../../../infra/llm/llm.service';
 import {
   type DailyMomentDraft,
   type DailyMomentGeneratorInput,
