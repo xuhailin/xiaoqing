@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma.service';
 import { LlmService } from '../../infra/llm/llm.service';
 import { CHAT_PROMPT_VERSION } from '../prompt-router/prompt-router.service';
@@ -15,7 +16,14 @@ import { TraceCollector } from '../../infra/trace/trace-collector';
 import { adaptLegacyTraceToTurnEvents } from '../../infra/trace/turn-trace.adapter';
 import { DailyMomentService } from '../daily-moment/daily-moment.service';
 import type { DailyMomentChatMessage } from '../daily-moment/daily-moment.types';
-import type { ChatCompletionResult, SendMessageResult, ToolPolicyDecision, TurnContext } from './orchestration.types';
+import type {
+  ChatCompletionResult,
+  ConversationMessageKind,
+  ConversationMessageMetadata,
+  SendMessageResult,
+  ToolPolicyDecision,
+  TurnContext,
+} from './orchestration.types';
 import { ToolExecutorRegistry } from '../../action/tools/tool-executor-registry.service';
 import type { PostTurnPlan } from '../post-turn/post-turn.types';
 import { SkillRunner } from '../../action/local-skills/skill-runner.service';
@@ -32,6 +40,11 @@ interface PipelineTraceState {
   firstSeenOrder: PipelineStepName[];
   canonicalOrder: PipelineStepName[];
   canonicalMatchSoFar: boolean;
+}
+
+interface PersistedAssistantMessageOptions {
+  kind?: ConversationMessageKind;
+  metadata?: ConversationMessageMetadata;
 }
 
 @Injectable()
@@ -191,7 +204,13 @@ export class ChatCompletionEngine {
         data: {
           conversationId,
           role: 'assistant',
+          kind: 'daily_moment',
           content: generated.renderedText,
+          metadata: {
+            source: 'daily-moment',
+            triggerMode: dailyMomentIntent.mode,
+            summary: generated.record.title,
+          },
           tokenCount: estimateTokens(generated.renderedText),
         },
       });
@@ -361,14 +380,20 @@ export class ChatCompletionEngine {
 
     this.pet.setStateWithAutoIdle('speaking', 1500);
 
-    const assistantMsg = await this.prisma.message.create({
-      data: {
-        conversationId,
-        role: 'assistant',
-        content: localSkillRun.summary,
-        tokenCount: estimateTokens(localSkillRun.summary),
+    const assistantMsg = await this.persistAssistantMessage(
+      conversationId,
+      localSkillRun.summary,
+      {
+        kind: 'tool',
+        metadata: {
+          source: 'tool',
+          toolKind: 'local_skill',
+          toolName: skillName,
+          success: localSkillRun.success,
+          summary: localSkillRun.summary,
+        },
       },
-    });
+    );
 
     return this.wrapResult({
       userMessage: toConversationMessageDto(userMsg),
@@ -836,7 +861,12 @@ export class ChatCompletionEngine {
     toolResult: string | null,
     toolError: string | null,
     intentState: DialogueIntentState | null,
-    opts: { openclawUsed?: boolean; localSkillUsed?: 'weather' | 'book_download' | 'general_action' | 'timesheet' | 'reminder' } = {},
+    opts: {
+      openclawUsed?: boolean;
+      localSkillUsed?: 'weather' | 'book_download' | 'general_action' | 'timesheet' | 'reminder';
+      messageKind?: ConversationMessageKind;
+      messageMetadata?: ConversationMessageMetadata;
+    } = {},
     trace?: TraceCollector,
     pipelineState?: PipelineTraceState,
     recentMessages?: { role: string; content: string }[],
@@ -921,14 +951,21 @@ export class ChatCompletionEngine {
 
     this.pet.setStateWithAutoIdle('speaking', 3000);
 
-    const assistantMsg = await this.prisma.message.create({
-      data: {
-        conversationId,
-        role: 'assistant',
-        content: composition.replyContent,
-        tokenCount: estimateTokens(composition.replyContent),
+    const assistantMsg = await this.persistAssistantMessage(
+      conversationId,
+      composition.replyContent,
+      {
+        kind: opts.messageKind ?? 'tool',
+        metadata: {
+          source: 'tool',
+          toolKind: opts.openclawUsed ? 'openclaw' : (opts.localSkillUsed ?? 'general_action'),
+          toolName: opts.openclawUsed ? 'openclaw' : (opts.localSkillUsed ?? 'general_action'),
+          success: !toolError,
+          summary: this.firstLine(composition.replyContent) ?? undefined,
+          ...(opts.messageMetadata ?? {}),
+        },
       },
-    });
+    );
     const postPlan = this.buildPostTurnPlan({
       conversationId,
       userMsg,
@@ -1049,6 +1086,25 @@ export class ChatCompletionEngine {
       }
     }
 
+    const reminderAction = localSkillUsed === 'reminder'
+      ? this.readString(result.meta?.reminderAction)
+      : undefined;
+    const reminderReason = localSkillUsed === 'reminder'
+      ? this.readString(result.meta?.reminderReason)
+      : undefined;
+    const reminderSchedule = localSkillUsed === 'reminder'
+      ? this.readString(result.meta?.scheduleText)
+      : undefined;
+    const reminderId = localSkillUsed === 'reminder'
+      ? this.readString(result.meta?.reminderId)
+      : undefined;
+    const reminderNextRunAt = localSkillUsed === 'reminder'
+      ? this.readString(result.meta?.nextRunAt)
+      : undefined;
+    const reminderCount = localSkillUsed === 'reminder' && typeof result.meta?.count === 'number'
+      ? result.meta.count
+      : undefined;
+
     return this.buildToolReplyAndSave(
       context,
       conversationId,
@@ -1058,7 +1114,28 @@ export class ChatCompletionEngine {
       result.success ? result.content : null,
       result.success ? null : (result.error ?? `${capabilityName} 执行失败`),
       intentState,
-      localSkillUsed ? { localSkillUsed } : {},
+      localSkillUsed
+        ? {
+            localSkillUsed,
+            ...(localSkillUsed === 'reminder'
+              ? {
+                  messageKind: this.resolveReminderMessageKind(reminderAction),
+                  messageMetadata: {
+                    source: 'tool',
+                    reminderAction: (reminderAction as 'create' | 'list' | 'cancel' | undefined),
+                    reminderId,
+                    reminderReason,
+                    scheduleText: reminderSchedule,
+                    nextRunAt: reminderNextRunAt,
+                    count: reminderCount,
+                    summary: result.success
+                      ? reminderReason ?? reminderSchedule ?? this.firstLine(result.content)
+                      : this.firstLine(result.error) ?? undefined,
+                  },
+                }
+              : {}),
+          }
+        : {},
       trace,
       pipelineState,
       recent,
@@ -1196,14 +1273,7 @@ export class ChatCompletionEngine {
       boundaryReasons: composition.boundaryReview.reasons,
     });
 
-    const assistantMsg = await this.prisma.message.create({
-      data: {
-        conversationId,
-        role: 'assistant',
-        content: composition.replyContent,
-        tokenCount: estimateTokens(composition.replyContent),
-      },
-    });
+    const assistantMsg = await this.persistAssistantMessage(conversationId, composition.replyContent);
 
     const debugMeta = this.featureDebugMeta
       ? { pipeline: this.buildPipelineSnapshot(pipelineState) }
@@ -1351,14 +1421,7 @@ export class ChatCompletionEngine {
 
     this.pet.setStateWithAutoIdle('speaking', 3000);
 
-    const assistantMsg = await this.prisma.message.create({
-      data: {
-        conversationId,
-        role: 'assistant',
-        content: composition.replyContent,
-        tokenCount: estimateTokens(composition.replyContent),
-      },
-    });
+    const assistantMsg = await this.persistAssistantMessage(conversationId, composition.replyContent);
 
     const postPlan = this.buildPostTurnPlan({
       conversationId,
@@ -1468,6 +1531,42 @@ export class ChatCompletionEngine {
       .test(userInput)
       ? 'instant'
       : 'threshold';
+  }
+
+  private async persistAssistantMessage(
+    conversationId: string,
+    content: string,
+    options: PersistedAssistantMessageOptions = {},
+  ) {
+    return this.prisma.message.create({
+      data: {
+        conversationId,
+        role: 'assistant',
+        kind: options.kind ?? 'chat',
+        content,
+        ...(options.metadata !== undefined
+          ? { metadata: options.metadata as Prisma.InputJsonValue }
+          : {}),
+        tokenCount: estimateTokens(content),
+      },
+    });
+  }
+
+  private resolveReminderMessageKind(action?: string): ConversationMessageKind {
+    if (action === 'create') return 'reminder_created';
+    if (action === 'list') return 'reminder_list';
+    if (action === 'cancel') return 'reminder_cancelled';
+    return 'tool';
+  }
+
+  private firstLine(text: string | null | undefined): string | undefined {
+    const normalized = String(text ?? '').trim();
+    if (!normalized) return undefined;
+    return normalized.split(/\r?\n/).find((line) => line.trim())?.trim() ?? normalized;
+  }
+
+  private readString(value: unknown): string | undefined {
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
   }
 
   private wrapResult(

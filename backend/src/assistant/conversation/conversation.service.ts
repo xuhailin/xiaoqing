@@ -13,7 +13,13 @@ import { SummarizeTriggerService } from './summarize-trigger.service';
 import { toConversationMessageDto } from './message.dto';
 
 type ConversationWithCount = Prisma.ConversationGetPayload<{
-  include: { _count: { select: { messages: true } } };
+  include: {
+    _count: { select: { messages: true } };
+    messages: {
+      orderBy: { createdAt: 'desc' };
+      take: 1;
+    };
+  };
 }>;
 
 @Injectable()
@@ -34,9 +40,30 @@ export class ConversationService {
   }
 
   async list() {
+    const reminderGroups = await this.prisma.devReminder.groupBy({
+      by: ['conversationId'],
+      where: {
+        scope: 'chat',
+        enabled: true,
+        conversationId: { not: null },
+      },
+      _count: { conversationId: true },
+    });
+    const reminderCountMap = new Map(
+      reminderGroups
+        .filter((item) => !!item.conversationId)
+        .map((item) => [item.conversationId!, item._count.conversationId]),
+    );
+
     const conversations: ConversationWithCount[] = await this.prisma.conversation.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: { _count: { select: { messages: true } } },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        _count: { select: { messages: true } },
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
     });
     return conversations.map((c) => ({
       id: c.id,
@@ -45,6 +72,8 @@ export class ConversationService {
       createdAt: c.createdAt,
       updatedAt: c.updatedAt,
       messageCount: c._count.messages,
+      activeReminderCount: reminderCountMap.get(c.id) ?? 0,
+      latestMessage: c.messages[0] ? toConversationMessageDto(c.messages[0]) : null,
     }));
   }
 
@@ -163,7 +192,13 @@ export class ConversationService {
     content: string,
   ): Promise<SendMessageResult> {
     const userMsg = await this.prisma.message.create({
-      data: { conversationId, role: 'user', content, tokenCount: estimateTokens(content) },
+      data: {
+        conversationId,
+        role: 'user',
+        kind: 'user',
+        content,
+        tokenCount: estimateTokens(content),
+      },
     });
     return this.assistantOrchestrator.processTurn({
       conversationId,

@@ -4,11 +4,38 @@ import { Subject } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 export type MessageContentType = 'text' | 'markdown';
+export type MessageKind =
+  | 'user'
+  | 'chat'
+  | 'tool'
+  | 'reminder_created'
+  | 'reminder_list'
+  | 'reminder_cancelled'
+  | 'reminder_triggered'
+  | 'system'
+  | 'daily_moment';
+
+export interface MessageMetadata {
+  source?: 'assistant' | 'tool' | 'scheduler' | 'system' | 'daily-moment';
+  toolKind?: string;
+  toolName?: string;
+  success?: boolean;
+  summary?: string;
+  reminderAction?: 'create' | 'list' | 'cancel' | 'trigger';
+  reminderId?: string;
+  reminderReason?: string;
+  scheduleText?: string;
+  nextRunAt?: string;
+  count?: number;
+  triggerMode?: string;
+}
 
 export interface Message {
   id: string;
   role: string;
+  kind: MessageKind;
   content: string;
+  metadata: MessageMetadata | null;
   contentType?: MessageContentType;
   createdAt: string;
 }
@@ -26,6 +53,8 @@ export interface ConversationItem {
   createdAt: string;
   updatedAt: string;
   messageCount: number;
+  activeReminderCount: number;
+  latestMessage: Message | null;
 }
 
 /** 当前会话的默认世界状态（地点/时区/语言等），会话级，不写入长期记忆 */

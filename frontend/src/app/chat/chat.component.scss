@@ -40,6 +40,18 @@
     background: var(--color-success-bg);
     border-color: var(--color-success-border);
   }
+
+  &--info {
+    color: var(--color-primary);
+    background: var(--color-primary-light);
+    border-color: rgba(79, 109, 245, 0.22);
+  }
+
+  &--warning {
+    color: var(--color-warning);
+    background: var(--color-warning-bg);
+    border-color: var(--color-warning-border);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -139,11 +151,67 @@
       border-color: rgba(96, 122, 170, 0.16);
     }
   }
+
+  &.message--kind-tool .bubble {
+    background: linear-gradient(180deg, rgba(239, 246, 255, 0.98), rgba(248, 251, 255, 0.96));
+    border-color: rgba(79, 109, 245, 0.24);
+    box-shadow: 0 12px 26px rgba(79, 109, 245, 0.08);
+  }
+
+  &.message--kind-system .bubble {
+    background: linear-gradient(180deg, rgba(247, 249, 252, 0.98), rgba(255, 255, 255, 0.96));
+    border-color: rgba(123, 135, 153, 0.2);
+  }
+
+  &.message--kind-daily-moment .bubble {
+    background: linear-gradient(180deg, rgba(240, 246, 255, 0.98), rgba(252, 254, 255, 0.98));
+    border-color: rgba(117, 143, 255, 0.26);
+  }
+
+  &.message--kind-reminder-created .bubble,
+  &.message--kind-reminder-list .bubble,
+  &.message--kind-reminder-cancelled .bubble {
+    background: linear-gradient(180deg, rgba(255, 248, 233, 0.98), rgba(255, 252, 245, 0.98));
+    border-color: rgba(236, 179, 72, 0.34);
+    box-shadow: 0 12px 26px rgba(236, 179, 72, 0.08);
+  }
+
+  &.message--kind-reminder-triggered .bubble {
+    background:
+      radial-gradient(circle at top right, rgba(255, 205, 92, 0.22), transparent 38%),
+      linear-gradient(180deg, rgba(255, 244, 221, 0.98), rgba(255, 252, 244, 0.98));
+    border-color: rgba(222, 161, 39, 0.42);
+    box-shadow: 0 16px 30px rgba(222, 161, 39, 0.12);
+  }
+}
+
+.message-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.message-head-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
 }
 
 .role-label {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
+}
+
+.message-kind-badge {
+  align-self: center;
+}
+
+.message-time {
+  font-size: var(--font-size-xxs);
+  color: var(--color-text-muted);
+  flex-shrink: 0;
 }
 
 .bubble {
@@ -155,6 +223,12 @@
   line-height: 1.68;
   color: var(--color-text);
   box-shadow: 0 10px 22px rgba(30, 52, 98, 0.06);
+}
+
+.message-submeta {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  padding: 0 var(--space-1);
 }
 
 .openclaw-tag {

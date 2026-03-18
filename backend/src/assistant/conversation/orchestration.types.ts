@@ -21,11 +21,38 @@ import type { SystemSelf } from '../../system-self/system-self.types';
 import type { PostTurnPlan } from '../post-turn/post-turn.types';
 
 export type MessageContentType = 'text' | 'markdown';
+export type ConversationMessageKind =
+  | 'user'
+  | 'chat'
+  | 'tool'
+  | 'reminder_created'
+  | 'reminder_list'
+  | 'reminder_cancelled'
+  | 'reminder_triggered'
+  | 'system'
+  | 'daily_moment';
+
+export interface ConversationMessageMetadata {
+  source?: 'assistant' | 'tool' | 'scheduler' | 'system' | 'daily-moment';
+  toolKind?: string;
+  toolName?: string;
+  success?: boolean;
+  summary?: string;
+  reminderAction?: 'create' | 'list' | 'cancel' | 'trigger';
+  reminderId?: string;
+  reminderReason?: string;
+  scheduleText?: string;
+  nextRunAt?: string;
+  count?: number;
+  triggerMode?: string;
+}
 
 export interface ConversationMessageDto {
   id: string;
   role: string;
+  kind: ConversationMessageKind;
   content: string;
+  metadata: ConversationMessageMetadata | null;
   contentType: MessageContentType;
   createdAt: Date;
 }

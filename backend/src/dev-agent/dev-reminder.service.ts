@@ -62,9 +62,11 @@ export class DevReminderService {
 
     // dev scope 必须有 session；其他 scope 可选
     let sessionId: string | null = null;
+    let resolvedConversationId = input.conversationId?.trim() || null;
     if (scope === ReminderScope.dev) {
       const session = await this.resolveSession(input.sessionId, input.conversationId);
       sessionId = session.id;
+      resolvedConversationId = resolvedConversationId || session.conversationId || null;
     } else if (input.sessionId) {
       // 非 dev scope 也可以关联 session（可选）
       const existing = await this.sessions.getSession(input.sessionId);
@@ -72,11 +74,13 @@ export class DevReminderService {
         throw new NotFoundException('session not found');
       }
       sessionId = existing.id;
+      resolvedConversationId = resolvedConversationId || existing.conversationId || null;
     }
 
     return this.prisma.devReminder.create({
       data: {
         sessionId,
+        conversationId: resolvedConversationId,
         scope,
         title: input.title?.trim() || null,
         message,
@@ -294,6 +298,7 @@ export class DevReminderService {
           message: reminder.message,
           title: reminder.title,
           sessionId: reminder.sessionId,
+          conversationId: reminder.conversationId,
         }).catch((err) => {
           this.logger.error(`Chat reminder delivery failed: ${String(err)}`);
           void this.prisma.devReminder.update({

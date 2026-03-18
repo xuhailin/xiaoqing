@@ -85,7 +85,12 @@ export class AssistantOrchestrator {
         data: {
           conversationId: input.conversationId,
           role: 'assistant',
+          kind: 'system',
           content: fallback,
+          metadata: {
+            source: 'system',
+            summary: 'assistant fallback reply',
+          },
           tokenCount: estimateTokens(fallback),
         },
       });

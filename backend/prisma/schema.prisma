@@ -38,9 +38,22 @@ model Conversation {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   messages     Message[]
+  reminders    DevReminder[]
   dailyMoments DailyMoment[]
   dailyMomentSuggestions DailyMomentSuggestion[]
   dailyMomentSignals DailyMomentSignal[]
+}
+
+enum MessageKind {
+  user
+  chat
+  tool
+  reminder_created
+  reminder_list
+  reminder_cancelled
+  reminder_triggered
+  system
+  daily_moment
 }
 
 model Message {
@@ -48,11 +61,14 @@ model Message {
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   role           String   // 'user' | 'assistant'
+  kind           MessageKind @default(chat)
   content        String   @db.Text
+  metadata       Json?
   tokenCount     Int?     // D1: 该消息的估算 token 数（assistant 消息记录 LLM 实际输出 token）
   createdAt      DateTime @default(now())
 
   @@index([conversationId, createdAt])
+  @@index([conversationId, kind, createdAt])
 }
 
 model Memory {
@@ -404,6 +420,8 @@ model DevReminder {
   id              String        @id @default(uuid())
   sessionId       String?       // 可选：dev scope 需绑定 session
   session         DevSession?   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  conversationId  String?
+  conversation    Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   scope           ReminderScope @default(dev)
   title           String?
   message         String        @db.Text
@@ -419,6 +437,7 @@ model DevReminder {
   updatedAt       DateTime      @updatedAt
 
   @@index([sessionId, createdAt])
+  @@index([conversationId, createdAt])
   @@index([enabled, nextRunAt])
   @@index([scope])
 }

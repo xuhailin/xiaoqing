@@ -282,7 +282,15 @@ export class CheckinSkillService implements ICapability {
         data: {
           conversationId,
           role: 'assistant',
+          kind: 'tool',
           content,
+          metadata: {
+            source: 'tool',
+            toolKind: 'checkin',
+            toolName: 'checkin',
+            summary: content.split(/\r?\n/).find((line) => line.trim())?.trim() ?? '打卡进度更新',
+            success: !/超时|取消|失败/.test(content),
+          },
           tokenCount: estimateTokens(content),
         },
       });

@@ -37,13 +37,14 @@ export class ReminderMessageService {
     message: string;
     title?: string | null;
     sessionId?: string | null;
+    conversationId?: string | null;
   }): Promise<void> {
     const reason = reminder.title ?? reminder.message;
     const naturalMessage = await this.generateNaturalMessage(reason);
 
     // 查找关联的 conversationId
-    let conversationId: string | null = null;
-    if (reminder.sessionId) {
+    let conversationId: string | null = reminder.conversationId ?? null;
+    if (!conversationId && reminder.sessionId) {
       const session = await this.prisma.devSession.findUnique({
         where: { id: reminder.sessionId },
         select: { conversationId: true },
@@ -70,7 +71,15 @@ export class ReminderMessageService {
       data: {
         conversationId,
         role: 'assistant',
+        kind: 'reminder_triggered',
         content: naturalMessage,
+        metadata: {
+          source: 'scheduler',
+          reminderAction: 'trigger',
+          reminderId: reminder.id,
+          reminderReason: reason,
+          summary: `到点提醒：${reason}`,
+        },
         tokenCount: estimateTokens(naturalMessage),
       },
     });

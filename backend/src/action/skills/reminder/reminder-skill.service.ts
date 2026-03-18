@@ -93,6 +93,7 @@ export class ReminderSkillService implements ICapability {
 
     const reminder = await this.prisma.devReminder.create({
       data: {
+        conversationId,
         scope: ReminderScope.chat,
         title: reason,
         message: reason,
@@ -109,7 +110,13 @@ export class ReminderSkillService implements ICapability {
       success: true,
       content: `提醒已设置：「${reason}」，${scheduleDesc}。`,
       error: null,
-      meta: { reminderId: reminder.id, nextRunAt: reminder.nextRunAt },
+      meta: {
+        reminderAction: 'create',
+        reminderId: reminder.id,
+        reminderReason: reason,
+        scheduleText: scheduleDesc,
+        nextRunAt: reminder.nextRunAt?.toISOString() ?? null,
+      },
     };
   }
 
@@ -135,7 +142,10 @@ export class ReminderSkillService implements ICapability {
       success: true,
       content: `当前有 ${reminders.length} 个提醒：\n${lines.join('\n')}`,
       error: null,
-      meta: { count: reminders.length },
+      meta: {
+        reminderAction: 'list',
+        count: reminders.length,
+      },
     };
   }
 
@@ -174,6 +184,11 @@ export class ReminderSkillService implements ICapability {
         success: true,
         content: `已取消提醒「${matched[0].title ?? matched[0].message}」。`,
         error: null,
+        meta: {
+          reminderAction: 'cancel',
+          reminderId: matched[0].id,
+          reminderReason: matched[0].title ?? matched[0].message,
+        },
       };
     }
 
