@@ -204,8 +204,8 @@ export class MainLayoutComponent {
     { value: 'chat', label: '对话' },
     { value: 'dev-agent', label: 'DevAgent' },
     { value: 'regression', label: '回归' },
-    { value: 'life-trace', label: 'LifeTrace' },
-    { value: 'cognitive-trace', label: '认知 AI' },
+    { value: 'life-trace', label: '生活', icon: 'footprints', iconPosition: 'end' },
+    { value: 'cognitive-trace', label: '认知', icon: 'sparkles', iconPosition: 'end' },
   ];
 
   constructor(private router: Router) {}

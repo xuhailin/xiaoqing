@@ -25,6 +25,8 @@ export type ConversationMessageKind =
   | 'user'
   | 'chat'
   | 'tool'
+  | 'agent_receipt'
+  | 'agent_result'
   | 'reminder_created'
   | 'reminder_list'
   | 'reminder_cancelled'
@@ -38,6 +40,12 @@ export interface ConversationMessageMetadata {
   toolName?: string;
   success?: boolean;
   summary?: string;
+  delegationId?: string;
+  fromAgentId?: 'xiaoqing' | 'xiaoqin';
+  toAgentId?: 'xiaoqing' | 'xiaoqin';
+  delegationStatus?: string;
+  delegationKind?: string;
+  relatedMessageId?: string;
   reminderAction?: 'create' | 'list' | 'cancel' | 'trigger';
   reminderId?: string;
   reminderReason?: string;

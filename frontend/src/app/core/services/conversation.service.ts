@@ -3,11 +3,15 @@ import { HttpClient } from '@angular/common/http';
 import { Subject } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
+export type EntryAgentId = 'xiaoqing' | 'xiaoqin';
+
 export type MessageContentType = 'text' | 'markdown';
 export type MessageKind =
   | 'user'
   | 'chat'
   | 'tool'
+  | 'agent_receipt'
+  | 'agent_result'
   | 'reminder_created'
   | 'reminder_list'
   | 'reminder_cancelled'
@@ -21,6 +25,12 @@ export interface MessageMetadata {
   toolName?: string;
   success?: boolean;
   summary?: string;
+  delegationId?: string;
+  fromAgentId?: EntryAgentId;
+  toAgentId?: EntryAgentId;
+  delegationStatus?: AgentDelegationStatus;
+  delegationKind?: AgentDelegationKind;
+  relatedMessageId?: string;
   reminderAction?: 'create' | 'list' | 'cancel' | 'trigger';
   reminderId?: string;
   reminderReason?: string;
@@ -49,12 +59,107 @@ export interface InjectedMemory {
 export interface ConversationItem {
   id: string;
   title: string | null;
+  entryAgentId: EntryAgentId;
   summarizedAt: string | null;
   createdAt: string;
   updatedAt: string;
   messageCount: number;
   activeReminderCount: number;
   latestMessage: Message | null;
+}
+
+export type AgentDelegationStatus =
+  | 'queued'
+  | 'acknowledged'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+export type AgentDelegationKind =
+  | 'assist_request'
+  | 'memory_proposal'
+  | 'capability_fallback';
+
+export type AgentDelegationEventType =
+  | 'created'
+  | 'acknowledged'
+  | 'started'
+  | 'progress'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'receipt_projected'
+  | 'result_projected';
+
+export type AgentMemoryPolicy =
+  | 'main_owner_only'
+  | 'proposal_only'
+  | 'no_memory';
+
+export interface AgentDelegationEnvelope {
+  schemaVersion?: 1;
+  requestType: AgentDelegationKind;
+  taskIntent?: string;
+  slots?: Record<string, unknown>;
+  userInput?: string;
+  userFacingSummary?: string;
+  contextExcerpt?: Array<{
+    role: 'user' | 'assistant';
+    content: string;
+  }>;
+  memoryPolicy?: AgentMemoryPolicy;
+  responseContract?: {
+    returnToConversationId: string;
+    returnViaAgentId: EntryAgentId;
+    sourceMessageId?: string;
+  };
+  extra?: Record<string, unknown>;
+}
+
+export interface CreateAgentDelegationRequest {
+  originMessageId?: string;
+  requesterAgentId: EntryAgentId;
+  executorAgentId: EntryAgentId;
+  kind?: AgentDelegationKind;
+  title?: string;
+  summary?: string;
+  payload: AgentDelegationEnvelope;
+  autoDispatch?: boolean;
+}
+
+export interface AgentDelegationEvent {
+  id: string;
+  delegationId: string;
+  actorAgentId: EntryAgentId;
+  eventType: AgentDelegationEventType;
+  message: string | null;
+  payloadJson: Record<string, unknown> | null;
+  relatedMessageId: string | null;
+  createdAt: string;
+}
+
+export interface AgentDelegation {
+  id: string;
+  originConversationId: string;
+  originMessageId: string | null;
+  requesterAgentId: EntryAgentId;
+  executorAgentId: EntryAgentId;
+  kind: AgentDelegationKind;
+  status: AgentDelegationStatus;
+  title: string | null;
+  summary: string | null;
+  payloadJson: AgentDelegationEnvelope;
+  resultJson: Record<string, unknown> | null;
+  failureReason: string | null;
+  receiptMessageId: string | null;
+  resultMessageId: string | null;
+  ackedAt: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  events: AgentDelegationEvent[];
 }
 
 /** 当前会话的默认世界状态（地点/时区/语言等），会话级，不写入长期记忆 */
@@ -151,16 +256,37 @@ export class ConversationService {
     return this.http.get<ConversationItem[]>(this.base);
   }
 
-  getOrCreateCurrent() {
-    return this.http.get<{ id: string }>(`${this.base}/current`);
+  getOrCreateCurrent(entryAgentId: EntryAgentId = 'xiaoqing') {
+    return this.http.get<{ id: string; entryAgentId: EntryAgentId }>(
+      `${this.base}/current?entryAgentId=${entryAgentId}`,
+    );
   }
 
-  create() {
-    return this.http.post<{ id: string }>(this.base, {});
+  create(entryAgentId: EntryAgentId = 'xiaoqing') {
+    return this.http.post<{ id: string; entryAgentId: EntryAgentId }>(this.base, {
+      entryAgentId,
+    });
   }
 
   getMessages(conversationId: string) {
     return this.http.get<Message[]>(`${this.base}/${conversationId}/messages`);
+  }
+
+  getDelegations(conversationId: string) {
+    return this.http.get<AgentDelegation[]>(`${this.base}/${conversationId}/delegations`);
+  }
+
+  getDelegation(conversationId: string, delegationId: string) {
+    return this.http.get<AgentDelegation>(
+      `${this.base}/${conversationId}/delegations/${delegationId}`,
+    );
+  }
+
+  createDelegation(conversationId: string, request: CreateAgentDelegationRequest) {
+    return this.http.post<AgentDelegation>(
+      `${this.base}/${conversationId}/delegations`,
+      request,
+    );
   }
 
   /** 获取该会话的默认世界状态（地点/时区/语言等），用于侧栏或聊天页展示 */
@@ -168,10 +294,13 @@ export class ConversationService {
     return this.http.get<WorldState | null>(`${this.base}/${conversationId}/world-state`);
   }
 
-  sendMessage(conversationId: string, content: string) {
+  sendMessage(conversationId: string, content: string, entryAgentId?: EntryAgentId) {
     return this.http.post<SendMessageResponse>(
       `${this.base}/${conversationId}/messages`,
-      { content },
+      {
+        content,
+        ...(entryAgentId ? { entryAgentId } : {}),
+      },
     );
   }
 

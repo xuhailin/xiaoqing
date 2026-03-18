@@ -6,9 +6,11 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { ConversationService } from './conversation.service';
 import type { WorldStateUpdate } from '../../infra/world-state/world-state.types';
+import { DEFAULT_ENTRY_AGENT_ID, type EntryAgentId } from '../../gateway/message-router.types';
 
 @Controller('conversations')
 export class ConversationController {
@@ -20,13 +22,17 @@ export class ConversationController {
   }
 
   @Post()
-  async create() {
-    return this.conversation.create();
+  async create(
+    @Body() body?: { entryAgentId?: EntryAgentId },
+  ) {
+    return this.conversation.create(body?.entryAgentId ?? DEFAULT_ENTRY_AGENT_ID);
   }
 
   @Get('current')
-  async getOrCreateCurrent() {
-    return this.conversation.getOrCreateCurrent();
+  async getOrCreateCurrent(
+    @Query('entryAgentId') entryAgentId?: EntryAgentId,
+  ) {
+    return this.conversation.getOrCreateCurrent(entryAgentId ?? DEFAULT_ENTRY_AGENT_ID);
   }
 
   @Get(':id/messages')

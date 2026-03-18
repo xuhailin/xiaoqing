@@ -11,6 +11,7 @@ import type { ConversationMessageDto, SendMessageResult } from './orchestration.
 import { FeatureFlagConfig } from './feature-flag.config';
 import { SummarizeTriggerService } from './summarize-trigger.service';
 import { toConversationMessageDto } from './message.dto';
+import { DEFAULT_ENTRY_AGENT_ID, type EntryAgentId } from '../../gateway/message-router.types';
 
 type ConversationWithCount = Prisma.ConversationGetPayload<{
   include: {
@@ -68,6 +69,7 @@ export class ConversationService {
     return conversations.map((c) => ({
       id: c.id,
       title: c.title,
+      entryAgentId: c.entryAgentId,
       summarizedAt: c.summarizedAt,
       createdAt: c.createdAt,
       updatedAt: c.updatedAt,
@@ -77,17 +79,24 @@ export class ConversationService {
     }));
   }
 
-  async create(): Promise<{ id: string }> {
-    const c = await this.prisma.conversation.create({ data: {} });
-    return { id: c.id };
+  async create(
+    entryAgentId: EntryAgentId = DEFAULT_ENTRY_AGENT_ID,
+  ): Promise<{ id: string; entryAgentId: EntryAgentId }> {
+    const c = await this.prisma.conversation.create({
+      data: { entryAgentId },
+    });
+    return { id: c.id, entryAgentId: c.entryAgentId as EntryAgentId };
   }
 
-  async getOrCreateCurrent(): Promise<{ id: string }> {
+  async getOrCreateCurrent(
+    entryAgentId: EntryAgentId = DEFAULT_ENTRY_AGENT_ID,
+  ): Promise<{ id: string; entryAgentId: EntryAgentId }> {
     const latest = await this.prisma.conversation.findFirst({
+      where: { entryAgentId },
       orderBy: { createdAt: 'desc' },
     });
-    if (latest) return { id: latest.id };
-    return this.create();
+    if (latest) return { id: latest.id, entryAgentId: latest.entryAgentId as EntryAgentId };
+    return this.create(entryAgentId);
   }
 
   async delete(conversationId: string): Promise<{

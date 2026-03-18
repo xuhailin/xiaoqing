@@ -468,6 +468,16 @@
   white-space: nowrap;
 }
 
+.ui-tabs__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.ui-tabs__icon {
+  opacity: 0.9;
+}
+
 .ui-tabs__button.is-active {
   background: var(--color-surface);
   color: #3248a0;

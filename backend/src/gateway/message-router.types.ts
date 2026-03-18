@@ -1,5 +1,8 @@
 /** 消息通道：决定消息进入哪条处理链 */
 export type MessageChannel = 'chat' | 'dev';
+/** 前台入口 agent：决定用户是在和谁对话；与执行通道正交 */
+export type EntryAgentId = 'xiaoqing' | 'xiaoqin';
+export const DEFAULT_ENTRY_AGENT_ID: EntryAgentId = 'xiaoqing';
 
 export interface SendMessageMetadata {
   /** DevAgent 可选工作区路径（允许绝对/相对路径，后端会归一化） */
@@ -26,6 +29,8 @@ export interface SendMessageBody {
   content: string;
   /** 显式指定消息通道，缺省为 chat */
   mode?: MessageChannel;
+  /** 显式指定本会话的前台入口 agent，缺省为 xiaoqing */
+  entryAgentId?: EntryAgentId;
   /** 可选附加上下文（当前仅 dev workspace 使用） */
   metadata?: SendMessageMetadata;
 }

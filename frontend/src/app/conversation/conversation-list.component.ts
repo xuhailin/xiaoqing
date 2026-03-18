@@ -5,21 +5,24 @@ import { Subscription } from 'rxjs';
 import {
   ConversationService,
   ConversationItem,
+  EntryAgentId,
   Message,
   MessageKind,
 } from '../core/services/conversation.service';
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
+import { AppIconComponent, type AppIconName } from '../shared/ui/app-icon.component';
 import { AppStateComponent } from '../shared/ui/app-state.component';
 
 @Component({
   selector: 'app-conversation-list',
   standalone: true,
-  imports: [DatePipe, AppBadgeComponent, AppButtonComponent, AppStateComponent],
+  imports: [DatePipe, AppBadgeComponent, AppButtonComponent, AppIconComponent, AppStateComponent],
   template: `
     <div class="conv-list">
       <app-button class="new-btn" variant="primary" size="sm" [stretch]="true" (click)="createNew()">
-        + 新对话
+        <app-icon name="plus" size="0.9rem" />
+        <span>新对话</span>
       </app-button>
 
       @if (loading()) {
@@ -36,14 +39,20 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
           </div>
           @if (c.latestMessage) {
             <div class="conv-preview">
-              <span class="conv-preview-icon">{{ kindIcon(c.latestMessage.kind) }}</span>
+              <span class="conv-preview-icon">
+                <app-icon [name]="kindIcon(c.latestMessage.kind)" size="0.9rem" />
+              </span>
               <span class="conv-preview-text">{{ previewText(c.latestMessage) }}</span>
             </div>
           }
           <div class="conv-meta">
+            <app-badge [tone]="entryAgentTone(c.entryAgentId)" appearance="outline">
+              {{ entryAgentLabel(c.entryAgentId) }}
+            </app-badge>
             @if (c.activeReminderCount > 0) {
               <app-badge tone="warning">
-                🔔 {{ c.activeReminderCount }} 个提醒
+                <app-icon name="bell" size="0.8rem" />
+                <span>{{ c.activeReminderCount }} 个提醒</span>
               </app-badge>
             }
             @if (c.latestMessage && isSpecialKind(c.latestMessage.kind)) {
@@ -170,9 +179,12 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
     }
 
     .conv-preview-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       flex-shrink: 0;
       width: 1rem;
-      text-align: center;
+      color: var(--color-text-muted);
     }
 
     .conv-preview-text {
@@ -293,14 +305,14 @@ export class ConversationListComponent implements OnInit, OnDestroy {
     return `${prefix}${content}`.slice(0, 46) + (`${prefix}${content}`.length > 46 ? '…' : '');
   }
 
-  kindIcon(kind: MessageKind): string {
+  kindIcon(kind: MessageKind): AppIconName {
     if (kind === 'reminder_triggered' || kind === 'reminder_created' || kind === 'reminder_list' || kind === 'reminder_cancelled') {
-      return '🔔';
+      return 'bell';
     }
-    if (kind === 'tool') return '🛠';
-    if (kind === 'system') return 'ℹ';
-    if (kind === 'daily_moment') return '✦';
-    return '·';
+    if (kind === 'tool') return 'tool';
+    if (kind === 'system') return 'info';
+    if (kind === 'daily_moment') return 'sparkles';
+    return 'message';
   }
 
   kindLabel(kind: MessageKind): string {
@@ -325,5 +337,13 @@ export class ConversationListComponent implements OnInit, OnDestroy {
 
   isSpecialKind(kind: MessageKind): boolean {
     return kind !== 'user' && kind !== 'chat';
+  }
+
+  entryAgentLabel(entryAgentId: EntryAgentId): string {
+    return entryAgentId === 'xiaoqin' ? '小勤' : '小晴';
+  }
+
+  entryAgentTone(entryAgentId: EntryAgentId): 'neutral' | 'info' {
+    return entryAgentId === 'xiaoqin' ? 'info' : 'neutral';
   }
 }

@@ -32,22 +32,33 @@ enum EvidencePolarity {
 model Conversation {
   id           String    @id @default(uuid())
   title        String?
+  entryAgentId EntryAgentId @default(xiaoqing)
   summarizedAt DateTime?
   /** 默认世界状态（地点/时区/语言等），用于意图补全与推理前提，不写入记忆 */
   worldState   Json?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   messages     Message[]
+  delegations  AgentDelegation[]
   reminders    DevReminder[]
   dailyMoments DailyMoment[]
   dailyMomentSuggestions DailyMomentSuggestion[]
   dailyMomentSignals DailyMomentSignal[]
+
+  @@index([entryAgentId, updatedAt])
+}
+
+enum EntryAgentId {
+  xiaoqing
+  xiaoqin
 }
 
 enum MessageKind {
   user
   chat
   tool
+  agent_receipt
+  agent_result
   reminder_created
   reminder_list
   reminder_cancelled
@@ -69,6 +80,63 @@ model Message {
 
   @@index([conversationId, createdAt])
   @@index([conversationId, kind, createdAt])
+}
+
+enum AgentDelegationStatus {
+  queued
+  acknowledged
+  running
+  completed
+  failed
+  cancelled
+}
+
+model AgentDelegation {
+  id                   String                @id @default(uuid())
+  originConversationId String
+  originConversation   Conversation          @relation(fields: [originConversationId], references: [id], onDelete: Cascade)
+  /** 触发委托的原始用户消息 ID；系统发起时可为空 */
+  originMessageId      String?
+  requesterAgentId     EntryAgentId
+  executorAgentId      EntryAgentId
+  /** assist_request / memory_proposal / capability_fallback 等，保留为 string 便于演进 */
+  kind                 String                @default("assist_request")
+  status               AgentDelegationStatus @default(queued)
+  title                String?
+  summary              String?               @db.Text
+  /** 结构化委托载荷；禁止把普通文本直接当内部指令 */
+  payloadJson          Json
+  resultJson           Json?
+  failureReason        String?               @db.Text
+  /** 可选：投影到前台后，对应的回执 / 结果消息 ID */
+  receiptMessageId     String?
+  resultMessageId      String?
+  ackedAt              DateTime?
+  startedAt            DateTime?
+  finishedAt           DateTime?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  events               AgentDelegationEvent[]
+
+  @@index([originConversationId, createdAt])
+  @@index([status, updatedAt])
+  @@index([requesterAgentId, executorAgentId, createdAt])
+}
+
+model AgentDelegationEvent {
+  id               String          @id @default(uuid())
+  delegationId     String
+  delegation       AgentDelegation @relation(fields: [delegationId], references: [id], onDelete: Cascade)
+  actorAgentId     EntryAgentId
+  /** created / acknowledged / started / progress / completed / failed / receipt_projected / result_projected */
+  eventType        String
+  message          String?         @db.Text
+  payloadJson      Json?
+  relatedMessageId String?
+  createdAt        DateTime        @default(now())
+
+  @@index([delegationId, createdAt])
+  @@index([actorAgentId, createdAt])
 }
 
 model Memory {

@@ -21,7 +21,7 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       @if (!messages.length) {
         <app-state
           title="新的开发 Session"
-          description="先在下方输入你的开发任务，右侧会按 User → Assistant → Tool → Result 的顺序展开执行过程。"
+          description="先在下方输入你的开发任务，右侧会按 User、Assistant、Tool、Result 的顺序展开执行过程。"
         />
       } @else {
         @for (message of messages; track message.id) {

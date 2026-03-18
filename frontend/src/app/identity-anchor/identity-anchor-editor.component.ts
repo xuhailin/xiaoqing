@@ -13,6 +13,7 @@ import {
   UserProfileService,
   UserProfileDto,
 } from '../core/services/user-profile.service';
+import { AppIconComponent } from '../shared/ui/app-icon.component';
 
 const LABEL_OPTIONS: { value: string; text: string }[] = [
   { value: 'basic', text: '基本身份' },
@@ -38,6 +39,7 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
 @Component({
   selector: 'app-identity-anchor-editor',
   standalone: true,
+  imports: [AppIconComponent],
   template: `
     <div class="user-profile">
 
@@ -144,7 +146,8 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
           </div>
         } @else {
           <button class="btn-add" (click)="showAdd.set(true)" [disabled]="activeCount() >= 5">
-            + 添加身份锚定
+            <app-icon name="plus" size="0.95rem" />
+            <span>添加身份锚定</span>
           </button>
         }
 
@@ -565,6 +568,10 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
     }
 
     .btn-add {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
       width: 100%;
       padding: var(--space-2);
       border: 1px dashed var(--color-border);

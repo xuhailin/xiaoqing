@@ -1,6 +1,7 @@
 import { NgClass } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
+import { AppIconComponent, type AppIconName } from '../shared/ui/app-icon.component';
 import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.component';
 
 type TimelineViewMode = 'points' | 'day' | 'week';
@@ -123,10 +124,22 @@ const WEEKLY_THEMES: WeeklyTheme[] = [
   { label: '执行支持', share: 64, hint: '任务型协助能力更完整' },
 ];
 
+const COGNITIVE_KIND_META: Record<CognitivePointKind, {
+  label: string;
+  icon: AppIconName;
+  tone: 'neutral' | 'info' | 'success' | 'warning';
+}> = {
+  conversation: { label: '对话', icon: 'message', tone: 'info' },
+  memory: { label: '记忆', icon: 'bookmark', tone: 'success' },
+  reminder: { label: '提醒', icon: 'bell', tone: 'warning' },
+  insight: { label: '洞察', icon: 'brain', tone: 'info' },
+  growth: { label: '演进', icon: 'trendingUp', tone: 'success' },
+};
+
 @Component({
   selector: 'app-cognitive-trace-board',
   standalone: true,
-  imports: [NgClass, AppBadgeComponent, AppTabsComponent],
+  imports: [NgClass, AppBadgeComponent, AppIconComponent, AppTabsComponent],
   templateUrl: './cognitive-trace-board.component.html',
   styleUrl: './cognitive-trace-board.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -174,47 +187,14 @@ export class CognitiveTraceBoardComponent {
   }
 
   protected kindTone(kind: CognitivePointKind): 'neutral' | 'info' | 'success' | 'warning' {
-    switch (kind) {
-      case 'conversation':
-      case 'insight':
-        return 'info';
-      case 'memory':
-      case 'growth':
-        return 'success';
-      case 'reminder':
-        return 'warning';
-      default:
-        return 'neutral';
-    }
+    return COGNITIVE_KIND_META[kind].tone;
   }
 
   protected kindLabel(kind: CognitivePointKind): string {
-    switch (kind) {
-      case 'conversation':
-        return '对话';
-      case 'memory':
-        return '记忆';
-      case 'reminder':
-        return '提醒';
-      case 'insight':
-        return '洞察';
-      case 'growth':
-        return '演进';
-    }
+    return COGNITIVE_KIND_META[kind].label;
   }
 
-  protected kindGlyph(kind: CognitivePointKind): string {
-    switch (kind) {
-      case 'conversation':
-        return '聊';
-      case 'memory':
-        return '记';
-      case 'reminder':
-        return '提';
-      case 'insight':
-        return '察';
-      case 'growth':
-        return '升';
-    }
+  protected kindIcon(kind: CognitivePointKind): AppIconName {
+    return COGNITIVE_KIND_META[kind].icon;
   }
 }

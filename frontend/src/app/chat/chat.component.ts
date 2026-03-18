@@ -3,6 +3,9 @@ import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
 import {
   ConversationService,
+  AgentDelegation,
+  AgentDelegationEvent,
+  AgentDelegationStatus,
   Message,
   MessageKind,
   DebugMeta,
@@ -13,6 +16,7 @@ import { JsonPipe, DOCUMENT, NgClass } from '@angular/common';
 import { PersonaService, EvolutionChange } from '../core/services/persona.service';
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
+import { AppIconComponent, type AppIconName } from '../shared/ui/app-icon.component';
 import { MessageContentComponent } from './message-content.component';
 
 type MessageDebugEntry = {
@@ -26,10 +30,22 @@ type ActivityNotice = {
   text: string;
 };
 
+const MESSAGE_KIND_META: Partial<Record<MessageKind, { icon: AppIconName; label: string }>> = {
+  agent_receipt: { icon: 'route', label: '代理回执' },
+  agent_result: { icon: 'sparkles', label: '代理结果' },
+  reminder_created: { icon: 'bell', label: '提醒已设置' },
+  reminder_list: { icon: 'bell', label: '提醒列表' },
+  reminder_cancelled: { icon: 'bell', label: '提醒已取消' },
+  reminder_triggered: { icon: 'bell', label: '到点提醒' },
+  tool: { icon: 'tool', label: '工具结果' },
+  system: { icon: 'info', label: '系统提示' },
+  daily_moment: { icon: 'sparkles', label: '今日日记' },
+};
+
 @Component({
   selector: 'app-chat',
   standalone: true,
-  imports: [JsonPipe, NgClass, AppBadgeComponent, AppButtonComponent, MessageContentComponent],
+  imports: [JsonPipe, NgClass, AppBadgeComponent, AppButtonComponent, AppIconComponent, MessageContentComponent],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss',
 })
@@ -51,6 +67,8 @@ export class ChatComponent implements OnInit, OnDestroy {
   loading = signal(false);
   error = signal<string | null>(null);
   activityNotice = signal<ActivityNotice | null>(null);
+  delegations = signal<AgentDelegation[]>([]);
+  expandedDelegationId = signal<string | null>(null);
 
   injectedMemories = signal<Array<{ id: string; type: string; content: string }>>([]);
   worldState = signal<WorldState | null>(null);
@@ -104,8 +122,11 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.injectedMemories.set([]);
     this.worldState.set(null);
     this.activityNotice.set(null);
+    this.delegations.set([]);
+    this.expandedDelegationId.set(null);
     this.resetMessageDebugState();
     await this.loadMessages(id, { forceScroll: true });
+    await this.loadDelegations(id);
     await this.fetchWorldState(id);
     this.startConversationPolling(id);
     this.checkPendingEvolution();
@@ -113,12 +134,15 @@ export class ChatComponent implements OnInit, OnDestroy {
 
   private async loadCurrent() {
     this.error.set(null);
+    this.delegations.set([]);
+    this.expandedDelegationId.set(null);
     this.resetMessageDebugState();
     try {
       const res = await this.conversation.getOrCreateCurrent().toPromise();
       if (res?.id) {
         this.conversationId.set(res.id);
         await this.loadMessages(res.id, { forceScroll: true });
+        await this.loadDelegations(res.id);
         await this.fetchWorldState(res.id);
         this.startConversationPolling(res.id);
       }
@@ -147,6 +171,15 @@ export class ChatComponent implements OnInit, OnDestroy {
       this.worldState.set(ws ?? null);
     } catch {
       this.worldState.set(null);
+    }
+  }
+
+  private async loadDelegations(cid: string) {
+    try {
+      const list = await this.conversation.getDelegations(cid).toPromise();
+      this.delegations.set(list ?? []);
+    } catch {
+      this.delegations.set([]);
     }
   }
 
@@ -192,6 +225,7 @@ export class ChatComponent implements OnInit, OnDestroy {
         this.expandedTraceMessageId.set(null);
         this.activeDebugMessageId.set(null);
         this.copyDebugFeedback.set(null);
+        await this.loadDelegations(cid);
         await this.fetchWorldState(cid);
         this.checkPendingEvolution();
       }
@@ -345,6 +379,9 @@ export class ChatComponent implements OnInit, OnDestroy {
     return {
       user: message.role === 'user',
       assistant: message.role === 'assistant',
+      'message--kind-agent-receipt': message.kind === 'agent_receipt',
+      'message--kind-agent-result-success': message.kind === 'agent_result' && message.metadata?.success !== false,
+      'message--kind-agent-result-fail': message.kind === 'agent_result' && message.metadata?.success === false,
       'message--kind-tool': message.kind === 'tool',
       'message--kind-system': message.kind === 'system',
       'message--kind-daily-moment': message.kind === 'daily_moment',
@@ -355,7 +392,14 @@ export class ChatComponent implements OnInit, OnDestroy {
     };
   }
 
-  messageKindTone(kind: MessageKind): 'neutral' | 'info' | 'success' | 'warning' | 'danger' {
+  messageKindTone(
+    kind: MessageKind,
+    message?: Message,
+  ): 'neutral' | 'info' | 'success' | 'warning' | 'danger' {
+    if (kind === 'agent_receipt') return 'info';
+    if (kind === 'agent_result') {
+      return message?.metadata?.success === false ? 'danger' : 'success';
+    }
     if (kind === 'reminder_triggered' || kind === 'reminder_created' || kind === 'reminder_list' || kind === 'reminder_cancelled') {
       return 'warning';
     }
@@ -364,18 +408,29 @@ export class ChatComponent implements OnInit, OnDestroy {
     return 'neutral';
   }
 
-  messageKindLabel(kind: MessageKind): string | null {
-    if (kind === 'reminder_created') return '🔔 提醒已设置';
-    if (kind === 'reminder_list') return '🔔 提醒列表';
-    if (kind === 'reminder_cancelled') return '🔔 提醒已取消';
-    if (kind === 'reminder_triggered') return '🔔 到点提醒';
-    if (kind === 'tool') return '🛠 工具结果';
-    if (kind === 'system') return 'ℹ 系统提示';
-    if (kind === 'daily_moment') return '✦ 今日日记';
-    return null;
+  messageKindMeta(kind: MessageKind) {
+    return MESSAGE_KIND_META[kind] ?? null;
+  }
+
+  traceStepStatusIcon(status: TraceStep['status']): AppIconName {
+    if (status === 'success') return 'check';
+    if (status === 'fail') return 'close';
+    return 'minus';
+  }
+
+  activityNoticeIcon(tone: ActivityNotice['tone']): AppIconName {
+    if (tone === 'warning') return 'bell';
+    if (tone === 'success') return 'check';
+    if (tone === 'danger') return 'alert';
+    return 'info';
   }
 
   messageMetaLine(message: Message): string | null {
+    if (message.kind === 'agent_receipt' || message.kind === 'agent_result') {
+      const flow = this.agentFlowLabel(message.metadata?.fromAgentId, message.metadata?.toAgentId);
+      const status = this.delegationStatusLabel(message.metadata?.delegationStatus);
+      return [flow, status].filter(Boolean).join(' · ') || null;
+    }
     if (message.kind === 'reminder_created') {
       const parts = [message.metadata?.scheduleText, this.formatDateTime(message.metadata?.nextRunAt)];
       return parts.filter(Boolean).join(' · ') || null;
@@ -398,6 +453,99 @@ export class ChatComponent implements OnInit, OnDestroy {
       return message.metadata?.triggerMode === 'accept_suggestion' ? '由轻提示接续生成' : '由对话自然生成';
     }
     return null;
+  }
+
+  toggleDelegationDetail(delegationId: string) {
+    this.expandedDelegationId.update((current) => current === delegationId ? null : delegationId);
+  }
+
+  delegationTitle(item: AgentDelegation): string {
+    if (item.title?.trim()) return item.title.trim();
+    if (item.summary?.trim()) return item.summary.trim();
+    if (item.payloadJson.userFacingSummary?.trim()) {
+      return item.payloadJson.userFacingSummary.trim();
+    }
+    return this.delegationKindLabel(item.kind);
+  }
+
+  delegationStatusTone(status: AgentDelegationStatus): 'neutral' | 'info' | 'success' | 'warning' | 'danger' {
+    if (status === 'completed') return 'success';
+    if (status === 'failed' || status === 'cancelled') return 'danger';
+    if (status === 'running') return 'info';
+    if (status === 'acknowledged') return 'warning';
+    return 'neutral';
+  }
+
+  delegationStatusLabel(status?: AgentDelegationStatus | null): string | null {
+    if (!status) return null;
+    if (status === 'queued') return '排队中';
+    if (status === 'acknowledged') return '已转达';
+    if (status === 'running') return '执行中';
+    if (status === 'completed') return '已完成';
+    if (status === 'failed') return '失败';
+    if (status === 'cancelled') return '已取消';
+    return status;
+  }
+
+  delegationKindLabel(kind: AgentDelegation['kind']): string {
+    if (kind === 'memory_proposal') return '记忆提议';
+    if (kind === 'capability_fallback') return '能力回退';
+    return '协作委托';
+  }
+
+  delegationLatestEvent(item: AgentDelegation): AgentDelegationEvent | null {
+    return item.events.length ? item.events[item.events.length - 1] : null;
+  }
+
+  delegationLatestEventLine(item: AgentDelegation): string | null {
+    const event = this.delegationLatestEvent(item);
+    if (!event) return null;
+    const pieces = [
+      this.agentLabel(event.actorAgentId),
+      this.delegationEventLabel(event.eventType),
+      event.message?.trim() || null,
+    ].filter(Boolean);
+    return pieces.join(' · ') || null;
+  }
+
+  delegationEventLabel(eventType: AgentDelegationEvent['eventType']): string {
+    if (eventType === 'created') return '已创建';
+    if (eventType === 'acknowledged') return '已接收';
+    if (eventType === 'started') return '开始执行';
+    if (eventType === 'progress') return '执行中';
+    if (eventType === 'completed') return '执行完成';
+    if (eventType === 'failed') return '执行失败';
+    if (eventType === 'cancelled') return '已取消';
+    if (eventType === 'receipt_projected') return '已生成回执';
+    if (eventType === 'result_projected') return '已回投结果';
+    return eventType;
+  }
+
+  delegationFlowLine(item: AgentDelegation): string {
+    const flow = this.agentFlowLabel(item.requesterAgentId, item.executorAgentId);
+    const time = this.formatDelegationTime(item);
+    return [flow, time].filter(Boolean).join(' · ');
+  }
+
+  formatDelegationTime(item: AgentDelegation): string | null {
+    return this.formatDateTime(item.finishedAt)
+      || this.formatDateTime(item.startedAt)
+      || this.formatDateTime(item.ackedAt)
+      || this.formatDateTime(item.createdAt);
+  }
+
+  agentLabel(agentId?: string | null): string | null {
+    if (agentId === 'xiaoqin') return '小勤';
+    if (agentId === 'xiaoqing') return '小晴';
+    return null;
+  }
+
+  private agentFlowLabel(fromAgentId?: string | null, toAgentId?: string | null): string | null {
+    const from = this.agentLabel(fromAgentId);
+    const to = this.agentLabel(toAgentId);
+    if (!from && !to) return null;
+    if (from && to) return `${from} -> ${to}`;
+    return from ?? to;
   }
 
   formatMessageTime(value: string): string {
@@ -430,13 +578,13 @@ export class ChatComponent implements OnInit, OnDestroy {
     const latestReminder = [...messages].reverse().find((message) => message.kind === 'reminder_triggered');
     if (latestReminder) {
       const reason = latestReminder.metadata?.reminderReason || latestReminder.metadata?.summary || '新的提醒';
-      this.setActivityNotice(`🔔 ${reason}`, 'warning');
+      this.setActivityNotice(reason, 'warning');
       return;
     }
 
     const latestSpecial = [...messages].reverse().find((message) => message.kind !== 'chat' && message.kind !== 'user');
     if (latestSpecial) {
-      const label = this.messageKindLabel(latestSpecial.kind) || '新消息';
+      const label = this.messageKindMeta(latestSpecial.kind)?.label || '新消息';
       this.setActivityNotice(label, 'info');
     }
   }
@@ -461,6 +609,7 @@ export class ChatComponent implements OnInit, OnDestroy {
         return;
       }
       void this.loadMessages(conversationId, { announceSpecial: true });
+      void this.loadDelegations(conversationId);
     }, 15000);
   }
 

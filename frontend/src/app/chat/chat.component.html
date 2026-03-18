@@ -11,6 +11,7 @@
       [class.notification--success]="notice.tone === 'success'"
       [class.notification--error]="notice.tone === 'danger'"
       [class.notification--info]="notice.tone === 'info'">
+      <app-icon class="notification__icon" [name]="activityNoticeIcon(notice.tone)" size="0.95rem" />
       {{ notice.text }}
     </div>
   }
@@ -43,15 +44,77 @@
     }
   }
 
+  @if (delegations().length) {
+    <div class="delegation-panel ui-workbench-surface ui-workbench-surface--soft">
+      <div class="delegation-panel__header">
+        <div class="delegation-panel__title">代理协作</div>
+        <app-badge tone="info" appearance="outline">{{ delegations().length }} 条</app-badge>
+      </div>
+
+      <div class="delegation-list">
+        @for (delegation of delegations(); track delegation.id) {
+          <div class="delegation-card">
+            <div class="delegation-card__header">
+              <div class="delegation-card__main">
+                <div class="delegation-card__title">{{ delegationTitle(delegation) }}</div>
+                <div class="delegation-card__meta">{{ delegationFlowLine(delegation) }}</div>
+              </div>
+              <app-badge [tone]="delegationStatusTone(delegation.status)">
+                {{ delegationStatusLabel(delegation.status) }}
+              </app-badge>
+            </div>
+
+            @if (delegationLatestEventLine(delegation); as latestLine) {
+              <div class="delegation-card__latest">最新：{{ latestLine }}</div>
+            }
+
+            <div class="delegation-card__actions">
+              <app-badge tone="neutral" appearance="outline" size="sm">
+                {{ delegationKindLabel(delegation.kind) }}
+              </app-badge>
+              <app-button
+                type="button"
+                variant="ghost"
+                size="xs"
+                (click)="toggleDelegationDetail(delegation.id)"
+              >
+                {{ expandedDelegationId() === delegation.id ? '收起轨迹' : '协作轨迹' }}
+              </app-button>
+            </div>
+
+            @if (expandedDelegationId() === delegation.id) {
+              <div class="delegation-events">
+                @for (event of delegation.events; track event.id) {
+                  <div class="delegation-event">
+                    <div class="delegation-event__head">
+                      <span class="delegation-event__title">
+                        {{ agentLabel(event.actorAgentId) }} · {{ delegationEventLabel(event.eventType) }}
+                      </span>
+                      <span class="delegation-event__time">{{ formatMessageTime(event.createdAt) }}</span>
+                    </div>
+                    @if (event.message) {
+                      <div class="delegation-event__body">{{ event.message }}</div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </div>
+  }
+
   <div class="messages ui-scrollbar ui-workbench-surface ui-workbench-surface--chat" #messagesEl>
     @for (m of messages(); track m.id) {
       <div class="message" [ngClass]="messageClasses(m)">
         <div class="message-head">
           <div class="message-head-main">
             <span class="role-label">{{ m.role === 'user' ? '我' : 'AI' }}</span>
-            @if (messageKindLabel(m.kind); as kindLabel) {
-              <app-badge class="message-kind-badge" [tone]="messageKindTone(m.kind)">
-                {{ kindLabel }}
+            @if (messageKindMeta(m.kind); as kindMeta) {
+              <app-badge class="message-kind-badge" [tone]="messageKindTone(m.kind, m)">
+                <app-icon [name]="kindMeta.icon" size="0.8rem" />
+                <span>{{ kindMeta.label }}</span>
               </app-badge>
             }
           </div>
@@ -78,7 +141,9 @@
                       {{ step.title }}
                     </app-badge>
                     @if (!isLast) {
-                      <span class="trace-arrow">→</span>
+                      <span class="trace-arrow">
+                        <app-icon name="chevronRight" size="0.8rem" />
+                      </span>
                     }
                   }
                 </div>
@@ -114,7 +179,7 @@
                           [class.trace-step-status--success]="step.status === 'success'"
                           [class.trace-step-status--fail]="step.status === 'fail'"
                           [class.trace-step-status--skip]="step.status === 'skip'">
-                          {{ step.status === 'success' ? '✓' : step.status === 'fail' ? '✗' : '—' }}
+                          <app-icon [name]="traceStepStatusIcon(step.status)" size="0.9rem" strokeWidth="2.25" />
                         </span>
                         @if (step.durationMs > 0) {
                           <span class="trace-step-duration">{{ step.durationMs }}ms</span>
@@ -335,13 +400,27 @@
                     @if (dm.pipeline.firstSeenOrder.length) {
                       <div class="debug-text-row">
                         <span class="debug-text-row-label">首次出现顺序：</span>
-                        <span class="debug-text-row-value">{{ dm.pipeline.firstSeenOrder.join(' → ') }}</span>
+                        <span class="debug-text-row-value debug-order">
+                          @for (step of dm.pipeline.firstSeenOrder; track step; let isLast = $last) {
+                            <span class="debug-order__item">{{ step }}</span>
+                            @if (!isLast) {
+                              <app-icon class="debug-order__arrow" name="chevronRight" size="0.8rem" />
+                            }
+                          }
+                        </span>
                       </div>
                     }
                     @if (dm.pipeline.canonicalOrder.length) {
                       <div class="debug-text-row">
                         <span class="debug-text-row-label">期望顺序：</span>
-                        <span class="debug-text-row-value">{{ dm.pipeline.canonicalOrder.join(' → ') }}</span>
+                        <span class="debug-text-row-value debug-order">
+                          @for (step of dm.pipeline.canonicalOrder; track step; let isLast = $last) {
+                            <span class="debug-order__item">{{ step }}</span>
+                            @if (!isLast) {
+                              <app-icon class="debug-order__arrow" name="chevronRight" size="0.8rem" />
+                            }
+                          }
+                        </span>
                       </div>
                     }
                   </div>

@@ -1,8 +1,8 @@
 <section class="home-timeline ui-workbench-surface ui-workbench-surface--soft">
   <header class="home-timeline__header">
     <div class="home-timeline__copy">
-      <span class="home-timeline__eyebrow">AI 认知轨迹</span>
-      <h2 class="home-timeline__title">小晴认知 Trace</h2>
+      <span class="home-timeline__eyebrow">Cognitive Trace</span>
+      <h2 class="home-timeline__title">小晴认知轨迹</h2>
       <p class="home-timeline__description">
         这里只放小晴自己的认知变化，包括感知、记忆、提醒编排、关系洞察和能力演进。
         它描述的是“AI 这一侧发生了什么”，和用户生活轨迹完全分开。
@@ -57,13 +57,18 @@
           </div>
 
           <div class="timeline-entry__node">
-            <div class="timeline-entry__glyph">{{ kindGlyph(point.kind) }}</div>
+            <div class="timeline-entry__glyph">
+              <app-icon [name]="kindIcon(point.kind)" size="1rem" strokeWidth="2.15" />
+            </div>
           </div>
 
           <div class="timeline-entry__card">
             <div class="timeline-entry__head">
               <div class="timeline-entry__badges">
-                <app-badge [tone]="kindTone(point.kind)" size="sm">{{ kindLabel(point.kind) }}</app-badge>
+                <app-badge [tone]="kindTone(point.kind)" size="sm">
+                  <app-icon [name]="kindIcon(point.kind)" size="0.8rem" />
+                  <span>{{ kindLabel(point.kind) }}</span>
+                </app-badge>
                 <app-badge tone="neutral" appearance="outline" size="sm">{{ point.source }}</app-badge>
               </div>
               <span class="timeline-entry__confidence">可信 {{ point.confidence }}%</span>
@@ -124,7 +129,10 @@
           @for (kind of kinds(); track kind.kind) {
             <div class="detail-list__row">
               <div class="detail-list__label">
-                <app-badge [tone]="kind.tone" size="sm">{{ kind.label }}</app-badge>
+                <app-badge [tone]="kind.tone" size="sm">
+                  <app-icon [name]="kindIcon(kind.kind)" size="0.8rem" />
+                  <span>{{ kind.label }}</span>
+                </app-badge>
               </div>
               <span class="detail-list__value">{{ kind.count }}</span>
             </div>

@@ -19,12 +19,16 @@
 // ---------------------------------------------------------------------------
 .notification,
 .injected-bar,
-.world-state-bar {
+.world-state-bar,
+.delegation-panel {
   border-radius: var(--workbench-card-radius);
   flex-shrink: 0;
 }
 
 .notification {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   padding: var(--workbench-banner-padding);
   font-size: var(--font-size-sm);
   border-bottom: 1px solid transparent;
@@ -52,6 +56,10 @@
     background: var(--color-warning-bg);
     border-color: var(--color-warning-border);
   }
+}
+
+.notification__icon {
+  flex-shrink: 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -96,6 +104,96 @@
 
 .world-state-tag {
   max-width: 180px;
+}
+
+// ---------------------------------------------------------------------------
+// Delegation panel
+// ---------------------------------------------------------------------------
+.delegation-panel {
+  padding: var(--workbench-card-padding);
+  background:
+    radial-gradient(circle at top right, rgba(79, 109, 245, 0.1), transparent 36%),
+    linear-gradient(180deg, rgba(250, 252, 255, 0.98), rgba(244, 248, 255, 0.96));
+  border: 1px solid rgba(96, 122, 170, 0.14);
+}
+
+.delegation-panel__header,
+.delegation-card__header,
+.delegation-card__actions,
+.delegation-event__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.delegation-panel__header {
+  margin-bottom: var(--space-2);
+}
+
+.delegation-panel__title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.delegation-list,
+.delegation-events {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.delegation-card {
+  padding: 0.8rem 0.9rem;
+  border-radius: calc(var(--workbench-card-radius) - 2px);
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(96, 122, 170, 0.12);
+}
+
+.delegation-card__title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.delegation-card__meta,
+.delegation-card__latest,
+.delegation-event__time,
+.delegation-event__body {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.delegation-card__meta,
+.delegation-card__latest {
+  margin-top: 0.2rem;
+}
+
+.delegation-card__actions {
+  margin-top: 0.55rem;
+}
+
+.delegation-events {
+  margin-top: 0.7rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.delegation-event {
+  padding-left: 0.75rem;
+  border-left: 2px solid rgba(79, 109, 245, 0.18);
+}
+
+.delegation-event__title {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.delegation-event__body {
+  margin-top: 0.2rem;
+  line-height: var(--line-height-base);
 }
 
 // ---------------------------------------------------------------------------
@@ -156,6 +254,21 @@
     background: linear-gradient(180deg, rgba(239, 246, 255, 0.98), rgba(248, 251, 255, 0.96));
     border-color: rgba(79, 109, 245, 0.24);
     box-shadow: 0 12px 26px rgba(79, 109, 245, 0.08);
+  }
+
+  &.message--kind-agent-receipt .bubble {
+    background: linear-gradient(180deg, rgba(240, 247, 255, 0.98), rgba(249, 252, 255, 0.96));
+    border-color: rgba(79, 109, 245, 0.24);
+  }
+
+  &.message--kind-agent-result-success .bubble {
+    background: linear-gradient(180deg, rgba(241, 250, 242, 0.98), rgba(250, 255, 251, 0.96));
+    border-color: rgba(81, 152, 99, 0.24);
+  }
+
+  &.message--kind-agent-result-fail .bubble {
+    background: linear-gradient(180deg, rgba(255, 245, 245, 0.98), rgba(255, 251, 251, 0.96));
+    border-color: rgba(212, 88, 88, 0.24);
   }
 
   &.message--kind-system .bubble {
@@ -258,8 +371,9 @@
 }
 
 .trace-arrow {
+  display: inline-flex;
+  align-items: center;
   color: var(--color-text-muted, #999);
-  font-size: var(--font-size-xs);
   user-select: none;
 }
 
@@ -316,6 +430,9 @@
 }
 
 .trace-step-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-weight: var(--font-weight-semibold);
 
   &--success { color: var(--color-success, #2e7d32); }
@@ -523,6 +640,23 @@
 
 .debug-text-row-value {
   word-break: break-all;
+}
+
+.debug-order {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  word-break: normal;
+}
+
+.debug-order__item {
+  word-break: break-word;
+}
+
+.debug-order__arrow {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
 }
 
 .debug-raw-json {

@@ -1,9 +1,15 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { MessageRouterService } from '../gateway/message-router.service';
+import { PrismaService } from '../infra/prisma.service';
 import { ConversationLockService } from './conversation-lock.service';
 import type { IAgent, AgentRequest, AgentResult } from './agent.interface';
 import { AGENT_TOKEN } from './agent.interface';
-import type { MessageChannel, SendMessageMetadata } from '../gateway/message-router.types';
+import {
+  DEFAULT_ENTRY_AGENT_ID,
+  type EntryAgentId,
+  type MessageChannel,
+  type SendMessageMetadata,
+} from '../gateway/message-router.types';
 
 // ──────────────────────────────────────────────
 // DispatcherService
@@ -22,6 +28,7 @@ export class DispatcherService {
   constructor(
     private readonly router: MessageRouterService,
     private readonly lock: ConversationLockService,
+    private readonly prisma: PrismaService,
     @Inject(AGENT_TOKEN) agents: IAgent[],
   ) {
     // 构建 channel → agent 映射
@@ -42,6 +49,7 @@ export class DispatcherService {
     content: string,
     mode?: MessageChannel,
     metadata?: SendMessageMetadata,
+    entryAgentId?: EntryAgentId,
   ): Promise<AgentResult> {
     // 1. 路由
     const decision = await this.router.route(content, mode);
@@ -60,15 +68,33 @@ export class DispatcherService {
     // 3. 获取会话锁 → 执行
     const release = await this.lock.acquire(conversationId);
     try {
+      const resolvedEntryAgentId = await this.resolveEntryAgentId(conversationId, entryAgentId);
       const req: AgentRequest = {
         conversationId,
         content: decision.content,
         mode: decision.channel,
+        entryAgentId: resolvedEntryAgentId,
         metadata,
       };
       return await agent.handle(req);
     } finally {
       release();
     }
+  }
+
+  private async resolveEntryAgentId(
+    conversationId: string,
+    entryAgentId?: EntryAgentId,
+  ): Promise<EntryAgentId> {
+    if (entryAgentId) {
+      return entryAgentId;
+    }
+
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      select: { entryAgentId: true },
+    });
+
+    return (conversation?.entryAgentId as EntryAgentId | undefined) ?? DEFAULT_ENTRY_AGENT_ID;
   }
 }

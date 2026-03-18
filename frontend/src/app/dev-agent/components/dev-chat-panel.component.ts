@@ -4,6 +4,7 @@ import { ChatMessageListComponent } from './chat-message-list.component';
 import { DevChatMessage, DevChatRunState } from '../dev-agent.view-model';
 import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
 import { AppButtonComponent } from '../../shared/ui/app-button.component';
+import { AppIconComponent } from '../../shared/ui/app-icon.component';
 import { AppPanelComponent } from '../../shared/ui/app-panel.component';
 
 @Component({
@@ -14,6 +15,7 @@ import { AppPanelComponent } from '../../shared/ui/app-panel.component';
     ChatInputComponent,
     AppBadgeComponent,
     AppButtonComponent,
+    AppIconComponent,
     AppPanelComponent,
   ],
   template: `
@@ -21,7 +23,10 @@ import { AppPanelComponent } from '../../shared/ui/app-panel.component';
       <div class="dev-chat-panel__body">
         <header class="chat-header">
           <div class="header-left">
-            <app-button variant="ghost" size="sm" class="back-btn" (click)="back.emit()">← 返回总览</app-button>
+            <app-button variant="ghost" size="sm" class="back-btn" (click)="back.emit()">
+              <app-icon name="arrowLeft" size="0.9rem" />
+              <span>返回总览</span>
+            </app-button>
             <span class="header-title">{{ title }}</span>
             @if (runState?.mode; as mode) {
               <app-badge tone="neutral" [appearance]="'outline'" class="mode-badge">
