@@ -43,7 +43,7 @@ import { WorkspaceFocusPanelComponent } from './components/workspace-focus-panel
       display: grid;
       grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
       gap: var(--workbench-section-gap);
-      padding: var(--workbench-shell-padding);
+      padding: var(--workbench-shell-padding) calc(var(--workbench-shell-padding) + var(--space-2));
       overflow: hidden;
       position: relative;
     }

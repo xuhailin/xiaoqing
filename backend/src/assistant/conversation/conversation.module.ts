@@ -27,9 +27,12 @@ import { LifeRecordModule } from '../life-record/life-record.module';
 import { PostTurnPipeline } from '../post-turn/post-turn.pipeline';
 import { SystemSelfModule } from '../../system-self/system-self.module';
 import { CognitiveTraceModule } from '../cognitive-trace/cognitive-trace.module';
+import { RelationshipOverviewModule } from '../relationship-overview/relationship-overview.module';
+import { SessionReflectionModule } from '../session-reflection/session-reflection.module';
+import { SharedExperienceModule } from '../shared-experience/shared-experience.module';
 
 @Module({
-  imports: [ActionReasonerModule, ReflectionModule, LlmModule, PromptRouterModule, MemoryModule, PersonaModule, IntentModule, OpenClawModule, ActionModule, WorldStateModule, IdentityAnchorModule, SummarizerModule, CognitivePipelineModule, LifeRecordModule, SystemSelfModule, CognitiveTraceModule],
+  imports: [ActionReasonerModule, ReflectionModule, LlmModule, PromptRouterModule, MemoryModule, PersonaModule, IntentModule, OpenClawModule, ActionModule, WorldStateModule, IdentityAnchorModule, SummarizerModule, CognitivePipelineModule, LifeRecordModule, SystemSelfModule, CognitiveTraceModule, RelationshipOverviewModule, SessionReflectionModule, SharedExperienceModule],
   controllers: [ConversationController],
   providers: [
     ConversationService,

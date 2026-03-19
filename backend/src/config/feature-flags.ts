@@ -35,6 +35,10 @@ export const FEATURE_FLAGS = {
   memoryShortSummary: { key: 'FEATURE_MEMORY_SHORT_SUMMARY', defaultEnabled: false },
   openclaw: { key: 'FEATURE_OPENCLAW', defaultEnabled: false },
   planScheduler: { key: 'FEATURE_PLAN_SCHEDULER', defaultEnabled: true },
+  socialCareScheduler: { key: 'FEATURE_SOCIAL_CARE_SCHEDULER', defaultEnabled: true },
+  socialEntityClassifierScheduler: { key: 'FEATURE_SOCIAL_ENTITY_CLASSIFIER_SCHEDULER', defaultEnabled: true },
+  socialInsightScheduler: { key: 'FEATURE_SOCIAL_INSIGHT_SCHEDULER', defaultEnabled: true },
+  sharedExperienceFollowupScheduler: { key: 'FEATURE_SHARED_EXPERIENCE_FOLLOWUP_SCHEDULER', defaultEnabled: true },
   sessionStateInjection: { key: 'FEATURE_SESSIONSTATE_INJECTION', defaultEnabled: false },
   timesheet: { key: 'FEATURE_TIMESHEET', defaultEnabled: false },
 } as const satisfies Record<string, FeatureFlagDefinition>;

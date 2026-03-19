@@ -15,6 +15,10 @@ import { ClaimSchemaRegistry, CLAIM_KEYS } from '../claim-engine/claim-schema.re
 import type { SystemSelf } from '../../system-self/system-self.types';
 import type { TaskPlan } from '../planning/task-planner.types';
 import type { ActionDecision } from '../action-reasoner/action-reasoner.types';
+import type { SharedExperienceRecord } from '../shared-experience/shared-experience.types';
+import type { SocialEntityRecord } from '../life-record/social-entity/social-entity.types';
+import type { SocialInsightRecord } from '../life-record/social-insight/social-insight.types';
+import type { RelevantSocialRelationEdgeRecord } from '../life-record/social-relation-edge/social-relation-edge.types';
 
 export const CHAT_PROMPT_VERSION = 'chat_v6';
 export const SUMMARY_PROMPT_VERSION = 'summary_v2';
@@ -54,6 +58,16 @@ export interface ChatContext {
   claimPolicyText?: string | null;
   /** 四期：会话短期状态（TTL 内） */
   sessionStateText?: string | null;
+  /** B4：当前对话相关的共同经历 */
+  sharedExperiences?: SharedExperienceRecord[];
+  /** B4：最近几次对话观察到的互动节奏 */
+  rhythmObservations?: string[];
+  /** A2：当前话题相关的人物认知 */
+  socialEntities?: SocialEntityRecord[];
+  /** A4：社会关系洞察 */
+  socialInsights?: SocialInsightRecord[];
+  /** A4：当前话题相关的关系变化信号 */
+  socialRelationSignals?: RelevantSocialRelationEdgeRecord[];
   /** 行动决策提示：建议移交开发代理时为 true，回复中可自然建议使用 /dev 前缀 */
   handoffDevHint?: boolean;
   /** 行动决策提示：建议提醒时的描述，回复中可自然提议「要不要我帮你记一下」等，不自动创建任务 */
@@ -151,6 +165,11 @@ export class PromptRouterService {
     const boundaryPart = this.buildBoundaryPolicy(ctx.boundaryPrompt);
     const claimPart = ctx.claimPolicyText ?? '';
     const sessionStatePart = ctx.sessionStateText ?? '';
+    const sharedExperiencePart = this.buildSharedExperiencePart(ctx.sharedExperiences);
+    const rhythmObservationPart = this.buildRhythmObservationPart(ctx.rhythmObservations);
+    const socialEntityPart = this.buildSocialEntityPart(ctx.socialEntities);
+    const socialInsightPart = this.buildSocialInsightPart(ctx.socialInsights);
+    const socialRelationPart = this.buildSocialRelationPart(ctx.socialRelationSignals);
 
     // 决策上下文：优先使用 DecisionSummaryBuilder 生成的摘要，降级为内联构建
     let decisionContextPart = '';
@@ -224,6 +243,11 @@ export class PromptRouterService {
       growthPart,
       claimPart,
       sessionStatePart,
+      sharedExperiencePart,
+      rhythmObservationPart,
+      socialEntityPart,
+      socialInsightPart,
+      socialRelationPart,
       boundaryPart,
       cognitivePart,
       reflectionPart,
@@ -320,6 +344,61 @@ export class PromptRouterService {
     }
 
     return lines.join('\n');
+  }
+
+  private buildSharedExperiencePart(items?: SharedExperienceRecord[]): string {
+    if (!items?.length) return '';
+
+    const lines = ['[相关共同经历]'];
+    for (const item of items.slice(0, 2)) {
+      lines.push(`- ${item.title}: ${item.summary}`);
+    }
+    lines.push('如果当前话题自然相关，可以轻轻提及；不相关就不要硬提。');
+    return lines.join('\n');
+  }
+
+  private buildRhythmObservationPart(notes?: string[]): string {
+    if (!notes?.length) return '';
+
+    return [
+      '[最近节奏观察]',
+      ...notes.slice(0, 3).map((note) => `- ${note}`),
+      '这些只用于微调表达节奏，不要机械复述给用户。',
+    ].join('\n');
+  }
+
+  private buildSocialInsightPart(insights?: SocialInsightRecord[]): string {
+    if (!insights?.length) return '';
+
+    return [
+      '[社会洞察]',
+      ...insights.slice(0, 2).map((item) => `- ${item.content}`),
+      '这些是对用户社会世界的背景理解；只在当前话题自然相关时再用。',
+    ].join('\n');
+  }
+
+  private buildSocialEntityPart(items?: SocialEntityRecord[]): string {
+    if (!items?.length) return '';
+
+    return [
+      '[相关人物认知]',
+      ...items.slice(0, 3).map((item) => `- ${item.name}: ${item.description}`),
+      '这些是对相关人物的稳定背景理解；只在当前自然相关时轻轻使用，不要像档案播报。',
+    ].join('\n');
+  }
+
+  private buildSocialRelationPart(items?: RelevantSocialRelationEdgeRecord[]): string {
+    if (!items?.length) return '';
+
+    return [
+      '[近期关系变化]',
+      ...items.slice(0, 2).map((item) => {
+        const normalizedNote = item.notes?.trim() ? item.notes.trim().slice(0, 80) : '';
+        const note = normalizedNote ? ` | note=${normalizedNote}` : '';
+        return `- ${item.entityName} | trend=${item.trend} | quality=${item.quality.toFixed(2)}${note}`;
+      }),
+      '这些只用于帮助理解关系语境；先承接，再判断是否适合轻问一句，不要替用户站队或下结论。',
+    ].join('\n');
   }
 
   buildPersonaPresenceAnchor(fields?: ExpressionFields): string {

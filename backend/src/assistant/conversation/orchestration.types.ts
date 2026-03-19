@@ -19,6 +19,10 @@ import type {
 import type { LocalSkillRunResult } from '../../action/local-skills/local-skill.types';
 import type { SystemSelf } from '../../system-self/system-self.types';
 import type { PostTurnPlan } from '../post-turn/post-turn.types';
+import type { SharedExperienceRecord } from '../shared-experience/shared-experience.types';
+import type { SocialEntityRecord } from '../life-record/social-entity/social-entity.types';
+import type { SocialInsightRecord } from '../life-record/social-insight/social-insight.types';
+import type { RelevantSocialRelationEdgeRecord } from '../life-record/social-relation-edge/social-relation-edge.types';
 
 export type MessageContentType = 'text' | 'markdown';
 export type ConversationMessageKind =
@@ -110,6 +114,15 @@ export interface TurnContext {
   };
   growth: {
     growthContext: PersistedGrowthContext;
+  };
+  relationship: {
+    sharedExperiences: SharedExperienceRecord[];
+    rhythmObservations: string[];
+  };
+  social: {
+    entities: SocialEntityRecord[];
+    insights: SocialInsightRecord[];
+    relationSignals: RelevantSocialRelationEdgeRecord[];
   };
   claims: {
     claimSignals: ClaimSignal[];

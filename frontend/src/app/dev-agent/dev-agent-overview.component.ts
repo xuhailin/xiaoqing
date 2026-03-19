@@ -3,44 +3,48 @@ import { Router } from '@angular/router';
 import { DevAgentPageStore } from './dev-agent-page.store';
 import { DevSessionBoardComponent } from './components/dev-session-board.component';
 import { buildSessionBoard } from './dev-agent.view-model';
+import { AppPageHeaderComponent } from '../shared/ui/app-page-header.component';
 import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.component';
 
 @Component({
   selector: 'app-dev-agent-overview',
   standalone: true,
-  imports: [DevSessionBoardComponent, AppTabsComponent],
+  imports: [DevSessionBoardComponent, AppPageHeaderComponent, AppTabsComponent],
   template: `
     <div class="overview">
-      <div class="board-header ui-workbench-surface ui-workbench-surface--soft ui-workbench-surface--compact">
-        <div class="board-header__copy">
-          <div class="board-header__eyebrow">Sessions Overview</div>
-          <div class="board-header__title">会话状态总览</div>
-          <div class="board-metrics">
-            <div class="metric-card ui-workbench-card">
-              <span class="metric-card__value">{{ visibleBoard().summary.total }}</span>
-              <span class="metric-card__label">总 sessions</span>
-            </div>
-            <div class="metric-card metric-card--running ui-workbench-card">
-              <span class="metric-card__value">{{ visibleBoard().summary.running }}</span>
-              <span class="metric-card__label">进行中</span>
-            </div>
-            <div class="metric-card metric-card--failed ui-workbench-card">
-              <span class="metric-card__value">{{ visibleBoard().summary.failed }}</span>
-              <span class="metric-card__label">失败</span>
-            </div>
-            <div class="metric-card metric-card--success ui-workbench-card">
-              <span class="metric-card__value">{{ visibleBoard().summary.success }}</span>
-              <span class="metric-card__label">成功</span>
-            </div>
-          </div>
+      <app-page-header
+        title="DevAgent"
+        description="统一查看当前工作区与全局 sessions 的运行状态，再决定进入哪条执行会话。"
+      >
+        <div actions class="board-header__actions">
+          <app-tabs
+            class="board-tabs"
+            [items]="boardScopeTabs()"
+            [value]="boardScope()"
+            [appearance]="'secondary'"
+            [size]="'sm'"
+            (valueChange)="boardScope.set($any($event))"
+          />
         </div>
+      </app-page-header>
 
-        <app-tabs
-          class="board-tabs"
-          [items]="boardScopeTabs()"
-          [value]="boardScope()"
-          (valueChange)="boardScope.set($any($event))"
-        />
+      <div class="board-metrics">
+        <div class="metric-card ui-stat-card">
+          <span class="metric-card__value">{{ visibleBoard().summary.total }}</span>
+          <span class="metric-card__label">总 sessions</span>
+        </div>
+        <div class="metric-card metric-card--running ui-stat-card">
+          <span class="metric-card__value">{{ visibleBoard().summary.running }}</span>
+          <span class="metric-card__label">进行中</span>
+        </div>
+        <div class="metric-card metric-card--failed ui-stat-card">
+          <span class="metric-card__value">{{ visibleBoard().summary.failed }}</span>
+          <span class="metric-card__label">失败</span>
+        </div>
+        <div class="metric-card metric-card--success ui-stat-card">
+          <span class="metric-card__value">{{ visibleBoard().summary.success }}</span>
+          <span class="metric-card__label">成功</span>
+        </div>
       </div>
 
       <div class="board-panel">
@@ -64,48 +68,24 @@ import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.compone
       gap: var(--workbench-stack-gap);
     }
 
-    .board-header {
+    .board-header__actions {
       display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: var(--workbench-section-gap);
-    }
-
-    .board-header__copy {
-      min-width: 0;
-    }
-
-    .board-header__eyebrow {
-      display: block;
-      margin-bottom: 6px;
-      font-size: 11px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--color-text-muted);
-    }
-
-    .board-header__title {
-      font-size: var(--font-size-lg);
-      font-weight: var(--font-weight-semibold);
-      color: var(--color-text);
+      align-items: center;
+      width: min(320px, 100%);
     }
 
     .board-metrics {
-      margin-top: 0.75rem;
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 0.625rem;
+      gap: var(--space-3);
     }
 
     .metric-card {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      padding: 0.75rem;
+      min-width: 0;
     }
 
     .metric-card__value {
-      font-size: 1.125rem;
+      font-size: var(--font-size-lg);
       font-weight: var(--font-weight-semibold);
       color: var(--color-text);
     }
@@ -120,9 +100,7 @@ import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.compone
     .metric-card--success .metric-card__value { color: var(--color-success); }
 
     .board-tabs {
-      width: fit-content;
-      max-width: 100%;
-      flex-shrink: 0;
+      width: 100%;
     }
 
     .board-panel {
@@ -131,8 +109,8 @@ import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.compone
     }
 
     @media (max-width: 980px) {
-      .board-header {
-        flex-direction: column;
+      .board-header__actions {
+        width: 100%;
       }
 
       .board-metrics {

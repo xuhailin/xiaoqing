@@ -45,6 +45,7 @@ model Conversation {
   dailyMoments DailyMoment[]
   dailyMomentSuggestions DailyMomentSuggestion[]
   dailyMomentSignals DailyMomentSignal[]
+  sessionReflections SessionReflection[]
 
   @@index([entryAgentId, updatedAt])
   @@index([isInternal, updatedAt])
@@ -458,6 +459,65 @@ model TracePoint {
   @@index([sourceMessageId])
 }
 
+// ── Life Record: Social Entity ──────────────────────────────
+
+model SocialEntity {
+  id           String   @id @default(uuid())
+  name         String           // 主名称（如"妈妈"）
+  aliases      String[] @default([]) // 别名（如["老妈", "我妈"]）
+  relation     String   @default("other") // family | friend | colleague | romantic | pet | other
+  description  String?  @db.Text // 小晴对此人的简短认知
+  firstSeenAt  DateTime         // 首次出现时间
+  lastSeenAt   DateTime         // 最近出现时间
+  mentionCount Int      @default(1) // 出现次数
+  tags         String[] @default([])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  relationEdges SocialRelationEdge[]
+
+  @@unique([name])
+  @@index([relation])
+  @@index([lastSeenAt])
+}
+
+// ── Life Record: Social Insight ────────────────────────────
+
+model SocialInsight {
+  id               String   @id @default(uuid())
+  scope            String   @default("weekly") // weekly | monthly
+  periodKey        String
+  content          String   @db.Text
+  relatedEntityIds String[] @default([])
+  confidence       Float    @default(0.5)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([scope, periodKey])
+  @@index([scope, createdAt])
+  @@index([confidence])
+}
+
+// ── Life Record: Social Relation Edge ──────────────────────
+
+model SocialRelationEdge {
+  id           String   @id @default(uuid())
+  fromEntityId String
+  toEntityId   String
+  relationType String
+  quality      Float    @default(0.5)
+  trend        String   @default("stable") // improving | stable | declining
+  lastEventAt  DateTime
+  notes        String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  toEntity     SocialEntity @relation(fields: [toEntityId], references: [id], onDelete: Cascade)
+
+  @@unique([fromEntityId, toEntityId])
+  @@index([trend, updatedAt])
+  @@index([toEntityId])
+}
+
 // 日摘要：基于当天 TracePoints 生成的一段日总结
 model DailySummary {
   id              String   @id @default(uuid())
@@ -534,6 +594,47 @@ model CognitiveEvolution {
 
   @@index([evolutionType, createdAt])
   @@index([status])
+}
+
+// ── Session Reflection: 对话的关系意义回顾 ─────────────────────
+
+model SessionReflection {
+  id               String   @id @default(uuid())
+  conversationId   String
+  summary          String   @db.Text   // "这次对话中用户主动分享了工作压力，信任感有提升"
+  relationImpact   String   @default("neutral") // deepened | neutral | strained | repaired
+  rhythmNote       String?  @db.Text   // "用户今天偏好简短回应，可能比较疲惫"
+  sharedMoment     Boolean  @default(false) // 是否构成 shared experience 候选
+  momentHint       String?  @db.Text   // 如果 sharedMoment=true，简述这个共同经历
+  trustDelta       Float    @default(0)
+  closenessDelta   Float    @default(0)
+  createdAt        DateTime @default(now())
+
+  conversation     Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
+  @@index([sharedMoment])
+}
+
+// ── Shared Experience: 小晴与用户的共同经历 ───────────────────
+
+model SharedExperience {
+  id               String   @id @default(uuid())
+  title            String
+  summary          String   @db.Text
+  category         String   @default("emotional_support")
+  emotionalTone    String?
+  significance     Float    @default(0.5)
+  happenedAt       DateTime
+  conversationIds  String[]
+  relatedEntityIds String[] @default([])
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([category])
+  @@index([happenedAt])
+  @@index([significance])
 }
 
 // ── Agent Bus: Memory Proposal ───────────────────────────────

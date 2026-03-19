@@ -18,6 +18,11 @@ import { estimateTokens } from '../../infra/token-estimator';
 import { FeatureFlagConfig } from './feature-flag.config';
 import { SystemSelfService } from '../../system-self/system-self.service';
 import type { TurnContext } from './orchestration.types';
+import { SharedExperienceService } from '../shared-experience/shared-experience.service';
+import { SessionReflectionService } from '../session-reflection/session-reflection.service';
+import { SocialEntityService } from '../life-record/social-entity/social-entity.service';
+import { SocialInsightService } from '../life-record/social-insight/social-insight.service';
+import { SocialRelationEdgeService } from '../life-record/social-relation-edge/social-relation-edge.service';
 
 @Injectable()
 export class TurnContextAssembler {
@@ -47,6 +52,11 @@ export class TurnContextAssembler {
     private readonly sessionStateStore: SessionStateService,
     private readonly flags: FeatureFlagConfig,
     private readonly systemSelf: SystemSelfService,
+    private readonly sharedExperience: SharedExperienceService,
+    private readonly sessionReflection: SessionReflectionService,
+    private readonly socialEntity: SocialEntityService,
+    private readonly socialInsight: SocialInsightService,
+    private readonly socialRelationEdge: SocialRelationEdgeService,
   ) {}
 
   async assemble(input: {
@@ -87,6 +97,15 @@ export class TurnContextAssembler {
     });
     const fullWorldState = await this.worldState.get(input.conversationId);
     const claimCtx = await this.buildClaimAndSessionContext(input.conversationId);
+    const relationshipCtx = await this.buildRelationshipContext({
+      conversationId: input.conversationId,
+      userInput: input.userInput,
+      recentMessages,
+    });
+    const socialCtx = await this.buildSocialContext({
+      userInput: input.userInput,
+      recentMessages,
+    });
 
     // 读取上一轮的反思结果
     let previousReflection: { quality: 'good' | 'suboptimal' | 'failed'; adjustmentHint: string; timestamp: Date } | undefined;
@@ -132,6 +151,8 @@ export class TurnContextAssembler {
       world: { storedWorldState, defaultWorldState, fullWorldState },
       memory: memoryCtx,
       growth: { growthContext },
+      relationship: relationshipCtx,
+      social: socialCtx,
       claims: claimCtx,
       system: { systemSelf },
       runtime: {
@@ -188,6 +209,8 @@ export class TurnContextAssembler {
       world: { storedWorldState, defaultWorldState, fullWorldState: storedWorldState },
       memory: { injectedMemories: [], candidatesCount: 0, needDetail: false, memoryBudgetTokens: 0 },
       growth: { growthContext },
+      relationship: { sharedExperiences: [], rhythmObservations: [] },
+      social: { entities: [], insights: [], relationSignals: [] },
       claims: {
         claimSignals: [],
         claimPolicyText: '',
@@ -372,6 +395,64 @@ export class TurnContextAssembler {
     }
 
     return { claimSignals, claimPolicyText, sessionState, sessionStateText, injectedClaimsDebug, draftClaimsDebug };
+  }
+
+  private async buildRelationshipContext(input: {
+    conversationId: string;
+    userInput: string;
+    recentMessages: Array<{ role: string; content: string }>;
+  }): Promise<TurnContext['relationship']> {
+    const contextText = [
+      ...input.recentMessages.slice(-4).map((message) => message.content),
+      input.userInput,
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const [relevantSharedExperiences, recentReflections] = await Promise.all([
+      this.sharedExperience.findRelevant(contextText, 2),
+      this.sessionReflection.list({ limit: 3 }),
+    ]);
+
+    return {
+      sharedExperiences: relevantSharedExperiences.filter((item) => item.significance > 0.6).slice(0, 2),
+      rhythmObservations: recentReflections
+        .map((reflection) => reflection.rhythmNote?.trim() ?? '')
+        .filter((note) => note.length > 0)
+        .slice(0, 3),
+    };
+  }
+
+  private async buildSocialContext(input: {
+    userInput: string;
+    recentMessages: Array<{ role: string; content: string }>;
+  }): Promise<TurnContext['social']> {
+    const contextText = [
+      ...input.recentMessages.slice(-4).map((message) => message.content),
+      input.userInput,
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const [entities, insights] = await Promise.all([
+      this.socialEntity.findRelevant(contextText, 3),
+      this.socialInsight.findRelevant(contextText, 2),
+    ]);
+    const relationSignals = await this.socialRelationEdge.findRelevant(
+      contextText,
+      2,
+      [
+        ...insights.flatMap((item) => item.relatedEntityIds),
+        ...entities.map((item) => item.id),
+      ],
+    );
+    return {
+      entities: entities.filter((item) => Boolean(item.description?.trim())).slice(0, 3),
+      insights: insights.filter((item) => item.confidence >= 0.58).slice(0, 2),
+      relationSignals: relationSignals
+        .filter((item) => item.trend === 'declining' || item.quality <= 0.5)
+        .slice(0, 2),
+    };
   }
 
   private async writeIdentityUpdate(update: import('../intent/intent.types').IdentityUpdateFromIntent): Promise<void> {

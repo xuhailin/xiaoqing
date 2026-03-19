@@ -28,38 +28,38 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 .ui-page-header__copy,
 .ui-section-header__copy {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-1);
   min-width: 0;
 }
 
 .ui-page-header__eyebrow,
 .ui-section-header__eyebrow {
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-xxs);
   font-weight: var(--font-weight-medium);
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-text-muted);
 }
 
 .ui-page-header__title {
   font-size: var(--font-size-xl);
-  line-height: 1.05;
-  letter-spacing: -0.04em;
+  line-height: var(--line-height-tight);
+  letter-spacing: -0.02em;
   font-weight: var(--font-weight-semibold);
   color: var(--color-text);
 }
 
 .ui-page-header__description {
-  max-width: 42rem;
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-relaxed);
+  max-width: 40rem;
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-base);
   color: var(--color-text-secondary);
 }
 
@@ -95,12 +95,12 @@
 .ui-panel--workbench {
   border-color: var(--color-workbench-border);
   background: var(--workbench-surface-gradient);
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 1px 0 rgba(20, 27, 39, 0.03);
 }
 
 .ui-panel--subtle {
   border-color: var(--color-border-light);
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.68);
   box-shadow: none;
 }
 
@@ -165,7 +165,7 @@
   border: 1px solid var(--color-workbench-border);
   border-radius: var(--workbench-panel-radius);
   background: var(--workbench-surface-gradient);
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 1px 0 rgba(20, 27, 39, 0.03);
 }
 
 .ui-workbench-surface--soft {
@@ -174,7 +174,7 @@
 
 .ui-workbench-surface--chat {
   background: var(--workbench-chat-surface-gradient);
-  box-shadow: 0 12px 30px rgba(30, 52, 98, 0.08);
+  box-shadow: none;
 }
 
 .ui-workbench-surface--compact {
@@ -185,7 +185,7 @@
   border: 1px solid var(--color-workbench-border);
   border-radius: var(--workbench-card-radius);
   background: var(--sidebar-card-background);
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 1px 0 rgba(20, 27, 39, 0.03);
 }
 
 .ui-dialog-backdrop {
@@ -436,14 +436,16 @@
 .ui-tabs {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-4);
   max-width: 100%;
-  padding: 3px;
-  border-radius: var(--workbench-card-radius);
-  border: 1px solid rgba(96, 122, 170, 0.14);
-  background: linear-gradient(180deg, rgba(241, 246, 255, 0.92), rgba(255, 255, 255, 0.94));
-  box-shadow: var(--shadow-sm);
-  flex-wrap: wrap;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+.ui-tabs--secondary {
+  gap: var(--space-3);
+  padding-bottom: 0;
+  border-bottom: 1px solid rgba(96, 122, 170, 0.16);
 }
 
 .ui-tabs--full {
@@ -452,20 +454,42 @@
 }
 
 .ui-tabs__button {
+  position: relative;
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: 0;
   background: transparent;
   color: var(--color-text-secondary);
   min-height: 30px;
-  padding: 0 0.75rem;
+  padding: 0;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition:
-    background var(--transition-fast),
-    box-shadow var(--transition-fast),
     color var(--transition-fast);
   white-space: nowrap;
+}
+
+.ui-tabs--primary .ui-tabs__button {
+  min-height: 36px;
+  padding: 0 var(--space-2);
+  border-radius: 0;
+}
+
+.ui-tabs--secondary .ui-tabs__button {
+  min-height: 32px;
+  padding: 0 0 var(--space-1);
+}
+
+.ui-tabs__button:hover:not(.is-active) {
+  color: var(--color-text);
+}
+
+.ui-tabs--primary .ui-tabs__button:hover:not(.is-active) {
+  color: var(--color-primary);
+}
+
+.ui-tabs--secondary .ui-tabs__button:hover:not(.is-active) {
+  background: transparent;
 }
 
 .ui-tabs__label {
@@ -475,20 +499,48 @@
 }
 
 .ui-tabs__icon {
-  opacity: 0.9;
+  opacity: 0.95;
 }
 
 .ui-tabs__button.is-active {
-  background: var(--color-surface);
-  color: #3248a0;
-  box-shadow: 0 6px 16px rgba(30, 52, 98, 0.1);
+  color: var(--color-text);
+}
+
+.ui-tabs--primary .ui-tabs__button.is-active {
+  color: var(--color-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.ui-tabs--primary .ui-tabs__button::after,
+.ui-tabs--secondary .ui-tabs__button.is-active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background: transparent;
+}
+
+.ui-tabs--primary .ui-tabs__button.is-active::after {
+  background: var(--color-primary);
+}
+
+.ui-tabs--primary .ui-tabs__button .ui-tabs__label {
+  position: relative;
+  padding-bottom: var(--space-2);
 }
 
 .ui-tabs__button--sm {
-  min-height: 26px;
-  padding: 0 0.625rem;
+  min-height: 28px;
+  padding: 0;
   font-size: var(--font-size-xs);
-  border-radius: var(--radius-sm);
+}
+
+.ui-tabs--secondary .ui-tabs__button--sm {
+  min-height: 30px;
+  padding: 0 0 var(--space-1);
 }
 
 .ui-tabs--full .ui-tabs__button {
@@ -498,7 +550,15 @@
 .ui-tabs__count {
   margin-left: var(--space-1);
   font-size: var(--font-size-xxs);
-  opacity: 0.8;
+  color: var(--color-text-muted);
+}
+
+.ui-tabs--primary .ui-tabs__count {
+  opacity: 0.84;
+}
+
+.ui-tabs--secondary .ui-tabs__count {
+  opacity: 1;
 }
 
 .ui-field-control,
@@ -547,21 +607,19 @@
   transition:
     background var(--transition-fast),
     border-color var(--transition-fast),
-    box-shadow var(--transition-fast),
-    transform var(--transition-fast);
+    box-shadow var(--transition-fast);
 }
 
 .ui-list-card:hover {
-  transform: translateY(-1px);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(244, 248, 255, 0.95));
-  border-color: var(--color-workbench-accent-strong);
-  box-shadow: var(--shadow-sm);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 255, 0.94));
+  border-color: rgba(96, 122, 170, 0.18);
+  box-shadow: 0 1px 0 rgba(20, 27, 39, 0.03);
 }
 
 .ui-list-card.is-active {
   background: var(--sidebar-card-background-active);
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 1px rgba(79, 109, 245, 0.08), 0 10px 20px rgba(30, 52, 98, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(79, 109, 245, 0.06);
 }
 
 .ui-state {
@@ -661,7 +719,7 @@
   padding: var(--space-3);
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-border-light);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(244, 248, 255, 0.88));
+  background: rgba(255, 255, 255, 0.78);
 }
 
 .ui-stat-card__value {

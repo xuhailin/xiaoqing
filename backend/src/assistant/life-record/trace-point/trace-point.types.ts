@@ -1,4 +1,4 @@
-export type TracePointKind = 'event' | 'mood' | 'mention' | 'plan' | 'reflection';
+export type TracePointKind = 'event' | 'mood' | 'mention' | 'plan' | 'reflection' | 'relation_event';
 
 export type TracePointExtractedBy = 'batch' | 'realtime' | 'backfill';
 

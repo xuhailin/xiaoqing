@@ -50,12 +50,14 @@ export class AppTabsComponent {
   @Input() items: readonly AppTabItem[] = [];
   @Input() value = '';
   @Input() size: 'sm' | 'md' = 'md';
+  @Input() appearance: 'primary' | 'secondary' = 'secondary';
   @Input() fullWidth = false;
 
   @Output() valueChange = new EventEmitter<string>();
 
   protected containerClasses() {
     return [
+      `ui-tabs--${this.appearance}`,
       this.fullWidth ? 'ui-tabs--full' : '',
     ];
   }

@@ -22,10 +22,9 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
         <div class="lane-grid">
           @for (lane of board.lanes; track lane.id) {
             <app-panel
-              variant="workbench"
+              variant="subtle"
               padding="none"
               class="lane"
-              [accent]="laneAccent(lane.id)"
             >
               <header class="lane-header">
                 <div>
@@ -130,7 +129,7 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
     }
 
     .lane-description {
-      margin-top: 4px;
+      margin-top: var(--space-1);
       font-size: var(--font-size-xs);
       color: var(--color-text-secondary);
       line-height: 1.6;
@@ -140,7 +139,7 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       flex: 1 1 auto;
       min-height: 0;
       overflow-y: auto;
-      padding: 0.75rem;
+      padding: var(--space-3);
       display: flex;
       flex-direction: column;
       gap: var(--workbench-stack-gap);
@@ -175,14 +174,14 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
     .card-stats {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px 12px;
-      margin-top: 0.625rem;
-      font-size: 11px;
+      gap: var(--space-1) var(--space-3);
+      margin-top: var(--space-2);
+      font-size: var(--font-size-xs);
       color: var(--color-text-secondary);
     }
 
     .card-task {
-      margin-top: 0.625rem;
+      margin-top: var(--space-2);
       font-size: var(--font-size-sm);
       color: var(--color-workbench-muted);
       line-height: 1.55;
@@ -193,8 +192,8 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
     }
 
     .card-stats {
-      margin-top: 0.75rem;
-      padding-top: 0.625rem;
+      margin-top: var(--space-3);
+      padding-top: var(--space-2);
       border-top: 1px solid var(--color-border-light);
     }
 
@@ -214,13 +213,6 @@ export class DevSessionBoardComponent {
   @Input() selectedSessionId: string | null = null;
 
   @Output() selectSession = new EventEmitter<string>();
-
-  protected laneAccent(id: string): 'none' | 'warning' | 'danger' | 'success' {
-    if (id === 'running') return 'warning';
-    if (id === 'failed') return 'danger';
-    if (id === 'success') return 'success';
-    return 'none';
-  }
 
   protected statusTone(status: DevSessionBoardCard['status']) {
     if (status === 'running') return 'warning';

@@ -109,6 +109,10 @@ export class SystemSelfService {
     return {
       claudeCode: isFeatureEnabled(this.config, 'claudeCode'),
       planScheduler: isFeatureEnabled(this.config, 'planScheduler'),
+      socialCareScheduler: isFeatureEnabled(this.config, 'socialCareScheduler'),
+      socialEntityClassifierScheduler: isFeatureEnabled(this.config, 'socialEntityClassifierScheduler'),
+      socialInsightScheduler: isFeatureEnabled(this.config, 'socialInsightScheduler'),
+      sharedExperienceFollowupScheduler: isFeatureEnabled(this.config, 'sharedExperienceFollowupScheduler'),
       openclaw: isFeatureEnabled(this.config, 'openclaw'),
     };
   }

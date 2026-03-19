@@ -953,7 +953,13 @@ export class ChatCompletionEngine {
       intentState,
       cognitiveState: composition.cognitiveState,
       beforeReturn: [],
-      afterReturn: [{ type: 'record_growth' }, { type: 'summarize_trigger', trigger: this.resolveSummarizeTrigger(userInput) }, { type: 'record_cognitive_observation' }],
+      afterReturn: [
+        { type: 'life_record_sync' },
+        { type: 'record_growth' },
+        { type: 'summarize_trigger', trigger: this.resolveSummarizeTrigger(userInput) },
+        { type: 'record_cognitive_observation' },
+        { type: 'session_reflection' },
+      ],
     });
 
     const debugMeta = this.featureDebugMeta && pipelineState
@@ -1266,7 +1272,12 @@ export class ChatCompletionEngine {
       intentState,
       cognitiveState: composition.cognitiveState,
       beforeReturn: [],
-      afterReturn: [{ type: 'record_growth' }, { type: 'record_cognitive_observation' }],  // no summarize_trigger here
+      afterReturn: [
+        { type: 'life_record_sync' },
+        { type: 'record_growth' },
+        { type: 'record_cognitive_observation' },
+        { type: 'session_reflection' },
+      ], // no summarize_trigger here
     });
 
     return this.wrapResult({
@@ -1415,9 +1426,11 @@ export class ChatCompletionEngine {
         composition.cognitiveState.situation.kind === 'task_execution',
       beforeReturn: [{ type: 'daily_moment_suggestion' }],
       afterReturn: [
+        { type: 'life_record_sync' },
         { type: 'record_growth' },
         { type: 'summarize_trigger', trigger: this.resolveSummarizeTrigger(userMsg.content) },
         { type: 'record_cognitive_observation' },
+        { type: 'session_reflection' },
       ],
     });
 

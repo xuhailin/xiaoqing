@@ -1,5 +1,4 @@
 <div class="chat">
-
   @if (error()) {
     <div class="notification notification--error">{{ error() }}</div>
   }
@@ -105,112 +104,6 @@
     </div>
   }
 
-  <div class="messages ui-scrollbar ui-workbench-surface ui-workbench-surface--chat" #messagesEl>
-    @for (m of messages(); track m.id) {
-      <div class="message" [ngClass]="messageClasses(m)">
-        <div class="message-head">
-          <div class="message-head-main">
-            <span class="role-label">{{ m.role === 'user' ? '我' : 'AI' }}</span>
-            @if (messageKindMeta(m.kind); as kindMeta) {
-              <app-badge class="message-kind-badge" [tone]="messageKindTone(m.kind, m)">
-                <app-icon [name]="kindMeta.icon" size="0.8rem" />
-                <span>{{ kindMeta.label }}</span>
-              </app-badge>
-            }
-          </div>
-          <span class="message-time">{{ formatMessageTime(m.createdAt) }}</span>
-        </div>
-        <div class="bubble">
-          <app-message-content
-            [content]="m.content"
-            [contentType]="m.contentType"
-            [role]="m.role"
-          />
-        </div>
-        @if (messageMetaLine(m); as metaLine) {
-          <div class="message-submeta">{{ metaLine }}</div>
-        }
-
-        @if (m.role === 'assistant') {
-          @if (messageDebugState()[m.id]; as messageDebug) {
-            @if (messageDebug.traceSteps.length) {
-              <div class="trace-bar">
-                <div class="trace-badges">
-                  @for (step of messageDebug.traceSteps; track step.seq; let isLast = $last) {
-                    <app-badge class="trace-badge" [tone]="traceTone(step.status)">
-                      {{ step.title }}
-                    </app-badge>
-                    @if (!isLast) {
-                      <span class="trace-arrow">
-                        <app-icon name="chevronRight" size="0.8rem" />
-                      </span>
-                    }
-                  }
-                </div>
-
-                <div class="trace-actions">
-                  <app-button type="button" variant="ghost" size="xs" class="trace-toggle"
-                    (click)="toggleTraceDetail(m.id)">
-                    {{ expandedTraceMessageId() === m.id ? '收起步骤' : '步骤详情' }}
-                  </app-button>
-                  @if (messageDebug.debugMeta) {
-                    <app-button type="button" variant="ghost" size="xs" class="trace-debug-trigger"
-                      (click)="openDebugDialog(m.id)">
-                      调试信息
-                    </app-button>
-                  }
-                </div>
-              </div>
-
-              @if (expandedTraceMessageId() === m.id) {
-                <div class="trace-detail">
-                  @for (step of messageDebug.traceSteps; track step.seq; let index = $index) {
-                    <div class="trace-step-card">
-                      <div class="trace-step-header">
-                        <span class="trace-step-seq">Step {{ index + 1 }}</span>
-                        <span class="trace-step-title">{{ step.title }}</span>
-                        @if (isPipelineTraceStep(step)) {
-                          <app-badge class="trace-step-tag" tone="info" size="sm">管道</app-badge>
-                        }
-                        @if (hasPipelineInDetail(step) && !isPipelineTraceStep(step)) {
-                          <app-badge class="trace-step-tag trace-step-tag--muted" tone="neutral" appearance="outline" size="sm">含管道</app-badge>
-                        }
-                        <span class="trace-step-status"
-                          [class.trace-step-status--success]="step.status === 'success'"
-                          [class.trace-step-status--fail]="step.status === 'fail'"
-                          [class.trace-step-status--skip]="step.status === 'skip'">
-                          <app-icon [name]="traceStepStatusIcon(step.status)" size="0.9rem" strokeWidth="2.25" />
-                        </span>
-                        @if (step.durationMs > 0) {
-                          <span class="trace-step-duration">{{ step.durationMs }}ms</span>
-                        }
-                      </div>
-                      <pre class="trace-step-detail">{{ formatDetail(step.detail) }}</pre>
-                    </div>
-                  }
-                </div>
-              }
-            } @else {
-              <div class="trace-bar trace-bar--meta-only">
-                @if (messageDebug.openclawUsed) {
-                  <app-badge class="openclaw-tag" tone="info" appearance="outline" size="sm">via OpenClaw</app-badge>
-                }
-                @if (messageDebug.debugMeta) {
-                  <div class="trace-actions">
-                    <app-button type="button" variant="ghost" size="xs" class="trace-debug-trigger"
-                      (click)="openDebugDialog(m.id)">
-                      调试信息
-                    </app-button>
-                  </div>
-                }
-              </div>
-            }
-          }
-        }
-      </div>
-    }
-  </div>
-
   @if (evolveSuggestion(); as changes) {
     <div class="evolve-panel evolve-panel--green">
       <div class="evolve-title">人格进化建议</div>
@@ -231,20 +124,137 @@
     </div>
   }
 
-  <div class="input-row ui-workbench-surface ui-workbench-surface--soft">
-    <textarea
-      class="ui-textarea"
-      #inputEl
-      (input)="inputText.set(inputEl.value)"
-      (keydown)="onKeydown($event)"
-      placeholder="输入消息..."
-      rows="2"
-      [disabled]="loading()"
-    ></textarea>
-    <app-button type="button" variant="primary" class="btn--send"
-      (click)="send()" [disabled]="loading() || !inputText().trim()">
-      {{ loading() ? '发送中...' : '发送' }}
-    </app-button>
+  <div class="chat-stage">
+    <div class="messages ui-scrollbar" #messagesEl>
+      <div class="messages-track">
+        @for (m of messages(); track m.id) {
+          <div class="message" [ngClass]="messageClasses(m)">
+            <div class="message-head">
+              <div class="message-head-main">
+                @if (m.role === 'assistant') {
+                  <span class="assistant-role">
+                    <app-xiaoqing-avatar class="assistant-role__avatar" size="1.35rem" shape="circle" />
+                    <span class="role-label">小晴</span>
+                  </span>
+                } @else {
+                  <span class="role-label">我</span>
+                }
+                @if (messageKindMeta(m.kind); as kindMeta) {
+                  <app-badge class="message-kind-badge" [tone]="messageKindTone(m.kind, m)">
+                    <app-icon [name]="kindMeta.icon" size="0.8rem" />
+                    <span>{{ kindMeta.label }}</span>
+                  </app-badge>
+                }
+              </div>
+              <span class="message-time">{{ formatMessageTime(m.createdAt) }}</span>
+            </div>
+            <div class="bubble">
+              <app-message-content
+                [content]="m.content"
+                [contentType]="m.contentType"
+                [role]="m.role"
+              />
+            </div>
+            @if (messageMetaLine(m); as metaLine) {
+              <div class="message-submeta">{{ metaLine }}</div>
+            }
+
+            @if (m.role === 'assistant') {
+              @if (messageDebugState()[m.id]; as messageDebug) {
+                @if (messageDebug.traceSteps.length) {
+                  <div class="trace-bar">
+                    <div class="trace-badges">
+                      @for (step of messageDebug.traceSteps; track step.seq; let isLast = $last) {
+                        <app-badge class="trace-badge" [tone]="traceTone(step.status)">
+                          {{ step.title }}
+                        </app-badge>
+                        @if (!isLast) {
+                          <span class="trace-arrow">
+                            <app-icon name="chevronRight" size="0.8rem" />
+                          </span>
+                        }
+                      }
+                    </div>
+
+                    <div class="trace-actions">
+                      <app-button type="button" variant="ghost" size="xs" class="trace-toggle"
+                        (click)="toggleTraceDetail(m.id)">
+                        {{ expandedTraceMessageId() === m.id ? '收起步骤' : '步骤详情' }}
+                      </app-button>
+                      @if (messageDebug.debugMeta) {
+                        <app-button type="button" variant="ghost" size="xs" class="trace-debug-trigger"
+                          (click)="openDebugDialog(m.id)">
+                          调试信息
+                        </app-button>
+                      }
+                    </div>
+                  </div>
+
+                  @if (expandedTraceMessageId() === m.id) {
+                    <div class="trace-detail">
+                      @for (step of messageDebug.traceSteps; track step.seq; let index = $index) {
+                        <div class="trace-step-card">
+                          <div class="trace-step-header">
+                            <span class="trace-step-seq">Step {{ index + 1 }}</span>
+                            <span class="trace-step-title">{{ step.title }}</span>
+                            @if (isPipelineTraceStep(step)) {
+                              <app-badge class="trace-step-tag" tone="info" size="sm">管道</app-badge>
+                            }
+                            @if (hasPipelineInDetail(step) && !isPipelineTraceStep(step)) {
+                              <app-badge class="trace-step-tag trace-step-tag--muted" tone="neutral" appearance="outline" size="sm">含管道</app-badge>
+                            }
+                            <span class="trace-step-status"
+                              [class.trace-step-status--success]="step.status === 'success'"
+                              [class.trace-step-status--fail]="step.status === 'fail'"
+                              [class.trace-step-status--skip]="step.status === 'skip'">
+                              <app-icon [name]="traceStepStatusIcon(step.status)" size="0.9rem" strokeWidth="2.25" />
+                            </span>
+                            @if (step.durationMs > 0) {
+                              <span class="trace-step-duration">{{ step.durationMs }}ms</span>
+                            }
+                          </div>
+                          <pre class="trace-step-detail">{{ formatDetail(step.detail) }}</pre>
+                        </div>
+                      }
+                    </div>
+                  }
+                } @else {
+                  <div class="trace-bar trace-bar--meta-only">
+                    @if (messageDebug.openclawUsed) {
+                      <app-badge class="openclaw-tag" tone="info" appearance="outline" size="sm">via OpenClaw</app-badge>
+                    }
+                    @if (messageDebug.debugMeta) {
+                      <div class="trace-actions">
+                        <app-button type="button" variant="ghost" size="xs" class="trace-debug-trigger"
+                          (click)="openDebugDialog(m.id)">
+                          调试信息
+                        </app-button>
+                      </div>
+                    }
+                  </div>
+                }
+              }
+            }
+          </div>
+        }
+      </div>
+    </div>
+
+    <div class="input-row">
+      <textarea
+        class="ui-textarea"
+        #inputEl
+        (input)="inputText.set(inputEl.value)"
+        (keydown)="onKeydown($event)"
+        placeholder="输入消息..."
+        rows="2"
+        [disabled]="loading()"
+      ></textarea>
+      <app-button type="button" variant="primary" class="btn--send"
+        (click)="send()" [disabled]="loading() || !inputText().trim()">
+        {{ loading() ? '发送中...' : '发送' }}
+      </app-button>
+    </div>
   </div>
 
   @if (activeDebugMessageId(); as activeMessageId) {

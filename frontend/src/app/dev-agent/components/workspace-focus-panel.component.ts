@@ -21,10 +21,9 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
     AppStateComponent,
   ],
   template: `
-    <app-panel variant="workbench" padding="none" class="focus-panel">
+    <app-panel variant="subtle" padding="none" class="focus-panel">
       <header class="focus-header">
         <app-section-header
-          eyebrow="Current Workspace"
           [title]="workspaceName()"
           description="默认操作上下文。你可以在这里直接新建 session，也能快速继续当前 workspace 下的会话。"
         >
@@ -59,12 +58,10 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
 
       <section class="session-feed">
         <div class="section-head">
-          <div>
-            <div class="section-title">Current Workspace Sessions</div>
-            <div class="section-description">
-              默认只看当前 workspace，点任意 session 进入对话执行界面。
-            </div>
-          </div>
+          <app-section-header
+            title="当前会话"
+            description="默认只看当前 workspace，点任意 session 进入对话执行界面。"
+          />
         </div>
 
         <div class="session-list ui-scrollbar">
@@ -131,7 +128,7 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       flex-direction: column;
       gap: var(--workbench-stack-gap);
       border-bottom: 1px solid var(--color-border-light);
-      background: var(--workbench-surface-gradient-soft);
+      background: transparent;
     }
 
     .header-actions {
@@ -173,24 +170,11 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       border-bottom: 1px solid var(--color-border-light);
     }
 
-    .section-title {
-      font-size: var(--font-size-md);
-      font-weight: var(--font-weight-semibold);
-      color: var(--color-text);
-    }
-
-    .section-description {
-      margin-top: 4px;
-      font-size: var(--font-size-xs);
-      color: var(--color-text-secondary);
-      line-height: 1.6;
-    }
-
     .session-list {
       flex: 1 1 auto;
       min-height: 0;
       overflow-y: auto;
-      padding: 0.75rem;
+      padding: var(--space-3);
       display: flex;
       flex-direction: column;
       gap: var(--workbench-stack-gap);
@@ -224,14 +208,14 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
     .card-meta {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px 12px;
-      margin-top: 0.625rem;
+      gap: var(--space-1) var(--space-3);
+      margin-top: var(--space-2);
       font-size: var(--font-size-xs);
       color: var(--color-text-secondary);
     }
 
     .card-task {
-      margin-top: 0.625rem;
+      margin-top: var(--space-2);
       font-size: var(--font-size-sm);
       color: var(--color-workbench-muted);
       line-height: 1.55;
@@ -253,6 +237,15 @@ export class WorkspaceFocusPanelComponent {
   @Output() selectSession = new EventEmitter<string>();
 
   protected readonly workspaceListId = 'dev-agent-workspace-options';
+
+  protected workspaceName() {
+    const root = this.workspaceRoot.trim();
+    if (!root) {
+      return '未选择 workspace';
+    }
+    const parts = root.split('/').filter(Boolean);
+    return parts.at(-1) || root;
+  }
 
   protected sortedSessions() {
     return [...this.sessions].sort(
@@ -305,15 +298,6 @@ export class WorkspaceFocusPanelComponent {
     if (status === 'running') return 'Running';
     if (status === 'failed') return 'Failed';
     return 'Success';
-  }
-
-  protected workspaceName(): string {
-    const normalized = this.workspaceRoot.trim();
-    if (!normalized) {
-      return 'Choose Workspace';
-    }
-    const parts = normalized.split('/').filter(Boolean);
-    return parts.at(-1) ?? normalized;
   }
 
   private normalizeStatus(session: DevSession): 'running' | 'failed' | 'success' {

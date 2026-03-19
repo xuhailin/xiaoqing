@@ -18,6 +18,7 @@ import { AppBadgeComponent } from '../shared/ui/app-badge.component';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
 import { AppIconComponent, type AppIconName } from '../shared/ui/app-icon.component';
 import { MessageContentComponent } from './message-content.component';
+import { XiaoqingAvatarComponent } from '../shared/ui/xiaoqing-avatar.component';
 
 type MessageDebugEntry = {
   debugMeta: DebugMeta | null;
@@ -45,7 +46,15 @@ const MESSAGE_KIND_META: Partial<Record<MessageKind, { icon: AppIconName; label:
 @Component({
   selector: 'app-chat',
   standalone: true,
-  imports: [JsonPipe, NgClass, AppBadgeComponent, AppButtonComponent, AppIconComponent, MessageContentComponent],
+  imports: [
+    JsonPipe,
+    NgClass,
+    AppBadgeComponent,
+    AppButtonComponent,
+    AppIconComponent,
+    MessageContentComponent,
+    XiaoqingAvatarComponent,
+  ],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss',
 })

@@ -108,12 +108,11 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
     .new-btn {
       width: 100%;
       flex-shrink: 0;
-      margin-top: var(--space-2);
-      margin-bottom: var(--space-2);
+      margin: 0 0 var(--space-2);
     }
 
     .conv-item {
-      padding: 0.75rem 0.875rem;
+      padding: var(--space-3);
       border-radius: var(--workbench-card-radius);
       cursor: pointer;
       position: relative;
@@ -124,16 +123,16 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
       content: '';
       position: absolute;
       left: 0;
-      top: 10px;
-      bottom: 10px;
-      width: 3px;
-      border-radius: 999px;
+      top: var(--space-3);
+      bottom: var(--space-3);
+      width: 2px;
+      border-radius: var(--radius-pill);
       background: transparent;
       transition: background var(--transition-fast);
     }
 
     .conv-item.is-active::before {
-      background: linear-gradient(180deg, #6e89ff 0%, #4f6df5 100%);
+      background: var(--color-primary);
     }
 
     .conv-header {
@@ -145,7 +144,7 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
 
     .conv-title {
       font-size: var(--font-size-sm);
-      font-weight: var(--font-weight-medium);
+      font-weight: var(--font-weight-semibold);
       color: var(--color-text);
       overflow: hidden;
       text-overflow: ellipsis;

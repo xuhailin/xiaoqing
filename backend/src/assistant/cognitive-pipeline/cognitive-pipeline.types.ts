@@ -4,6 +4,7 @@ import type { WorldState } from '../../infra/world-state/world-state.types';
 export type SituationKind =
   | 'casual_chat'
   | 'emotional_expression'
+  | 'relationship_distress'
   | 'co_thinking'
   | 'decision_support'
   | 'advice_request'
@@ -127,6 +128,26 @@ export interface SessionStateSignal {
   confidence?: number;
 }
 
+export interface SocialInsightSignal {
+  content: string;
+  confidence: number;
+  relatedEntityIds: string[];
+}
+
+export interface SocialRelationSignal {
+  entityName: string;
+  entityAliases: string[];
+  relation: string;
+  trend: 'improving' | 'stable' | 'declining';
+  quality: number;
+  note?: string | null;
+}
+
+export interface SocialContextSignal {
+  insights: SocialInsightSignal[];
+  relationSignals: SocialRelationSignal[];
+}
+
 export interface CognitiveTurnInput {
   userInput: string;
   recentMessages: Array<{ role: string; content: string }>;
@@ -135,6 +156,7 @@ export interface CognitiveTurnInput {
   growthContext?: PersistedGrowthContext;
   claimSignals?: ClaimSignal[];
   sessionState?: SessionStateSignal | null;
+  socialContext?: SocialContextSignal;
 }
 
 export interface CognitiveTurnState {

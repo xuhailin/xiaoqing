@@ -99,6 +99,21 @@ export class ResponseComposer {
       growthContext,
       claimSignals: claimCtx.claimSignals,
       sessionState: claimCtx.sessionState,
+      socialContext: {
+        insights: context.social.insights.map((item) => ({
+          content: item.content,
+          confidence: item.confidence,
+          relatedEntityIds: item.relatedEntityIds,
+        })),
+        relationSignals: context.social.relationSignals.map((item) => ({
+          entityName: item.entityName,
+          entityAliases: item.entityAliases,
+          relation: item.entityRelation,
+          trend: item.trend,
+          quality: item.quality,
+          note: item.notes,
+        })),
+      },
     });
     const boundaryPreflight = this.boundaryGovernance.buildPreflight(cognitiveState);
     const boundaryPrompt: BoundaryPromptContext = {
@@ -129,6 +144,11 @@ export class ResponseComposer {
       growthContext,
       claimPolicyText: claimCtx.claimPolicyText,
       sessionStateText: claimCtx.sessionStateText,
+      sharedExperiences: context.relationship.sharedExperiences,
+      rhythmObservations: context.relationship.rhythmObservations,
+      socialEntities: context.social.entities,
+      socialInsights: context.social.insights,
+      socialRelationSignals: context.social.relationSignals,
       boundaryPrompt,
       metaFilterPolicy: personaDto.metaFilterPolicy,
       handoffDevHint: actionDecision?.action === 'handoff_dev',
@@ -201,6 +221,21 @@ export class ResponseComposer {
       growthContext,
       claimSignals: claimCtx.claimSignals,
       sessionState: claimCtx.sessionState,
+      socialContext: {
+        insights: context.social.insights.map((item) => ({
+          content: item.content,
+          confidence: item.confidence,
+          relatedEntityIds: item.relatedEntityIds,
+        })),
+        relationSignals: context.social.relationSignals.map((item) => ({
+          entityName: item.entityName,
+          entityAliases: item.entityAliases,
+          relation: item.entityRelation,
+          trend: item.trend,
+          quality: item.quality,
+          note: item.notes,
+        })),
+      },
     });
 
     const wrapMessages = this.router.buildToolResultMessages({
@@ -283,6 +318,21 @@ export class ResponseComposer {
       growthContext,
       claimSignals: claimCtx.claimSignals,
       sessionState: claimCtx.sessionState,
+      socialContext: {
+        insights: input.context.social.insights.map((item) => ({
+          content: item.content,
+          confidence: item.confidence,
+          relatedEntityIds: item.relatedEntityIds,
+        })),
+        relationSignals: input.context.social.relationSignals.map((item) => ({
+          entityName: item.entityName,
+          entityAliases: item.entityAliases,
+          relation: item.entityRelation,
+          trend: item.trend,
+          quality: item.quality,
+          note: item.notes,
+        })),
+      },
     });
 
     const rawReplyContent = await this.llm.generate(messages, { scenario: 'chat' });

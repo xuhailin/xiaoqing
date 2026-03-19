@@ -14,7 +14,7 @@
   // ---------------------------------------------------------------------------
   // Color — Surface layers
   // ---------------------------------------------------------------------------
-  --color-bg: #edf2fa;
+  --color-bg: #eff3f9;
   --color-surface: #ffffff;
   --color-sidebar: #e9eff9;
 
@@ -29,8 +29,8 @@
   // ---------------------------------------------------------------------------
   // Color — Borders
   // ---------------------------------------------------------------------------
-  --color-border: #cfdaea;
-  --color-border-light: #e3eaf5;
+  --color-border: #d4deed;
+  --color-border-light: #e7edf6;
 
   // ---------------------------------------------------------------------------
   // Color — Semantic
@@ -50,10 +50,10 @@
   // ---------------------------------------------------------------------------
   // Color — Workbench surfaces
   // ---------------------------------------------------------------------------
-  --color-workbench-bg: #eef3fb;
+  --color-workbench-bg: #f1f4fa;
   --color-workbench-panel: rgba(255, 255, 255, 0.86);
   --color-workbench-panel-strong: rgba(255, 255, 255, 0.96);
-  --color-workbench-border: rgba(96, 122, 170, 0.18);
+  --color-workbench-border: rgba(96, 122, 170, 0.14);
   --color-workbench-muted: #5a6883;
   --color-workbench-accent: rgba(79, 109, 245, 0.08);
   --color-workbench-accent-strong: rgba(79, 109, 245, 0.22);
@@ -62,19 +62,23 @@
   --color-workbench-glow-soft: rgba(117, 143, 255, 0.08);
   --color-workbench-glow-faint: rgba(221, 231, 255, 0.34);
   --workbench-shell-background:
-    linear-gradient(180deg, #f5f8fe 0%, var(--color-workbench-bg) 100%);
+    radial-gradient(circle at top left, rgba(117, 143, 255, 0.12), transparent 28%),
+    radial-gradient(circle at top center, rgba(79, 109, 245, 0.05), transparent 36%),
+    linear-gradient(180deg, rgba(248, 250, 255, 0.98) 0%, var(--color-workbench-bg) 100%);
+  --workbench-header-background:
+    linear-gradient(180deg, rgba(246, 249, 255, 0.92), rgba(255, 255, 255, 0.78));
   --workbench-surface-gradient:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 249, 255, 0.97));
+    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(248, 250, 254, 0.95));
   --workbench-surface-gradient-soft:
-    linear-gradient(180deg, rgba(241, 246, 255, 0.92), rgba(252, 253, 255, 0.98));
+    linear-gradient(180deg, rgba(245, 248, 255, 0.88), rgba(252, 253, 255, 0.96));
   --workbench-chat-surface-gradient:
-    linear-gradient(180deg, rgba(252, 253, 255, 0.99), rgba(246, 249, 255, 0.98));
+    linear-gradient(180deg, rgba(252, 253, 255, 0.98), rgba(248, 250, 254, 0.96));
   --sidebar-surface-background:
-    linear-gradient(180deg, #edf2fb 0%, #e7eef8 46%, #f1f5fb 100%);
+    linear-gradient(180deg, rgba(240, 244, 251, 0.98) 0%, rgba(236, 241, 249, 0.98) 46%, rgba(243, 246, 251, 0.98) 100%);
   --sidebar-card-background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(247, 250, 255, 0.96));
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(249, 251, 255, 0.96));
   --sidebar-card-background-active:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(239, 244, 255, 0.98));
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(243, 247, 255, 0.98));
 
   // ---------------------------------------------------------------------------
   // Color — Context accents
@@ -93,6 +97,10 @@
   --color-user-label: var(--color-primary);
   --color-assistant-bubble: #f8fafc;
   --color-assistant-label: var(--color-text-secondary);
+  --color-xiaoqing-avatar-start: #7c93ff;
+  --color-xiaoqing-avatar-end: #4f6df5;
+  --color-xiaoqing-avatar-sun: #fff2bb;
+  --color-xiaoqing-avatar-line: rgba(230, 239, 255, 0.96);
 
   // ---------------------------------------------------------------------------
   // Typography

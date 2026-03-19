@@ -28,6 +28,10 @@ export interface ExecutorInfo extends CapabilityInfo {
 export interface FeatureFlags {
   claudeCode: boolean;
   planScheduler: boolean;
+  socialCareScheduler: boolean;
+  socialEntityClassifierScheduler: boolean;
+  socialInsightScheduler: boolean;
+  sharedExperienceFollowupScheduler: boolean;
   openclaw: boolean;
   [key: string]: boolean;
 }

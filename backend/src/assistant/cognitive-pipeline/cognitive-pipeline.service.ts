@@ -10,6 +10,7 @@ import type {
   ResponseStrategy,
   RhythmContext,
   SafetyFlags,
+  SocialRelationSignal,
   SituationKind,
   SituationRecognition,
   UserEmotion,
@@ -31,7 +32,7 @@ export class CognitivePipelineService {
     const emotionRule = this.buildEmotionContext(userState, input);
     const affinity = this.buildAffinityContext(userState, relationship);
     const rhythm = this.buildRhythmContext(input, responseStrategy, userState, situation);
-    const safety = this.buildSafetyFlags(input, userState);
+    const safety = this.buildSafetyFlags(input, userState, situation);
 
     const trace = [
       `situation=${situation.kind}`,
@@ -65,8 +66,10 @@ export class CognitivePipelineService {
   private recognizeSituation(input: CognitiveTurnInput): SituationRecognition {
     const text = input.userInput.trim();
     const intent = input.intentState;
+    const relationDistress = this.detectRelationshipDistress(input);
     let kind: SituationKind = 'casual_chat';
     let confidence = 0.6;
+    let summary = this.getSituationSummary('casual_chat');
 
     if (intent?.requiresTool) {
       kind = intent.mode === 'task' ? 'task_execution' : 'tool_request';
@@ -77,6 +80,10 @@ export class CognitivePipelineService {
     } else if (intent?.mode === 'decision') {
       kind = 'decision_support';
       confidence = 0.85;
+    } else if (relationDistress) {
+      kind = 'relationship_distress';
+      confidence = relationDistress.confidence;
+      summary = relationDistress.summary;
     } else if (/(怎么办|该不该|要不要|怎么选|帮我看)/.test(text)) {
       kind = 'advice_request';
       confidence = 0.75;
@@ -85,11 +92,15 @@ export class CognitivePipelineService {
       confidence = 0.8;
     }
 
+    if (!relationDistress || kind !== 'relationship_distress') {
+      summary = this.getSituationSummary(kind);
+    }
+
     return {
       kind,
       confidence,
       requiresAction: kind !== 'casual_chat',
-      summary: this.getSituationSummary(kind),
+      summary,
     };
   }
 
@@ -185,6 +196,11 @@ export class CognitivePipelineService {
       needMode = 'advice';
       cognitiveLoad = 'medium';
       signals.push('advice-request');
+    } else if (situation.kind === 'relationship_distress') {
+      needMode = 'understanding';
+      cognitiveLoad = 'medium';
+      fragility = fragility === 'low' ? 'medium' : fragility;
+      signals.push('relationship-distress');
     } else if (situation.kind === 'emotional_expression') {
       needMode = 'understanding';
       signals.push('needs-understanding');
@@ -421,6 +437,14 @@ export class CognitivePipelineService {
       };
     }
 
+    if (situation?.kind === 'relationship_distress') {
+      return {
+        pacing: pacing === 'expanded' ? 'balanced' : pacing,
+        shouldAskFollowup: userState.fragility === 'low',
+        initiative: userState.fragility === 'low' ? 'nudge' : 'hold',
+      };
+    }
+
     if (situation?.kind === 'casual_chat') {
       return {
         pacing,
@@ -439,15 +463,18 @@ export class CognitivePipelineService {
   private buildSafetyFlags(
     input: CognitiveTurnInput,
     userState: UserState,
+    situation: SituationRecognition,
   ): SafetyFlags {
     const notes: string[] = [];
     const capabilityBoundaryRisk = /你帮我做了吧|你已经发了|你替我决定/.test(input.userInput);
-    const relationalBoundaryRisk = userState.fragility === 'high';
+    const relationalBoundaryRisk =
+      userState.fragility === 'high' || situation.kind === 'relationship_distress';
     const truthBoundaryRisk = /一定|绝对|百分百/.test(input.userInput);
     const priorBoundaryNotes = input.growthContext?.boundaryNotes ?? [];
 
     if (capabilityBoundaryRisk) notes.push('verify-capability-before-claiming');
     if (relationalBoundaryRisk) notes.push('avoid-pressure-or-guilt');
+    if (situation.kind === 'relationship_distress') notes.push('avoid-taking-sides-too-fast');
     if (truthBoundaryRisk) notes.push('avoid-overstating-certainty');
     if (priorBoundaryNotes.length > 0) notes.push('respect-known-boundary-patterns');
 
@@ -466,7 +493,10 @@ export class CognitivePipelineService {
     const rationale: string[] = [];
     const shouldWriteCognitive =
       situation.kind === 'decision_support' || situation.kind === 'co_thinking';
-    const shouldWriteRelationship = userState.fragility === 'high' || userState.needMode === 'understanding';
+    const shouldWriteRelationship =
+      userState.fragility === 'high'
+      || userState.needMode === 'understanding'
+      || situation.kind === 'relationship_distress';
     const shouldWriteProfile = false;
 
     if (shouldWriteCognitive) rationale.push('repeated decisions and thinking patterns are growth candidates');
@@ -484,6 +514,8 @@ export class CognitivePipelineService {
     switch (kind) {
       case 'emotional_expression':
         return '用户主要在表达状态，需要先承接。';
+      case 'relationship_distress':
+        return '用户可能在谈一段关系里的卡点，需要先承接再慢慢梳理。';
       case 'co_thinking':
         return '用户希望一起梳理想法。';
       case 'decision_support':
@@ -502,6 +534,51 @@ export class CognitivePipelineService {
 
   private matchesAny(text: string, patterns: string[]): boolean {
     return patterns.some((pattern) => text.includes(pattern));
+  }
+
+  private detectRelationshipDistress(input: CognitiveTurnInput): {
+    confidence: number;
+    summary: string;
+  } | null {
+    const text = input.userInput.trim().toLowerCase();
+    if (!text) return null;
+
+    const matchedSignal = this.findMentionedRelationSignal(text, input.socialContext?.relationSignals ?? []);
+    const hasDirectDistressLanguage =
+      /(吵架|冷战|疏远|闹僵|失望|不理|矛盾|别扭|难相处|沟通不了|闹翻|关系不好|相处得很累)/.test(text);
+    const hasImplicitStrain =
+      /(最近|又|还是|一直|总是|不回我|没理我|不知道怎么面对|不知道怎么聊|有点尴尬)/.test(text);
+
+    if (!hasDirectDistressLanguage && !(matchedSignal && hasImplicitStrain)) {
+      return null;
+    }
+
+    if (matchedSignal) {
+      return {
+        confidence: hasDirectDistressLanguage ? 0.88 : 0.76,
+        summary: `用户可能在谈和${matchedSignal.entityName}的关系卡点，需要先承接，再视情况一起梳理。`,
+      };
+    }
+
+    return {
+      confidence: 0.78,
+      summary: '用户可能在谈一段让自己有压力的人际关系，需要先承接，再视情况一起梳理。',
+    };
+  }
+
+  private findMentionedRelationSignal(
+    text: string,
+    relationSignals: SocialRelationSignal[],
+  ): SocialRelationSignal | null {
+    for (const signal of relationSignals) {
+      const names = [signal.entityName, ...signal.entityAliases]
+        .map((item) => item.trim().toLowerCase())
+        .filter(Boolean);
+      if (names.some((name) => text.includes(name))) {
+        return signal;
+      }
+    }
+    return null;
   }
 
   private applyPolicySignals(

@@ -41,6 +41,18 @@ export const RESPONSE_STRATEGY_RULES: ResponseStrategyRule[] = [
   },
   {
     priority: 1,
+    label: 'relationship-distress',
+    conditions: { situationKind: 'relationship_distress', fragility: ['low', 'medium'] },
+    strategy: {
+      primaryMode: 'empathize',
+      secondaryMode: 'gentle_probe',
+      depth: 'medium',
+      initiative: 'balanced',
+      goal: 'build_understanding',
+    },
+  },
+  {
+    priority: 2,
     label: 'high-fragility-or-understanding',
     conditions: { fragility: 'high', needMode: 'understanding' },
     strategy: {
@@ -52,7 +64,7 @@ export const RESPONSE_STRATEGY_RULES: ResponseStrategyRule[] = [
     },
   },
   {
-    priority: 2,
+    priority: 3,
     label: 'decision-mode',
     conditions: { needMode: 'decision' },
     strategy: {
@@ -64,7 +76,7 @@ export const RESPONSE_STRATEGY_RULES: ResponseStrategyRule[] = [
     },
   },
   {
-    priority: 3,
+    priority: 4,
     label: 'co-thinking',
     conditions: { needMode: 'co_thinking', situationKind: 'co_thinking' },
     strategy: {
@@ -76,7 +88,7 @@ export const RESPONSE_STRATEGY_RULES: ResponseStrategyRule[] = [
     },
   },
   {
-    priority: 4,
+    priority: 5,
     label: 'advice-request',
     conditions: { needMode: 'advice' },
     strategy: {
@@ -88,7 +100,7 @@ export const RESPONSE_STRATEGY_RULES: ResponseStrategyRule[] = [
     },
   },
   {
-    priority: 5,
+    priority: 6,
     label: 'casual-chat',
     conditions: { situationKind: 'casual_chat', needMode: 'companionship' },
     strategy: {
