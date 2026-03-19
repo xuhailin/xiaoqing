@@ -66,6 +66,8 @@ export class IntentService {
       ? `\n\n【当前可用的本地能力】\n以下能力当前已配置并可用，taskIntent 应优先匹配这些值：\n${capabilityPrompt}\n- general_tool：其他工具型请求（未匹配到上述能力时使用）`
       : '';
 
+    const nowISO = new Date().toISOString();
+
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       {
         role: 'system',
@@ -73,7 +75,7 @@ export class IntentService {
       },
       {
         role: 'user',
-        content: `${worldStateText}\n\n最近对话：\n${contextText}\n\n本轮用户输入：\n${currentUserInput}`,
+        content: `当前时间：${nowISO}\n${worldStateText}\n\n最近对话：\n${contextText}\n\n本轮用户输入：\n${currentUserInput}`,
       },
     ];
 

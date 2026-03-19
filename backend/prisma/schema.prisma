@@ -660,3 +660,90 @@ model DevReminder {
   @@index([enabled, nextRunAt])
   @@index([scope])
 }
+
+// ─── Plan / Task 核心域 ────────────────────────────────────
+
+/// 计划状态
+enum PlanStatus {
+  active
+  paused
+  archived
+}
+
+/// 计划触发后的分发类型
+enum PlanDispatchType {
+  notify   // 仅通知（chat 消息推送）
+  dev_run  // 创建 DevRun 并入队执行
+  action   // 调用 CapabilityRegistry 执行能力
+  noop     // 仅标记完成，不做动作
+}
+
+/// 计划实例状态
+enum OccurrenceStatus {
+  pending
+  done
+  skipped
+  rescheduled
+}
+
+/// 计划：长期规则定义（一次性或周期性）
+model Plan {
+  id             String           @id @default(uuid())
+  title          String?
+  description    String?          @db.Text
+  scope          ReminderScope    @default(chat) // 复用已有 enum：chat | dev | system
+  dispatchType   PlanDispatchType @default(notify)
+
+  // ── 调度规则 ──
+  recurrence     String           @default("once") // once | daily | weekday | weekly | cron
+  cronExpr       String?          // 仅 recurrence=cron 时使用
+  runAt          DateTime?        // 仅 recurrence=once 时使用
+  timezone       String?          // cron 时区
+
+  // ── 生命周期 ──
+  status         PlanStatus       @default(active)
+  nextRunAt      DateTime?
+  lastTriggeredAt DateTime?
+  lastError      String?          @db.Text
+
+  // ── 分发上下文 ──
+  sessionId      String?          // dev scope 绑定 DevSession
+  conversationId String?          // chat/system scope 绑定 Conversation
+  actionPayload  Json?            // dispatchType=action 时的能力调用参数
+
+  // ── 来源追溯 ──
+  sourceReminderId String?        // 从 DevReminder 迁移而来时记录原 ID
+
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  occurrences    TaskOccurrence[]
+
+  @@index([status, nextRunAt])
+  @@index([scope])
+  @@index([sessionId])
+  @@index([conversationId])
+}
+
+/// 计划实例：Plan 每次触发产生的具体事件
+model TaskOccurrence {
+  id             String           @id @default(uuid())
+  planId         String
+  plan           Plan             @relation(fields: [planId], references: [id], onDelete: Cascade)
+  scheduledAt    DateTime         // 原定触发时间
+  status         OccurrenceStatus @default(pending)
+
+  // ── 例外处理 ──
+  rescheduledTo  DateTime?        // status=rescheduled 时的新时间
+  skipReason     String?          // status=skipped 时的原因
+
+  // ── 执行结果 ──
+  dispatchedAt   DateTime?        // 实际分发时间
+  resultRef      String?          // 关联的结果 ID（如 DevRun ID、Message ID）
+
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([planId, scheduledAt])
+  @@index([status])
+}

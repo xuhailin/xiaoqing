@@ -20,6 +20,7 @@ import { RegressionRunController } from './qa/regression-runner.controller';
 import { RegressionRunService } from './qa/regression-runner.service';
 import { AssetsController } from './assets.controller';
 import { AgentBusModule } from './agent-bus/agent-bus.module';
+import { PlanModule } from './plan/plan.module';
 
 @Global()
 @Module({
@@ -36,6 +37,7 @@ import { AgentBusModule } from './agent-bus/agent-bus.module';
     PetModule,
     ClaimEngineModule,
     AgentBusModule,
+    PlanModule,
     WechatWorkBotModule,
   ],
   controllers: [AppController, AssetsController, RegressionReportsController, RegressionRunController],

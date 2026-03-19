@@ -1,10 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ReminderScope } from '@prisma/client';
-import { CronJob } from 'cron';
 import type { ICapability } from '../../capability.interface';
 import type { CapabilityRequest, CapabilityResult } from '../../capability.types';
 import type { MessageChannel } from '../../../gateway/message-router.types';
 import { PrismaService } from '../../../infra/prisma.service';
+import { PlanService } from '../../../plan/plan.service';
 
 interface ReminderParams {
   reminderAction?: 'create' | 'list' | 'cancel';
@@ -29,7 +29,10 @@ export class ReminderSkillService implements ICapability {
   readonly requiresUserContext = true;
   readonly visibility = 'default' as const;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly planService: PlanService,
+  ) {}
 
   isAvailable(): boolean {
     return true;
@@ -78,73 +81,98 @@ export class ReminderSkillService implements ICapability {
       };
     }
 
-    const now = new Date();
-    const nextRunAt = schedule.runAt
-      ? new Date(schedule.runAt)
-      : this.computeNextCronRun(schedule.cronExpr!, now);
-
-    if (!nextRunAt || nextRunAt.getTime() <= now.getTime()) {
-      return {
-        success: false,
-        content: '提醒时间需要在未来哦，可以再确认一下时间吗？',
-        error: 'schedule in past',
-      };
-    }
-
-    const reminder = await this.prisma.devReminder.create({
-      data: {
-        conversationId,
-        scope: ReminderScope.chat,
-        title: reason,
-        message: reason,
-        cronExpr: schedule.cronExpr ?? null,
-        runAt: schedule.runAt ? new Date(schedule.runAt) : null,
-        timezone: 'Asia/Shanghai',
-        enabled: true,
-        nextRunAt,
-      },
-    });
-
-    const scheduleDesc = this.describeSchedule(params);
-    return {
-      success: true,
-      content: `提醒已设置：「${reason}」，${scheduleDesc}。`,
-      error: null,
-      meta: {
-        reminderAction: 'create',
-        reminderId: reminder.id,
-        reminderReason: reason,
-        scheduleText: scheduleDesc,
-        nextRunAt: reminder.nextRunAt?.toISOString() ?? null,
-      },
+    // 映射 reminderSchedule → Plan recurrence
+    const recurrenceMap: Record<string, string> = {
+      once: 'once',
+      daily: 'daily',
+      weekly: 'weekly',
     };
+    const recurrence = recurrenceMap[params.reminderSchedule ?? 'once'] ?? 'once';
+
+    try {
+      const plan = await this.planService.createPlan({
+        title: reason,
+        description: reason,
+        scope: ReminderScope.chat,
+        dispatchType: 'notify',
+        recurrence,
+        cronExpr: schedule.cronExpr,
+        runAt: schedule.runAt,
+        timezone: 'Asia/Shanghai',
+        conversationId,
+      });
+
+      const scheduleDesc = this.describeSchedule(params);
+      return {
+        success: true,
+        content: `提醒已设置：「${reason}」，${scheduleDesc}。`,
+        error: null,
+        meta: {
+          reminderAction: 'create',
+          reminderId: plan.id,
+          planId: plan.id,
+          reminderReason: reason,
+          scheduleText: scheduleDesc,
+          nextRunAt: plan.nextRunAt?.toISOString() ?? null,
+        },
+      };
+    } catch (err) {
+      this.logger.error(`Failed to create plan: ${String(err)}`);
+      return { success: false, content: '提醒设置失败，请稍后再试。', error: String(err) };
+    }
   }
 
   private async listReminders(): Promise<CapabilityResult> {
-    const reminders = await this.prisma.devReminder.findMany({
+    // 查询新 Plan 表中的 chat-scope 活跃计划
+    const plans = await this.planService.listPlans({ scope: ReminderScope.chat, status: 'active' as any });
+
+    // 同时查询旧 DevReminder 表（兼容未迁移数据）
+    const legacyReminders = await this.prisma.devReminder.findMany({
       where: { scope: ReminderScope.chat, enabled: true },
       orderBy: { nextRunAt: 'asc' },
     });
 
-    if (reminders.length === 0) {
+    const items: { id: string; title: string; scheduleType: string; nextRunAt: Date | null; source: 'plan' | 'legacy' }[] = [];
+
+    for (const p of plans) {
+      items.push({
+        id: p.id,
+        title: p.title ?? p.description ?? '',
+        scheduleType: p.recurrence === 'once' ? '一次性' : '周期',
+        nextRunAt: p.nextRunAt,
+        source: 'plan',
+      });
+    }
+    for (const r of legacyReminders) {
+      items.push({
+        id: r.id,
+        title: r.title ?? r.message,
+        scheduleType: r.cronExpr ? '周期' : '一次性',
+        nextRunAt: r.nextRunAt,
+        source: 'legacy',
+      });
+    }
+
+    if (items.length === 0) {
       return { success: true, content: '目前没有任何提醒。', error: null };
     }
 
-    const lines = reminders.map((r, i) => {
-      const next = r.nextRunAt
-        ? r.nextRunAt.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
+    items.sort((a, b) => (a.nextRunAt?.getTime() ?? Infinity) - (b.nextRunAt?.getTime() ?? Infinity));
+
+    const lines = items.map((item, i) => {
+      const next = item.nextRunAt
+        ? item.nextRunAt.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
         : '未定';
-      const scheduleType = r.cronExpr ? '周期' : '一次性';
-      return `${i + 1}. 「${r.title ?? r.message}」— ${scheduleType}，下次：${next}`;
+      return `${i + 1}. 「${item.title}」— ${item.scheduleType}，下次：${next}`;
     });
 
     return {
       success: true,
-      content: `当前有 ${reminders.length} 个提醒：\n${lines.join('\n')}`,
+      content: `当前有 ${items.length} 个提醒：\n${lines.join('\n')}`,
       error: null,
       meta: {
         reminderAction: 'list',
-        count: reminders.length,
+        count: items.length,
       },
     };
   }
@@ -159,18 +187,32 @@ export class ReminderSkillService implements ICapability {
       };
     }
 
-    // 按关键词模糊匹配
-    const chatReminders = await this.prisma.devReminder.findMany({
+    // 搜索新 Plan 表
+    const plans = await this.planService.listPlans({ scope: ReminderScope.chat, status: 'active' as any });
+    const matchedPlans = plans.filter(
+      (p) =>
+        p.id === target ||
+        (p.title && p.title.includes(target)) ||
+        (p.description && p.description.includes(target)),
+    );
+
+    // 搜索旧 DevReminder 表（兼容）
+    const legacyReminders = await this.prisma.devReminder.findMany({
       where: { scope: ReminderScope.chat, enabled: true },
     });
-    const matched = chatReminders.filter(
+    const matchedLegacy = legacyReminders.filter(
       (r) =>
         r.id === target ||
         (r.title && r.title.includes(target)) ||
         r.message.includes(target),
     );
 
-    if (matched.length === 0) {
+    const allMatched: { id: string; title: string; source: 'plan' | 'legacy' }[] = [
+      ...matchedPlans.map((p) => ({ id: p.id, title: p.title ?? p.description ?? '', source: 'plan' as const })),
+      ...matchedLegacy.map((r) => ({ id: r.id, title: r.title ?? r.message, source: 'legacy' as const })),
+    ];
+
+    if (allMatched.length === 0) {
       return {
         success: false,
         content: `没有找到和「${target}」相关的提醒。`,
@@ -178,26 +220,31 @@ export class ReminderSkillService implements ICapability {
       };
     }
 
-    if (matched.length === 1) {
-      await this.prisma.devReminder.delete({ where: { id: matched[0].id } });
+    if (allMatched.length === 1) {
+      const item = allMatched[0];
+      if (item.source === 'plan') {
+        await this.planService.lifecycle(item.id, 'archive');
+      } else {
+        await this.prisma.devReminder.delete({ where: { id: item.id } });
+      }
       return {
         success: true,
-        content: `已取消提醒「${matched[0].title ?? matched[0].message}」。`,
+        content: `已取消提醒「${item.title}」。`,
         error: null,
         meta: {
           reminderAction: 'cancel',
-          reminderId: matched[0].id,
-          reminderReason: matched[0].title ?? matched[0].message,
+          reminderId: item.id,
+          reminderReason: item.title,
         },
       };
     }
 
-    const lines = matched.map((r, i) => `${i + 1}. 「${r.title ?? r.message}」`);
+    const lines = allMatched.map((item, i) => `${i + 1}. 「${item.title}」`);
     return {
       success: true,
-      content: `找到 ${matched.length} 个相关提醒，你想取消哪个？\n${lines.join('\n')}`,
+      content: `找到 ${allMatched.length} 个相关提醒，你想取消哪个？\n${lines.join('\n')}`,
       error: null,
-      meta: { candidates: matched.map((r) => r.id) },
+      meta: { candidates: allMatched.map((item) => item.id) },
     };
   }
 
@@ -218,11 +265,15 @@ export class ReminderSkillService implements ICapability {
       return { cronExpr: `${time.minute} ${time.hour} * * ${dow}` };
     }
 
-    // once: 解析为具体时间点
+    // once: 优先尝试 ISO 8601 / 绝对时间（LLM 应直接输出此格式）
     const runAt = this.parseRunAt(timeStr);
     if (runAt) return { runAt: runAt.toISOString() };
 
-    // 如果只给了 HH:MM 没给日期，默认今天/明天
+    // 降级：相对时间正则（"2分钟后"、"半小时后"，兼容 LLM 未转换的情况）
+    const relative = this.parseRelativeTime(timeStr);
+    if (relative) return { runAt: relative.toISOString() };
+
+    // 降级：纯 HH:MM，默认今天/明天
     const time = this.parseTimeHHMM(timeStr);
     if (time) {
       const now = new Date();
@@ -235,18 +286,6 @@ export class ReminderSkillService implements ICapability {
     }
 
     return {};
-  }
-
-  private computeNextCronRun(cronExpr: string, now: Date): Date | null {
-    try {
-      const job = new CronJob(cronExpr, () => undefined, null, false, 'Asia/Shanghai');
-      const next = job.nextDate();
-      return typeof (next as any).toJSDate === 'function'
-        ? (next as any).toJSDate()
-        : new Date(String(next));
-    } catch {
-      return null;
-    }
   }
 
   private parseTimeHHMM(str?: string): { hour: number; minute: number } | null {
@@ -283,6 +322,37 @@ export class ReminderSkillService implements ICapability {
     return null;
   }
 
+  private parseRelativeTime(str?: string): Date | null {
+    if (!str) return null;
+
+    // "半小时后" / "半小时"
+    if (/半\s*小时/.test(str)) {
+      return new Date(Date.now() + 30 * 60_000);
+    }
+
+    // "N小时M分钟后" / "一个半小时后"（放在单独匹配之前，避免被部分匹配截断）
+    const hourMinMatch = str.match(/(\d+)\s*个?小时\s*(?:(\d+)\s*分钟?|半)/);
+    if (hourMinMatch) {
+      const hours = Number(hourMinMatch[1]);
+      const mins = hourMinMatch[2] ? Number(hourMinMatch[2]) : 30;
+      return new Date(Date.now() + (hours * 60 + mins) * 60_000);
+    }
+
+    // "N分钟后" / "N分后" / "从现在起 N分钟" / "N分钟"
+    const minMatch = str.match(/(\d+)\s*分钟?/);
+    if (minMatch) {
+      return new Date(Date.now() + Number(minMatch[1]) * 60_000);
+    }
+
+    // "N小时后" / "N个小时后" / "N小时"
+    const hourMatch = str.match(/(\d+)\s*个?小时/);
+    if (hourMatch) {
+      return new Date(Date.now() + Number(hourMatch[1]) * 3600_000);
+    }
+
+    return null;
+  }
+
   private parseRunAt(str?: string): Date | null {
     if (!str) return null;
     const now = new Date();
@@ -295,6 +365,19 @@ export class ReminderSkillService implements ICapability {
       const target = new Date();
       target.setDate(target.getDate() + (isDayAfter ? 2 : 1));
       target.setHours(time.hour, time.minute, 0, 0);
+      return target;
+    }
+
+    // 中文日期: "3月20日14点" / "3月20号下午2点半"
+    const cnDateMatch = str.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*[日号]/);
+    if (cnDateMatch && time) {
+      const target = new Date();
+      target.setMonth(Number(cnDateMatch[1]) - 1, Number(cnDateMatch[2]));
+      target.setHours(time.hour, time.minute, 0, 0);
+      // 如果已过，推到明年
+      if (target.getTime() <= now.getTime()) {
+        target.setFullYear(target.getFullYear() + 1);
+      }
       return target;
     }
 

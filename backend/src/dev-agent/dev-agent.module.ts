@@ -34,9 +34,12 @@ import { DevReminderSchedulerService } from './dev-reminder.scheduler.service';
 import { ReminderMessageService } from '../action/skills/reminder/reminder-message.service';
 import { SystemSelfModule } from '../system-self/system-self.module';
 import { StrategyReasoner } from '../reasoning/strategy-reasoner.service';
+import { PlanModule } from '../plan/plan.module';
+import { NotifyDispatchStrategy } from '../plan/strategies/notify-dispatch.strategy';
+import { DevRunDispatchStrategy } from '../plan/strategies/dev-run-dispatch.strategy';
 
 @Module({
-  imports: [OpenClawModule, ActionModule, ReflectionModule, LlmModule, QueueModule, SystemSelfModule],
+  imports: [OpenClawModule, ActionModule, ReflectionModule, LlmModule, QueueModule, SystemSelfModule, PlanModule],
   controllers: [DevAgentController],
   providers: [
     DevAgentService,
@@ -78,6 +81,9 @@ export class DevAgentModule implements OnModuleInit {
     private readonly agentExecutorResolver: DevAgentExecutorResolver,
     private readonly devReminder: DevReminderService,
     private readonly reminderMessage: ReminderMessageService,
+    private readonly notifyStrategy: NotifyDispatchStrategy,
+    private readonly devRunStrategy: DevRunDispatchStrategy,
+    private readonly runner: DevRunRunnerService,
   ) {}
 
   onModuleInit() {
@@ -91,5 +97,9 @@ export class DevAgentModule implements OnModuleInit {
 
     // 延迟注入：将 ReminderMessageService 注入到 DevReminderService，用于 chat-scope 提醒推送
     this.devReminder.setReminderMessageService(this.reminderMessage);
+
+    // 延迟注入：将依赖注入到 Plan 分发策略
+    this.notifyStrategy.setReminderMessageService(this.reminderMessage);
+    this.devRunStrategy.setRunner(this.runner);
   }
 }

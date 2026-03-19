@@ -62,6 +62,13 @@
    - 拆分为易于 review 的小变更：类型声明 → 业务逻辑 → UI。
    - 任何「可能破坏执行安全性或隔离性」的改动（Shell 执行、Workspace 管理、权限控制）要特别谨慎，优先沿用现有模式。
 
+5. **Feature Flag 与 .env.example 同步**
+   - 在 `backend/src/config/feature-flags.ts` 中新增或修改 feature flag 时，**必须同步更新** `backend/.env.example`，包含：
+     - 变量名与默认值
+     - 一行简要说明用途
+     - 若有灰度/切换步骤，在注释中写明
+   - 不允许存在"代码中有 flag 但 .env.example 中没有"的情况。
+
 ---
 
 ### 4. DevAgent 相关约定（`backend/src/dev-agent/**`）

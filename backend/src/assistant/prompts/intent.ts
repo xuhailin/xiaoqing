@@ -99,14 +99,19 @@ export const INTENT_SYSTEM_PROMPT = `
     - "once"：一次性提醒（默认，用户说「明天提醒我」「提醒我下午3点开会」等）
     - "daily"：每天（用户说「每天提醒我」「每天晚上」等）
     - "weekly"：每周（用户说「每周一提醒我」等）
-  · reminderTime：时间描述（如 "18:00"、"明天 9:00"、"每周一 10:00"）。用户说「晚上6点」→ "18:00"，「明天早上9点」→ "明天 09:00"。若用户未指定具体时间可留空
+  · reminderTime：**必须输出可被后端直接使用的结构化时间**，格式要求如下：
+    - 一次性提醒（once）：输出完整 ISO 8601 格式，如 "2026-03-19T15:00:00+08:00"。用户说「晚上6点」→ 基于当前时间计算今天或明天18:00 的 ISO 时间；用户说「10分钟后」→ 基于当前时间加10分钟后的 ISO 时间；用户说「明天早上9点」→ 明天09:00 的 ISO 时间
+    - 周期提醒（daily/weekly）：只需输出 HH:MM 格式，如 "18:00"、"09:30"。用户说「每天晚上6点」→ "18:00"；用户说「每周一上午10点」→ "周一 10:00"
+    - 若用户未指定具体时间可留空
   · reminderTarget：取消时用于匹配的关键词或提醒 ID（如「吃饭」「那个喝水的」）
   · 确认式请求示例：
     - 上轮 assistant 说「要不要我每天晚上提醒你吃晚饭？」，用户说「好」→ taskIntent="set_reminder"、reminderAction="create"、reminderReason="吃晚饭"、reminderSchedule="daily"、reminderTime="18:00"（从上文推断）
     - 上轮 assistant 说「要不要我帮你记一下」，用户说「好，每天早上8点」→ taskIntent="set_reminder"、reminderAction="create"、reminderReason=从上文推断、reminderSchedule="daily"、reminderTime="08:00"
-  · 其他示例：
+  · 其他示例（假设当前时间为 2026-03-19T14:22:00+08:00）：
     - 「每天晚上6点提醒我吃饭」→ reminderAction="create"、reminderReason="吃饭"、reminderSchedule="daily"、reminderTime="18:00"
-    - 「明天下午3点提醒我开会」→ reminderAction="create"、reminderReason="开会"、reminderSchedule="once"、reminderTime="明天 15:00"
+    - 「明天下午3点提醒我开会」→ reminderAction="create"、reminderReason="开会"、reminderSchedule="once"、reminderTime="2026-03-20T15:00:00+08:00"
+    - 「10分钟后提醒我喝水」→ reminderAction="create"、reminderReason="喝水"、reminderSchedule="once"、reminderTime="2026-03-19T14:32:00+08:00"
+    - 「半小时后提醒我站起来走走」→ reminderAction="create"、reminderReason="站起来走走"、reminderSchedule="once"、reminderTime="2026-03-19T14:52:00+08:00"
     - 「取消吃饭那个提醒」→ reminderAction="cancel"、reminderTarget="吃饭"
     - 「我有哪些提醒」→ reminderAction="list"
 - 示例：用户说「今天上海浦东新区的天气」→ city="上海"、district="浦东新区"、dateLabel="今天」。用户说「116.41,39.92 那儿现在天气」→ location="116.41,39.92"。用户说「下载群魔」→ taskIntent="book_download"、slots.bookName="群魔"。上轮 assistant 列出了群魔的多条候选，用户说「1」→ taskIntent="book_download"、slots.bookName="群魔"、slots.bookChoiceIndex=1。
