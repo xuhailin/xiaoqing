@@ -47,14 +47,14 @@ export class DevAgentSessionComponent {
     this.store.send(task, {
       forceNewSession: this.store.draftSessionActive(),
       onSuccess: (result) => {
-        this.router.navigate(['/dev-agent/sessions', result.session.id]);
+        this.router.navigate(['/workspace/dev-agent/sessions', result.session.id]);
       },
     });
     this.taskInput = '';
   }
 
   goToOverview() {
-    this.router.navigate(['/dev-agent']);
+    this.router.navigate(['/workspace/dev-agent']);
   }
 
   isCurrentRunCancellable(): boolean {

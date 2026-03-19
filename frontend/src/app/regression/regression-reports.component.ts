@@ -980,7 +980,7 @@ export class RegressionReportsComponent implements OnDestroy {
         this.devAgent.sendDevMessage(conversation.id, task, { workspaceRoot, devRunMode: 'agent' }),
       );
 
-      await this.router.navigate(['/dev-agent'], {
+      await this.router.navigate(['/workspace/dev-agent'], {
         queryParams: {
           sessionId: response.session.id,
           runId: response.run.id,

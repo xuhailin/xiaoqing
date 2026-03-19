@@ -1,7 +1,9 @@
 # Plan / Task / Scheduler 核心域架构改造方案
 
-> 状态：设计阶段，待确认后按 Phase 实施
+> 状态：已落地（DevReminder → Plan 迁移完成）
 > 日期：2026-03-19
+
+> 说明：本文保留了当时的“改造前”分析与拆分计划，供追溯；当前实现以 `Plan` + `PlanSchedulerService` 为准。
 
 ---
 
@@ -37,6 +39,7 @@
    - `DevReminderService` 和 `DevReminderSchedulerService` 都在 `dev-agent/` 下
    - 但它们实际服务 chat/system/dev 三个 scope —— 已经是事实上的系统级能力
    - 命名、分层、模块归属都不对
+   - （现状）已迁移到 Plan 核心域：`PlanService` + `PlanSchedulerService`
 
 3. **Plan 概念割裂**
    - `TaskPlannerService`（聊天端）几乎是死代码
@@ -291,7 +294,7 @@ Agent 层（意图理解 + 命令路由）
 - 分发策略复用现有实现：
   - notify → `ReminderMessageService`（保留不动）
   - dev_run → `DevRunRunnerService`（保留不动）
-- `DevReminderSchedulerService` 标记为 deprecated，但暂不删除
+- `DevReminderSchedulerService` / `DevReminderService` 已删除（迁移完成后清理）
 - 通过 feature flag 控制新旧调度器切换
 
 **产出**：新的调度引擎可以独立运行，与旧系统并行。
@@ -305,7 +308,7 @@ Agent 层（意图理解 + 命令路由）
 - DevAgent Controller 的 reminder API 迁移到 Plan API（`/plans`, `/plans/:id/occurrences`）
 - 编写 DevReminder → Plan 的数据迁移脚本
 - 新增 `modify_plan` 意图 + `PlanManagerSkill`（处理 skip / pause / resume）
-- 删除 `DevReminderService`、`DevReminderSchedulerService`
+- 删除 `DevReminderService`、`DevReminderSchedulerService`（已完成）
 - 删除或归档 `TaskPlannerService`（聊天端死代码）
 
 **产出**：完全切换到新架构，旧模块清理完毕。

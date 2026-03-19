@@ -81,7 +81,6 @@ export class RegressionRunService {
       cwd: this.backendRoot,
       env: {
         ...process.env,
-        FEATURE_DEV_REMINDER: 'false',
         DEV_RUN_DISABLE_RECOVERY: 'true',
         FORCE_COLOR: '0',
       },

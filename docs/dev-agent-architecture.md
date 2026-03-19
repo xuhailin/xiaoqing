@@ -2,7 +2,7 @@
 
 > 创建：2026-03-11  
 > 更新：2026-03-12  
-> 状态：已上线（异步队列执行 + 提醒调度 + Claude Code 执行器）
+> 状态：已上线（异步队列执行 + Plan 调度 + Claude Code 执行器）
 
 本文件是 DevAgent 的唯一设计与实现说明，替代原 `docs/dev-agent-plan.md`。
 
@@ -45,7 +45,7 @@ flowchart TD
 
   G --> I[DevSessionRepository]
   G --> J[DevRunRunnerService]
-  G --> K[DevReminderService]
+  G --> K[PlanDispatcher/PlanService（dev_run 分发）]
 
   J --> L[KeyedFifoQueueService]
   J --> M[DevAgentOrchestrator]
@@ -75,7 +75,6 @@ flowchart TD
   W --> Z[WorkspaceManager]
   Y --> Z
 
-  K --> K1[DevReminderSchedulerService]
   K --> I
 ```
 
@@ -104,8 +103,6 @@ backend/src/
 │   ├── dev-session.repository.ts
 │   ├── dev-task-context.ts           # 任务上下文类型（DevTaskContext/createTaskContext）
 │   ├── dev-runner.service.ts         # 后台队列 + 恢复策略
-│   ├── dev-reminder.service.ts
-│   ├── dev-reminder.scheduler.service.ts
 │   ├── planning/
 │   │   ├── dev-task-planner.ts
 │   │   ├── dev-planner-prompt.factory.ts
@@ -238,17 +235,12 @@ backend/src/
 - `DevFinalReportGenerator`: 生成面向用户的最终回复
 - `DevTranscriptWriter`: `transcript.jsonl` 事件写入
 
-### 5.8 提醒基础设施
+### 5.8 计划调度（替代提醒基础设施）
 
-- `DevReminderService`
-  - 支持 one-shot（`runAt`）与 recurring（`cronExpr`）
-  - scope：`dev | system | chat`
-  - `dev` scope 到期后会创建 `DevRun(queued)` 并入队执行
-  - `system/chat` scope 只更新触发状态，不创建 DevRun
-- `DevReminderSchedulerService`
-  - `@Cron('*/15 * * * * *')` 轮询到期提醒
-  - 启动时执行一次补偿扫描
-  - 受 `FEATURE_DEV_REMINDER` 开关控制
+- `PlanSchedulerService`（`backend/src/plan/plan-scheduler.service.ts`）
+  - `@Cron('*/15 * * * * *')` 轮询到期计划（`Plan.nextRunAt <= now`）
+  - 创建 `TaskOccurrence`，并通过 `PlanDispatcher` 分发（notify/dev_run/action/noop）
+  - 受 `FEATURE_PLAN_SCHEDULER` 开关控制
 
 ## 6. 主流程时序
 

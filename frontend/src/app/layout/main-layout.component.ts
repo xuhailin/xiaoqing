@@ -1,77 +1,104 @@
-import { Component, signal } from '@angular/core';
+import { Component } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
-import { MemoryListComponent } from '../memory/memory-list.component';
 import { PersonaSummaryComponent } from '../persona/persona-summary.component';
-import { PersonaConfigComponent } from '../persona/persona-config.component';
 import { ConversationListComponent } from '../conversation/conversation-list.component';
-import { IdentityAnchorEditorComponent } from '../identity-anchor/identity-anchor-editor.component';
-import { DebugDashboardComponent } from '../debug/debug-dashboard.component';
 import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.component';
+import { AppButtonComponent } from '../shared/ui/app-button.component';
+import { AppBadgeComponent } from '../shared/ui/app-badge.component';
+import { ChatQuickActionsComponent } from '../chat/chat-quick-actions.component';
 
 @Component({
   selector: 'app-main-layout',
   standalone: true,
   imports: [
     RouterOutlet,
-    MemoryListComponent,
     PersonaSummaryComponent,
-    PersonaConfigComponent,
     ConversationListComponent,
-    IdentityAnchorEditorComponent,
-    DebugDashboardComponent,
     AppTabsComponent,
+    AppButtonComponent,
+    AppBadgeComponent,
+    ChatQuickActionsComponent,
   ],
   template: `
-    <div class="layout">
-      <aside class="drawer">
-        <app-persona-summary />
-        <app-tabs
-          class="tab-bar"
-          [items]="drawerTabs"
-          [value]="tab()"
-          [fullWidth]="true"
-          [size]="'sm'"
-          (valueChange)="tab.set($any($event))"
-        />
-        <div class="tab-content">
-          @if (tab() === 'conversations') {
-            <app-conversation-list />
-          } @else if (tab() === 'memory') {
-            <app-memory-list />
-          } @else if (tab() === 'persona') {
-            <app-persona-config />
-          } @else if (tab() === 'identity') {
-            <app-identity-anchor-editor />
-          } @else if (tab() === 'debug') {
-            <app-debug-dashboard />
+    <div class="layout" [class.layout--no-drawer]="currentPrimary() === 'settings'">
+      @if (currentPrimary() !== 'settings') {
+        <aside class="drawer">
+          @if (currentPrimary() === 'chat') {
+            <div class="drawer-content drawer-content--chat">
+              <app-chat-quick-actions />
+              <div class="drawer-scroll">
+                <app-conversation-list />
+              </div>
+            </div>
+          } @else if (currentPrimary() === 'workspace') {
+            <div class="drawer-content">
+              <div class="drawer-copy">
+                <span class="drawer-eyebrow">Workspace</span>
+                <div class="drawer-title">执行入口</div>
+                <div class="drawer-description">把 Dev、Reminder、Plan 和回归入口收拢到一个工作台里。</div>
+              </div>
+
+              <div class="drawer-nav">
+                @for (item of workspaceItems; track item.value) {
+                  <button
+                    type="button"
+                    class="drawer-nav__item ui-list-card"
+                    [class.is-active]="currentWorkspaceSection() === item.value"
+                    [disabled]="item.disabled"
+                    (click)="openWorkspaceSection(item.value)"
+                  >
+                    <span>{{ item.label }}</span>
+                    @if (item.disabled) {
+                      <app-badge tone="warning" appearance="outline">Later</app-badge>
+                    }
+                  </button>
+                }
+              </div>
+            </div>
+          } @else if (currentPrimary() === 'memory') {
+            <div class="drawer-content">
+              <app-persona-summary />
+
+              <div class="drawer-copy drawer-copy--memory">
+                <span class="drawer-eyebrow">Memory</span>
+                <div class="drawer-title">记忆入口</div>
+                <div class="drawer-description">用户画像、persona、long memory 与 life record 都在这里分层展示。</div>
+              </div>
+
+              <div class="drawer-nav">
+                @for (item of memoryItems; track item.value) {
+                  <button
+                    type="button"
+                    class="drawer-nav__item ui-list-card"
+                    [class.is-active]="currentMemorySection() === item.value"
+                    (click)="openMemorySection(item.value)"
+                  >
+                    <span>{{ item.label }}</span>
+                  </button>
+                }
+              </div>
+            </div>
           }
-        </div>
-      </aside>
+        </aside>
+      }
+
       <main class="content">
         <div class="workbench-shell">
           <header class="workbench-header">
             <app-tabs
               class="workbench-tabs"
-              [items]="workbenchTabs"
-              [value]="currentWorkbench()"
-              (valueChange)="selectWorkbench($event)"
+              [items]="mainTabs"
+              [value]="currentPrimary() === 'settings' ? '' : currentPrimary()"
+              (valueChange)="selectPrimary($event)"
             />
 
             <div class="workbench-meta">
-              <span class="workbench-eyebrow">Main Area</span>
-              <div class="workbench-copy">
-                @if (currentWorkbench() === 'chat') {
-                  当前对话与调试信息
-                } @else if (currentWorkbench() === 'life-trace') {
-                  用户生活轨迹、日览与周览摘要
-                } @else if (currentWorkbench() === 'cognitive-trace') {
-                  小晴认知轨迹、记忆决策与演进摘要
-                } @else if (currentWorkbench() === 'dev-agent') {
-                  DevAgent 总览与 session 对话
-                } @else {
-                  固定回归与真实回放报告
-                }
-              </div>
+              <span class="workbench-eyebrow">{{ currentPrimaryLabel() }}</span>
+              <div class="workbench-copy">{{ currentPrimaryCopy() }}</div>
+            </div>
+
+            <div class="workbench-actions">
+              <app-button variant="ghost" size="sm" (click)="openSettings()">设置</app-button>
             </div>
           </header>
 
@@ -90,6 +117,10 @@ import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.compone
       overflow: hidden;
     }
 
+    .layout--no-drawer .content {
+      width: 100%;
+    }
+
     .drawer {
       width: var(--sidebar-width);
       min-width: var(--sidebar-width);
@@ -101,25 +132,89 @@ import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.compone
       box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.45);
     }
 
-    .tab-bar {
-      margin: 0 var(--space-3) var(--space-1);
-      flex-shrink: 0;
+    .drawer-content {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      height: 100%;
+      padding: 0 var(--space-3) var(--space-3);
     }
 
-    .tab-content {
+    .drawer-content--chat {
+      padding-bottom: 0;
+    }
+
+    .drawer-scroll {
       flex: 1;
       overflow-y: auto;
-      padding: 0 var(--space-3) var(--space-2);
       display: flex;
       flex-direction: column;
       min-height: 0;
     }
 
-    .tab-content::-webkit-scrollbar { width: 4px; }
-    .tab-content::-webkit-scrollbar-track { background: transparent; }
-    .tab-content::-webkit-scrollbar-thumb {
+    .drawer-scroll::-webkit-scrollbar { width: 4px; }
+    .drawer-scroll::-webkit-scrollbar-track { background: transparent; }
+    .drawer-scroll::-webkit-scrollbar-thumb {
       background: var(--color-border);
       border-radius: var(--radius-pill);
+    }
+
+    .drawer-copy {
+      padding: var(--space-3) 0;
+      border-bottom: 1px solid var(--color-border-light);
+      margin-bottom: var(--space-3);
+    }
+
+    .drawer-copy--memory {
+      padding-top: var(--space-2);
+    }
+
+    .drawer-eyebrow {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--color-text-muted);
+    }
+
+    .drawer-title {
+      font-size: var(--font-size-md);
+      font-weight: var(--font-weight-semibold);
+      color: var(--color-text);
+    }
+
+    .drawer-description {
+      margin-top: var(--space-2);
+      font-size: var(--font-size-xs);
+      line-height: 1.6;
+      color: var(--color-text-secondary);
+    }
+
+    .drawer-nav {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      min-height: 0;
+      overflow: auto;
+      padding-bottom: var(--space-3);
+    }
+
+    .drawer-nav__item {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      padding: 0.75rem 0.875rem;
+      text-align: left;
+      color: var(--color-text);
+      cursor: pointer;
+    }
+
+    .drawer-nav__item.is-active {
+      border-color: rgba(79, 109, 245, 0.28);
+      box-shadow: inset 0 0 0 1px rgba(79, 109, 245, 0.18);
     }
 
     .content {
@@ -139,7 +234,7 @@ import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.compone
     .workbench-header {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-start;
       gap: var(--space-3);
       padding: var(--workbench-header-padding);
       border-bottom: 1px solid rgba(79, 109, 245, 0.08);
@@ -150,12 +245,13 @@ import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.compone
 
     .workbench-tabs {
       flex-wrap: wrap;
+      flex: 0 0 auto;
     }
 
     .workbench-meta {
-      text-align: right;
       color: var(--color-text-secondary);
-      flex-shrink: 0;
+      min-width: 0;
+      flex: 1;
     }
 
     .workbench-eyebrow {
@@ -172,6 +268,10 @@ import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.compone
       line-height: 1.45;
     }
 
+    .workbench-actions {
+      flex-shrink: 0;
+    }
+
     .workbench-stage {
       flex: 1;
       min-height: 0;
@@ -179,91 +279,124 @@ import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.compone
     }
 
     @media (max-width: 980px) {
+      .layout {
+        flex-direction: column;
+      }
+
+      .drawer {
+        width: 100%;
+        min-width: 0;
+        max-height: 34vh;
+        border-right: none;
+        border-bottom: 1px solid var(--color-border);
+      }
+
       .workbench-header {
         flex-direction: column;
         align-items: flex-start;
         padding: var(--workbench-header-padding-mobile);
       }
 
-      .workbench-meta {
-        text-align: left;
+      .workbench-actions {
+        width: 100%;
       }
     }
   `],
 })
 export class MainLayoutComponent {
-  tab = signal<'conversations' | 'memory' | 'persona' | 'identity' | 'debug'>('conversations');
-  protected readonly drawerTabs: AppTabItem[] = [
-    { value: 'conversations', label: '对话' },
-    { value: 'memory', label: '记忆' },
-    { value: 'persona', label: '人格' },
-    { value: 'identity', label: '用户' },
-    { value: 'debug', label: '调试' },
-  ];
-  protected readonly workbenchTabs: AppTabItem[] = [
+  protected readonly mainTabs: AppTabItem[] = [
     { value: 'chat', label: '对话' },
-    { value: 'dev-agent', label: 'DevAgent' },
-    { value: 'regression', label: '回归' },
-    { value: 'life-trace', label: '生活', icon: 'footprints', iconPosition: 'end' },
-    { value: 'cognitive-trace', label: '认知', icon: 'sparkles', iconPosition: 'end' },
+    { value: 'workspace', label: '工作台' },
+    { value: 'memory', label: '记忆' },
   ];
+  protected readonly workspaceItems = [
+    { value: 'dev-agent', label: 'DevAgent', disabled: false },
+    { value: 'reminder', label: 'Reminder', disabled: false },
+    { value: 'plan', label: 'Todo / Plan', disabled: false },
+    { value: 'regression', label: '回归测试', disabled: false },
+    { value: 'task-records', label: '任务记录', disabled: true },
+  ] as const;
+  protected readonly memoryItems = [
+    { value: 'profile', label: '用户画像' },
+    { value: 'persona', label: 'Persona / System Self' },
+    { value: 'memories', label: 'Long Memory' },
+    { value: 'life-record', label: 'Life Record' },
+    { value: 'cognitive-trace', label: 'Cognitive Trace' },
+  ] as const;
 
-  constructor(private router: Router) {}
+  constructor(private readonly router: Router) {}
 
-  currentWorkbench(): 'chat' | 'life-trace' | 'cognitive-trace' | 'dev-agent' | 'regression' {
+  currentPrimary(): 'chat' | 'workspace' | 'memory' | 'settings' {
     const url = this.router.url;
-    if (url.startsWith('/life-trace')) {
-      return 'life-trace';
-    }
-    if (url.startsWith('/cognitive-trace')) {
-      return 'cognitive-trace';
-    }
-    if (url.startsWith('/dev-agent')) {
-      return 'dev-agent';
-    }
-    if (url.startsWith('/regression')) {
-      return 'regression';
-    }
+    if (url.startsWith('/workspace')) return 'workspace';
+    if (url.startsWith('/memory')) return 'memory';
+    if (url.startsWith('/settings')) return 'settings';
     return 'chat';
   }
 
-  openChat() {
-    this.router.navigate(['/']);
+  currentPrimaryLabel() {
+    const primary = this.currentPrimary();
+    if (primary === 'workspace') return 'Workspace';
+    if (primary === 'memory') return 'Memory';
+    if (primary === 'settings') return 'Settings';
+    return 'Chat';
   }
 
-  selectWorkbench(value: string) {
-    if (value === 'life-trace') {
-      this.openLifeTrace();
+  currentPrimaryCopy() {
+    const primary = this.currentPrimary();
+    if (primary === 'workspace') {
+      return '执行能力与工作台入口统一收敛到这里。';
+    }
+    if (primary === 'memory') {
+      return '用户画像、persona、long memory 与 life record 的独立分层。';
+    }
+    if (primary === 'settings') {
+      return '模型、token、agent 与外部服务配置的只读总览。';
+    }
+    return '聊天主区与快捷操作分层展示。';
+  }
+
+  currentWorkspaceSection(): string {
+    const url = this.router.url;
+    if (url.startsWith('/workspace/reminder')) return 'reminder';
+    if (url.startsWith('/workspace/plan')) return 'plan';
+    if (url.startsWith('/workspace/regression')) return 'regression';
+    if (url.startsWith('/workspace/task-records')) return 'task-records';
+    return 'dev-agent';
+  }
+
+  currentMemorySection(): string {
+    const url = this.router.url;
+    if (url.startsWith('/memory/persona')) return 'persona';
+    if (url.startsWith('/memory/memories')) return 'memories';
+    if (url.startsWith('/memory/life-record')) return 'life-record';
+    if (url.startsWith('/memory/cognitive-trace')) return 'cognitive-trace';
+    return 'profile';
+  }
+
+  selectPrimary(value: string) {
+    if (value === 'workspace') {
+      this.router.navigate(['/workspace/dev-agent']);
       return;
     }
-    if (value === 'cognitive-trace') {
-      this.openCognitiveTrace();
+    if (value === 'memory') {
+      this.router.navigate(['/memory/profile']);
       return;
     }
-    if (value === 'dev-agent') {
-      this.openDevAgent();
-      return;
-    }
-    if (value === 'regression') {
-      this.openRegression();
-      return;
-    }
-    this.openChat();
+    this.router.navigate(['/chat']);
   }
 
-  openDevAgent() {
-    this.router.navigate(['/dev-agent']);
+  openWorkspaceSection(value: string) {
+    const item = this.workspaceItems.find((entry) => entry.value === value);
+    if (!item || item.disabled) return;
+    this.router.navigate([`/workspace/${value}`]);
   }
 
-  openLifeTrace() {
-    this.router.navigate(['/life-trace']);
+  openMemorySection(value: string) {
+    this.router.navigate([`/memory/${value}`]);
   }
 
-  openCognitiveTrace() {
-    this.router.navigate(['/cognitive-trace']);
-  }
-
-  openRegression() {
-    this.router.navigate(['/regression']);
+  openSettings() {
+    this.router.navigate(['/settings']);
   }
 }

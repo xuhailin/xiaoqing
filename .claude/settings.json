@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx ng:*)"
+      "Bash(npx ng:*)",
+      "Bash(gh pr:*)",
+      "Bash(git commit:*)"
     ]
   },
   "defaultMode": "bypassPermissions"

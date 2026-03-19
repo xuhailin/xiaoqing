@@ -268,7 +268,7 @@ cp backend/.env.example backend/.env
 #   DATABASE_URL="postgresql://postgres:postgres@localhost:5432/chat?schema=public"
 #   OPENAI_API_KEY=sk-xxx  (optional, uses mock without it)
 
-cd backend && npx prisma migrate dev
+cd backend && npx prisma db push && npx prisma generate
 ```
 
 ### 3. Run
@@ -466,7 +466,7 @@ cp backend/.env.example backend/.env
 #   DATABASE_URL="postgresql://postgres:postgres@localhost:5432/chat?schema=public"
 #   OPENAI_API_KEY=sk-xxx  # 可选，不配则使用 mock
 
-cd backend && npx prisma migrate dev
+cd backend && npx prisma db push && npx prisma generate
 ```
 
 ### 3. 启动服务

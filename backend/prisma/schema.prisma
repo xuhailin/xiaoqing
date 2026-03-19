@@ -42,7 +42,6 @@ model Conversation {
   messages     Message[]
   delegations  AgentDelegation[]
   agentLinks   AgentConversationLink[]
-  reminders    DevReminder[]
   dailyMoments DailyMoment[]
   dailyMomentSuggestions DailyMomentSuggestion[]
   dailyMomentSignals DailyMomentSignal[]
@@ -598,7 +597,6 @@ model DevSession {
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   runs           DevRun[]
-  reminders      DevReminder[]
 }
 
 // 开发代理执行记录：一次具体的执行动作
@@ -632,33 +630,6 @@ enum ReminderScope {
   dev
   system
   chat
-}
-
-// 提醒任务：一次性提醒或 cron 周期任务（scope 决定归属）
-model DevReminder {
-  id              String        @id @default(uuid())
-  sessionId       String?       // 可选：dev scope 需绑定 session
-  session         DevSession?   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  conversationId  String?
-  conversation    Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  scope           ReminderScope @default(dev)
-  title           String?
-  message         String        @db.Text
-  cronExpr        String?
-  runAt           DateTime?
-  timezone        String?
-  enabled         Boolean       @default(true)
-  nextRunAt       DateTime?
-  lastTriggeredAt DateTime?
-  lastRunId       String?
-  lastError       String?       @db.Text
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-
-  @@index([sessionId, createdAt])
-  @@index([conversationId, createdAt])
-  @@index([enabled, nextRunAt])
-  @@index([scope])
 }
 
 // ─── Plan / Task 核心域 ────────────────────────────────────

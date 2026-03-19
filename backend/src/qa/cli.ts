@@ -29,7 +29,6 @@ interface CliOptions {
 }
 
 async function main(): Promise<void> {
-  process.env.FEATURE_DEV_REMINDER ??= 'false';
   process.env.DEV_RUN_DISABLE_RECOVERY ??= 'true';
 
   const options = parseArgs(process.argv.slice(2));

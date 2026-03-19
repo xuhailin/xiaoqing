@@ -130,7 +130,7 @@ chat/
 │   │   └── openclaw/                # OpenClaw 远端代理
 │   └── prisma/
 │       ├── schema.prisma
-│       └── migrations/
+│       └── (local-dev 默认使用 prisma db push；上线/多人协作前再引入 migrate baseline)
 ├── frontend/
 │   └── src/app/
 │       ├── layout/                  # 主布局（Tab 导航）

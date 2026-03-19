@@ -169,6 +169,6 @@ export class DevAgentOverviewComponent {
   ) {}
 
   openSession(sessionId: string) {
-    this.router.navigate(['/dev-agent/sessions', sessionId]);
+    this.router.navigate(['/workspace/dev-agent/sessions', sessionId]);
   }
 }

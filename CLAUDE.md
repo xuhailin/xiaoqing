@@ -115,8 +115,8 @@
 
 4. **调度与提醒**
    - 队列串行：同一 `DevSession` 下的 run 必须串行执行，使用 `KeyedFifoQueueService`。
-   - 提醒与定时任务逻辑在 `DevReminderService` 与 `DevReminderSchedulerService` 中，受 `FEATURE_DEV_REMINDER` 控制。
-   - 变更这些模块时，注意不要引入「重复执行」或「漏执行」的问题。
+   - 提醒与定时任务已迁移到 Plan 核心域调度器（`PlanSchedulerService`），受 `FEATURE_PLAN_SCHEDULER` 控制。
+   - 变更调度器时，注意避免「重复分发」或「漏分发」。
 
 ---
 

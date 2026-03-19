@@ -133,11 +133,11 @@ export class DevAgentComponent implements OnInit, OnDestroy {
   }
 
   openSession(sessionId: string) {
-    this.router.navigate(['/dev-agent/sessions', sessionId]);
+    this.router.navigate(['/workspace/dev-agent/sessions', sessionId]);
   }
 
   openDraftSession() {
     this.store.startDraftSession();
-    this.router.navigate(['/dev-agent/sessions', 'new']);
+    this.router.navigate(['/workspace/dev-agent/sessions', 'new']);
   }
 }

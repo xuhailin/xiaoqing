@@ -39,3 +39,27 @@ export interface SystemSelf {
   features: FeatureFlags;
   executors: ExecutorInfo[];
 }
+
+export interface TokenPolicyInfo {
+  maxContextTokens: number;
+  maxSystemTokens: number;
+  memoryMidK: number;
+  memoryCandidatesMaxLong: number;
+  memoryCandidatesMaxMid: number;
+  memoryContentMaxChars: number;
+  autoSummarizeThreshold: number;
+}
+
+export interface ExternalServiceInfo {
+  key: string;
+  label: string;
+  enabled: boolean;
+  summary: string;
+  meta?: Record<string, unknown>;
+}
+
+export interface SystemSettingsOverview {
+  systemSelf: SystemSelf;
+  tokenPolicy: TokenPolicyInfo;
+  integrations: ExternalServiceInfo[];
+}
