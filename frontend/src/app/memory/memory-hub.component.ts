@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { IdentityAnchorEditorComponent } from '../identity-anchor/identity-anchor-editor.component';
 import { LifeTraceBoardComponent } from '../life-trace/life-trace-board.component';
@@ -30,105 +31,105 @@ import { SystemOverviewService, type SystemOverview } from '../core/services/sys
   template: `
     <div class="memory-hub">
       <app-page-header
-        title="记忆"
-        description="在同一个主内容区里查看用户画像、persona、long memory 和 trace 模块。"
+        [title]="pageTitle()"
+        [description]="pageDescription()"
       >
-        <label actions class="memory-search__field">
-          <input
-            class="ui-input"
-            [value]="query()"
-            (input)="query.set($any($event.target).value)"
-            placeholder="搜索模块，例如：画像 / persona / long memory / trace"
-          />
-        </label>
+        @if (currentView() === 'memories') {
+          <label actions class="memory-search__field">
+            <input
+              class="ui-input"
+              [value]="query()"
+              (input)="query.set($any($event.target).value)"
+              placeholder="搜索记忆模块或条目"
+            />
+          </label>
+        }
       </app-page-header>
 
-      @if (!visibleModules().length) {
-        <app-panel variant="workbench" class="memory-card">
-          <app-state
-            title="没有匹配到模块"
-            description="换一个关键词试试，例如 persona、long memory 或 trace。"
-          />
-        </app-panel>
-      } @else {
-        <div class="memory-grid">
-          @if (showModule('profile')) {
-            <app-panel variant="workbench" class="memory-card">
-              <div class="module-header">
-                <div class="module-title">用户画像</div>
-                <app-badge tone="info" appearance="outline">Profile</app-badge>
-              </div>
-              <app-identity-anchor-editor />
-            </app-panel>
-          }
+      @if (currentView() === 'profile') {
+        <div class="memory-grid memory-grid--profile">
+          <app-panel variant="workbench" class="memory-card">
+            <div class="module-header">
+              <div class="module-title">用户画像</div>
+              <app-badge tone="info" appearance="outline">Profile</app-badge>
+            </div>
+            <app-identity-anchor-editor />
+          </app-panel>
 
-          @if (showModule('persona')) {
-            <app-panel variant="workbench" class="memory-card memory-card--wide">
-              <div class="module-header">
-                <div class="module-title">Persona / System Self</div>
-                <app-badge tone="warning" appearance="outline">Memory</app-badge>
+          <app-panel variant="workbench" class="memory-card memory-card--wide">
+            <div class="module-header">
+              <div class="module-title">Persona / System Self</div>
+              <app-badge tone="warning" appearance="outline">Memory</app-badge>
+            </div>
+
+            <div class="persona-meta">
+              <div class="persona-meta__summary ui-workbench-surface ui-workbench-surface--soft">
+                <app-persona-summary />
               </div>
 
-              <div class="persona-meta">
-                <div class="persona-meta__summary ui-workbench-surface ui-workbench-surface--soft">
-                  <app-persona-summary />
-                </div>
-
-                <div class="persona-meta__system ui-workbench-surface ui-workbench-surface--soft">
-                  <div class="system-self__title">System Self</div>
-                  @if (overviewLoading()) {
-                    <div class="system-self__meta">系统摘要加载中...</div>
-                  } @else if (overview(); as data) {
-                    <div class="system-self__meta">
-                      {{ data.systemSelf.system.name }} · v{{ data.systemSelf.system.version }} · {{ data.systemSelf.system.environment }}
-                    </div>
-                    <div class="system-self__chips">
-                      @for (agent of data.systemSelf.agents; track agent.name) {
-                        <app-badge [tone]="agent.active ? 'success' : 'neutral'" appearance="outline">
-                          {{ agent.name }} · {{ agent.channel }}
-                        </app-badge>
-                      }
-                    </div>
-                  } @else {
-                    <div class="system-self__meta">暂无 system self 摘要</div>
-                  }
-                </div>
+              <div class="persona-meta__system ui-workbench-surface ui-workbench-surface--soft">
+                <div class="system-self__title">System Self</div>
+                @if (overviewLoading()) {
+                  <div class="system-self__meta">系统摘要加载中...</div>
+                } @else if (overview(); as data) {
+                  <div class="system-self__meta">
+                    {{ data.systemSelf.system.name }} · v{{ data.systemSelf.system.version }} · {{ data.systemSelf.system.environment }}
+                  </div>
+                  <div class="system-self__chips">
+                    @for (agent of data.systemSelf.agents; track agent.name) {
+                      <app-badge [tone]="agent.active ? 'success' : 'neutral'" appearance="outline">
+                        {{ agent.name }} · {{ agent.channel }}
+                      </app-badge>
+                    }
+                  </div>
+                } @else {
+                  <div class="system-self__meta">暂无 system self 摘要</div>
+                }
               </div>
+            </div>
 
-              <app-persona-config />
-            </app-panel>
-          }
-
-          @if (showModule('memories')) {
-            <app-panel variant="workbench" class="memory-card memory-card--wide">
-              <div class="module-header">
-                <div class="module-title">Long Memory</div>
-                <app-badge tone="neutral" appearance="outline">Memory List</app-badge>
-              </div>
-              <app-memory-list />
-            </app-panel>
-          }
-
-          @if (showModule('life-trace')) {
-            <app-panel variant="workbench" class="memory-card memory-card--wide">
-              <div class="module-header">
-                <div class="module-title">Life Record</div>
-                <app-badge tone="success" appearance="outline">Trace</app-badge>
-              </div>
-              <app-life-trace-board />
-            </app-panel>
-          }
-
-          @if (showModule('cognitive-trace')) {
-            <app-panel variant="workbench" class="memory-card memory-card--wide">
-              <div class="module-header">
-                <div class="module-title">Cognitive Trace</div>
-                <app-badge tone="info" appearance="outline">Trace</app-badge>
-              </div>
-              <app-cognitive-trace-board />
-            </app-panel>
-          }
+            <app-persona-config />
+          </app-panel>
         </div>
+      }
+
+      @if (currentView() === 'memories') {
+        @if (!showModule('memories')) {
+          <app-panel variant="workbench" class="memory-card">
+            <app-state
+              title="没有匹配到记忆内容"
+              description="换一个关键词试试，例如长期记忆、memory 或相关条目。"
+            />
+          </app-panel>
+        } @else {
+          <app-panel variant="workbench" class="memory-card">
+            <div class="module-header">
+              <div class="module-title">Long Memory</div>
+              <app-badge tone="neutral" appearance="outline">Memory List</app-badge>
+            </div>
+            <app-memory-list />
+          </app-panel>
+        }
+      }
+
+      @if (currentView() === 'life-record') {
+        <app-panel variant="workbench" class="memory-card">
+          <div class="module-header">
+            <div class="module-title">Life Record</div>
+            <app-badge tone="success" appearance="outline">Trace</app-badge>
+          </div>
+          <app-life-trace-board />
+        </app-panel>
+      }
+
+      @if (currentView() === 'cognitive-trace') {
+        <app-panel variant="workbench" class="memory-card">
+          <div class="module-header">
+            <div class="module-title">Cognitive Trace</div>
+            <app-badge tone="info" appearance="outline">Trace</app-badge>
+          </div>
+          <app-cognitive-trace-board />
+        </app-panel>
       }
     </div>
   `,
@@ -159,6 +160,10 @@ import { SystemOverviewService, type SystemOverview } from '../core/services/sys
       gap: var(--workbench-section-gap);
       min-height: 0;
       align-content: start;
+    }
+
+    .memory-grid--profile {
+      align-items: start;
     }
 
     .memory-card {
@@ -244,6 +249,7 @@ import { SystemOverviewService, type SystemOverview } from '../core/services/sys
 })
 export class MemoryHubComponent implements OnInit {
   private readonly systemOverviewService = inject(SystemOverviewService);
+  private readonly router = inject(Router);
 
   protected readonly query = signal('');
   protected readonly overview = signal<SystemOverview | null>(null);
@@ -265,6 +271,39 @@ export class MemoryHubComponent implements OnInit {
     return this.modules.filter((module) =>
       module.keywords.some((item) => item.toLowerCase().includes(keyword)),
     );
+  });
+  protected readonly currentView = computed<
+    'life-record' | 'cognitive-trace' | 'memories' | 'profile'
+  >(() => {
+    const url = this.router.url;
+    if (url.startsWith('/memory/cognitive-trace')) return 'cognitive-trace';
+    if (url.startsWith('/memory/memories')) return 'memories';
+    if (url.startsWith('/memory/profile')) return 'profile';
+    return 'life-record';
+  });
+  protected readonly pageTitle = computed(() => {
+    switch (this.currentView()) {
+      case 'cognitive-trace':
+        return '认知';
+      case 'memories':
+        return '记忆';
+      case 'profile':
+        return '用户画像';
+      default:
+        return '生活';
+    }
+  });
+  protected readonly pageDescription = computed(() => {
+    switch (this.currentView()) {
+      case 'cognitive-trace':
+        return '查看小晴自己的认知变化，包括感知、记忆、决策与演进轨迹。';
+      case 'memories':
+        return '集中查看长期记忆、记忆条目与可持续沉淀的内容。';
+      case 'profile':
+        return '维护用户画像、身份锚定和稳定偏好，让陪伴更连续。';
+      default:
+        return '查看用户这边发生了什么，保留生活轨迹与相关记录。';
+    }
   });
 
   async ngOnInit() {

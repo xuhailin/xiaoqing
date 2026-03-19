@@ -1,22 +1,24 @@
 import { Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import { ChatQuickActionsComponent } from '../chat/chat-quick-actions.component';
 import { ConversationListComponent } from '../conversation/conversation-list.component';
-import { AppPanelComponent } from '../shared/ui/app-panel.component';
+import { XiaoqingAvatarComponent } from '../shared/ui/xiaoqing-avatar.component';
 
 @Component({
   selector: 'app-home-shell',
   standalone: true,
-  imports: [RouterOutlet, ChatQuickActionsComponent, ConversationListComponent, AppPanelComponent],
+  imports: [RouterOutlet, ConversationListComponent, XiaoqingAvatarComponent],
   template: `
     <div class="home-shell">
       <aside class="home-sidebar">
-        <app-panel variant="subtle" padding="none" class="home-sidebar__panel">
-          <div class="home-sidebar__content">
-            <app-chat-quick-actions />
-            <app-conversation-list />
-          </div>
-        </app-panel>
+        <div class="home-sidebar__content">
+          <section class="home-profile">
+            <app-xiaoqing-avatar size="2.8rem" shape="circle" />
+            <div class="home-profile__copy">
+              <div class="home-profile__name">小晴</div>
+            </div>
+          </section>
+          <app-conversation-list />
+        </div>
       </aside>
 
       <section class="home-stage">
@@ -35,9 +37,9 @@ import { AppPanelComponent } from '../shared/ui/app-panel.component';
       height: 100%;
       min-height: 0;
       display: grid;
-      grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
-      gap: var(--workbench-section-gap);
-      padding: var(--workbench-shell-padding) calc(var(--workbench-shell-padding) + var(--space-2));
+      grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+      gap: 0;
+      padding: 0;
     }
 
     .home-sidebar,
@@ -51,17 +53,37 @@ import { AppPanelComponent } from '../shared/ui/app-panel.component';
       flex-direction: column;
       min-height: 0;
       height: 100%;
-      padding: 0 var(--space-3);
+      padding: var(--space-4) var(--space-3) var(--space-3);
+      border-right: 1px solid var(--color-border-light);
+      background: transparent;
     }
 
-    .home-sidebar__panel,
     .home-stage {
       height: 100%;
-    }
-
-    .home-stage {
       overflow: hidden;
       background: transparent;
+    }
+
+    .home-profile {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: 0 0 var(--space-2);
+      margin-bottom: var(--space-1);
+      border-bottom: 1px solid var(--color-border-light);
+    }
+
+    .home-profile__copy {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .home-profile__name {
+      font-size: var(--font-size-lg);
+      font-weight: var(--font-weight-semibold);
+      color: var(--color-text);
+      line-height: 1.2;
     }
 
     app-conversation-list {
@@ -74,7 +96,12 @@ import { AppPanelComponent } from '../shared/ui/app-panel.component';
       .home-shell {
         grid-template-columns: 1fr;
         grid-template-rows: minmax(240px, 38vh) minmax(0, 1fr);
-        padding: var(--workbench-shell-padding-mobile);
+      }
+
+      .home-sidebar__content {
+        border-right: none;
+        border-bottom: 1px solid var(--color-border-light);
+        padding: var(--space-3);
       }
     }
   `],

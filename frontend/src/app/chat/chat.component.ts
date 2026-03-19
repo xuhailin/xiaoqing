@@ -19,6 +19,7 @@ import { AppButtonComponent } from '../shared/ui/app-button.component';
 import { AppIconComponent, type AppIconName } from '../shared/ui/app-icon.component';
 import { MessageContentComponent } from './message-content.component';
 import { XiaoqingAvatarComponent } from '../shared/ui/xiaoqing-avatar.component';
+import { ChatQuickActionsComponent } from './chat-quick-actions.component';
 
 type MessageDebugEntry = {
   debugMeta: DebugMeta | null;
@@ -54,6 +55,7 @@ const MESSAGE_KIND_META: Partial<Record<MessageKind, { icon: AppIconName; label:
     AppIconComponent,
     MessageContentComponent,
     XiaoqingAvatarComponent,
+    ChatQuickActionsComponent,
   ],
   templateUrl: './chat.component.html',
   styleUrl: './chat.component.scss',

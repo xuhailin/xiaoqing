@@ -30,10 +30,17 @@ import { AppIconComponent } from './app-icon.component';
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
+      border-radius: var(--radius-lg);
+      background: var(--color-primary-light);
+      box-shadow: inset 0 0 0 1px var(--color-workbench-border);
+    }
+
+    .avatar--circle {
+      border-radius: 50%;
     }
 
     app-icon {
-      color: var(--color-xiaoqing-avatar-line);
+      color: var(--color-primary);
     }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,

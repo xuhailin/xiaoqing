@@ -98,11 +98,14 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
     .conv-list {
       display: flex;
       flex-direction: column;
-      gap: var(--space-2);
+      gap: 0;
       overflow-y: auto;
       flex: 1;
       min-height: 0;
-      padding-bottom: var(--space-2);
+      padding: var(--space-2);
+      background: var(--color-workbench-panel);
+      border: 1px solid var(--color-workbench-border);
+      border-radius: var(--workbench-card-radius);
     }
 
     .new-btn {
@@ -113,10 +116,18 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
 
     .conv-item {
       padding: var(--space-3);
-      border-radius: var(--workbench-card-radius);
       cursor: pointer;
       position: relative;
       overflow: hidden;
+      border: 1px solid transparent;
+      border-bottom: 1px solid var(--color-border-light);
+      border-radius: var(--radius-lg);
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .conv-item + .conv-item {
+      margin-top: var(--space-1);
     }
 
     .conv-item::before {
@@ -135,22 +146,30 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
       background: var(--color-primary);
     }
 
+    .conv-item.is-active {
+      background: var(--color-workbench-accent);
+      border-color: var(--color-workbench-accent-strong);
+    }
+
     .conv-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: var(--space-1);
+      gap: var(--space-2);
+      margin-bottom: var(--space-2);
     }
 
     .conv-title {
       font-size: var(--font-size-sm);
       font-weight: var(--font-weight-semibold);
       color: var(--color-text);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
       overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
       flex: 1;
       min-width: 0;
+      line-height: 1.5;
     }
 
     .conv-count {
@@ -164,7 +183,7 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: var(--space-2);
+      gap: var(--space-1);
     }
 
     .conv-preview {

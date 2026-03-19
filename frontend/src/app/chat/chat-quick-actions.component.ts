@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, Input, inject, signal } from '@angular/core';
 import { ActionDispatcherService } from '../core/actions/action-dispatcher.service';
 import { AppIconComponent } from '../shared/ui/app-icon.component';
 
@@ -10,18 +10,21 @@ import { AppIconComponent } from '../shared/ui/app-icon.component';
   ],
   template: `
     <div class="quick-actions">
-      <div class="quick-actions__header">
-        <div class="quick-actions__copy">
-          <div class="quick-actions__title">快捷入口</div>
-          <div class="quick-actions__description">提醒、计划、记忆和执行任务都从这里进入。</div>
+      @if (mode === 'sidebar') {
+        <div class="quick-actions__header">
+          <div class="quick-actions__copy">
+            <div class="quick-actions__title">对话空间</div>
+            <div class="quick-actions__description">最近的会话和常用入口都集中在这里。</div>
+          </div>
         </div>
-      </div>
+      }
 
-      <div class="quick-actions__grid">
+      <div class="quick-actions__grid" [class.quick-actions__grid--composer]="mode === 'composer'">
         @for (action of actions; track action.id) {
           <button
             type="button"
             class="quick-actions__item ui-list-card"
+            [class.quick-actions__item--composer]="mode === 'composer'"
             [title]="action.description"
             [disabled]="!action.enabled"
             (click)="dispatch(action.id)"
@@ -44,14 +47,16 @@ import { AppIconComponent } from '../shared/ui/app-icon.component';
   styles: [`
     :host {
       display: block;
-      padding: var(--space-2) 0 var(--space-3);
-      border-bottom: 1px solid var(--color-border-light);
-      margin-bottom: var(--space-3);
+      padding: 0;
     }
 
     .quick-actions {
       display: flex;
       flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    :host-context(.chat-composer-actions) .quick-actions {
       gap: var(--space-2);
     }
 
@@ -67,9 +72,10 @@ import { AppIconComponent } from '../shared/ui/app-icon.component';
     }
 
     .quick-actions__title {
-      font-size: var(--font-size-sm);
+      font-size: var(--font-size-lg);
       font-weight: var(--font-weight-semibold);
       color: var(--color-text);
+      line-height: 1.2;
     }
 
     .quick-actions__description {
@@ -80,20 +86,37 @@ import { AppIconComponent } from '../shared/ui/app-icon.component';
     }
 
     .quick-actions__grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      display: flex;
       gap: var(--space-2);
+      overflow-x: auto;
+      padding-bottom: var(--space-1);
+    }
+
+    .quick-actions__grid--composer {
+      padding-bottom: 0;
     }
 
     .quick-actions__item {
-      width: 100%;
+      width: auto;
+      min-width: fit-content;
       display: flex;
       align-items: center;
       justify-content: flex-start;
-      min-height: 40px;
-      padding: var(--space-2) var(--space-3);
+      min-height: 38px;
+      padding: 0 var(--space-3);
       text-align: left;
       cursor: pointer;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--color-workbench-border);
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .quick-actions__item--composer {
+      min-height: 34px;
+      padding: 0 var(--space-2);
+      border-radius: var(--radius-sm);
+      background: var(--color-surface);
     }
 
     .quick-actions__item-main {
@@ -125,12 +148,21 @@ import { AppIconComponent } from '../shared/ui/app-icon.component';
 
     @media (max-width: 980px) {
       .quick-actions__grid {
-        grid-template-columns: 1fr;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        overflow-x: visible;
+      }
+
+      .quick-actions__item {
+        width: 100%;
+        min-width: 0;
       }
     }
   `],
 })
 export class ChatQuickActionsComponent {
+  @Input() mode: 'sidebar' | 'composer' = 'sidebar';
+
   private readonly dispatcher = inject(ActionDispatcherService);
   protected readonly actions = this.dispatcher.listQuickActions();
   protected readonly notice = signal<string | null>(null);

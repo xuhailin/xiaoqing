@@ -85,7 +85,7 @@ import type { MessageContentType } from '../core/services/conversation.service';
       overflow-x: auto;
       padding: var(--space-3);
       border-radius: var(--radius-md);
-      background: rgba(15, 23, 42, 0.08);
+      background: var(--color-workbench-accent);
     }
 
     .markdown-content code {
@@ -93,7 +93,7 @@ import type { MessageContentType } from '../core/services/conversation.service';
       font-size: 0.95em;
       padding: 0.12em 0.35em;
       border-radius: 6px;
-      background: rgba(15, 23, 42, 0.08);
+      background: var(--color-workbench-accent);
     }
 
     .markdown-content pre code {
