@@ -22,7 +22,6 @@ export const FEATURE_FLAGS = {
   claimWriteInteraction: { key: 'FEATURE_CLAIM_WRITE_INTERACTION', defaultEnabled: false },
   claudeCode: { key: 'FEATURE_CLAUDE_CODE', defaultEnabled: false },
   debugMeta: { key: 'FEATURE_DEBUG_META', defaultEnabled: false },
-  devReminder: { key: 'FEATURE_DEV_REMINDER', defaultEnabled: true },
   dynamicTopK: { key: 'FEATURE_DYNAMIC_TOPK', defaultEnabled: true },
   evolutionScheduler: { key: 'FEATURE_EVOLUTION_SCHEDULER', defaultEnabled: true },
   impressionCore: { key: 'FEATURE_IMPRESSION_CORE', defaultEnabled: true },
@@ -35,7 +34,7 @@ export const FEATURE_FLAGS = {
   memoryScheduler: { key: 'FEATURE_MEMORY_SCHEDULER', defaultEnabled: true },
   memoryShortSummary: { key: 'FEATURE_MEMORY_SHORT_SUMMARY', defaultEnabled: false },
   openclaw: { key: 'FEATURE_OPENCLAW', defaultEnabled: false },
-  planScheduler: { key: 'FEATURE_PLAN_SCHEDULER', defaultEnabled: false },
+  planScheduler: { key: 'FEATURE_PLAN_SCHEDULER', defaultEnabled: true },
   sessionStateInjection: { key: 'FEATURE_SESSIONSTATE_INJECTION', defaultEnabled: false },
   timesheet: { key: 'FEATURE_TIMESHEET', defaultEnabled: false },
 } as const satisfies Record<string, FeatureFlagDefinition>;

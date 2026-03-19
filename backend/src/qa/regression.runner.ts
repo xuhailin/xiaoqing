@@ -311,7 +311,7 @@ export class RegressionRunner {
     }
 
     try {
-      const reminders = await this.deps.prisma.devReminder.findMany({
+      const plans = await this.deps.prisma.plan.findMany({
         where: {
           scope: ReminderScope.chat,
           createdAt: { gte: startedAt },
@@ -319,14 +319,14 @@ export class RegressionRunner {
         orderBy: { createdAt: 'asc' },
       });
 
-      return reminders
-        .filter((reminder) => !beforeIds.has(reminder.id))
-        .map((reminder) => ({
-          id: reminder.id,
-          title: reminder.title,
-          message: reminder.message,
-          nextRunAt: reminder.nextRunAt ? reminder.nextRunAt.toISOString() : null,
-          createdAt: reminder.createdAt.toISOString(),
+      return plans
+        .filter((plan) => !beforeIds.has(plan.id))
+        .map((plan) => ({
+          id: plan.id,
+          title: plan.title,
+          message: plan.description ?? '',
+          nextRunAt: plan.nextRunAt ? plan.nextRunAt.toISOString() : null,
+          createdAt: plan.createdAt.toISOString(),
         }));
     } catch {
       return [];
@@ -387,7 +387,7 @@ export class RegressionRunner {
     const deletedReminderIds = [...new Set(input.createdReminderIds)];
     if (deletedReminderIds.length > 0) {
       try {
-        await this.deps.prisma.devReminder.deleteMany({
+        await this.deps.prisma.plan.deleteMany({
           where: { id: { in: deletedReminderIds } },
         });
       } catch {
@@ -428,11 +428,11 @@ export class RegressionRunner {
 
   private async listChatReminderIds(): Promise<Set<string> | null> {
     try {
-      const reminders = await this.deps.prisma.devReminder.findMany({
+      const plans = await this.deps.prisma.plan.findMany({
         where: { scope: ReminderScope.chat },
         select: { id: true },
       });
-      return new Set(reminders.map((reminder) => reminder.id));
+      return new Set(plans.map((plan) => plan.id));
     } catch {
       return null;
     }

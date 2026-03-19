@@ -29,8 +29,6 @@ import { DevFinalReportGenerator } from './reporting/dev-final-report.generator'
 import { DevTranscriptWriter } from './reporting/dev-transcript.writer';
 import { DevRunRunnerService } from './dev-runner.service';
 import { WorkspaceManager } from './workspace/workspace-manager.service';
-import { DevReminderService } from './dev-reminder.service';
-import { DevReminderSchedulerService } from './dev-reminder.scheduler.service';
 import { ReminderMessageService } from '../action/skills/reminder/reminder-message.service';
 import { SystemSelfModule } from '../system-self/system-self.module';
 import { StrategyReasoner } from '../reasoning/strategy-reasoner.service';
@@ -65,8 +63,6 @@ import { DevRunDispatchStrategy } from '../plan/strategies/dev-run-dispatch.stra
     DevFinalReportGenerator,
     DevTranscriptWriter,
     DevRunRunnerService,
-    DevReminderService,
-    DevReminderSchedulerService,
     StrategyReasoner,
   ],
   exports: [DevAgentService, DevStepRoutingService, StrategyReasoner],
@@ -79,7 +75,6 @@ export class DevAgentModule implements OnModuleInit {
     private readonly claudeCode: ClaudeCodeExecutor,
     private readonly claudeCodeAgent: ClaudeCodeAgentExecutor,
     private readonly agentExecutorResolver: DevAgentExecutorResolver,
-    private readonly devReminder: DevReminderService,
     private readonly reminderMessage: ReminderMessageService,
     private readonly notifyStrategy: NotifyDispatchStrategy,
     private readonly devRunStrategy: DevRunDispatchStrategy,
@@ -94,9 +89,6 @@ export class DevAgentModule implements OnModuleInit {
 
     // 注册 run-level agent executor
     this.agentExecutorResolver.register(this.claudeCodeAgent);
-
-    // 延迟注入：将 ReminderMessageService 注入到 DevReminderService，用于 chat-scope 提醒推送
-    this.devReminder.setReminderMessageService(this.reminderMessage);
 
     // 延迟注入：将依赖注入到 Plan 分发策略
     this.notifyStrategy.setReminderMessageService(this.reminderMessage);

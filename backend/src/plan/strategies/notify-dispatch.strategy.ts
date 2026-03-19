@@ -15,7 +15,7 @@ export class NotifyDispatchStrategy implements IPlanDispatchStrategy {
 
   private reminderMessageService: ReminderMessageService | null = null;
 
-  /** 延迟注入，避免循环依赖（与 DevReminderService 同模式） */
+  /** 延迟注入，避免循环依赖 */
   setReminderMessageService(service: ReminderMessageService) {
     this.reminderMessageService = service;
   }

@@ -95,7 +95,7 @@ export class SystemSelfService {
   private getFeatureFlags(): FeatureFlags {
     return {
       claudeCode: isFeatureEnabled(this.config, 'claudeCode'),
-      devReminder: isFeatureEnabled(this.config, 'devReminder'),
+      planScheduler: isFeatureEnabled(this.config, 'planScheduler'),
       openclaw: isFeatureEnabled(this.config, 'openclaw'),
     };
   }

@@ -5,7 +5,6 @@ import type { DevRunMode, DevTaskResult } from './dev-agent.types';
 import { DevSessionRepository } from './dev-session.repository';
 import { DevRunRunnerService } from './dev-runner.service';
 import { DevCostService } from './dev-cost.service';
-import { DevReminderService, type CreateDevReminderInput } from './dev-reminder.service';
 import type { SendMessageMetadata } from '../gateway/message-router.types';
 import {
   normalizeWorkspaceInput,
@@ -22,7 +21,6 @@ export class DevAgentService {
     private readonly sessions: DevSessionRepository,
     private readonly runner: DevRunRunnerService,
     private readonly costService: DevCostService,
-    private readonly reminders: DevReminderService,
     private readonly workspaceManager: WorkspaceManager,
   ) {}
 
@@ -277,26 +275,6 @@ export class DevAgentService {
       const message = err instanceof Error ? err.message : String(err);
       throw new BadRequestException(`workspace tree unavailable: ${message}`);
     }
-  }
-
-  async createReminder(input: CreateDevReminderInput) {
-    return this.reminders.createReminder(input);
-  }
-
-  async listReminders(sessionId?: string, scope?: string) {
-    return this.reminders.listReminders(sessionId, scope);
-  }
-
-  async setReminderEnabled(id: string, enabled: boolean) {
-    return this.reminders.setReminderEnabled(id, enabled);
-  }
-
-  async triggerReminderNow(id: string) {
-    return this.reminders.triggerReminderNow(id);
-  }
-
-  async deleteReminder(id: string) {
-    return this.reminders.deleteReminder(id);
   }
 
   async getSessionCost(sessionId: string) {

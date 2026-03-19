@@ -3,7 +3,6 @@ import { ReminderScope } from '@prisma/client';
 import type { ICapability } from '../../capability.interface';
 import type { CapabilityRequest, CapabilityResult } from '../../capability.types';
 import type { MessageChannel } from '../../../gateway/message-router.types';
-import { PrismaService } from '../../../infra/prisma.service';
 import { PlanService } from '../../../plan/plan.service';
 
 interface ReminderParams {
@@ -30,7 +29,6 @@ export class ReminderSkillService implements ICapability {
   readonly visibility = 'default' as const;
 
   constructor(
-    private readonly prisma: PrismaService,
     private readonly planService: PlanService,
   ) {}
 
@@ -123,41 +121,20 @@ export class ReminderSkillService implements ICapability {
   }
 
   private async listReminders(): Promise<CapabilityResult> {
-    // 查询新 Plan 表中的 chat-scope 活跃计划
     const plans = await this.planService.listPlans({ scope: ReminderScope.chat, status: 'active' as any });
 
-    // 同时查询旧 DevReminder 表（兼容未迁移数据）
-    const legacyReminders = await this.prisma.devReminder.findMany({
-      where: { scope: ReminderScope.chat, enabled: true },
-      orderBy: { nextRunAt: 'asc' },
-    });
+    if (plans.length === 0) {
+      return { success: true, content: '目前没有任何提醒。', error: null };
+    }
 
-    const items: { id: string; title: string; scheduleType: string; nextRunAt: Date | null; source: 'plan' | 'legacy' }[] = [];
-
-    for (const p of plans) {
-      items.push({
+    const items: { id: string; title: string; scheduleType: string; nextRunAt: Date | null }[] = plans
+      .map((p) => ({
         id: p.id,
         title: p.title ?? p.description ?? '',
         scheduleType: p.recurrence === 'once' ? '一次性' : '周期',
         nextRunAt: p.nextRunAt,
-        source: 'plan',
-      });
-    }
-    for (const r of legacyReminders) {
-      items.push({
-        id: r.id,
-        title: r.title ?? r.message,
-        scheduleType: r.cronExpr ? '周期' : '一次性',
-        nextRunAt: r.nextRunAt,
-        source: 'legacy',
-      });
-    }
-
-    if (items.length === 0) {
-      return { success: true, content: '目前没有任何提醒。', error: null };
-    }
-
-    items.sort((a, b) => (a.nextRunAt?.getTime() ?? Infinity) - (b.nextRunAt?.getTime() ?? Infinity));
+      }))
+      .sort((a, b) => (a.nextRunAt?.getTime() ?? Infinity) - (b.nextRunAt?.getTime() ?? Infinity));
 
     const lines = items.map((item, i) => {
       const next = item.nextRunAt
@@ -187,32 +164,16 @@ export class ReminderSkillService implements ICapability {
       };
     }
 
-    // 搜索新 Plan 表
     const plans = await this.planService.listPlans({ scope: ReminderScope.chat, status: 'active' as any });
-    const matchedPlans = plans.filter(
-      (p) =>
-        p.id === target ||
-        (p.title && p.title.includes(target)) ||
-        (p.description && p.description.includes(target)),
-    );
+    const matched: { id: string; title: string }[] = [];
+    for (const p of plans) {
+      const title = p.title ?? p.description ?? '';
+      if (p.id === target || title.includes(target) || (p.description && p.description.includes(target))) {
+        matched.push({ id: p.id, title });
+      }
+    }
 
-    // 搜索旧 DevReminder 表（兼容）
-    const legacyReminders = await this.prisma.devReminder.findMany({
-      where: { scope: ReminderScope.chat, enabled: true },
-    });
-    const matchedLegacy = legacyReminders.filter(
-      (r) =>
-        r.id === target ||
-        (r.title && r.title.includes(target)) ||
-        r.message.includes(target),
-    );
-
-    const allMatched: { id: string; title: string; source: 'plan' | 'legacy' }[] = [
-      ...matchedPlans.map((p) => ({ id: p.id, title: p.title ?? p.description ?? '', source: 'plan' as const })),
-      ...matchedLegacy.map((r) => ({ id: r.id, title: r.title ?? r.message, source: 'legacy' as const })),
-    ];
-
-    if (allMatched.length === 0) {
+    if (matched.length === 0) {
       return {
         success: false,
         content: `没有找到和「${target}」相关的提醒。`,
@@ -220,13 +181,9 @@ export class ReminderSkillService implements ICapability {
       };
     }
 
-    if (allMatched.length === 1) {
-      const item = allMatched[0];
-      if (item.source === 'plan') {
-        await this.planService.lifecycle(item.id, 'archive');
-      } else {
-        await this.prisma.devReminder.delete({ where: { id: item.id } });
-      }
+    if (matched.length === 1) {
+      const item = matched[0];
+      await this.planService.lifecycle(item.id, 'archive');
       return {
         success: true,
         content: `已取消提醒「${item.title}」。`,
@@ -239,12 +196,12 @@ export class ReminderSkillService implements ICapability {
       };
     }
 
-    const lines = allMatched.map((item, i) => `${i + 1}. 「${item.title}」`);
+    const lines = matched.map((item, i) => `${i + 1}. 「${item.title}」`);
     return {
       success: true,
-      content: `找到 ${allMatched.length} 个相关提醒，你想取消哪个？\n${lines.join('\n')}`,
+      content: `找到 ${matched.length} 个相关提醒，你想取消哪个？\n${lines.join('\n')}`,
       error: null,
-      meta: { candidates: allMatched.map((item) => item.id) },
+      meta: { candidates: matched.map((item) => item.id) },
     };
   }
 

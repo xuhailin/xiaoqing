@@ -41,11 +41,11 @@ export class ConversationService {
   }
 
   async list() {
-    const reminderGroups = await this.prisma.devReminder.groupBy({
+    const reminderGroups = await this.prisma.plan.groupBy({
       by: ['conversationId'],
       where: {
         scope: 'chat',
-        enabled: true,
+        status: 'active',
         conversationId: { not: null },
       },
       _count: { conversationId: true },
