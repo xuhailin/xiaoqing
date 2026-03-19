@@ -36,6 +36,9 @@ import { AppPanelComponent } from '../../shared/ui/app-panel.component';
             @if (runState?.updatedAtLabel) {
               <span class="header-time">{{ runState?.updatedAtLabel }}</span>
             }
+            @if (runState && runState.toolCallCount != null && runState.toolCallCount > 0) {
+              <span class="header-tools">{{ runState.toolCallCount }} tools</span>
+            }
             @if (runState && runState.costUsd != null) {
               <span class="header-cost">\${{ formatCost(runState!.costUsd!) }}</span>
             }
@@ -128,7 +131,8 @@ import { AppPanelComponent } from '../../shared/ui/app-panel.component';
     }
 
     .header-time,
-    .header-cost {
+    .header-cost,
+    .header-tools {
       font-size: var(--font-size-xs);
       color: var(--color-text-muted);
       white-space: nowrap;

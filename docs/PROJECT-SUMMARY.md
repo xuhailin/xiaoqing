@@ -97,9 +97,10 @@ chat/
 │   ├── src/
 │   │   ├── gateway/                 # 统一消息入口 + 三层路由
 │   │   ├── orchestrator/            # Dispatcher + Agent 适配器
-│   │   ├── xiaoqing/                # 小晴核心（按域分组）
+│   │   ├── assistant/               # 小晴核心（原 xiaoqing 域，按域分组）
 │   │   │   ├── conversation/        #   ChatOrchestrator + TurnContext
 │   │   │   ├── cognitive-pipeline/  #   认知管道 + 成长层 + 边界治理
+│   │   │   ├── cognitive-trace/     #   认知溯源 L1 观测（Observation）
 │   │   │   ├── memory/              #   记忆 CRUD、衰减、召回、WriteGuard
 │   │   │   ├── summarizer/          #   总结 → 记忆提取 → 进化联动
 │   │   │   ├── persona/             #   7 字段人格 + 印象 + 进化双池
@@ -108,7 +109,7 @@ chat/
 │   │   │   ├── prompt-router/       #   全 prompt 家族组装 + 精排
 │   │   │   ├── intent/              #   意图识别 + 槽位 + worldStateUpdate
 │   │   │   ├── post-turn/           #   后处理管线（beforeReturn/afterReturn）
-│   │   │   ├── daily-moment/        #   今日日记
+│   │   │   ├── life-record/         #   人生轨迹：trace-point + daily-summary + daily-moment
 │   │   │   ├── pet/                 #   桌面端 SSE 状态同步
 │   │   │   └── reading/             #   读物摄入 + 人格化解读
 │   │   ├── dev-agent/               # DevAgent（隔离执行轨道）
@@ -122,7 +123,7 @@ chat/
 │   │   │   └── capability.*.ts      #   CapabilityRegistry + 接口
 │   │   ├── infra/                   # 基础设施
 │   │   │   ├── llm/                 #   LLM 封装
-│   │   │   ├── trace/               #   Trace 收集
+│   │   │   ├── trace/               #   Trace 收集（TraceStep/TurnTraceEvent）
 │   │   │   ├── world-state/         #   世界状态管理
 │   │   │   ├── prisma.service.ts
 │   │   │   └── token-estimator.ts
@@ -140,6 +141,8 @@ chat/
 │       ├── identity-anchor/         # 身份锚定编辑
 │       ├── dev-agent/               # DevAgent 面板
 │       ├── reading/                 # 读物摄入
+│       ├── life-trace/               # 人生轨迹时间线（TracePoint + DailySummary）
+│       ├── cognitive-trace/         # 认知溯源看板（CognitiveObservation）
 │       ├── debug/                   # 调试 Dashboard
 │       └── core/services/           # HTTP 服务封装
 ├── desktop/                         # Tauri 2 桌面端（Live2D）
@@ -192,6 +195,16 @@ chat/
 | `DailyMoment` | 今日日记（title, body, moodTag） |
 | `DailyMomentSuggestion` | 日记轻提示 |
 | `DailyMomentSignal` | 用户行为信号 |
+
+### 人生轨迹与认知溯源
+
+| 模型 | 说明 |
+|------|------|
+| `TracePoint` | 生活碎片（kind/content/happenedAt/mood/people/tags，按天分组与去重） |
+| `DailySummary` | 日摘要（dayKey 唯一，由 TracePoints 聚合生成） |
+| `CognitiveObservation` | L1 认知观测（dimension/kind/title/significance，回合级采集） |
+| `CognitiveInsight` | L2 认知洞察（日/周叙事，Schema 已有，服务未落地） |
+| `CognitiveEvolution` | L3 进化提议（Schema 已有，服务未落地） |
 
 ### DevAgent
 
@@ -254,6 +267,31 @@ POST /conversations/:id/messages  { content, mode?: 'chat'|'dev' }
 | GET | `/conversations/:id/daily-moments` | 今日日记 |
 | POST | `/conversations/:id/flush-summarize` | 立即触发总结 |
 | DELETE | `/conversations/:id` | 删除会话 |
+
+### 人生轨迹（TracePoint / DailySummary）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/trace-points` | 全局查询（since/until/kind/limit） |
+| GET | `/trace-points/by-day` | 按天分组 |
+| GET | `/trace-points/day/:dayKey` | 某天所有碎片 |
+| GET | `/trace-points/conversation/:id` | 按会话查询 |
+| GET | `/trace-points/conversation/:id/count` | 会话统计 |
+| POST | `/trace-points/extract/:id` | 手动触发某会话提取 |
+| POST | `/trace-points/backfill` | 回填 |
+| POST | `/trace-points/deduplicate/:dayKey` | 某天去重 |
+| POST | `/trace-points/deduplicate-recent` | 批量去重最近 N 天 |
+| GET | `/daily-summaries` | 日摘要列表（limit/since/until） |
+| GET | `/daily-summaries/:dayKey` | 某天日摘要（含关联 TracePoints） |
+| POST | `/daily-summaries/generate/:dayKey` | 生成/重生成日摘要 |
+| POST | `/daily-summaries/generate-recent` | 批量生成最近 N 天 |
+
+### 认知溯源（Cognitive Trace）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/cognitive-trace/observations` | 观测列表（dimension/kind/from/to/minSignificance/conversationId/limit） |
+| GET | `/cognitive-trace/observations/by-day` | 按天分组观测 |
 
 ### 记忆
 

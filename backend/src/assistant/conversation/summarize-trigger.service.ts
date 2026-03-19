@@ -4,6 +4,12 @@ import { SummarizerService } from '../summarizer/summarizer.service';
 import { PersonaService } from '../persona/persona.service';
 import { EvolutionSchedulerService } from '../persona/evolution-scheduler.service';
 import { FeatureFlagConfig } from './feature-flag.config';
+import type { MemoryOp, ClaimOp } from '../cognitive-trace/cognitive-trace.types';
+
+export interface SummarizeTriggerOpsResult {
+  memoryOps: MemoryOp[];
+  claimOps: ClaimOp[];
+}
 
 @Injectable()
 export class SummarizeTriggerService {
@@ -21,23 +27,23 @@ export class SummarizeTriggerService {
     private readonly flags: FeatureFlagConfig,
   ) {}
 
-  async maybeAutoSummarize(conversationId: string, userInput: string): Promise<void> {
-    if (this.summarizingConversations.has(conversationId)) return;
+  async maybeAutoSummarize(conversationId: string, userInput: string): Promise<SummarizeTriggerOpsResult> {
+    const empty: SummarizeTriggerOpsResult = { memoryOps: [], claimOps: [] };
+    if (this.summarizingConversations.has(conversationId)) return empty;
 
     const useInstant = this.flags.featureInstantSummarize
       && SummarizeTriggerService.INSTANT_SUMMARIZE_RE.test(userInput);
     if (useInstant) {
-      await this.summarizeDelta(conversationId, userInput.slice(0, 30));
-      return;
+      return this.summarizeDelta(conversationId, userInput.slice(0, 30));
     }
 
-    if (!this.flags.featureAutoSummarize) return;
+    if (!this.flags.featureAutoSummarize) return empty;
 
     const conv = await this.prisma.conversation.findUnique({
       where: { id: conversationId },
       select: { summarizedAt: true },
     });
-    if (!conv) return;
+    if (!conv) return empty;
 
     const newUserMessages = await this.prisma.message.count({
       where: {
@@ -47,8 +53,8 @@ export class SummarizeTriggerService {
       },
     });
 
-    if (newUserMessages < this.flags.autoSummarizeThreshold) return;
-    await this.summarizeDelta(conversationId, `threshold:${newUserMessages}`);
+    if (newUserMessages < this.flags.autoSummarizeThreshold) return empty;
+    return this.summarizeDelta(conversationId, `threshold:${newUserMessages}`);
   }
 
   async flushSummarize(conversationId: string): Promise<{ flushed: boolean }> {
@@ -74,8 +80,9 @@ export class SummarizeTriggerService {
     return { flushed: true };
   }
 
-  private async summarizeDelta(conversationId: string, reason: string): Promise<void> {
-    if (this.summarizingConversations.has(conversationId)) return;
+  private async summarizeDelta(conversationId: string, reason: string): Promise<SummarizeTriggerOpsResult> {
+    const empty: SummarizeTriggerOpsResult = { memoryOps: [], claimOps: [] };
+    if (this.summarizingConversations.has(conversationId)) return empty;
     this.summarizingConversations.add(conversationId);
 
     try {
@@ -84,7 +91,7 @@ export class SummarizeTriggerService {
         where: { id: conversationId },
         select: { summarizedAt: true },
       });
-      if (!conv) return;
+      if (!conv) return empty;
 
       const newMessageIds = conv.summarizedAt
         ? (await this.prisma.message.findMany({
@@ -98,9 +105,31 @@ export class SummarizeTriggerService {
       if (result.created > 0) {
         await this.triggerAutoEvolution(conversationId);
       }
+
+      return this.extractOps(result);
     } finally {
       this.summarizingConversations.delete(conversationId);
     }
+  }
+
+  private extractOps(result: Awaited<ReturnType<SummarizerService['summarize']>>): SummarizeTriggerOpsResult {
+    const memoryOps: MemoryOp[] = result.memories.map((m) => ({
+      action: 'write' as const,
+      memoryId: m.id,
+      category: m.category,
+      content: m.content,
+    }));
+
+    const claimOps: ClaimOp[] = (result.claimResults ?? [])
+      .filter((c) => c.previousStatus && c.previousStatus !== c.status)
+      .map((c) => ({
+        action: 'promote' as const,
+        claimId: c.claimId,
+        fromStatus: c.previousStatus,
+        toStatus: c.status,
+      }));
+
+    return { memoryOps, claimOps };
   }
 
   private async triggerAutoEvolution(conversationId: string): Promise<void> {

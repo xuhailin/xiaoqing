@@ -130,6 +130,7 @@ export class SummarizerService {
       updatedAt: Date;
       lastSeenAt: Date;
     }>;
+    claimResults?: Array<{ claimId: string; status: string; previousStatus?: string }>;
   }> {
     let messages: Array<{ id: string; role: string; content: string }>;
     if (messageIds?.length) {
@@ -180,6 +181,7 @@ export class SummarizerService {
     let claimAttempted = 0;
     let claimWritten = 0;
     const claimRejectedSamples: Array<{ type: string; key?: string; reason: string }> = [];
+    const claimResults: Array<{ claimId: string; status: string; previousStatus?: string }> = [];
 
     if (this.claimConfig.writeDualEnabled) {
       await this.writeSessionStateIfPresent(conversationId, parsed);
@@ -277,7 +279,7 @@ export class SummarizerService {
             }
 
             try {
-              await this.writeClaimDraft(conversationId, ids, {
+              const claimResult = await this.writeClaimDraft(conversationId, ids, {
                 type,
                 key: validation.key,
                 valueJson: validation.valueJson,
@@ -286,6 +288,9 @@ export class SummarizerService {
                 contextTags: u.contextTags,
                 evidence: u.evidence,
               });
+              if (claimResult) {
+                claimResults.push(claimResult);
+              }
               claimWritten++;
             } catch (err: unknown) {
               const msg = err instanceof Error ? err.message : String(err);
@@ -463,6 +468,7 @@ export class SummarizerService {
       ...(pendingCanonicalSuggestions && pendingCanonicalSuggestions.length > 0
         ? { pendingCanonicalSuggestions }
         : {}),
+      ...(claimResults.length > 0 ? { claimResults } : {}),
     };
   }
 
@@ -688,9 +694,9 @@ label 类型：
       contextTags?: string[];
       evidence?: { messageId?: string; snippet?: string; weight?: number };
     },
-  ): Promise<void> {
+  ): Promise<{ claimId: string; status: string; previousStatus?: string } | null> {
     const claimType = this.mapLegacyTypeToClaimType(input.type);
-    if (!claimType) return;
+    if (!claimType) return null;
 
     const messageId = input.evidence?.messageId || messageIds[messageIds.length - 1];
     const snippet = (input.evidence?.snippet || input.key).trim().slice(0, 40);
@@ -698,7 +704,7 @@ label 类型：
       ? Math.max(0, Math.min(1, Number(input.evidence?.weight)))
       : 1;
 
-    await this.claimUpdater.upsertFromDraft({
+    return this.claimUpdater.upsertFromDraft({
       type: claimType,
       key: input.key,
       value: input.valueJson,

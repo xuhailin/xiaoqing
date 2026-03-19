@@ -11,7 +11,7 @@ export class ClaimUpdateService {
   private static readonly DRAFT_MAX_STATUS: ClaimStatus = 'WEAK';
   private static readonly DRAFT_MAX_PER_TYPE = 30;
 
-  async upsertFromDraft(draft: ClaimDraft): Promise<{ claimId: string; status: ClaimStatus }> {
+  async upsertFromDraft(draft: ClaimDraft): Promise<{ claimId: string; status: ClaimStatus; previousStatus?: ClaimStatus }> {
     const userKey = draft.userKey ?? 'default-user';
     const validation = ClaimSchemaRegistry.validateAny(draft.key, draft.value);
     if (!validation.ok) {
@@ -84,7 +84,8 @@ export class ClaimUpdateService {
       });
     }
 
-    return { claimId: existing.id, status: nextStatus };
+    const previousStatus = existing.status as ClaimStatus;
+    return { claimId: existing.id, status: nextStatus, previousStatus };
   }
 
   private computeConfidence(

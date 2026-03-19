@@ -1,5 +1,13 @@
 import type { DialogueIntentState } from '../intent/intent.types';
 import type { CognitiveTurnState } from '../cognitive-pipeline/cognitive-pipeline.types';
+import type { MemoryOp, ClaimOp, GrowthOp } from '../cognitive-trace/cognitive-trace.types';
+
+/** 跨 post-turn 任务的可变数据收集器，由各任务写入、record_cognitive_observation 读取 */
+export interface TurnOpsCollector {
+  memoryOps: MemoryOp[];
+  claimOps: ClaimOp[];
+  growthOps: GrowthOp[];
+}
 
 export interface PostTurnPlan {
   conversationId: string;
@@ -18,6 +26,8 @@ export interface PostTurnPlan {
   };
   beforeReturn: PostTurnTask[];
   afterReturn: PostTurnTask[];
+  /** 跨任务可变收集器，由 buildPostTurnPlan 初始化 */
+  opsCollector: TurnOpsCollector;
 }
 
 export type PostTurnTask =

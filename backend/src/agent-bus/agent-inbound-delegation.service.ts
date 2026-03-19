@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
 } from '@nestjs/common';
 import type { AgentDelegation } from '@prisma/client';
 import { ConversationService } from '../assistant/conversation/conversation.service';
@@ -26,6 +27,8 @@ import type {
 
 @Injectable()
 export class AgentInboundDelegationService {
+  private readonly logger = new Logger(AgentInboundDelegationService.name);
+
   constructor(
     private readonly bus: AgentBusService,
     private readonly repo: AgentBusRepository,
@@ -36,9 +39,11 @@ export class AgentInboundDelegationService {
   async handleInboundDelegation(
     request: AgentInboundDelegationRequest,
   ): Promise<AgentInboundDelegationResult> {
-    this.validateRequest(request);
-
     const requesterAgentId = request.requester.agentId as EntryAgentId;
+    this.logger.log(
+      `Inbound delegation received: delegationId=${request.delegationId}, requester=${requesterAgentId}, requestType=${request.requestType}, requesterConversationRef=${request.requester.conversationRef}`,
+    );
+    this.validateRequest(request);
     const existing = await this.bus.findById(request.delegationId);
     if (existing) {
       if (existing.status === 'completed' || existing.status === 'failed') {
@@ -128,6 +133,9 @@ export class AgentInboundDelegationService {
       if (!persisted) {
         throw new BadRequestException('delegation persisted state missing after completion');
       }
+      this.logger.log(
+        `Inbound delegation completed: delegationId=${delegation.id}, status=completed, localConversationId=${localConversation.id}, assistantMessageId=${result.assistantMessage.id}`,
+      );
       return this.mapDelegationToResult(persisted, summary);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -148,6 +156,9 @@ export class AgentInboundDelegationService {
         message,
       });
 
+      this.logger.warn(
+        `Inbound delegation failed: delegationId=${delegation.id}, localConversationId=${localConversation.id}, error=${message}`,
+      );
       return {
         schemaVersion: 1,
         delegationId: delegation.id,

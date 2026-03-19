@@ -615,6 +615,30 @@ export class DevAgentOrchestrator {
     try {
       await this.throwIfCancelled(run.id);
 
+      // 节流进度更新：最多每 2 秒写一次 DB，避免频繁写入
+      let lastProgressDbUpdate = 0;
+      let pendingFlush = false;
+      let toolCallCount = 0;
+      const MAX_AGENT_TURNS = 30;
+      const PROGRESS_THROTTLE_MS = 2000;
+      const agentTurns: Array<{ type: string; text?: string; toolName?: string; ts: string }> = [];
+
+      const flushProgress = () => {
+        if (!pendingFlush) return;
+        pendingFlush = false;
+        lastProgressDbUpdate = Date.now();
+        const lastTurn = agentTurns[agentTurns.length - 1];
+        const lastEvent = lastTurn?.type === 'tool_use'
+          ? `调用工具: ${lastTurn.toolName}`
+          : lastTurn?.text ?? null;
+        this.sessions.updateRunStatus(run.id, {
+          result: withWorkspaceMeta({
+            phase: 'running', mode: 'agent', taskId: run.id, goal: run.userInput,
+            lastEvent, toolCallCount, agentTurns, updatedAt: new Date().toISOString(),
+          }, workspace) as any,
+        }).catch(() => {});
+      };
+
       const result = await agentExecutor.execute(
         {
           runId: run.id, sessionId: session.id, userInput: run.userInput, cwd, workspace,
@@ -624,8 +648,30 @@ export class DevAgentOrchestrator {
           this.transcriptWriter.write(runDir, {
             phase: 'agent_progress', taskId: run.id, event, timestamp: new Date().toISOString(),
           }).catch(() => {});
+
+          const ts = new Date().toISOString();
+          if (event.type === 'tool_use') {
+            toolCallCount++;
+            agentTurns.push({ type: 'tool_use', toolName: event.toolName, ts });
+          } else if (event.type === 'text' && event.text) {
+            const preview = event.text.length > 200 ? event.text.slice(0, 200) + '...' : event.text;
+            agentTurns.push({ type: 'text', text: preview, ts });
+          }
+
+          // 限制长度，保留最近的事件
+          while (agentTurns.length > MAX_AGENT_TURNS) {
+            agentTurns.shift();
+          }
+
+          pendingFlush = true;
+          if (Date.now() - lastProgressDbUpdate >= PROGRESS_THROTTLE_MS) {
+            flushProgress();
+          }
         },
       );
+
+      // 刷出最后一条未写入的进度
+      flushProgress();
 
       const artifactPath = `dev-runs/${run.id}`;
       const finalStatus = result.success ? DevRunStatus.success : DevRunStatus.failed;
@@ -644,7 +690,8 @@ export class DevAgentOrchestrator {
       const summary = {
         taskId: run.id, goal: run.userInput, allSuccess: result.success,
         stopReason: result.stopReason, durationMs: result.durationMs,
-        costUsd: result.costUsd, numTurns: result.numTurns, agentSessionId: result.sessionId,
+        costUsd: result.costUsd, numTurns: result.numTurns, toolCallCount,
+        agentSessionId: result.sessionId,
         ...result.artifacts,
       };
 

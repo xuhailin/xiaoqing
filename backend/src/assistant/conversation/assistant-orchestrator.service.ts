@@ -223,6 +223,33 @@ export class AssistantOrchestrator {
         plan.turn.userMessageId,
         plan.turn.assistantMessageId,
       ]);
+
+      // 填充 growthOps 到 collector，供后续 record_cognitive_observation 使用
+      const cs = plan.context.cognitiveState;
+      if (cs.userModelDelta.shouldWriteCognitive) {
+        plan.opsCollector.growthOps.push({ type: 'profile_pending', detail: cs.userModelDelta.rationale.join('; ') });
+      }
+      if (cs.userModelDelta.shouldWriteRelationship) {
+        plan.opsCollector.growthOps.push({ type: 'stage_check', detail: `relationship stage: ${cs.relationship.stage}` });
+      }
+      if (cs.safety.notes.length > 0) {
+        plan.opsCollector.growthOps.push({ type: 'boundary', detail: cs.safety.notes.join('; ') });
+      }
+      return;
+    }
+
+    if (task.type === 'summarize_trigger') {
+      if (task.trigger === 'flush') {
+        await this.summarizeTrigger.flushSummarize(plan.conversationId);
+        return;
+      }
+      const ops = await this.summarizeTrigger.maybeAutoSummarize(
+        plan.conversationId,
+        plan.turn.userInput,
+      );
+      // 填充 memoryOps / claimOps 到 collector
+      plan.opsCollector.memoryOps.push(...ops.memoryOps);
+      plan.opsCollector.claimOps.push(...ops.claimOps);
       return;
     }
 
@@ -230,19 +257,6 @@ export class AssistantOrchestrator {
       if (!plan.context.cognitiveState) return;
       const cs = plan.context.cognitiveState;
 
-      // 从 userModelDelta 推断 growthOps（record_growth 已在前面执行完毕）
-      const growthOps: TurnCognitiveResult['growthOps'] = [];
-      if (cs.userModelDelta.shouldWriteCognitive) {
-        growthOps.push({ type: 'profile_pending', detail: cs.userModelDelta.rationale.join('; ') });
-      }
-      if (cs.userModelDelta.shouldWriteRelationship) {
-        growthOps.push({ type: 'stage_check', detail: `relationship stage: ${cs.relationship.stage}` });
-      }
-      if (cs.safety.notes.length > 0) {
-        growthOps.push({ type: 'boundary', detail: cs.safety.notes.join('; ') });
-      }
-
-      // 策略是否偏离"默认"：非 casual_chat 情境或非 companion 模式视为有意义的策略选择
       const strategyShifted =
         cs.situation.kind !== 'casual_chat' ||
         cs.responseStrategy.primaryMode !== 'companion';
@@ -252,24 +266,13 @@ export class AssistantOrchestrator {
         messageId: plan.turn.assistantMessageId,
         happenedAt: plan.turn.now,
         cognitiveState: cs,
-        memoryOps: [], // 记忆写入在 summarize_trigger 中，晚于本任务执行
-        claimOps: [],
-        growthOps,
+        memoryOps: plan.opsCollector.memoryOps,
+        claimOps: plan.opsCollector.claimOps,
+        growthOps: plan.opsCollector.growthOps,
         strategyShifted,
       };
       await this.observationEmitter.emit(turnCogResult);
       return;
-    }
-
-    if (task.type === 'summarize_trigger') {
-      if (task.trigger === 'flush') {
-        await this.summarizeTrigger.flushSummarize(plan.conversationId);
-        return;
-      }
-      await this.summarizeTrigger.maybeAutoSummarize(
-        plan.conversationId,
-        plan.turn.userInput,
-      );
     }
   }
 

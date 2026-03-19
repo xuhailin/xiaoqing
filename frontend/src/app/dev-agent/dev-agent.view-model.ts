@@ -16,6 +16,7 @@ export interface DevChatRunState {
   updatedAtLabel: string | null;
   mode: 'agent' | 'orchestrated' | null;
   costUsd: number | null;
+  toolCallCount: number | null;
   resumable: boolean;
 }
 
@@ -170,6 +171,7 @@ export function buildRunState(result: DevTaskResult | null): DevChatRunState | n
     ),
     mode,
     costUsd,
+    toolCallCount: readNumber(summaryRecord, 'toolCallCount') ?? readNumber(resultRecord, 'toolCallCount'),
     resumable,
   };
 }
@@ -273,29 +275,40 @@ function buildRunMessages(run: DevRun): DevChatMessage[] {
     });
   }
 
-  for (const step of buildStepMessageModels(run, parsed)) {
-    messages.push({
-      id: `${run.id}:tool-call:${step.id}`,
-      kind: 'tool-call',
-      status: step.callStatus,
-      timestamp,
-      tool: step.tool,
-      command: step.command,
-      summary: step.summary,
-    });
+  const resultRecord = asRecord(run.result);
+  const isAgentMode = resultRecord?.['mode'] === 'agent';
 
-    if (step.resultStatus) {
+  if (isAgentMode) {
+    // Agent 模式：从 agentTurns 构建消息流
+    for (const turn of buildAgentTurnMessages(run, resultRecord)) {
+      messages.push(turn);
+    }
+  } else {
+    // Orchestrated 模式：从 plan steps 构建消息流
+    for (const step of buildStepMessageModels(run, parsed)) {
       messages.push({
-        id: `${run.id}:tool-result:${step.id}`,
-        kind: 'tool-result',
-        status: step.resultStatus,
+        id: `${run.id}:tool-call:${step.id}`,
+        kind: 'tool-call',
+        status: step.callStatus,
         timestamp,
         tool: step.tool,
+        command: step.command,
         summary: step.summary,
-        body: step.body,
-        error: step.error,
-        meta: step.meta,
       });
+
+      if (step.resultStatus) {
+        messages.push({
+          id: `${run.id}:tool-result:${step.id}`,
+          kind: 'tool-result',
+          status: step.resultStatus,
+          timestamp,
+          tool: step.tool,
+          summary: step.summary,
+          body: step.body,
+          error: step.error,
+          meta: step.meta,
+        });
+      }
     }
   }
 
@@ -311,6 +324,51 @@ function buildRunMessages(run: DevRun): DevChatMessage[] {
   }
 
   return dedupeMessages(messages);
+}
+
+function buildAgentTurnMessages(
+  run: DevRun,
+  resultRecord: Record<string, unknown> | null,
+): DevChatMessage[] {
+  const turns = Array.isArray(resultRecord?.['agentTurns']) ? resultRecord!['agentTurns'] as unknown[] : [];
+  const messages: DevChatMessage[] = [];
+  const isRunning = normalizeRunStatus(run.status) === 'running';
+
+  for (let i = 0; i < turns.length; i++) {
+    const turn = asRecord(turns[i]);
+    if (!turn) continue;
+
+    const type = readString(turn, 'type');
+    const ts = readString(turn, 'ts') ?? null;
+    const isLast = i === turns.length - 1;
+
+    if (type === 'tool_use') {
+      const toolName = readString(turn, 'toolName') ?? 'unknown';
+      messages.push({
+        id: `${run.id}:agent-tool:${i}`,
+        kind: 'tool-call',
+        status: isRunning && isLast ? 'running' : 'success',
+        timestamp: ts,
+        tool: toolName,
+        command: toolName,
+        summary: `Agent 调用 ${toolName}`,
+      });
+    } else if (type === 'text') {
+      const text = readString(turn, 'text');
+      if (text) {
+        messages.push({
+          id: `${run.id}:agent-text:${i}`,
+          kind: 'assistant',
+          status: isRunning && isLast ? 'running' : null,
+          timestamp: ts,
+          text,
+          tone: 'progress',
+        });
+      }
+    }
+  }
+
+  return messages;
 }
 
 function buildStepMessageModels(run: DevRun, parsed: ParsedRunData): StepMessageModel[] {

@@ -35,6 +35,8 @@
 |------|------|
 | [memory-growth-plan.md](memory-growth-plan.md) | 记忆成长体系：自动总结、衰减、晋升/降级、印象更新、进化触发 |
 | [identity-anchor-design.md](identity-anchor-design.md) | 身份锚定：独立表、不衰减、始终注入、变更历史 |
+| [life-record-design.md](life-record-design.md) | 人生轨迹：TracePoint / DailySummary / DailyMoment 管线、去重、API 与前端时间线 |
+| [cognitive-trace-design.md](cognitive-trace-design.md) | 小晴认知溯源：L1 观测采集与展示、与 Debug Trace / LifeRecord 边界、L2/L3 演进 |
 
 ## 人格与表达
 
@@ -62,7 +64,8 @@
 
 | 文档 | 说明 |
 |------|------|
-| [debug-trace-design.md](debug-trace-design.md) | Trace 与调试元数据设计 |
+| [debug-trace-design.md](debug-trace-design.md) | Trace 与调试元数据设计（管线步骤、TraceStep/TurnTraceEvent） |
+| [cognitive-trace-design.md](cognitive-trace-design.md) | 小晴认知溯源（面向用户的认知观测与 L2/L3 演进） |
 
 ## 质量保障
 
@@ -86,3 +89,15 @@
 | 文档 | 说明 |
 |------|------|
 | [小晴使用说明.md](小晴使用说明.md) | 面向用户的产品说明：意图、工具、使用建议 |
+
+## Archived（已归档，不再作为主入口维护）
+
+以下计划/过程文档已合并进正式设计文档或汇总计划，原文件移至 `docs/archive/` 仅作追溯，不再更新。
+
+| 文档 | 原位置 | 合并/汇总至 |
+|------|--------|-------------|
+| [PLAN-trace-points.md](archive/PLAN-trace-points.md) | 根目录 | [life-record-design.md](life-record-design.md)、[0318_汇总计划.md](../0318_汇总计划.md) |
+| [plan.md](archive/plan.md) | 根目录 | [0318_汇总计划.md](../0318_汇总计划.md)（认知链路与质量） |
+| [INFRA-REFACTOR-PLAN.md](archive/INFRA-REFACTOR-PLAN.md) | 根目录 | 所列任务已完成，验收见该文件 |
+
+根目录 **PLAN-xiaoqing-cognitive-trace.md** 按约定保留，设计要点已同步至 [cognitive-trace-design.md](cognitive-trace-design.md)。
