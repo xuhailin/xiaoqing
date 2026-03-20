@@ -7,8 +7,8 @@ import { MemoryListComponent } from './memory-list.component';
 import { PersonaConfigComponent } from '../persona/persona-config.component';
 import { PersonaSummaryComponent } from '../persona/persona-summary.component';
 import { CognitiveTraceBoardComponent } from '../cognitive-trace/cognitive-trace-board.component';
+import { MemoryRelationsPageComponent } from './memory-relations-page.component';
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
-import { AppPageHeaderComponent } from '../shared/ui/app-page-header.component';
 import { AppPanelComponent } from '../shared/ui/app-panel.component';
 import { AppStateComponent } from '../shared/ui/app-state.component';
 import { SystemOverviewService, type SystemOverview } from '../core/services/system-overview.service';
@@ -23,29 +23,13 @@ import { SystemOverviewService, type SystemOverview } from '../core/services/sys
     PersonaConfigComponent,
     PersonaSummaryComponent,
     CognitiveTraceBoardComponent,
+    MemoryRelationsPageComponent,
     AppBadgeComponent,
-    AppPageHeaderComponent,
     AppPanelComponent,
     AppStateComponent,
   ],
   template: `
     <div class="memory-hub">
-      <app-page-header
-        [title]="pageTitle()"
-        [description]="pageDescription()"
-      >
-        @if (currentView() === 'memories') {
-          <label actions class="memory-search__field">
-            <input
-              class="ui-input"
-              [value]="query()"
-              (input)="query.set($any($event.target).value)"
-              placeholder="搜索记忆模块或条目"
-            />
-          </label>
-        }
-      </app-page-header>
-
       @if (currentView() === 'profile') {
         <div class="memory-grid memory-grid--profile">
           <app-panel variant="workbench" class="memory-card">
@@ -94,6 +78,17 @@ import { SystemOverviewService, type SystemOverview } from '../core/services/sys
       }
 
       @if (currentView() === 'memories') {
+        <div class="memory-toolbar">
+          <label class="memory-search__field">
+            <input
+              class="ui-input"
+              [value]="query()"
+              (input)="query.set($any($event.target).value)"
+              placeholder="搜索记忆模块或条目"
+            />
+          </label>
+        </div>
+
         @if (!showModule('memories')) {
           <app-panel variant="workbench" class="memory-card">
             <app-state
@@ -103,33 +98,21 @@ import { SystemOverviewService, type SystemOverview } from '../core/services/sys
           </app-panel>
         } @else {
           <app-panel variant="workbench" class="memory-card">
-            <div class="module-header">
-              <div class="module-title">Long Memory</div>
-              <app-badge tone="neutral" appearance="outline">Memory List</app-badge>
-            </div>
             <app-memory-list />
           </app-panel>
         }
       }
 
       @if (currentView() === 'life-record') {
-        <app-panel variant="workbench" class="memory-card">
-          <div class="module-header">
-            <div class="module-title">Life Record</div>
-            <app-badge tone="success" appearance="outline">Trace</app-badge>
-          </div>
-          <app-life-trace-board />
-        </app-panel>
+        <app-life-trace-board />
       }
 
       @if (currentView() === 'cognitive-trace') {
-        <app-panel variant="workbench" class="memory-card">
-          <div class="module-header">
-            <div class="module-title">Cognitive Trace</div>
-            <app-badge tone="info" appearance="outline">Trace</app-badge>
-          </div>
-          <app-cognitive-trace-board />
-        </app-panel>
+        <app-cognitive-trace-board />
+      }
+
+      @if (currentView() === 'relations') {
+        <app-memory-relations-page />
       }
     </div>
   `,
@@ -152,6 +135,11 @@ import { SystemOverviewService, type SystemOverview } from '../core/services/sys
 
     .memory-search__field {
       width: min(440px, 100%);
+    }
+
+    .memory-toolbar {
+      display: flex;
+      justify-content: flex-end;
     }
 
     .memory-grid {
@@ -243,6 +231,10 @@ import { SystemOverviewService, type SystemOverview } from '../core/services/sys
       .memory-search__field {
         width: 100%;
       }
+
+      .memory-toolbar {
+        justify-content: stretch;
+      }
     }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -260,6 +252,7 @@ export class MemoryHubComponent implements OnInit {
     { key: 'memories', keywords: ['memory', 'memories', 'long memory', '记忆', '长期'] },
     { key: 'life-trace', keywords: ['life', 'life trace', 'record', '生活', '轨迹'] },
     { key: 'cognitive-trace', keywords: ['cognitive', 'trace', '认知', '观察'] },
+    { key: 'relations', keywords: ['relation', 'social', '关系', '社会', '人物'] },
   ] as const;
 
   protected readonly visibleModules = computed(() => {
@@ -273,37 +266,14 @@ export class MemoryHubComponent implements OnInit {
     );
   });
   protected readonly currentView = computed<
-    'life-record' | 'cognitive-trace' | 'memories' | 'profile'
+    'life-record' | 'cognitive-trace' | 'memories' | 'profile' | 'relations'
   >(() => {
     const url = this.router.url;
+    if (url.startsWith('/memory/relations')) return 'relations';
     if (url.startsWith('/memory/cognitive-trace')) return 'cognitive-trace';
     if (url.startsWith('/memory/memories')) return 'memories';
     if (url.startsWith('/memory/profile')) return 'profile';
     return 'life-record';
-  });
-  protected readonly pageTitle = computed(() => {
-    switch (this.currentView()) {
-      case 'cognitive-trace':
-        return '认知';
-      case 'memories':
-        return '记忆';
-      case 'profile':
-        return '用户画像';
-      default:
-        return '生活';
-    }
-  });
-  protected readonly pageDescription = computed(() => {
-    switch (this.currentView()) {
-      case 'cognitive-trace':
-        return '查看小晴自己的认知变化，包括感知、记忆、决策与演进轨迹。';
-      case 'memories':
-        return '集中查看长期记忆、记忆条目与可持续沉淀的内容。';
-      case 'profile':
-        return '维护用户画像、身份锚定和稳定偏好，让陪伴更连续。';
-      default:
-        return '查看用户这边发生了什么，保留生活轨迹与相关记录。';
-    }
   });
 
   async ngOnInit() {

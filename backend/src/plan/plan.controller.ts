@@ -41,6 +41,26 @@ export class PlanController {
     });
   }
 
+  @Get('occurrences')
+  listAllOccurrences(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('planId') planId?: string,
+    @Query('status') status?: string,
+    @Query('conversationId') conversationId?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const now = new Date();
+    const fromDate = this.parseDateOrDefault(from, new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000));
+    const toDate = this.parseDateOrDefault(to, new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000));
+    return this.occurrenceService.listByTimeRange(fromDate, toDate, {
+      planId,
+      status: status as any,
+      conversationId,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
   @Get(':id')
   get(@Param('id') id: string) {
     return this.planService.getPlan(id);
@@ -112,5 +132,14 @@ export class PlanController {
       rescheduledTo: new Date(body.rescheduledTo),
       reason: body.reason,
     });
+  }
+
+  private parseDateOrDefault(value: string | undefined, fallback: Date): Date {
+    if (!value) return fallback;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return fallback;
+    }
+    return date;
   }
 }

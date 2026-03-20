@@ -13,6 +13,8 @@ import {
   withWorkspaceMeta,
 } from './workspace/workspace-meta';
 import { WorkspaceManager } from './workspace/workspace-manager.service';
+import { ConversationWorkService } from '../conversation-work/conversation-work.service';
+import { toConversationMessageDto } from '../assistant/conversation/message.dto';
 
 /** DevAgent 薄入口：委派主流程给 orchestrator。 */
 @Injectable()
@@ -22,6 +24,7 @@ export class DevAgentService {
     private readonly runner: DevRunRunnerService,
     private readonly costService: DevCostService,
     private readonly workspaceManager: WorkspaceManager,
+    private readonly conversationWork: ConversationWorkService,
   ) {}
 
   async handleTask(
@@ -30,6 +33,7 @@ export class DevAgentService {
     metadata?: SendMessageMetadata,
     options?: { mode?: DevRunMode },
   ): Promise<DevTaskResult> {
+    const normalizedInput = userInput.trim();
     const mode: DevRunMode = options?.mode ?? 'orchestrated';
     const requestedWorkspace = normalizeWorkspaceInput(metadata);
     const session = await this.resolveSession(conversationId, requestedWorkspace, {
@@ -49,15 +53,33 @@ export class DevAgentService {
       }
     }
 
-    const run = await this.sessions.createRun(
-      session.id,
-      userInput,
-      this.buildQueuedResult(workspace, { mode }),
-    );
+    const work = await this.conversationWork.createDevWorkItem({
+      conversationId,
+      userInput: normalizedInput,
+    });
+
+    let run;
+    let workItem;
+    try {
+      run = await this.sessions.createRun(
+        session.id,
+        normalizedInput,
+        this.buildQueuedResult(workspace, { mode }),
+      );
+      workItem = await this.conversationWork.attachDevRun(work.workItem.id, run.id);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await this.conversationWork.markFailedById(work.workItem.id, message);
+      throw err;
+    }
 
     this.runner.startRun(run.id, session.id);
 
     return {
+      userMessage: toConversationMessageDto(work.userMessage),
+      assistantMessage: toConversationMessageDto(work.receiptMessage),
+      workItems: [workItem],
+      injectedMemories: [],
       session: {
         id: session.id,
         status: session.status,
@@ -75,7 +97,7 @@ export class DevAgentService {
         artifactPath: null,
         workspace,
       },
-      reply: `任务已接收（run: ${run.id}），正在后台执行。你可以轮询 /dev-agent/runs/${run.id} 查看进度。`,
+      reply: work.receiptMessage.content,
     };
   }
 
@@ -123,6 +145,8 @@ export class DevAgentService {
         },
       };
     }
+
+    await this.conversationWork.markDevRunCancelled(runId, normalizedReason);
 
     return {
       ok: true,

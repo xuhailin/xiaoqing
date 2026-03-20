@@ -117,7 +117,10 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
       cursor: pointer;
       position: relative;
       overflow: hidden;
-      border-radius: var(--workbench-card-radius);
+      border: 1px solid rgba(96, 122, 170, 0.07);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.18);
+      box-shadow: none;
     }
 
     .conv-item::before {
@@ -137,8 +140,15 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
     }
 
     .conv-item.is-active {
-      border-color: var(--color-primary);
-      background: var(--sidebar-card-background-active);
+      border-color: rgba(79, 109, 245, 0.14);
+      background: rgba(255, 255, 255, 0.36);
+      box-shadow: none;
+    }
+
+    .conv-item:hover {
+      border-color: rgba(96, 122, 170, 0.1);
+      background: rgba(255, 255, 255, 0.26);
+      box-shadow: none;
     }
 
     .conv-header {
@@ -182,10 +192,9 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
       align-items: center;
       gap: var(--space-2);
       min-width: 0;
-      padding: var(--space-2);
-      border-radius: var(--radius-md);
-      background: var(--color-workbench-accent);
-      border: 1px solid var(--color-workbench-accent-strong);
+      padding: 0;
+      border: none;
+      background: transparent;
       color: var(--color-text-secondary);
       font-size: var(--font-size-xs);
     }

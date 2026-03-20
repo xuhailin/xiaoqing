@@ -113,7 +113,7 @@ export class SystemSelfService {
       socialEntityClassifierScheduler: isFeatureEnabled(this.config, 'socialEntityClassifierScheduler'),
       socialInsightScheduler: isFeatureEnabled(this.config, 'socialInsightScheduler'),
       sharedExperienceFollowupScheduler: isFeatureEnabled(this.config, 'sharedExperienceFollowupScheduler'),
-      openclaw: isFeatureEnabled(this.config, 'openclaw'),
+      openclaw: this.openClawRegistry.hasAny(),
     };
   }
 
@@ -136,7 +136,7 @@ export class SystemSelfService {
 
   private getExternalServices(): ExternalServiceInfo[] {
     const openclawAgents = this.openClawRegistry.listAll();
-    const openclawEnabled = isFeatureEnabled(this.config, 'openclaw');
+    const openclawEnabled = this.openClawRegistry.hasAny();
 
     return [
       {

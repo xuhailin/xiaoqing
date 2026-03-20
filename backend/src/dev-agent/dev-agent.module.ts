@@ -35,9 +35,11 @@ import { StrategyReasoner } from '../reasoning/strategy-reasoner.service';
 import { PlanModule } from '../plan/plan.module';
 import { NotifyDispatchStrategy } from '../plan/strategies/notify-dispatch.strategy';
 import { DevRunDispatchStrategy } from '../plan/strategies/dev-run-dispatch.strategy';
+import { ActionDispatchStrategy } from '../plan/strategies/action-dispatch.strategy';
+import { ConversationWorkModule } from '../conversation-work/conversation-work.module';
 
 @Module({
-  imports: [OpenClawModule, ActionModule, ReflectionModule, LlmModule, QueueModule, SystemSelfModule, PlanModule],
+  imports: [OpenClawModule, ActionModule, ReflectionModule, LlmModule, QueueModule, SystemSelfModule, PlanModule, ConversationWorkModule],
   controllers: [DevAgentController],
   providers: [
     DevAgentService,
@@ -78,6 +80,7 @@ export class DevAgentModule implements OnModuleInit {
     private readonly reminderMessage: ReminderMessageService,
     private readonly notifyStrategy: NotifyDispatchStrategy,
     private readonly devRunStrategy: DevRunDispatchStrategy,
+    private readonly actionStrategy: ActionDispatchStrategy,
     private readonly runner: DevRunRunnerService,
   ) {}
 
@@ -93,5 +96,6 @@ export class DevAgentModule implements OnModuleInit {
     // 延迟注入：将依赖注入到 Plan 分发策略
     this.notifyStrategy.setReminderMessageService(this.reminderMessage);
     this.devRunStrategy.setRunner(this.runner);
+    this.actionStrategy.setCapabilityRegistry(this.registry);
   }
 }

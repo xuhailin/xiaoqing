@@ -1,4 +1,6 @@
 import type { DevWorkspaceMeta } from './workspace/workspace-meta';
+import type { ConversationMessageDto } from '../assistant/conversation/orchestration.types';
+import type { ConversationWorkItemDto } from '../conversation-work/conversation-work.types';
 
 /** DevAgent 执行模式 */
 export type DevRunMode = 'orchestrated' | 'agent';
@@ -55,6 +57,10 @@ export interface IDevAgentExecutor {
 
 /** DevAgent 任务执行结果，返回给前端 */
 export interface DevTaskResult {
+  userMessage?: ConversationMessageDto;
+  assistantMessage?: ConversationMessageDto;
+  workItems?: ConversationWorkItemDto[];
+  injectedMemories?: Array<{ id: string; type: string; content: string }>;
   session: {
     id: string;
     status: string;

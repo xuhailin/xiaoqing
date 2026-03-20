@@ -35,6 +35,13 @@ export class ClaudeCodeExecutor implements IDevExecutor, ICapability {
 
   private readonly logger = new Logger(ClaudeCodeExecutor.name);
   private readonly enabled: boolean;
+  private readonly limitPatterns = [
+    /you've hit your limit/i,
+    /rate limit/i,
+    /usage limit/i,
+    /quota/i,
+    /额度/i,
+  ];
 
   /** 活跃执行中的 AbortController，用于 cancel */
   private readonly activeAbortControllers = new Map<string, AbortController>();
@@ -104,23 +111,38 @@ export class ClaudeCodeExecutor implements IDevExecutor, ICapability {
           abortController,
         },
       );
+      const limitHit = this.isLimitReached(result);
+      const success = result.success && !limitHit;
+      const normalizedError = limitHit
+        ? result.error ?? result.content ?? 'Claude Code 执行额度已耗尽'
+        : result.error;
+      const normalizedContent = success ? result.content : null;
+      const normalizedFailureReason = success
+        ? null
+        : (limitHit ? 'Claude Code 执行额度已耗尽，请稍后重试或切换执行方式。' : result.error);
 
       const durationMs = Date.now() - startTime;
 
       return {
-        success: result.success,
-        content: result.content,
-        error: result.error,
-        errorType: result.success ? null : this.classifyError(result),
-        exitCode: result.success ? 0 : 1,
+        success,
+        content: normalizedContent,
+        error: normalizedError,
+        errorType: success ? null : this.classifyError({
+          stopReason: result.stopReason,
+          error: normalizedError,
+          limitHit,
+        }),
+        exitCode: success ? 0 : 1,
         command: 'claude-code.execute',
         args: [],
         cwd,
         stdout: result.content,
-        stderr: result.error,
+        stderr: normalizedError,
         durationMs,
-        failureReason: result.success ? null : result.error,
-        retryHint: result.success ? null : '可尝试细化任务描述后重试。',
+        failureReason: normalizedFailureReason,
+        retryHint: success ? null : (limitHit
+          ? '请等待额度恢复，或切换到本地 shell/其他执行器后重试。'
+          : '可尝试细化任务描述后重试。'),
         artifacts: {
           sessionId: result.sessionId,
           costUsd: result.costUsd,
@@ -166,10 +188,20 @@ export class ClaudeCodeExecutor implements IDevExecutor, ICapability {
     return false;
   }
 
-  private classifyError(result: { stopReason: string | null; error: string | null }): DevExecutorErrorType {
+  private classifyError(result: {
+    stopReason: string | null;
+    error: string | null;
+    limitHit?: boolean;
+  }): DevExecutorErrorType {
     if (result.stopReason === 'cancelled') return 'TIMEOUT';
+    if (result.limitHit) return 'PERMISSION_DENIED';
     if (result.error?.includes('rate_limit')) return 'TIMEOUT';
     if (result.error?.includes('authentication')) return 'PERMISSION_DENIED';
     return 'NON_ZERO_EXIT';
+  }
+
+  private isLimitReached(result: { content: string | null; error: string | null }): boolean {
+    const text = `${result.error ?? ''}\n${result.content ?? ''}`;
+    return this.limitPatterns.some((pattern) => pattern.test(text));
   }
 }

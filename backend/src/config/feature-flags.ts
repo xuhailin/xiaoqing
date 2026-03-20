@@ -33,7 +33,6 @@ export const FEATURE_FLAGS = {
   localGeneralAction: { key: 'FEATURE_LOCAL_GENERAL_ACTION', defaultEnabled: false },
   memoryScheduler: { key: 'FEATURE_MEMORY_SCHEDULER', defaultEnabled: true },
   memoryShortSummary: { key: 'FEATURE_MEMORY_SHORT_SUMMARY', defaultEnabled: false },
-  openclaw: { key: 'FEATURE_OPENCLAW', defaultEnabled: false },
   planScheduler: { key: 'FEATURE_PLAN_SCHEDULER', defaultEnabled: true },
   socialCareScheduler: { key: 'FEATURE_SOCIAL_CARE_SCHEDULER', defaultEnabled: true },
   socialEntityClassifierScheduler: { key: 'FEATURE_SOCIAL_ENTITY_CLASSIFIER_SCHEDULER', defaultEnabled: true },

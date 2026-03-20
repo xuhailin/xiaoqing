@@ -4,10 +4,10 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConversationWorkService } from '../conversation-work/conversation-work.service';
 import type { EntryAgentId } from '../gateway/message-router.types';
 import { AgentBusRepository } from './agent-bus.repository';
 import { AgentBusService } from './agent-bus.service';
-import { AgentDelegationProjectionService } from './agent-delegation-projection.service';
 import { MemoryProposalService } from './memory-proposal.service';
 import type {
   AgentInboundDelegationResult,
@@ -29,8 +29,8 @@ export class AgentInboundResultService {
   constructor(
     private readonly bus: AgentBusService,
     private readonly repo: AgentBusRepository,
-    private readonly projection: AgentDelegationProjectionService,
     private readonly memoryProposal: MemoryProposalService,
+    private readonly conversationWork: ConversationWorkService,
   ) {}
 
   async handleInboundResult(
@@ -82,17 +82,19 @@ export class AgentInboundResultService {
       const failureContent = result.content?.trim()
         || `${this.getAgentLabel(executorAgentId)}执行失败：${failureReason}`;
 
-      const resultMessage = await this.projection.projectResult({
-        conversationId: delegation.originConversationId,
+      const resultProjection = await this.conversationWork.markDelegationFailed({
         delegationId: delegation.id,
         fromAgentId: executorAgentId,
         toAgentId: requesterAgentId,
         delegationKind,
-        success: false,
+        reason: result.summary || failureReason,
         content: failureContent,
-        summary: result.summary || failureReason,
         relatedMessageId: delegation.receiptMessageId,
       });
+      const resultMessage = resultProjection?.resultMessage;
+      if (!resultMessage) {
+        throw new BadRequestException(`work item missing for delegation "${delegation.id}"`);
+      }
 
       await this.bus.updateStatus({
         delegationId: delegation.id,
@@ -125,17 +127,19 @@ export class AgentInboundResultService {
       || `${this.getAgentLabel(executorAgentId)}已完成委托。`;
     const summary = result.summary?.trim() || delegation.summary?.trim() || null;
 
-    const resultMessage = await this.projection.projectResult({
-      conversationId: delegation.originConversationId,
+    const resultProjection = await this.conversationWork.markDelegationCompleted({
       delegationId: delegation.id,
       fromAgentId: executorAgentId,
       toAgentId: requesterAgentId,
       delegationKind,
-      success: true,
       content,
       summary,
       relatedMessageId: delegation.receiptMessageId,
     });
+    const resultMessage = resultProjection?.resultMessage;
+    if (!resultMessage) {
+      throw new BadRequestException(`work item missing for delegation "${delegation.id}"`);
+    }
 
     await this.bus.updateStatus({
       delegationId: delegation.id,

@@ -38,6 +38,16 @@ export interface MessageMetadata {
   nextRunAt?: string;
   count?: number;
   triggerMode?: string;
+  workItemId?: string;
+  workProjection?: 'receipt' | 'result';
+  workStatus?: ConversationWorkStatus;
+  captureKind?: 'idea' | 'todo';
+  ideaId?: string;
+  ideaTitle?: string;
+  todoId?: string;
+  todoTitle?: string;
+  planId?: string;
+  planTitle?: string;
 }
 
 export interface Message {
@@ -66,6 +76,47 @@ export interface ConversationItem {
   messageCount: number;
   activeReminderCount: number;
   latestMessage: Message | null;
+}
+
+export type ConversationWorkStatus =
+  | 'accepted'
+  | 'queued'
+  | 'running'
+  | 'waiting_input'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'timed_out';
+
+export type ConversationWorkExecutorType =
+  | 'dev_run'
+  | 'agent_delegation'
+  | 'tool_run'
+  | 'scheduled_action';
+
+export interface ConversationWorkItem {
+  id: string;
+  conversationId: string;
+  originUserMessageId: string;
+  originReceiptMessageId: string | null;
+  resultMessageId: string | null;
+  status: ConversationWorkStatus;
+  executorType: ConversationWorkExecutorType | null;
+  sourceRefId: string | null;
+  title: string | null;
+  userFacingGoal: string;
+  latestSummary: string | null;
+  blockReason: string | null;
+  waitingQuestion: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  retryable: boolean;
+  timeoutAt: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  lastEventAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type AgentDelegationStatus =
@@ -218,6 +269,7 @@ export interface SendMessageResponse {
   userMessage: Message;
   assistantMessage: Message;
   injectedMemories: InjectedMemory[];
+  workItems?: ConversationWorkItem[];
   debugMeta?: DebugMeta;
   openclawUsed?: boolean;
   localSkillUsed?: 'weather' | 'book_download' | 'general_action';
@@ -270,6 +322,10 @@ export class ConversationService {
 
   getMessages(conversationId: string) {
     return this.http.get<Message[]>(`${this.base}/${conversationId}/messages`);
+  }
+
+  getWorkItems(conversationId: string) {
+    return this.http.get<ConversationWorkItem[]>(`${this.base}/${conversationId}/work-items`);
   }
 
   getDelegations(conversationId: string) {

@@ -3,13 +3,18 @@ import { PlanDispatchType, ReminderScope } from '@prisma/client';
 import type { Plan, TaskOccurrence } from '@prisma/client';
 import type { DispatchResult } from './plan.types';
 
+export interface DispatchStrategyResult {
+  resultRef?: string;
+  resultPayload?: Record<string, unknown>;
+}
+
 /**
  * Plan 分发策略接口。
  * 每种 dispatchType 对应一个实现（Phase 2 迁移时补全）。
  */
 export interface IPlanDispatchStrategy {
   readonly type: PlanDispatchType;
-  dispatch(plan: Plan, occurrence: TaskOccurrence): Promise<{ resultRef?: string }>;
+  dispatch(plan: Plan, occurrence: TaskOccurrence): Promise<DispatchStrategyResult>;
 }
 
 @Injectable()
@@ -37,6 +42,7 @@ export class PlanDispatcher {
       occurrenceId: occurrence.id,
       planId: plan.id,
       resultRef: result.resultRef,
+      resultPayload: result.resultPayload,
     };
   }
 }

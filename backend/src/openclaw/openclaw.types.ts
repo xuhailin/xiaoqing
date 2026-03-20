@@ -1,7 +1,6 @@
 /**
  * OpenClaw Agent 配置 — 描述一个远端 OpenClaw 实例。
- * 可通过环境变量 OPENCLAW_AGENTS (JSON 数组) 注册多个 Agent，
- * 也可通过 OPENCLAW_* 系列变量注册默认 Agent（向后兼容）。
+ * 通过环境变量 OPENCLAW_AGENTS（JSON 数组）注册；每项的 id 为实例唯一标识。
  */
 export interface OpenClawAgentConfig {
   /** 唯一标识，如 'intel-cat'、'code-reviewer' */

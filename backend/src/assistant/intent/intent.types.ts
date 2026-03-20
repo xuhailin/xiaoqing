@@ -8,6 +8,19 @@ export type DialogueEscalation = '不推进' | '可记录' | '应转任务';
 export type DialogueTaskIntent = 'none' | 'weather_query' | 'book_download' | 'general_tool' | 'timesheet' | 'dev_task' | 'set_reminder' | 'checkin' | 'device_screenshot';
 /** LLM 给出的建议工具；最终是否调用由策略层决定 */
 export type DialogueSuggestedTool = 'weather' | 'book_download' | 'timesheet' | 'reminder';
+export type DialogueTargetKind = 'chat' | 'idea' | 'todo' | 'task';
+export type DialoguePlanIntentType = 'none' | 'notify' | 'action';
+
+/**
+ * 多意图识别项：当用户一句话包含多个动作时，LLM 输出 taskIntents 数组。
+ * 例："打卡并明天提醒我开会" → [{ intent: 'checkin', immediate: true }, { intent: 'set_reminder', slots: {...}, immediate: false }]
+ */
+export interface TaskIntentItem {
+  intent: DialogueTaskIntent;
+  slots?: DialogueIntentSlots;
+  /** true=立即执行，false=延迟执行（创建 Plan） */
+  immediate?: boolean;
+}
 
 export interface DialogueIntentSlots {
   city?: string;
@@ -31,9 +44,13 @@ export interface DialogueIntentSlots {
   /** 提醒：原因/内容（如 "吃晚饭"） */
   reminderReason?: string;
   /** 提醒：频率 */
-  reminderSchedule?: 'once' | 'daily' | 'weekly';
-  /** 提醒：时间（如 "18:00"、"明天 9:00"、"每周一 10:00"） */
+  reminderSchedule?: 'once' | 'daily' | 'weekday' | 'weekly';
+  /** 提醒：一次性触发时间，ISO 8601 */
+  reminderRunAt?: string;
+  /** 提醒：周期触发时间，HH:MM */
   reminderTime?: string;
+  /** 提醒：每周几，0=周日，1=周一，...，6=周六 */
+  reminderWeekday?: number;
   /** 提醒：取消时的提醒 ID 或关键词 */
   reminderTarget?: string;
   [key: string]: unknown;
@@ -57,9 +74,16 @@ export interface WorldStateUpdateFromIntent {
 }
 
 /** LLM 给出的行动决策建议（intent_v13+），最终是否采纳由 ActionReasoner 决定 */
+export interface PlanIntentFromIntent {
+  type: DialoguePlanIntentType;
+  reason?: string;
+}
+
 export interface ActionHintFromIntent {
   action: string;
   reason?: string;
+  targetKind?: DialogueTargetKind;
+  planIntent?: PlanIntentFromIntent;
 }
 
 export interface DialogueIntentState {
@@ -69,8 +93,10 @@ export interface DialogueIntentState {
   agency: DialogueAgency;
   /** 是否需要进入工具执行链（由 LLM 识别） */
   requiresTool: boolean;
-  /** 任务意图类型（执行通道不在这里表达） */
+  /** 任务意图类型（主意图，执行通道不在这里表达） */
   taskIntent: DialogueTaskIntent;
+  /** 多意图列表（当用户一句话包含多个动作时）。为空或 undefined 时等价于只有 taskIntent 单意图 */
+  taskIntents?: TaskIntentItem[];
   /** 结构化槽位，供策略层和执行层使用 */
   slots: DialogueIntentSlots;
   escalation: DialogueEscalation;

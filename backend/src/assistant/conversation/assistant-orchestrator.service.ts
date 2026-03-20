@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Prisma, PlanDispatchType, ReminderScope } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma.service';
 import { estimateTokens } from '../../infra/token-estimator';
 import { ActionReasonerService } from '../action-reasoner/action-reasoner.service';
@@ -25,6 +26,12 @@ import { SocialEntityService } from '../life-record/social-entity/social-entity.
 import { SocialRelationEdgeService } from '../life-record/social-relation-edge/social-relation-edge.service';
 import type { SendMessageResult, ToolPolicyDecision, TurnContext } from './orchestration.types';
 import { toConversationMessageDto } from './message.dto';
+import { PlanService } from '../../plan/plan.service';
+import { IdeaService } from '../../idea/idea.service';
+import { TodoService } from '../../todo/todo.service';
+import type { TaskIntentItem } from '../intent/intent.types';
+import type { ActionDecision } from '../action-reasoner/action-reasoner.types';
+import type { TaskTemplate } from '../../plan/plan.types';
 
 @Injectable()
 export class AssistantOrchestrator {
@@ -49,6 +56,9 @@ export class AssistantOrchestrator {
     private readonly observationEmitter: ObservationEmitterService,
     private readonly relationshipOverview: RelationshipOverviewService,
     private readonly sessionReflection: SessionReflectionService,
+    private readonly planService: PlanService,
+    private readonly ideaService: IdeaService,
+    private readonly todoService: TodoService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -87,12 +97,12 @@ export class AssistantOrchestrator {
     let policy: ToolPolicyDecision = { action: 'chat', reason: 'intent 未命中，默认聊天路径' };
     try {
       if (context.runtime.actionDecision) {
-        policy = this.actionReasoner.toToolPolicy(context.runtime.actionDecision);
+        policy = context.runtime.actionDecision.toolPolicy;
       } else {
         const resolvedIntent = context.runtime.mergedIntentState ?? context.runtime.intentState;
         if (resolvedIntent) {
           const decision = this.actionReasoner.decide(resolvedIntent);
-          policy = this.actionReasoner.toToolPolicy(decision);
+          policy = decision.toolPolicy;
         }
       }
     } catch (err) {
@@ -134,6 +144,12 @@ export class AssistantOrchestrator {
       } catch (err) {
         this.logger.warn(`postTurn beforeReturn failed: ${String(err)}`);
       }
+    }
+
+    try {
+      result = await this.captureStructuredWorkItem(context, result);
+    } catch (err) {
+      this.logger.warn(`structured work capture failed: ${String(err)}`);
     }
 
     // Reflection: 评估本轮决策质量
@@ -195,7 +211,381 @@ export class AssistantOrchestrator {
       ).catch((err) => this.logger.warn(`postTurn afterReturn failed: ${String(err)}`));
     }
 
+    // 多意图：为延迟动作创建 Plan（异步，不阻塞返回）
+    const actionDecision = context.runtime.actionDecision;
+    if (actionDecision?.deferredIntents?.length) {
+      this.createPlansForDeferredIntents(
+        input.conversationId,
+        actionDecision,
+      ).catch((err) => this.logger.warn(`deferred intents plan creation failed: ${String(err)}`));
+    }
+
     return result;
+  }
+
+  private async captureStructuredWorkItem(
+    context: TurnContext,
+    result: SendMessageResult,
+  ): Promise<SendMessageResult> {
+    const decision = context.runtime.actionDecision;
+    const targetKind = decision?.targetKind;
+    if (!decision || !targetKind || targetKind === 'chat' || targetKind === 'task') {
+      return result;
+    }
+
+    const capture = targetKind === 'idea'
+      ? await this.captureIdeaFromDecision(context)
+      : await this.captureTodoFromDecision(context, result, decision);
+
+    if (!capture) {
+      return result;
+    }
+
+    const captureMetadata = capture.kind === 'idea'
+      ? {
+          captureKind: capture.kind,
+          ideaId: capture.ideaId,
+          ...(capture.ideaTitle ? { ideaTitle: capture.ideaTitle } : {}),
+        }
+      : {
+          captureKind: capture.kind,
+          todoId: capture.todoId,
+          ...(capture.todoTitle ? { todoTitle: capture.todoTitle } : {}),
+          ...(capture.planTitle ? { planTitle: capture.planTitle } : {}),
+          ...(capture.planId ? { planId: capture.planId } : {}),
+        };
+
+    const mergedMetadata = {
+      ...(result.assistantMessage.metadata ?? {}),
+      ...captureMetadata,
+    };
+
+    const assistantMsg = await this.prisma.message.update({
+      where: { id: result.assistantMessage.id },
+      data: {
+        metadata: mergedMetadata as Prisma.InputJsonValue,
+      },
+    });
+
+    return {
+      ...result,
+      assistantMessage: toConversationMessageDto(assistantMsg),
+      meta: {
+        ...(result.meta ?? {}),
+        workCapture: capture,
+      },
+    };
+  }
+
+  private async captureIdeaFromDecision(context: TurnContext): Promise<{
+    kind: 'idea';
+    ideaId: string;
+    ideaTitle?: string;
+  } | null> {
+    const content = context.request.userInput.trim();
+    if (!content) return null;
+
+    const idea = await this.ideaService.createIdea({
+      title: this.deriveTitle(content),
+      content,
+    });
+
+    return {
+      kind: 'idea',
+      ideaId: idea.id,
+      ...(idea.title ? { ideaTitle: idea.title } : {}),
+    };
+  }
+
+  private async captureTodoFromDecision(
+    context: TurnContext,
+    result: SendMessageResult,
+    decision: ActionDecision,
+  ): Promise<{
+    kind: 'todo';
+    todoId: string;
+    todoTitle?: string;
+    planId?: string;
+    planTitle?: string;
+  } | null> {
+    const intentState = context.runtime.mergedIntentState ?? context.runtime.intentState;
+    if (!intentState) return null;
+
+    const reminderAction = this.readString(intentState.slots.reminderAction) ?? 'create';
+    const reminderPlanId = this.readString(result.assistantMessage.metadata?.reminderId);
+
+    if (intentState.taskIntent === 'set_reminder' && reminderAction !== 'create' && !reminderPlanId) {
+      return null;
+    }
+
+    const sourceText = context.request.userInput.trim();
+    if (!sourceText) return null;
+
+    const todoTitle = this.deriveTodoTitle(intentState, sourceText);
+    const missingPrompt = this.buildTodoBlockReason(intentState.missingParams);
+    const todo = await this.todoService.createTodo({
+      title: todoTitle,
+      description: this.deriveTodoDescription(intentState, sourceText),
+      dueAt: this.deriveTodoDueAt(intentState),
+      ...(missingPrompt
+        ? {
+            status: 'blocked',
+            blockReason: missingPrompt,
+          }
+        : {}),
+    }) as unknown as { id: string };
+
+    if (missingPrompt && !reminderPlanId) {
+      return {
+        kind: 'todo',
+        todoId: todo.id,
+        ...(todoTitle ? { todoTitle } : {}),
+      };
+    }
+
+    let planId: string | undefined;
+    let planTitle: string | undefined;
+    if (reminderPlanId) {
+      planId = await this.attachPlanToTodo(reminderPlanId, todo.id);
+    } else if (decision.planIntent?.type === 'notify') {
+      const plan = await this.createNotifyPlanForTodo(context, todo.id, intentState);
+      planId = plan?.id;
+      planTitle = plan?.title ?? undefined;
+    }
+
+    return {
+      kind: 'todo',
+      todoId: todo.id,
+      ...(todoTitle ? { todoTitle } : {}),
+      ...(planId ? { planId } : {}),
+      ...(planTitle ? { planTitle } : {}),
+    };
+  }
+
+  private buildTodoBlockReason(missingParams: string[]): string | null {
+    if (!missingParams.length) {
+      return null;
+    }
+    const labels = missingParams
+      .map((name) => this.mapMissingParamLabel(name))
+      .filter(Boolean);
+    if (!labels.length) {
+      return '还缺少一些必要信息，等你补充后我再继续。';
+    }
+    return `待补充：${labels.join('、')}`;
+  }
+
+  private mapMissingParamLabel(name: string): string | null {
+    if (name === 'reminderTime') return '提醒时间';
+    if (name === 'reminderRunAt') return '提醒时间';
+    if (name === 'reminderWeekday') return '提醒星期';
+    if (name === 'city' || name === 'location') return '地点';
+    if (name === 'timesheetDate') return '工时日期';
+    if (name === 'timesheetMonth') return '工时月份';
+    return name.trim() || null;
+  }
+
+  private async attachPlanToTodo(planId: string, todoId: string): Promise<string | undefined> {
+    try {
+      const plan = await this.prisma.plan.update({
+        where: { id: planId },
+        data: { sourceTodoId: todoId },
+        select: { id: true },
+      });
+      return plan.id;
+    } catch (err) {
+      this.logger.warn(`attach plan to todo failed: ${String(err)}`);
+      return undefined;
+    }
+  }
+
+  private async createNotifyPlanForTodo(
+    context: TurnContext,
+    todoId: string,
+    intentState: NonNullable<TurnContext['runtime']['mergedIntentState'] | TurnContext['runtime']['intentState']>,
+  ) {
+    const reminderReason = this.readString(intentState.slots.reminderReason)
+      ?? this.deriveTodoTitle(intentState, context.request.userInput);
+    if (!reminderReason) return null;
+
+    const recurrence = this.readString(intentState.slots.reminderSchedule) ?? 'once';
+    const schedule = this.buildPlanSchedule(intentState.slots);
+    if (!schedule) return null;
+
+    try {
+      return await this.planService.createPlan({
+        title: reminderReason,
+        description: reminderReason,
+        scope: ReminderScope.chat,
+        dispatchType: PlanDispatchType.notify,
+        recurrence,
+        timezone: 'Asia/Shanghai',
+        conversationId: context.request.conversationId,
+        sourceTodoId: todoId,
+        ...schedule,
+      });
+    } catch (err) {
+      this.logger.warn(`create notify plan for todo failed: ${String(err)}`);
+      return null;
+    }
+  }
+
+  private buildPlanSchedule(slots: Record<string, unknown>): { runAt?: string; cronExpr?: string } | null {
+    const schedule = this.readString(slots.reminderSchedule) ?? 'once';
+    if (schedule === 'once') {
+      const runAt = this.readString(slots.reminderRunAt);
+      return runAt ? { runAt } : null;
+    }
+
+    const time = this.parseHHMM(this.readString(slots.reminderTime));
+    if (!time) return null;
+
+    if (schedule === 'daily') {
+      return { cronExpr: `${time.minute} ${time.hour} * * *` };
+    }
+    if (schedule === 'weekday') {
+      return { cronExpr: `${time.minute} ${time.hour} * * 1-5` };
+    }
+    if (schedule === 'weekly') {
+      const weekday = typeof slots.reminderWeekday === 'number' ? slots.reminderWeekday : null;
+      if (weekday === null || weekday < 0 || weekday > 6) return null;
+      return { cronExpr: `${time.minute} ${time.hour} * * ${weekday}` };
+    }
+
+    return null;
+  }
+
+  private deriveTodoTitle(
+    intentState: NonNullable<TurnContext['runtime']['mergedIntentState'] | TurnContext['runtime']['intentState']>,
+    sourceText: string,
+  ): string {
+    return this.readString(intentState.slots.reminderReason)
+      ?? this.deriveTitle(sourceText);
+  }
+
+  private deriveTodoDescription(
+    intentState: NonNullable<TurnContext['runtime']['mergedIntentState'] | TurnContext['runtime']['intentState']>,
+    sourceText: string,
+  ): string {
+    return this.readString(intentState.slots.reminderReason)
+      ?? sourceText.trim();
+  }
+
+  private deriveTodoDueAt(
+    intentState: NonNullable<TurnContext['runtime']['mergedIntentState'] | TurnContext['runtime']['intentState']>,
+  ): string | undefined {
+    const schedule = this.readString(intentState.slots.reminderSchedule);
+    const runAt = this.readString(intentState.slots.reminderRunAt);
+    if (schedule === 'once' && runAt) {
+      return runAt;
+    }
+    return undefined;
+  }
+
+  private deriveTitle(content: string): string {
+    return content.trim().split('\n')[0]?.slice(0, 48) || '未命名记录';
+  }
+
+  private parseHHMM(value?: string): { hour: number; minute: number } | null {
+    const raw = value?.trim();
+    if (!raw) return null;
+    const match = raw.match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return null;
+    const hour = Number(match[1]);
+    const minute = Number(match[2]);
+    if (!Number.isInteger(hour) || !Number.isInteger(minute)) return null;
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+    return { hour, minute };
+  }
+
+  private readString(value: unknown): string | undefined {
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+  }
+
+  /**
+   * 为多意图场景中的延迟动作创建 Plan。
+   * 每个延迟 intent 根据其类型映射为对应的 capability + params，
+   * 通过 PlanService 创建 action 类型的 Plan。
+   */
+  private async createPlansForDeferredIntents(
+    conversationId: string,
+    decision: ActionDecision,
+  ): Promise<void> {
+    const deferred = decision.deferredIntents;
+    if (!deferred?.length) return;
+
+    for (const item of deferred) {
+      try {
+        const template = this.intentToTaskTemplate(item);
+        if (!template) {
+          this.logger.warn(`Cannot map deferred intent ${item.intent} to task template, skipping`);
+          continue;
+        }
+
+        // 对于立即执行的意图（immediate=true），创建 runAt=now 的一次性 Plan
+        // 对于延迟执行的意图（有时间信息），从 slots 中提取时间
+        const runAt = item.immediate !== false
+          ? new Date()
+          : this.extractRunAtFromSlots(item.slots) ?? new Date();
+
+        await this.planService.createPlan({
+          title: `多意图延迟任务：${item.intent}`,
+          description: this.buildDeferredDescription(item),
+          scope: 'chat',
+          dispatchType: PlanDispatchType.action,
+          recurrence: 'once',
+          runAt,
+          conversationId,
+          actionPayload: {
+            capability: template.action,
+            params: template.params ?? {},
+          },
+          taskTemplates: [template],
+        });
+
+        this.logger.log(`Created deferred plan for intent=${item.intent}, conversationId=${conversationId}`);
+      } catch (err) {
+        this.logger.warn(`Failed to create deferred plan for ${item.intent}: ${String(err)}`);
+      }
+    }
+  }
+
+  /** 将 TaskIntentItem 映射为 TaskTemplate */
+  private intentToTaskTemplate(item: TaskIntentItem): TaskTemplate | null {
+    const intentCapabilityMap: Record<string, string> = {
+      weather_query: 'weather',
+      book_download: 'book-download',
+      timesheet: 'timesheet',
+      set_reminder: 'reminder',
+      checkin: 'checkin',
+    };
+
+    const capability = intentCapabilityMap[item.intent];
+    if (!capability) return null;
+
+    return {
+      action: capability,
+      params: (item.slots as Record<string, unknown>) ?? {},
+      mode: 'execute',
+    };
+  }
+
+  /** 从 slots 中提取执行时间（主要用于 set_reminder 类延迟意图） */
+  private extractRunAtFromSlots(slots?: Record<string, unknown>): Date | null {
+    if (!slots) return null;
+    const time = slots.reminderTime;
+    if (typeof time === 'string' && time.includes('T')) {
+      const d = new Date(time);
+      if (!Number.isNaN(d.getTime())) return d;
+    }
+    return null;
+  }
+
+  private buildDeferredDescription(item: TaskIntentItem): string {
+    const parts = [`意图：${item.intent}`];
+    if (item.slots?.reminderReason) parts.push(`内容：${String(item.slots.reminderReason)}`);
+    if (item.slots?.city) parts.push(`城市：${String(item.slots.city)}`);
+    return parts.join('，');
   }
 
   private async runBeforeReturnPostTurn(

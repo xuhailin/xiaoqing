@@ -56,6 +56,15 @@ export class DecisionSummaryBuilder {
 
     // 2. 行动决策摘要
     if (action) {
+      if (action.targetKind === 'idea') {
+        parts.push('本轮内容更适合收纳为想法记录');
+        emphasis = '如果系统已记下，回复里用自然方式确认“先帮你记一下”';
+      } else if (action.targetKind === 'todo') {
+        parts.push('本轮内容更适合收纳为用户待办');
+        emphasis = action.planIntent?.type === 'notify'
+          ? '如果系统已记下并安排提醒，回复里自然确认已记成待办并会按时提醒'
+          : '如果系统已记下，回复里自然确认已记成待办';
+      }
       switch (action.action) {
         case 'run_capability':
           parts.push(`将执行能力：${action.capability ?? '未指定'}`);

@@ -23,7 +23,10 @@ export class DevRunDispatchStrategy implements IPlanDispatchStrategy {
     this.runner = runner;
   }
 
-  async dispatch(plan: Plan, occurrence: TaskOccurrence): Promise<{ resultRef?: string }> {
+  async dispatch(
+    plan: Plan,
+    occurrence: TaskOccurrence,
+  ): Promise<{ resultRef?: string; resultPayload?: Record<string, unknown> }> {
     if (!plan.sessionId) {
       this.logger.warn(`dev_run dispatch requires sessionId, plan=${plan.id} has none`);
       return {};
@@ -64,6 +67,13 @@ export class DevRunDispatchStrategy implements IPlanDispatchStrategy {
     this.runner.startRun(run.id, run.sessionId);
 
     this.logger.log(`dev_run dispatched: plan=${plan.id} → run=${run.id}`);
-    return { resultRef: `devRun:${run.id}` };
+    return {
+      resultRef: `devRun:${run.id}`,
+      resultPayload: {
+        runId: run.id,
+        sessionId: run.sessionId,
+        status: DevRunStatus.queued,
+      },
+    };
   }
 }

@@ -12,6 +12,7 @@ import { FeatureFlagConfig } from './feature-flag.config';
 import { SummarizeTriggerService } from './summarize-trigger.service';
 import { toConversationMessageDto } from './message.dto';
 import { DEFAULT_ENTRY_AGENT_ID, type EntryAgentId } from '../../gateway/message-router.types';
+import { ConversationWorkService } from '../../conversation-work/conversation-work.service';
 
 type ConversationWithCount = Prisma.ConversationGetPayload<{
   include: {
@@ -35,6 +36,7 @@ export class ConversationService {
     private readonly cognitiveGrowth: CognitiveGrowthService,
     private readonly assistantOrchestrator: AssistantOrchestrator,
     private readonly summarizeTrigger: SummarizeTriggerService,
+    private readonly conversationWork: ConversationWorkService,
     flags: FeatureFlagConfig,
   ) {
     this.lastNRounds = flags.lastNRounds;
@@ -146,6 +148,14 @@ export class ConversationService {
 
   async listDailyMoments(conversationId: string) {
     return this.dailyMoment.listRecords(conversationId);
+  }
+
+  async listWorkItems(conversationId: string) {
+    return this.conversationWork.listByConversation(conversationId);
+  }
+
+  async getWorkItem(conversationId: string, workItemId: string) {
+    return this.conversationWork.findByConversationAndId(conversationId, workItemId);
   }
 
   async saveDailyMomentFeedback(

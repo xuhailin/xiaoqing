@@ -23,6 +23,12 @@ import type { SharedExperienceRecord } from '../shared-experience/shared-experie
 import type { SocialEntityRecord } from '../life-record/social-entity/social-entity.types';
 import type { SocialInsightRecord } from '../life-record/social-insight/social-insight.types';
 import type { RelevantSocialRelationEdgeRecord } from '../life-record/social-relation-edge/social-relation-edge.types';
+import type {
+  ConversationWorkItemDto,
+  ConversationWorkProjectionType,
+  ConversationWorkStatus,
+} from '../../conversation-work/conversation-work.types';
+import type { DialogueTargetKind } from '../intent/intent.types';
 
 export type MessageContentType = 'text' | 'markdown';
 export type ConversationMessageKind =
@@ -57,6 +63,13 @@ export interface ConversationMessageMetadata {
   nextRunAt?: string;
   count?: number;
   triggerMode?: string;
+  workItemId?: string;
+  workProjection?: ConversationWorkProjectionType;
+  workStatus?: ConversationWorkStatus;
+  captureKind?: Exclude<DialogueTargetKind, 'chat' | 'task'>;
+  ideaId?: string;
+  todoId?: string;
+  planId?: string;
 }
 
 export interface ConversationMessageDto {
@@ -163,9 +176,16 @@ export interface SendMessageResult {
   };
   meta?: {
     localSkillRun?: LocalSkillRunResult;
+    workCapture?: {
+      kind: Exclude<DialogueTargetKind, 'chat' | 'task'>;
+      ideaId?: string;
+      todoId?: string;
+      planId?: string;
+    };
   };
   debugMeta?: Record<string, unknown>;
   trace?: TraceStep[];
+  workItems?: ConversationWorkItemDto[];
 }
 
 export interface ChatCompletionResult {
@@ -184,28 +204,3 @@ export interface ToolPolicyDecision {
   reason: string;
   capability?: string;
 }
-
-export type TurnDecision =
-  | {
-      kind: 'daily_moment_entry';
-      reason: string;
-      triggerMode: 'manual' | 'accept_suggestion';
-      acceptedSuggestionId?: string;
-    }
-  | {
-      kind: 'chat';
-      reason: string;
-      intentState?: DialogueIntentState | null;
-    }
-  | {
-      kind: 'ask_missing';
-      reason: string;
-      intentState: DialogueIntentState;
-      missingParams: string[];
-    }
-  | {
-      kind: 'tool';
-      reason: string;
-      intentState: DialogueIntentState;
-      toolRoute: 'local_weather' | 'local_book_download' | 'local_general_action' | 'openclaw';
-    };

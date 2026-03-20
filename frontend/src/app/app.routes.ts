@@ -6,9 +6,9 @@ import { DevAgentOverviewComponent } from './dev-agent/dev-agent-overview.compon
 import { DevAgentSessionComponent } from './dev-agent/dev-agent-session.component';
 import { RegressionReportsComponent } from './regression/regression-reports.component';
 import { HomeShellComponent } from './home/home-shell.component';
-import { WorkspaceReminderComponent } from './workspace/workspace-reminder.component';
-import { WorkspacePlanComponent } from './workspace/workspace-plan.component';
+import { WorkspaceIdeaComponent } from './workspace/workspace-idea.component';
 import { WorkspaceTaskRecordsComponent } from './workspace/workspace-task-records.component';
+import { WorkspaceTodoComponent } from './workspace/workspace-todo.component';
 import { WorkspaceShellComponent } from './workspace/workspace-shell.component';
 import { MemoryHubComponent } from './memory/memory-hub.component';
 import { SettingsComponent } from './settings/settings.component';
@@ -36,7 +36,7 @@ export const routes: Routes = [
         path: 'workspace',
         component: WorkspaceShellComponent,
         children: [
-          { path: '', pathMatch: 'full', redirectTo: 'dev-agent' },
+          { path: '', pathMatch: 'full', redirectTo: 'todos' },
           {
             path: 'dev-agent',
             component: DevAgentComponent,
@@ -45,10 +45,13 @@ export const routes: Routes = [
               { path: '', component: DevAgentOverviewComponent },
             ],
           },
-          { path: 'reminder', component: WorkspaceReminderComponent },
-          { path: 'plan', component: WorkspacePlanComponent },
+          { path: 'ideas', component: WorkspaceIdeaComponent },
+          { path: 'todos', component: WorkspaceTodoComponent },
+          { path: 'execution', component: WorkspaceTaskRecordsComponent },
+          { path: 'reminder', pathMatch: 'full', redirectTo: 'todos' },
+          { path: 'plan', pathMatch: 'full', redirectTo: 'todos' },
           { path: 'regression', component: RegressionReportsComponent },
-          { path: 'task-records', component: WorkspaceTaskRecordsComponent },
+          { path: 'task-records', pathMatch: 'full', redirectTo: 'execution' },
         ],
       },
       { path: 'memory', pathMatch: 'full', redirectTo: 'memory/life-record' },
@@ -57,6 +60,7 @@ export const routes: Routes = [
       { path: 'memory/memories', component: MemoryHubComponent },
       { path: 'memory/life-record', component: MemoryHubComponent },
       { path: 'memory/cognitive-trace', component: MemoryHubComponent },
+      { path: 'memory/relations', component: MemoryHubComponent },
       { path: 'settings', component: SettingsComponent },
       { path: '**', redirectTo: 'chat' },
     ],

@@ -3,7 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { PlanService } from './plan.service';
 import { TaskOccurrenceService } from './task-occurrence.service';
-import { PlanDispatcher } from './plan-dispatcher.service';
+import { TaskExecutor } from './task-executor.service';
 import { isFeatureEnabled } from '../config/feature-flags';
 
 @Injectable()
@@ -15,7 +15,7 @@ export class PlanSchedulerService {
     private readonly config: ConfigService,
     private readonly planService: PlanService,
     private readonly occurrenceService: TaskOccurrenceService,
-    private readonly dispatcher: PlanDispatcher,
+    private readonly taskExecutor: TaskExecutor,
   ) {}
 
   @Cron('*/15 * * * * *')
@@ -50,14 +50,8 @@ export class PlanSchedulerService {
           continue;
         }
 
-        // 创建 occurrence
-        const occurrence = await this.occurrenceService.createOccurrence(plan.id, scheduledAt);
-
-        // 分发
-        const result = await this.dispatcher.dispatch(plan, occurrence);
-
-        // 标记 occurrence 完成
-        await this.occurrenceService.markDone(occurrence.id, result.resultRef);
+        // 通过 TaskExecutor 执行（统一链路：Plan → Task → Capability）
+        await this.taskExecutor.execute(plan);
 
         // 推进 Plan 到下一次
         await this.planService.advanceAfterTrigger(plan.id, now);

@@ -30,9 +30,13 @@ import { CognitiveTraceModule } from '../cognitive-trace/cognitive-trace.module'
 import { RelationshipOverviewModule } from '../relationship-overview/relationship-overview.module';
 import { SessionReflectionModule } from '../session-reflection/session-reflection.module';
 import { SharedExperienceModule } from '../shared-experience/shared-experience.module';
+import { PlanModule } from '../../plan/plan.module';
+import { ConversationWorkModule } from '../../conversation-work/conversation-work.module';
+import { IdeaModule } from '../../idea/idea.module';
+import { TodoModule } from '../../todo/todo.module';
 
 @Module({
-  imports: [ActionReasonerModule, ReflectionModule, LlmModule, PromptRouterModule, MemoryModule, PersonaModule, IntentModule, OpenClawModule, ActionModule, WorldStateModule, IdentityAnchorModule, SummarizerModule, CognitivePipelineModule, LifeRecordModule, SystemSelfModule, CognitiveTraceModule, RelationshipOverviewModule, SessionReflectionModule, SharedExperienceModule],
+  imports: [ActionReasonerModule, ReflectionModule, LlmModule, PromptRouterModule, MemoryModule, PersonaModule, IntentModule, OpenClawModule, ActionModule, WorldStateModule, IdentityAnchorModule, SummarizerModule, CognitivePipelineModule, LifeRecordModule, SystemSelfModule, CognitiveTraceModule, RelationshipOverviewModule, SessionReflectionModule, SharedExperienceModule, PlanModule, ConversationWorkModule, IdeaModule, TodoModule],
   controllers: [ConversationController],
   providers: [
     ConversationService,

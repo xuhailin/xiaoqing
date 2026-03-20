@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { EntryAgentId } from '../gateway/message-router.types';
+import { ConversationWorkService } from '../conversation-work/conversation-work.service';
 import { KeyedFifoQueueService } from '../infra/queue';
 import { OpenClawService } from '../openclaw/openclaw.service';
 import { parseDelegationResultFromText } from './agent-bus.protocol';
 import { AgentBusRepository } from './agent-bus.repository';
 import { AgentBusService } from './agent-bus.service';
-import { AgentDelegationProjectionService } from './agent-delegation-projection.service';
 import { MemoryProposalService } from './memory-proposal.service';
 import type {
   AgentDelegationKind,
@@ -22,10 +22,10 @@ export class AgentDelegationExecutorService {
   constructor(
     private readonly bus: AgentBusService,
     private readonly repo: AgentBusRepository,
-    private readonly projection: AgentDelegationProjectionService,
     private readonly memoryProposal: MemoryProposalService,
     private readonly openClaw: OpenClawService,
     private readonly queue: KeyedFifoQueueService,
+    private readonly conversationWork: ConversationWorkService,
     config: ConfigService,
   ) {
     this.xiaoqinOpenClawAgentId = config.get<string>('XIAOQIN_OPENCLAW_AGENT_ID') || 'xiaoqin';
@@ -35,15 +35,18 @@ export class AgentDelegationExecutorService {
     input: CreateAgentDelegationInput & { autoDispatch?: boolean },
   ) {
     const delegation = await this.bus.createDelegation(input);
-
-    const receiptMessage = await this.projection.projectReceipt({
+    const work = await this.conversationWork.createDelegationWorkItem({
       conversationId: input.originConversationId,
       delegationId: delegation.id,
+      originMessageId: input.originMessageId,
       fromAgentId: input.requesterAgentId,
       toAgentId: input.executorAgentId,
       delegationKind: input.kind ?? input.payload.requestType,
+      title: input.title,
       summary: input.summary ?? input.payload.userFacingSummary ?? null,
+      userFacingGoal: input.payload.userFacingSummary ?? input.summary ?? input.payload.userInput ?? null,
     });
+    const receiptMessage = work.receiptMessage;
 
     await this.bus.updateStatus({
       delegationId: delegation.id,
@@ -104,6 +107,10 @@ export class AgentDelegationExecutorService {
       delegationId,
       status: 'running',
     });
+    await this.conversationWork.markDelegationRunning(
+      delegationId,
+      `${this.getAgentLabel(delegation.executorAgentId as EntryAgentId)}已开始处理。`,
+    );
     await this.bus.appendEvent({
       delegationId,
       actorAgentId: delegation.executorAgentId as EntryAgentId,
@@ -113,6 +120,10 @@ export class AgentDelegationExecutorService {
         remoteSessionKey: this.buildRemoteSessionKey(delegationId),
       },
     });
+    await this.conversationWork.markDelegationProgress(
+      delegationId,
+      `已把上下文发给${this.getAgentLabel(delegation.executorAgentId as EntryAgentId)}，等待处理结果。`,
+    );
 
     const payload = delegation.payloadJson as unknown as AgentDelegationEnvelope;
     const delegationKind = (delegation.kind || payload.requestType) as AgentDelegationKind;
@@ -167,6 +178,12 @@ export class AgentDelegationExecutorService {
       || null;
     const resultContent = (parsed.content || parsed.result.content || '').trim()
       || `${this.getAgentLabel(delegation.executorAgentId as EntryAgentId)}已完成委托，暂未返回文本结果。`;
+    await this.conversationWork.markDelegationProgress(
+      delegationId,
+      parsed.parsed
+        ? `${this.getAgentLabel(delegation.executorAgentId as EntryAgentId)}已返回结果，正在整理回复。`
+        : `${this.getAgentLabel(delegation.executorAgentId as EntryAgentId)}已完成处理，正在回流结果。`,
+    );
 
     // 如果远端标记为失败
     if (parsed.parsed && parsed.result.status === 'failed') {
@@ -181,17 +198,19 @@ export class AgentDelegationExecutorService {
       return;
     }
 
-    const resultMessage = await this.projection.projectResult({
-      conversationId: delegation.originConversationId,
+    const resultProjection = await this.conversationWork.markDelegationCompleted({
       delegationId,
       fromAgentId: delegation.executorAgentId as EntryAgentId,
       toAgentId: delegation.requesterAgentId as EntryAgentId,
       delegationKind,
-      success: true,
       content: resultContent,
       summary,
       relatedMessageId: delegation.receiptMessageId,
     });
+    const resultMessage = resultProjection?.resultMessage;
+    if (!resultMessage) {
+      throw new Error(`work item missing for delegation result projection: ${delegationId}`);
+    }
 
     await this.bus.updateStatus({
       delegationId,
@@ -252,17 +271,19 @@ export class AgentDelegationExecutorService {
     },
   ) {
     const failureText = `委托给${this.getAgentLabel(input.executorAgentId)}时失败了：${input.reason}`;
-    const resultMessage = await this.projection.projectResult({
-      conversationId,
+    const resultProjection = await this.conversationWork.markDelegationFailed({
       delegationId,
       fromAgentId: input.executorAgentId,
       toAgentId: input.requesterAgentId,
       delegationKind: input.delegationKind ?? 'assist_request',
-      success: false,
+      reason: input.reason,
       content: failureText,
-      summary: input.reason,
       relatedMessageId: input.relatedMessageId,
     });
+    const resultMessage = resultProjection?.resultMessage;
+    if (!resultMessage) {
+      throw new Error(`work item missing for delegation failure projection: ${delegationId}`);
+    }
 
     await this.bus.updateStatus({
       delegationId,

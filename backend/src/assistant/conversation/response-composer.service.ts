@@ -62,6 +62,9 @@ export class ResponseComposer {
   private static readonly PARAM_LABEL: Record<string, string> = {
     city: '城市或坐标',
     location: '城市或坐标',
+    reminderreason: '提醒内容',
+    remindertime: '提醒时间',
+    reminderweekday: '星期几',
     recipient: '收件人',
     to: '收件人',
     subject: '主题',

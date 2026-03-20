@@ -1,4 +1,4 @@
-export const INTENT_PROMPT_VERSION = 'intent_v15';
+export const INTENT_PROMPT_VERSION = 'intent_v18';
 
 // 意图推导 prompt：单独管理，便于后续直接改文案与字段定义。
 export const INTENT_SYSTEM_PROMPT = `
@@ -98,20 +98,25 @@ export const INTENT_SYSTEM_PROMPT = `
   · reminderSchedule：频率
     - "once"：一次性提醒（默认，用户说「明天提醒我」「提醒我下午3点开会」等）
     - "daily"：每天（用户说「每天提醒我」「每天晚上」等）
-    - "weekly"：每周（用户说「每周一提醒我」等）
-  · reminderTime：**必须输出可被后端直接使用的结构化时间**，格式要求如下：
-    - 一次性提醒（once）：输出完整 ISO 8601 格式，如 "2026-03-19T15:00:00+08:00"。用户说「晚上6点」→ 基于当前时间计算今天或明天18:00 的 ISO 时间；用户说「10分钟后」→ 基于当前时间加10分钟后的 ISO 时间；用户说「明天早上9点」→ 明天09:00 的 ISO 时间
-    - 周期提醒（daily/weekly）：只需输出 HH:MM 格式，如 "18:00"、"09:30"。用户说「每天晚上6点」→ "18:00"；用户说「每周一上午10点」→ "周一 10:00"
-    - 若用户未指定具体时间可留空
+    - "weekday"：工作日（用户说「工作日提醒我」「周一到周五提醒我」等）
+    - "weekly"：每周固定某天（用户说「每周一提醒我」等）
+  · reminderRunAt：一次性提醒（once）时优先输出完整 ISO 8601 格式，如 "2026-03-19T15:00:00+08:00"。用户说「晚上6点」→ 基于当前时间计算今天或明天18:00 的 ISO 时间；用户说「10分钟后」→ 基于当前时间加10分钟后的 ISO 时间；用户说「明天早上9点」→ 明天09:00 的 ISO 时间
+  · reminderTime：周期提醒（daily/weekday/weekly）时输出 HH:MM 格式，如 "18:00"、"09:30"
+  · reminderWeekday：weekly 时输出星期数字，0=周日，1=周一，...，6=周六。用户说「每周一上午10点」→ reminderWeekday=1
+  · 重要：不要把「每周一 10:00」「工作日下班后」这类原始短语直接塞进 reminderTime；应拆成结构化字段。reminderTime 只放 HH:MM，提醒频率放 reminderSchedule，周几放 reminderWeekday
+  · reminderTime / reminderRunAt 若用户未指定具体时间可留空
   · reminderTarget：取消时用于匹配的关键词或提醒 ID（如「吃饭」「那个喝水的」）
   · 确认式请求示例：
     - 上轮 assistant 说「要不要我每天晚上提醒你吃晚饭？」，用户说「好」→ taskIntent="set_reminder"、reminderAction="create"、reminderReason="吃晚饭"、reminderSchedule="daily"、reminderTime="18:00"（从上文推断）
     - 上轮 assistant 说「要不要我帮你记一下」，用户说「好，每天早上8点」→ taskIntent="set_reminder"、reminderAction="create"、reminderReason=从上文推断、reminderSchedule="daily"、reminderTime="08:00"
   · 其他示例（假设当前时间为 2026-03-19T14:22:00+08:00）：
     - 「每天晚上6点提醒我吃饭」→ reminderAction="create"、reminderReason="吃饭"、reminderSchedule="daily"、reminderTime="18:00"
-    - 「明天下午3点提醒我开会」→ reminderAction="create"、reminderReason="开会"、reminderSchedule="once"、reminderTime="2026-03-20T15:00:00+08:00"
-    - 「10分钟后提醒我喝水」→ reminderAction="create"、reminderReason="喝水"、reminderSchedule="once"、reminderTime="2026-03-19T14:32:00+08:00"
-    - 「半小时后提醒我站起来走走」→ reminderAction="create"、reminderReason="站起来走走"、reminderSchedule="once"、reminderTime="2026-03-19T14:52:00+08:00"
+    - 「工作日都要提醒我进行工时上报」→ reminderAction="create"、reminderReason="进行工时上报"、reminderSchedule="weekday"、reminderTime=""，missingParams=["reminderTime"]
+    - 「工作日 18:30 提醒我工时上报」→ reminderAction="create"、reminderReason="工时上报"、reminderSchedule="weekday"、reminderTime="18:30"
+    - 「每周一上午10点提醒我开组会」→ reminderAction="create"、reminderReason="开组会"、reminderSchedule="weekly"、reminderWeekday=1、reminderTime="10:00"
+    - 「明天下午3点提醒我开会」→ reminderAction="create"、reminderReason="开会"、reminderSchedule="once"、reminderRunAt="2026-03-20T15:00:00+08:00"
+    - 「10分钟后提醒我喝水」→ reminderAction="create"、reminderReason="喝水"、reminderSchedule="once"、reminderRunAt="2026-03-19T14:32:00+08:00"
+    - 「半小时后提醒我站起来走走」→ reminderAction="create"、reminderReason="站起来走走"、reminderSchedule="once"、reminderRunAt="2026-03-19T14:52:00+08:00"
     - 「取消吃饭那个提醒」→ reminderAction="cancel"、reminderTarget="吃饭"
     - 「我有哪些提醒」→ reminderAction="list"
 - 示例：用户说「今天上海浦东新区的天气」→ city="上海"、district="浦东新区"、dateLabel="今天」。用户说「116.41,39.92 那儿现在天气」→ location="116.41,39.92"。用户说「下载群魔」→ taskIntent="book_download"、slots.bookName="群魔"。上轮 assistant 列出了群魔的多条候选，用户说「1」→ taskIntent="book_download"、slots.bookName="群魔"、slots.bookChoiceIndex=1。
@@ -120,6 +125,10 @@ export const INTENT_SYSTEM_PROMPT = `
 - 若是工具型任务但关键参数不足，列出缺失参数名（英文小写）。
 - 查天气时，若既无 location（坐标）也无 city（城市名），则缺地点，填 ["city"]。电子书下载时若无书名则填 ["bookName"]。
 - 工时上报（timesheet）默认不要求缺失参数：preview/confirm/submit 未给日期可默认今天，query_missing 未给月份可默认当月；通常应输出 []。
+- 提醒设置（set_reminder）时：
+  · create 且未给提醒内容 → 填 ["reminderReason"]
+  · create 且未给具体时间 → 填 ["reminderTime"]
+  · weekly 且未给周几 → 填 ["reminderWeekday"]
 - 但如果默认世界状态已经给了可直接使用的地点（如 city），就不要再把 city 记为缺失。
 - 信息足够则输出 []。
 
@@ -167,7 +176,37 @@ export const INTENT_SYSTEM_PROMPT = `
   · run_capability：需要执行工具/能力（天气、电子书、工时等）
   · handoff_dev：这是开发/编程任务，应交给开发代理处理
   · suggest_reminder：用户提到了将来要做的事，可以建议设置提醒
-- 输出 action（上述四者之一）与 reason（简短原因，一句即可）。
+- 同时输出 targetKind（本轮用户内容最适合落到哪里）：
+  · chat：只是对话，不落工作对象
+  · idea：想法 / 灵感 / 暂不执行的记录
+  · todo：用户自己的待办 / 承诺 / 需要跟进的事项
+  · task：系统执行型任务
+- 同时输出 planIntent：
+  · type="none"：不需要 Plan
+  · type="notify"：需要提醒型 Plan
+  · type="action"：需要执行型 Plan
+- 判断时优先按**用户视角**理解，而不是工具视角：
+  · 「记一下这个想法」→ targetKind="idea"
+  · 「周五前我要完成这个」→ targetKind="todo"
+  · 「你现在帮我查/做/执行」→ targetKind="task"
+  · 「工作日 18:30 提醒我报工时」→ targetKind="todo"，planIntent.type="notify"
+- 输出 action、reason、targetKind、planIntent，不要只给 action。
+
+15. 多意图识别（taskIntents，可选）
+- 当用户一句话**包含多个不同动作**时，输出 taskIntents 数组。
+- 每个元素包含：intent（taskIntent 值）、slots（该动作对应的槽位）、immediate（true=立即执行，false=延迟/定时执行）。
+- taskIntent 字段仍填主意图（第一个或最重要的），taskIntents 包含所有意图。
+- **仅当确实有多个不同动作时才输出**；单一动作时不输出或输出空数组。
+- 示例：
+  · 「打卡，然后明天提醒我开会」→ taskIntent="checkin"、taskIntents=[
+      { "intent": "checkin", "slots": {}, "immediate": true },
+      { "intent": "set_reminder", "slots": { "reminderAction": "create", "reminderReason": "开会", "reminderSchedule": "once", "reminderTime": "2026-03-21T09:00:00+08:00" }, "immediate": false }
+    ]
+  · 「查下天气，顺便帮我填工时」→ taskIntent="weather_query"、taskIntents=[
+      { "intent": "weather_query", "slots": { "city": "上海" }, "immediate": true },
+      { "intent": "timesheet", "slots": { "timesheetAction": "preview" }, "immediate": true }
+    ]
+  · 「提醒我下午开会」→ 单一意图，不输出 taskIntents
 
 ---
 
@@ -188,7 +227,13 @@ export const INTENT_SYSTEM_PROMPT = `
   "identityUpdate": {},
   "worldStateUpdate": {},
   "detectedEmotion": "calm",
-  "actionDecision": { "action": "direct_reply", "reason": "" }
+  "actionDecision": {
+    "action": "direct_reply",
+    "reason": "",
+    "targetKind": "chat",
+    "planIntent": { "type": "none", "reason": "" }
+  },
+  "taskIntents": []
 }
 
 taskIntent 说明：必须是 "none" | "weather_query" | "book_download" | "timesheet" | "dev_task" | "set_reminder" | "checkin" | "device_screenshot" | "general_tool" 之一。
@@ -214,4 +259,9 @@ detectedEmotion 说明：
 
 actionDecision 说明（intent_v13）：
 - 建议的行动模式。action 必须是 "direct_reply" | "run_capability" | "handoff_dev" | "suggest_reminder" 之一；reason 为简短原因。
+- targetKind 必须是 "chat" | "idea" | "todo" | "task" 之一。
+- planIntent.type 必须是 "none" | "notify" | "action" 之一。
+
+taskIntents 说明（intent_v16）：
+- 多意图数组。仅当用户一句话包含多个不同动作时输出。每个元素：{ "intent": "...", "slots": {...}, "immediate": true/false }。单一意图时输出空数组 []。
 `.trim();

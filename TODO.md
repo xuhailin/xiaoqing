@@ -43,3 +43,11 @@
 - [ ] **多 agent 协作**：一个 run 内启动多个 Claude Code Agent 并行处理不同子任务
   - 前置条件：单 agent 模式稳定、workspace 隔离方案成熟、明确的大型任务场景驱动
   - 涉及：任务分解器、workspace 隔离（git worktree pool）、结果合并、并行进度展示
+
+---
+
+## 小晴信息分层后续
+
+- [ ] **Todo blocked 语义**：为 `Todo` 引入显式 `blocked` / `needs_input` 状态，而不是继续复用 `open + latestTask.failed`
+  - 范围：Prisma schema、后端 DTO/映射、前端状态筛选与 badge、失败/缺参/等待用户输入的统一回写规则
+  - 备注：当前 MVP 已支持 `Task failed -> Todo open`，后续需要把“失败但仍待处理”和“普通 open”明确区分

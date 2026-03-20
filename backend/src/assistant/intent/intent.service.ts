@@ -11,10 +11,14 @@ import {
   type DialogueExpectation,
   type DialogueIntentState,
   type DialogueMode,
+  type DialoguePlanIntentType,
   type DialogueSeriousness,
   type DialogueSuggestedTool,
   type DialogueTaskIntent,
+  type DialogueTargetKind,
   type IdentityUpdateFromIntent,
+  type PlanIntentFromIntent,
+  type TaskIntentItem,
   type WorldStateUpdateFromIntent,
 } from './intent.types';
 import type { WorldState } from '../../infra/world-state/world-state.types';
@@ -184,7 +188,7 @@ export class IntentService {
         : DEFAULT_INTENT_STATE.confidence;
     const confidence = Math.max(0, Math.min(1, confidenceRaw));
 
-    const missingParams = Array.isArray(input.missingParams)
+    const baseMissingParams = Array.isArray(input.missingParams)
       ? input.missingParams.filter((p): p is string => typeof p === 'string' && p.length > 0)
       : [];
 
@@ -206,6 +210,7 @@ export class IntentService {
               : taskIntent;
 
     const slots = this.normalizeSlots(input.slots as unknown);
+    const missingParams = this.normalizeMissingParams(baseMissingParams, normalizedTaskIntent, slots);
 
     const identityUpdate = this.normalizeIdentityUpdate(rawInput.identityUpdate);
     const worldStateUpdate = this.normalizeWorldStateUpdate(rawInput.worldStateUpdate);
@@ -216,6 +221,14 @@ export class IntentService {
     );
 
     const actionHint = this.normalizeActionHint(rawInput.actionDecision);
+    const taskIntents = this.normalizeTaskIntents(rawInput.taskIntents);
+    const semanticHint = this.inferSemanticHint(
+      actionHint?.targetKind,
+      actionHint?.planIntent,
+      normalizedTaskIntent,
+      escalation,
+      requiresTool,
+    );
 
     return {
       mode,
@@ -224,6 +237,7 @@ export class IntentService {
       agency,
       requiresTool,
       taskIntent: normalizedTaskIntent,
+      ...(taskIntents.length > 0 ? { taskIntents } : {}),
       slots,
       escalation,
       confidence,
@@ -232,8 +246,41 @@ export class IntentService {
       identityUpdate: identityUpdate ?? {},
       worldStateUpdate: worldStateUpdate ?? {},
       ...(detectedEmotion ? { detectedEmotion } : {}),
-      ...(actionHint ? { actionHint } : {}),
+      ...((actionHint || semanticHint)
+        ? {
+            actionHint: {
+              action: actionHint?.action ?? semanticHint?.action ?? 'direct_reply',
+              ...(actionHint?.reason ? { reason: actionHint.reason } : semanticHint?.reason ? { reason: semanticHint.reason } : {}),
+              ...((actionHint?.targetKind ?? semanticHint?.targetKind)
+                ? { targetKind: actionHint?.targetKind ?? semanticHint?.targetKind }
+                : {}),
+              ...((actionHint?.planIntent ?? semanticHint?.planIntent)
+                ? { planIntent: actionHint?.planIntent ?? semanticHint?.planIntent }
+                : {}),
+            },
+          }
+        : {}),
     };
+  }
+
+  private normalizeTaskIntents(raw: unknown): TaskIntentItem[] {
+    if (!Array.isArray(raw) || raw.length === 0) return [];
+
+    const validIntents: DialogueTaskIntent[] = [
+      'none', 'weather_query', 'book_download', 'general_tool',
+      'timesheet', 'dev_task', 'set_reminder', 'checkin', 'device_screenshot',
+    ];
+
+    return raw
+      .filter((item): item is Record<string, unknown> =>
+        !!item && typeof item === 'object' && !Array.isArray(item),
+      )
+      .filter((item) => typeof item.intent === 'string' && validIntents.includes(item.intent as DialogueTaskIntent))
+      .map((item) => ({
+        intent: item.intent as DialogueTaskIntent,
+        slots: this.normalizeSlots(item.slots),
+        immediate: typeof item.immediate === 'boolean' ? item.immediate : true,
+      }));
   }
 
   private normalizeActionHint(raw: unknown): ActionHintFromIntent | undefined {
@@ -242,7 +289,71 @@ export class IntentService {
     const action = typeof o.action === 'string' ? o.action.trim() : '';
     if (!action) return undefined;
     const reason = typeof o.reason === 'string' ? o.reason.trim() : undefined;
-    return { action, ...(reason ? { reason } : {}) };
+    const targetKind = this.pickOne<DialogueTargetKind>(o.targetKind, [
+      'chat',
+      'idea',
+      'todo',
+      'task',
+    ]) ?? undefined;
+    const planIntent = this.normalizePlanIntent(o.planIntent);
+    return {
+      action,
+      ...(reason ? { reason } : {}),
+      ...(targetKind ? { targetKind } : {}),
+      ...(planIntent ? { planIntent } : {}),
+    };
+  }
+
+  private normalizePlanIntent(raw: unknown): PlanIntentFromIntent | undefined {
+    if (typeof raw === 'string') {
+      const type = this.pickOne<DialoguePlanIntentType>(raw, ['none', 'notify', 'action']);
+      return type ? { type } : undefined;
+    }
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+    const o = raw as Record<string, unknown>;
+    const type = this.pickOne<DialoguePlanIntentType>(o.type, ['none', 'notify', 'action']);
+    if (!type) return undefined;
+    const reason = typeof o.reason === 'string' && o.reason.trim() ? o.reason.trim() : undefined;
+    return {
+      type,
+      ...(reason ? { reason } : {}),
+    };
+  }
+
+  private inferSemanticHint(
+    targetKind: DialogueTargetKind | undefined,
+    planIntent: PlanIntentFromIntent | undefined,
+    taskIntent: DialogueTaskIntent,
+    escalation: DialogueEscalation,
+    requiresTool: boolean,
+  ): ActionHintFromIntent | undefined {
+    const inferredTargetKind = targetKind ?? this.inferTargetKind(taskIntent, escalation, requiresTool);
+    const inferredPlanIntent = planIntent ?? this.inferPlanIntent(taskIntent);
+    if (!inferredTargetKind && !inferredPlanIntent) return undefined;
+    return {
+      action: 'direct_reply',
+      ...(inferredTargetKind ? { targetKind: inferredTargetKind } : {}),
+      ...(inferredPlanIntent ? { planIntent: inferredPlanIntent } : {}),
+    };
+  }
+
+  private inferTargetKind(
+    taskIntent: DialogueTaskIntent,
+    escalation: DialogueEscalation,
+    requiresTool: boolean,
+  ): DialogueTargetKind {
+    if (taskIntent === 'set_reminder') return 'todo';
+    if (taskIntent !== 'none' || requiresTool) return 'task';
+    if (escalation === '可记录') return 'idea';
+    if (escalation === '应转任务') return 'todo';
+    return 'chat';
+  }
+
+  private inferPlanIntent(taskIntent: DialogueTaskIntent): PlanIntentFromIntent | undefined {
+    if (taskIntent === 'set_reminder') {
+      return { type: 'notify' };
+    }
+    return undefined;
   }
 
   private normalizeIdentityUpdate(raw: unknown): IdentityUpdateFromIntent | undefined {
@@ -319,11 +430,26 @@ export class IntentService {
     if (typeof input.reminderReason === 'string' && input.reminderReason.trim()) {
       slots.reminderReason = input.reminderReason.trim();
     }
-    const reminderScheduleAllowed = ['once', 'daily', 'weekly'] as const;
+    const reminderScheduleAllowed = ['once', 'daily', 'weekday', 'weekly'] as const;
     const rmSchedule = this.pickOne(input.reminderSchedule, reminderScheduleAllowed);
     if (rmSchedule) slots.reminderSchedule = rmSchedule;
+    if (typeof input.reminderRunAt === 'string' && input.reminderRunAt.trim()) {
+      const runAt = input.reminderRunAt.trim();
+      if (!Number.isNaN(new Date(runAt).getTime())) {
+        slots.reminderRunAt = runAt;
+      }
+    }
     if (typeof input.reminderTime === 'string' && input.reminderTime.trim()) {
       slots.reminderTime = input.reminderTime.trim();
+    }
+    if (typeof input.reminderWeekday === 'number' && Number.isInteger(input.reminderWeekday) && input.reminderWeekday >= 0 && input.reminderWeekday <= 6) {
+      slots.reminderWeekday = input.reminderWeekday;
+    }
+    if (typeof input.reminderWeekday === 'string' && /^\d$/.test(input.reminderWeekday.trim())) {
+      const weekday = Number(input.reminderWeekday.trim());
+      if (weekday >= 0 && weekday <= 6) {
+        slots.reminderWeekday = weekday;
+      }
     }
     if (typeof input.reminderTarget === 'string' && input.reminderTarget.trim()) {
       slots.reminderTarget = input.reminderTarget.trim();
@@ -339,5 +465,33 @@ export class IntentService {
       slots.location = `${lon},${lat}`;
     }
     return slots;
+  }
+
+  private normalizeMissingParams(
+    missingParams: string[],
+    taskIntent: DialogueTaskIntent,
+    slots: DialogueIntentState['slots'],
+  ): string[] {
+    const set = new Set(missingParams.map((item) => item.trim()).filter(Boolean));
+
+    if (taskIntent === 'set_reminder') {
+      const action = slots.reminderAction ?? 'create';
+      if (action === 'create') {
+        if (!slots.reminderReason) {
+          set.add('reminderReason');
+        }
+
+        const hasTriggerTime = Boolean(slots.reminderRunAt || slots.reminderTime);
+        if (!hasTriggerTime) {
+          set.add('reminderTime');
+        }
+
+        if (slots.reminderSchedule === 'weekly' && slots.reminderWeekday === undefined) {
+          set.add('reminderWeekday');
+        }
+      }
+    }
+
+    return [...set];
   }
 }

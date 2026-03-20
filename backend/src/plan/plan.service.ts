@@ -53,7 +53,9 @@ export class PlanService {
         nextRunAt,
         sessionId: input.sessionId?.trim() || null,
         conversationId: input.conversationId?.trim() || null,
+        sourceTodoId: input.sourceTodoId?.trim() || null,
         actionPayload: (input.actionPayload as Prisma.InputJsonValue) ?? undefined,
+        taskTemplates: (input.taskTemplates as unknown as Prisma.InputJsonValue) ?? undefined,
       },
     });
   }

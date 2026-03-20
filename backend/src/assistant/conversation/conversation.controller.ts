@@ -40,6 +40,19 @@ export class ConversationController {
     return this.conversation.getMessages(id);
   }
 
+  @Get(':id/work-items')
+  async getWorkItems(@Param('id') id: string) {
+    return this.conversation.listWorkItems(id);
+  }
+
+  @Get(':id/work-items/:workItemId')
+  async getWorkItem(
+    @Param('id') id: string,
+    @Param('workItemId') workItemId: string,
+  ) {
+    return this.conversation.getWorkItem(id, workItemId);
+  }
+
   @Get(':id/daily-moments')
   async listDailyMoments(@Param('id') id: string) {
     return this.conversation.listDailyMoments(id);

@@ -401,8 +401,7 @@ AGENT_DELEGATION_RESULT_V1
 
 当前小晴仓库 inbound 鉴权约定：
 
-- 优先使用 `AGENT_BUS_INBOUND_TOKENS='{"xiaoqin":"REPLACE_ME"}'`
-- 小勤单独接入时可使用 `XIAOQIN_AGENT_BUS_TOKEN=REPLACE_ME`
+- 使用 `AGENT_BUS_INBOUND_TOKENS`：JSON 对象，键为允许的 `requester.agentId`，值为对应 Bearer 密钥（可配置多个外部 Agent）。
 
 ---
 
@@ -547,10 +546,34 @@ OPENCLAW_AGENTS='[
 ]'
 
 XIAOQIN_OPENCLAW_AGENT_ID=xiaoqin
-XIAOQIN_AGENT_BUS_TOKEN=REPLACE_ME
-# 或统一用 JSON 映射：
 AGENT_BUS_INBOUND_TOKENS='{"xiaoqin":"REPLACE_ME"}'
 ```
+
+### 11.4.1 OPENCLAW_AGENTS JSON 怎么写
+
+`OPENCLAW_AGENTS` 为 **JSON 数组**（在 `.env` 里常用**整段单引号**包住，内部用双引号）。字段与后端 `OpenClawAgentConfig` 一致：`id`、`name`、`baseUrl`、`token`、`capabilities` 必填语义上缺一不可（代码会校验 `id` / `baseUrl` / `token`）。
+
+**连接远端标准 OpenClaw**（`POST {baseUrl}{taskPath}`，body 为普通 `{ message, sessionKey, timeoutSeconds }`，**不**走 `AGENT_DELEGATION_V1` 桥接）：
+
+```bash
+OPENCLAW_AGENTS='[{"id":"remote-bot","name":"远端OpenClaw","baseUrl":"https://your-host.example.com","token":"与远端服务一致的Bearer密钥","capabilities":["general"],"timeout":120,"apiStyle":"json","taskPath":"/task"}]'
+```
+
+- `baseUrl`：不要末尾斜杠；HTTPS 或 `http://host:port` 均可。
+- `token`：小晴出站请求里 `Authorization: Bearer` 的值，须与远端 OpenClaw 侧要求一致。
+- 公网可再加 `signKey`，与远端约定 HMAC（见集成技术文档）。
+
+**SSH 隧道到本机端口时**：把 `baseUrl` 换成 `http://127.0.0.1:本地端口` 即可，与 §11.2 隧道一致。
+
+**需要 Agent Bus 桥接时**（小晴通过 OpenClaw 兼容 `/task` 发送 `AGENT_DELEGATION_V1`，典型为对接小勤）：在 `capabilities` 中包含 **`agent-bus`**（或 `baseUrl` 以 `/agent-bus` 结尾，由实现自动识别），例如：
+
+```bash
+OPENCLAW_AGENTS='[{"id":"xiaoqin","name":"小勤","baseUrl":"http://127.0.0.1:8787","token":"REPLACE_ME","capabilities":["agent-bus","external-assist"],"timeout":60,"apiStyle":"json","taskPath":"/task"}]'
+```
+
+**多 Agent**：同一数组内写多条，`id` 全局唯一；路由/默认小勤等仍用 `XIAOQIN_OPENCLAW_AGENT_ID` 指向其中某条的 `id`。
+
+**与 `AGENT_BUS_INBOUND_TOKENS` 的关系**：`OPENCLAW_AGENTS` 管小晴**出站**调远端；`AGENT_BUS_INBOUND_TOKENS` 管外部 **入站** 打小晴的 Bearer 白名单。两套可配置为**不同**密钥；若希望互调省事，也可把**同一字符串**分别写在对应 `token` 与白名单 value 中。
 
 ### 11.5 联通性检查
 
@@ -675,7 +698,7 @@ curl -H "Authorization: Bearer REPLACE_ME" http://127.0.0.1:18080/agent-bus/inbo
 - Health: GET http://127.0.0.1:18080/agent-bus/inbound/health
 - Delegation Inbound: POST http://127.0.0.1:18080/agent-bus/inbound/delegations
 - Async Result Callback: POST http://127.0.0.1:18080/agent-bus/inbound/results
-- Authorization: Bearer <XIAOQIN_AGENT_BUS_TOKEN>
+- Authorization: Bearer <AGENT_BUS_INBOUND_TOKENS 中为该 requester.agentId 配置的密钥>
 
 如果你要请求小晴，请发送标准 Delegation Request JSON，不要发送普通自然语言命令。
 如果你要返回结果，请优先返回结构化 Delegation Result。

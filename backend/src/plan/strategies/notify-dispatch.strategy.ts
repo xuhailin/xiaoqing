@@ -20,7 +20,7 @@ export class NotifyDispatchStrategy implements IPlanDispatchStrategy {
     this.reminderMessageService = service;
   }
 
-  async dispatch(plan: Plan, occurrence: TaskOccurrence): Promise<{ resultRef?: string }> {
+  async dispatch(plan: Plan, occurrence: TaskOccurrence): Promise<{ resultRef?: string; resultPayload?: Record<string, unknown> }> {
     if (!this.reminderMessageService) {
       this.logger.warn(`ReminderMessageService not injected, skipping notify for plan=${plan.id}`);
       return {};
@@ -34,6 +34,13 @@ export class NotifyDispatchStrategy implements IPlanDispatchStrategy {
       conversationId: plan.conversationId,
     });
 
-    return { resultRef: `message:${occurrence.id}` };
+    return {
+      resultRef: `message:${occurrence.id}`,
+      resultPayload: {
+        channel: 'chat',
+        delivered: true,
+        message: plan.description ?? plan.title ?? '',
+      },
+    };
   }
 }

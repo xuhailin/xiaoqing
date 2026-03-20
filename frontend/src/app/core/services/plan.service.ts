@@ -7,6 +7,24 @@ export type PlanStatus = 'active' | 'paused' | 'archived';
 export type PlanDispatchType = 'notify' | 'dev_run' | 'action' | 'noop';
 export type PlanRecurrence = 'once' | 'daily' | 'weekday' | 'weekly' | 'cron';
 export type OccurrenceStatus = 'pending' | 'done' | 'skipped' | 'rescheduled';
+export type TaskMode = 'execute' | 'notify';
+
+export interface TaskTemplate {
+  action: string;
+  params?: Record<string, unknown>;
+  mode?: TaskMode;
+}
+
+export interface TaskOccurrencePlanSummary {
+  id: string;
+  title: string | null;
+  scope: PlanScope;
+  dispatchType: PlanDispatchType;
+  sourceTodoId?: string | null;
+  sourceTodo?: {
+    title: string | null;
+  } | null;
+}
 
 export interface PlanRecord {
   id: string;
@@ -25,6 +43,7 @@ export interface PlanRecord {
   sessionId: string | null;
   conversationId: string | null;
   actionPayload: Record<string, unknown> | null;
+  taskTemplates: TaskTemplate[] | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -34,10 +53,15 @@ export interface TaskOccurrenceRecord {
   planId: string;
   scheduledAt: string;
   status: OccurrenceStatus;
+  action: string | null;
+  params: Record<string, unknown> | null;
+  mode: TaskMode;
   rescheduledTo: string | null;
   skipReason: string | null;
   dispatchedAt: string | null;
   resultRef: string | null;
+  resultPayload: Record<string, unknown> | null;
+  plan?: TaskOccurrencePlanSummary;
   createdAt: string;
   updatedAt: string;
 }
@@ -54,6 +78,16 @@ export interface CreatePlanRequest {
   sessionId?: string;
   conversationId?: string;
   actionPayload?: Record<string, unknown>;
+  taskTemplates?: TaskTemplate[];
+}
+
+export interface ListTaskOccurrenceFilters {
+  from?: string;
+  to?: string;
+  planId?: string;
+  status?: OccurrenceStatus;
+  conversationId?: string;
+  limit?: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -96,5 +130,16 @@ export class PlanApiService {
     let params = new HttpParams();
     if (status) params = params.set('status', status);
     return this.http.get<TaskOccurrenceRecord[]>(`${this.base}/${planId}/occurrences`, { params });
+  }
+
+  listTaskOccurrences(filters?: ListTaskOccurrenceFilters) {
+    let params = new HttpParams();
+    if (filters?.from) params = params.set('from', filters.from);
+    if (filters?.to) params = params.set('to', filters.to);
+    if (filters?.planId) params = params.set('planId', filters.planId);
+    if (filters?.status) params = params.set('status', filters.status);
+    if (filters?.conversationId) params = params.set('conversationId', filters.conversationId);
+    if (filters?.limit !== undefined) params = params.set('limit', String(filters.limit));
+    return this.http.get<TaskOccurrenceRecord[]>(`${this.base}/occurrences`, { params });
   }
 }

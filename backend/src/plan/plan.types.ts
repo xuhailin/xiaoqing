@@ -1,4 +1,17 @@
-import type { PlanStatus, PlanDispatchType, ReminderScope } from '@prisma/client';
+import type { PlanStatus, PlanDispatchType, ReminderScope, TaskMode } from '@prisma/client';
+
+/**
+ * Task 模板：描述 Plan 触发时要执行的一个原子动作。
+ * Plan.taskTemplates 为 TaskTemplate[] 时，触发会生成多个 Task。
+ */
+export interface TaskTemplate {
+  /** 要调用的 capability 名称，如 'weather', 'checkin', 'reminder' */
+  action: string;
+  /** 传给 CapabilityRegistry.execute() 的参数 */
+  params?: Record<string, unknown>;
+  /** execute=调用能力 | notify=仅通知。默认 execute */
+  mode?: TaskMode;
+}
 
 /** 创建 Plan 的输入 */
 export interface CreatePlanInput {
@@ -15,9 +28,12 @@ export interface CreatePlanInput {
 
   sessionId?: string;
   conversationId?: string;
+  sourceTodoId?: string;
 
-  /** dispatchType=action 时的能力调用参数 */
+  /** dispatchType=action 时的能力调用参数（单 Task 场景） */
   actionPayload?: Record<string, unknown>;
+  /** 多 Task 模板（多 Task 场景，优先级高于 actionPayload） */
+  taskTemplates?: TaskTemplate[];
 }
 
 /** 更新 Plan 的输入（部分字段可选） */
@@ -50,6 +66,7 @@ export interface DispatchResult {
   occurrenceId: string;
   planId: string;
   resultRef?: string;
+  resultPayload?: Record<string, unknown>;
 }
 
 /** 支持的 recurrence 值 */

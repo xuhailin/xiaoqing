@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { isFeatureEnabled } from '../../config/feature-flags';
+import { OpenClawRegistryService } from '../../openclaw/openclaw-registry.service';
 
 @Injectable()
 export class FeatureFlagConfig {
@@ -27,7 +28,10 @@ export class FeatureFlagConfig {
   readonly openclawConfidenceThreshold: number;
   readonly featureInstantSummarize: boolean;
 
-  constructor(config: ConfigService) {
+  constructor(
+    config: ConfigService,
+    openClawRegistry: OpenClawRegistryService,
+  ) {
     this.lastNRounds = Number(config.get('CONVERSATION_LAST_N_ROUNDS')) || 8;
     this.memoryMidK = Number(config.get('MEMORY_INJECT_MID_K')) || 5;
     this.maxContextTokens = Number(config.get('MAX_CONTEXT_TOKENS')) || 3000;
@@ -45,7 +49,7 @@ export class FeatureFlagConfig {
     this.featureDynamicTopK = isFeatureEnabled(config, 'dynamicTopK');
     this.featureShortSummary = isFeatureEnabled(config, 'memoryShortSummary');
     this.featureDebugMeta = isFeatureEnabled(config, 'debugMeta');
-    this.featureOpenClaw = isFeatureEnabled(config, 'openclaw');
+    this.featureOpenClaw = openClawRegistry.hasAny();
     this.featureAutoSummarize = isFeatureEnabled(config, 'autoSummarize');
     this.autoSummarizeThreshold = Number(config.get('AUTO_SUMMARIZE_THRESHOLD')) || 15;
     this.openclawConfidenceThreshold = Number(config.get('OPENCLAW_CONFIDENCE_THRESHOLD')) || 0.7;

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConversationModule } from '../assistant/conversation/conversation.module';
+import { ConversationWorkModule } from '../conversation-work/conversation-work.module';
 import { QueueModule } from '../infra/queue';
 import { OpenClawModule } from '../openclaw/openclaw.module';
 import { AgentBusController } from './agent-bus.controller';
@@ -16,7 +17,7 @@ import { AgentInboundResultService } from './agent-inbound-result.service';
 import { MemoryProposalService } from './memory-proposal.service';
 
 @Module({
-  imports: [ConversationModule, OpenClawModule, QueueModule],
+  imports: [ConversationModule, ConversationWorkModule, OpenClawModule, QueueModule],
   controllers: [AgentBusController, AgentInboundController, MemoryProposalController],
   providers: [
     AgentBusRepository,

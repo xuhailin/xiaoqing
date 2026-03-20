@@ -7,18 +7,21 @@ import { XiaoqingAvatarComponent } from '../shared/ui/xiaoqing-avatar.component'
 type ChatSubNavItem = {
   value: 'chat' | 'xiaoqin';
   label: string;
+  description: string;
   disabled?: boolean;
 };
 
 type WorkspaceSubNavItem = {
-  value: 'dev-agent' | 'reminder' | 'plan' | 'regression' | 'task-records';
+  value: 'ideas' | 'todos' | 'execution';
   label: string;
+  description: string;
   disabled?: boolean;
 };
 
 type MemorySubNavItem = {
-  value: 'life-record' | 'cognitive-trace' | 'memories' | 'profile';
+  value: 'life-record' | 'cognitive-trace' | 'memories' | 'profile' | 'relations';
   label: string;
+  description: string;
   disabled?: boolean;
 };
 
@@ -119,7 +122,7 @@ type MemorySubNavItem = {
                 </nav>
               }
 
-              <div class="app-subnav__meta">小晴陪你聊天、记事、提醒，也能自然衔接执行。</div>
+              <div class="app-subnav__meta">{{ currentSubnavDescription() }}</div>
             </div>
           }
 
@@ -291,8 +294,10 @@ type MemorySubNavItem = {
       justify-content: space-between;
       gap: var(--space-4);
       padding: var(--workbench-header-padding);
-      border-bottom: 1px solid var(--color-workbench-border);
-      background: var(--workbench-header-background);
+      border-bottom: 1px solid rgba(212, 222, 237, 0.24);
+      background: rgba(255, 255, 255, 0.54);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       flex-shrink: 0;
     }
 
@@ -302,9 +307,9 @@ type MemorySubNavItem = {
       gap: var(--space-1);
       padding: var(--space-1);
       border-radius: var(--radius-xl);
-      border: 1px solid var(--color-workbench-border);
-      background: var(--color-workbench-panel-strong);
-      box-shadow: 0 1px 0 rgba(20, 27, 39, 0.03);
+      border: 1px solid rgba(212, 222, 237, 0.24);
+      background: rgba(255, 255, 255, 0.26);
+      box-shadow: none;
     }
 
     .app-subnav__item {
@@ -333,13 +338,13 @@ type MemorySubNavItem = {
 
     .app-subnav__item:hover:not(:disabled) {
       color: var(--color-text);
-      background: rgba(79, 109, 245, 0.08);
+      background: rgba(79, 109, 245, 0.04);
     }
 
     .app-subnav__item--active {
       color: var(--color-primary);
-      background: var(--workbench-surface-gradient);
-      box-shadow: inset 0 0 0 1px rgba(79, 109, 245, 0.14);
+      background: rgba(255, 255, 255, 0.44);
+      box-shadow: inset 0 0 0 1px rgba(79, 109, 245, 0.1);
     }
 
     .app-subnav__item:disabled {
@@ -354,9 +359,14 @@ type MemorySubNavItem = {
     }
 
     .app-subnav__meta {
+      margin-left: auto;
+      flex: 0 1 32rem;
+      min-width: 0;
       font-size: var(--font-size-xs);
       color: var(--color-text-secondary);
-      white-space: nowrap;
+      line-height: 1.5;
+      text-align: right;
+      white-space: normal;
     }
 
     .app-main__content {
@@ -366,7 +376,9 @@ type MemorySubNavItem = {
     }
 
     .app-main__content--chat {
-      background: transparent;
+      background:
+        radial-gradient(circle at 18% 10%, rgba(120, 140, 255, 0.12), transparent 42%),
+        radial-gradient(circle at 0% 34%, rgba(255, 255, 255, 0.3), transparent 28%);
     }
 
     .app-main__content--default {
@@ -416,7 +428,9 @@ type MemorySubNavItem = {
       }
 
       .app-subnav__meta {
-        display: none;
+        margin-left: 0;
+        flex: 1 1 auto;
+        text-align: left;
       }
     }
   `],
@@ -424,31 +438,63 @@ type MemorySubNavItem = {
 export class MainLayoutComponent {
   protected readonly mainNavItems = [
     { value: 'chat', label: '对话', hint: '会话与陪伴', icon: 'message' as const },
-    { value: 'workspace', label: '工作台', hint: '提醒与执行', icon: 'tool' as const },
+    { value: 'workspace', label: '工作台', hint: '收纳与执行', icon: 'tool' as const },
     { value: 'memory', label: '记忆', hint: '画像与轨迹', icon: 'brain' as const },
   ];
   protected readonly chatSubNavItems: readonly ChatSubNavItem[] = [
-    { value: 'chat', label: '小晴' },
-    { value: 'xiaoqin', label: '小勤', disabled: true },
+    { value: 'chat', label: '小晴', description: '小晴陪你聊天、记事、提醒，也能自然衔接执行。' },
+    { value: 'xiaoqin', label: '小勤', description: '小勤这边先承接 DevAgent 面板，处理偏执行、排障和协作类工作。' },
   ];
   protected readonly workspaceSubNavItems: readonly WorkspaceSubNavItem[] = [
-    { value: 'dev-agent', label: 'DevAgent' },
-    { value: 'reminder', label: 'Reminder' },
-    { value: 'plan', label: 'Todo / Plan' },
-    { value: 'regression', label: '回归测试' },
-    { value: 'task-records', label: '任务记录' },
+    {
+      value: 'ideas',
+      label: '想法',
+      description: '先收纳灵感、念头和暂不执行的计划，再决定是否升级成待办。',
+    },
+    {
+      value: 'todos',
+      label: '待办',
+      description: '管理用户自己的事项、承诺和需要跟进的内容，执行只是它的下游动作。',
+    },
+    {
+      value: 'execution',
+      label: '执行',
+      description: '查看现有 Task 执行链里的结果和流水，不改变底层执行体系。',
+    },
   ];
   protected readonly memorySubNavItems: readonly MemorySubNavItem[] = [
-    { value: 'life-record', label: '生活' },
-    { value: 'cognitive-trace', label: '认知' },
-    { value: 'memories', label: '记忆' },
-    { value: 'profile', label: '用户画像' },
+    {
+      value: 'life-record',
+      label: '生活',
+      description: '把对话里的事件、情绪、人物和计划串成一条可浏览的生活轨迹。',
+    },
+    {
+      value: 'cognitive-trace',
+      label: '认知',
+      description: '查看小晴自己的认知变化，包括感知、记忆、决策与演进轨迹。',
+    },
+    {
+      value: 'memories',
+      label: '记忆',
+      description: '阶段记忆、长期记忆与待确认成长记录统一放在这里。',
+    },
+    {
+      value: 'profile',
+      label: '用户画像',
+      description: '身份锚定、默认偏好与用户相关记忆都在这里维护。',
+    },
+    {
+      value: 'relations',
+      label: '关系',
+      description: '把你身边的人、你们的互动状态和共同经历放到一张可浏览的关系地图里。',
+    },
   ];
 
   constructor(private readonly router: Router) {}
 
   currentPrimary(): 'chat' | 'workspace' | 'memory' {
     const url = this.router.url;
+    if (url.startsWith('/workspace/dev-agent')) return 'chat';
     if (url.startsWith('/workspace')) return 'workspace';
     if (url.startsWith('/memory')) return 'memory';
     return 'chat';
@@ -472,42 +518,64 @@ export class MainLayoutComponent {
   }
 
   currentChatSubnav(): 'chat' | 'xiaoqin' {
+    const url = this.router.url;
+    if (url.startsWith('/workspace/dev-agent')) {
+      return 'xiaoqin';
+    }
     return 'chat';
   }
 
   selectChatSubnav(value: 'chat' | 'xiaoqin') {
     if (value === 'xiaoqin') {
+      this.router.navigate(['/workspace/dev-agent']);
       return;
     }
     this.router.navigate(['/chat']);
   }
 
-  currentWorkspaceSubnav(): 'dev-agent' | 'reminder' | 'plan' | 'regression' | 'task-records' {
+  currentWorkspaceSubnav(): 'ideas' | 'todos' | 'execution' {
     const url = this.router.url;
-    if (url.startsWith('/workspace/reminder')) return 'reminder';
-    if (url.startsWith('/workspace/plan')) return 'plan';
-    if (url.startsWith('/workspace/regression')) return 'regression';
-    if (url.startsWith('/workspace/task-records')) return 'task-records';
-    return 'dev-agent';
+    if (url.startsWith('/workspace/ideas')) return 'ideas';
+    if (url.startsWith('/workspace/execution') || url.startsWith('/workspace/task-records') || url.startsWith('/workspace/dev-agent') || url.startsWith('/workspace/regression')) return 'execution';
+    return 'todos';
   }
 
-  selectWorkspaceSubnav(value: 'dev-agent' | 'reminder' | 'plan' | 'regression' | 'task-records') {
+  selectWorkspaceSubnav(value: 'ideas' | 'todos' | 'execution') {
     this.router.navigate([`/workspace/${value}`]);
   }
 
-  currentMemorySubnav(): 'life-record' | 'cognitive-trace' | 'memories' | 'profile' {
+  currentMemorySubnav(): 'life-record' | 'cognitive-trace' | 'memories' | 'profile' | 'relations' {
     const url = this.router.url;
+    if (url.startsWith('/memory/relations')) return 'relations';
     if (url.startsWith('/memory/cognitive-trace')) return 'cognitive-trace';
     if (url.startsWith('/memory/memories')) return 'memories';
     if (url.startsWith('/memory/profile')) return 'profile';
     return 'life-record';
   }
 
-  selectMemorySubnav(value: 'life-record' | 'cognitive-trace' | 'memories' | 'profile') {
+  selectMemorySubnav(value: 'life-record' | 'cognitive-trace' | 'memories' | 'profile' | 'relations') {
     this.router.navigate([`/memory/${value}`]);
+  }
+
+  currentSubnavDescription(): string {
+    const primary = this.currentPrimary();
+    if (primary === 'chat') {
+      return this.findSubnavDescription(this.chatSubNavItems, this.currentChatSubnav());
+    }
+    if (primary === 'workspace') {
+      return this.findSubnavDescription(this.workspaceSubNavItems, this.currentWorkspaceSubnav());
+    }
+    return this.findSubnavDescription(this.memorySubNavItems, this.currentMemorySubnav());
   }
 
   openSettings() {
     this.router.navigate(['/settings']);
+  }
+
+  private findSubnavDescription<T extends { value: string; description: string }>(
+    items: readonly T[],
+    value: string,
+  ): string {
+    return items.find((item) => item.value === value)?.description ?? '';
   }
 }

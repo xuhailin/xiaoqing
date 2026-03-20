@@ -46,6 +46,7 @@ model Conversation {
   dailyMomentSuggestions DailyMomentSuggestion[]
   dailyMomentSignals DailyMomentSignal[]
   sessionReflections SessionReflection[]
+  workItems     ConversationWorkItem[]
 
   @@index([entryAgentId, updatedAt])
   @@index([isInternal, updatedAt])
@@ -83,6 +84,86 @@ model Message {
 
   @@index([conversationId, createdAt])
   @@index([conversationId, kind, createdAt])
+}
+
+enum ConversationWorkStatus {
+  accepted
+  queued
+  running
+  waiting_input
+  completed
+  failed
+  cancelled
+  timed_out
+}
+
+enum ConversationWorkExecutorType {
+  dev_run
+  agent_delegation
+  tool_run
+  scheduled_action
+}
+
+enum ConversationWorkEventType {
+  accepted
+  queued
+  started
+  progress
+  waiting_input
+  resumed
+  completed
+  failed
+  cancelled
+  timed_out
+  receipt_projected
+  result_projected
+}
+
+model ConversationWorkItem {
+  id                     String                         @id @default(uuid())
+  conversationId         String
+  conversation           Conversation                   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  originUserMessageId    String
+  originReceiptMessageId String?
+  resultMessageId        String?
+  status                 ConversationWorkStatus
+  executorType           ConversationWorkExecutorType?
+  sourceRefId            String?
+  title                  String?
+  userFacingGoal         String                         @db.Text
+  latestSummary          String?                        @db.Text
+  blockReason            String?                        @db.Text
+  waitingQuestion        String?                        @db.Text
+  errorCode              String?
+  errorMessage           String?                        @db.Text
+  retryable              Boolean                        @default(false)
+  timeoutAt              DateTime?
+  closureContractJson    Json?
+  startedAt              DateTime?
+  finishedAt             DateTime?
+  lastEventAt            DateTime?
+  createdAt              DateTime                       @default(now())
+  updatedAt              DateTime                       @updatedAt
+  events                 ConversationWorkEvent[]
+
+  @@index([conversationId, createdAt])
+  @@index([conversationId, status, updatedAt])
+  @@index([executorType, sourceRefId])
+  @@index([status, timeoutAt])
+}
+
+model ConversationWorkEvent {
+  id          String                    @id @default(uuid())
+  workItemId  String
+  workItem    ConversationWorkItem      @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+  eventType   ConversationWorkEventType
+  summary     String?                   @db.Text
+  payloadJson Json?
+  sourceRefId String?
+  createdAt   DateTime                  @default(now())
+
+  @@index([workItemId, createdAt])
+  @@index([eventType, createdAt])
 }
 
 enum AgentDelegationStatus {
@@ -782,9 +863,12 @@ model Plan {
   sessionId      String?          // dev scope 绑定 DevSession
   conversationId String?          // chat/system scope 绑定 Conversation
   actionPayload  Json?            // dispatchType=action 时的能力调用参数
+  taskTemplates  Json?            // 多 Task 模板：[{ action, params, mode }]，触发时批量生成 Task
 
   // ── 来源追溯 ──
   sourceReminderId String?        // 从 DevReminder 迁移而来时记录原 ID
+  sourceTodoId   String?
+  sourceTodo     Todo?            @relation(fields: [sourceTodoId], references: [id], onDelete: SetNull)
 
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
@@ -795,15 +879,21 @@ model Plan {
   @@index([scope])
   @@index([sessionId])
   @@index([conversationId])
+  @@index([sourceTodoId])
 }
 
-/// 计划实例：Plan 每次触发产生的具体事件
+/// 计划实例：Plan 每次触发产生的具体事件（同时承载 Task 执行语义）
 model TaskOccurrence {
   id             String           @id @default(uuid())
   planId         String
   plan           Plan             @relation(fields: [planId], references: [id], onDelete: Cascade)
   scheduledAt    DateTime         // 原定触发时间
   status         OccurrenceStatus @default(pending)
+
+  // ── Task 执行描述（Plan → Task → Capability 链路） ──
+  action         String?          // 要执行的 capability 名称，如 'weather', 'reminder', 'checkin'
+  params         Json?            // 执行参数，传入 CapabilityRegistry.execute()
+  mode           TaskMode         @default(notify) // execute=调用能力 | notify=仅通知
 
   // ── 例外处理 ──
   rescheduledTo  DateTime?        // status=rescheduled 时的新时间
@@ -812,10 +902,67 @@ model TaskOccurrence {
   // ── 执行结果 ──
   dispatchedAt   DateTime?        // 实际分发时间
   resultRef      String?          // 关联的结果 ID（如 DevRun ID、Message ID）
+  resultPayload  Json?            // CapabilityResult 等执行结果快照
 
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
   @@index([planId, scheduledAt])
   @@index([status])
+}
+
+/// Task 执行模式
+enum TaskMode {
+  execute  // 调用 CapabilityRegistry 执行能力
+  notify   // 仅生成通知消息
+}
+
+enum IdeaStatus {
+  open
+  promoted
+  archived
+}
+
+enum TodoStatus {
+  open
+  blocked
+  done
+  dropped
+}
+
+model Idea {
+  id             String     @id @default(uuid())
+  title          String?
+  content        String     @db.Text
+  status         IdeaStatus @default(open)
+  promotedTodoId String?    @unique
+  promotedTodo   Todo?      @relation("IdeaPromotedTodo", fields: [promotedTodoId], references: [id], onDelete: SetNull)
+  sourceTodos    Todo[]     @relation("TodoSourceIdea")
+
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@index([status, createdAt])
+}
+
+model Todo {
+  id             String     @id @default(uuid())
+  title          String?
+  description    String?    @db.Text
+  status         TodoStatus @default(open)
+  blockReason    String?    @db.Text
+  dueAt          DateTime?
+  completedAt    DateTime?
+
+  sourceIdeaId   String?
+  sourceIdea     Idea?      @relation("TodoSourceIdea", fields: [sourceIdeaId], references: [id], onDelete: SetNull)
+  promotedFromIdea Idea?    @relation("IdeaPromotedTodo")
+
+  executionPlans Plan[]
+
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@index([status, dueAt])
+  @@index([sourceIdeaId])
 }

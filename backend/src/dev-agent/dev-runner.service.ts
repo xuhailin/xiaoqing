@@ -6,6 +6,7 @@ import { DevSessionRepository } from './dev-session.repository';
 import { DevCostService, BudgetExceededError } from './dev-cost.service';
 import { WorkspaceManager } from './workspace/workspace-manager.service';
 import { parseWorkspaceMetaFromRunResult, withWorkspaceMeta } from './workspace/workspace-meta';
+import { ConversationWorkService } from '../conversation-work/conversation-work.service';
 
 @Injectable()
 export class DevRunRunnerService implements OnModuleInit {
@@ -23,6 +24,7 @@ export class DevRunRunnerService implements OnModuleInit {
     private readonly costService: DevCostService,
     private readonly workspaceManager: WorkspaceManager,
     private readonly queue: KeyedFifoQueueService,
+    private readonly conversationWork: ConversationWorkService,
   ) {}
 
   onModuleInit(): void {
@@ -112,6 +114,7 @@ export class DevRunRunnerService implements OnModuleInit {
             }, requestedWorkspace) as any,
             finishedAt: new Date(),
           });
+          await this.conversationWork.markDevRunFailed(runId, `工作区不可用：${message}`);
           return;
         }
       }
@@ -143,6 +146,7 @@ export class DevRunRunnerService implements OnModuleInit {
             }, effectiveWorkspace) as any,
             finishedAt: new Date(),
           });
+          await this.conversationWork.markDevRunFailed(runId, err.message);
           return;
         }
         throw err;
@@ -155,7 +159,9 @@ export class DevRunRunnerService implements OnModuleInit {
         ? runResult.resumeAgentSessionId
         : undefined;
 
-      await this.orchestrator.executeRun({
+      await this.conversationWork.markDevRunRunning(runId);
+
+      const result = await this.orchestrator.executeRun({
         conversationId: claimedRun.session.conversationId ?? null,
         session: {
           id: claimedRun.session.id,
@@ -169,6 +175,17 @@ export class DevRunRunnerService implements OnModuleInit {
         mode,
         resumeAgentSessionId,
       });
+
+      if (result.run.status === DevRunStatus.success) {
+        await this.conversationWork.markDevRunCompleted(runId, result.reply);
+      } else if (result.run.status === DevRunStatus.cancelled) {
+        await this.conversationWork.markDevRunCancelled(runId, result.reply);
+      } else if (result.run.status === DevRunStatus.failed) {
+        await this.conversationWork.markDevRunFailed(
+          runId,
+          result.reply || result.run.error || '任务执行失败',
+        );
+      }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       this.logger.error(`Background run execution failed: run=${runId} ${errorMsg}`);
@@ -182,6 +199,8 @@ export class DevRunRunnerService implements OnModuleInit {
         .catch((updateErr) => {
           this.logger.error(`Failed to persist run failure: ${String(updateErr)}`);
         });
+
+      await this.conversationWork.markDevRunFailed(runId, `后台执行异常：${errorMsg}`);
     }
   }
 

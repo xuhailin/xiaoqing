@@ -220,7 +220,7 @@ export class ChatCompletionEngine {
       const policy = forcedPolicy;
       this.advancePipelineState(pipelineState, 'decision');
       trace.add('policy-decision', '策略决策', 'success', {
-        policyDecision: policy.action,
+        decisionRoute: policy.action,
         reason: policy.reason,
         confidence: merged.confidence,
         threshold: this.openclawConfidenceThreshold,
@@ -228,11 +228,14 @@ export class ChatCompletionEngine {
         requiresTool: merged.requiresTool,
         missingParams: merged.missingParams,
         pipeline: this.buildPipelineSnapshot(pipelineState),
-        actionReasoner: context.runtime.actionDecision
+        unifiedDecision: context.runtime.actionDecision
           ? {
               action: context.runtime.actionDecision.action,
+              route: context.runtime.actionDecision.toolPolicy.action,
               source: context.runtime.actionDecision.source,
               capability: context.runtime.actionDecision.capability,
+              targetKind: context.runtime.actionDecision.targetKind,
+              planIntent: context.runtime.actionDecision.planIntent?.type ?? null,
             }
           : undefined,
       });
@@ -533,7 +536,7 @@ export class ChatCompletionEngine {
       this.advancePipelineState(pipelineState, 'decision');
       if (!this.featureOpenClaw) {
         trace.add('policy-decision', '策略决策', 'success', {
-          policyDecision: 'chat',
+          decisionRoute: 'chat',
           reason: 'OpenClaw 已关闭，回退聊天',
           pipeline: this.buildPipelineSnapshot(pipelineState),
         });
@@ -592,7 +595,7 @@ export class ChatCompletionEngine {
     if (!result.result.assistantMessage.content || result.result.assistantMessage.content.includes('失败')) {
       this.advancePipelineState(pipelineState, 'decision');
       trace.add('policy-decision', '策略决策', 'success', {
-        policyDecision: 'run_openclaw',
+        decisionRoute: 'run_openclaw',
         reason: '本地 weather 执行失败，回退 OpenClaw',
         pipeline: this.buildPipelineSnapshot(pipelineState),
       });
@@ -648,7 +651,7 @@ export class ChatCompletionEngine {
       });
       if (!this.featureOpenClaw) {
         trace.add('policy-decision', '策略决策', 'success', {
-          policyDecision: 'chat',
+          decisionRoute: 'chat',
           reason: 'OpenClaw 已关闭，回退聊天',
           pipeline: this.buildPipelineSnapshot(pipelineState),
         });
@@ -745,7 +748,7 @@ export class ChatCompletionEngine {
 
     this.advancePipelineState(pipelineState, 'decision');
     trace.add('policy-decision', '策略决策', 'success', {
-      policyDecision: this.featureOpenClaw ? 'run_openclaw' : 'chat',
+      decisionRoute: this.featureOpenClaw ? 'run_openclaw' : 'chat',
       reason: this.featureOpenClaw ? '本地 book_download 执行失败，回退 OpenClaw' : 'OpenClaw 已关闭，回退聊天',
       fallbackReason: result.error ?? 'book_download skill returned empty content',
       pipeline: this.buildPipelineSnapshot(pipelineState),
@@ -813,7 +816,9 @@ export class ChatCompletionEngine {
           reminderAction: intentState.slots.reminderAction ?? 'create',
           reminderReason: intentState.slots.reminderReason,
           reminderSchedule: intentState.slots.reminderSchedule,
+          reminderRunAt: intentState.slots.reminderRunAt,
           reminderTime: intentState.slots.reminderTime,
+          reminderWeekday: intentState.slots.reminderWeekday,
           reminderTarget: intentState.slots.reminderTarget,
         },
         localSkillUsed: 'reminder',
@@ -1034,7 +1039,7 @@ export class ChatCompletionEngine {
       if (reasonCode === options.fallbackOnReasonCode) {
         this.advancePipelineState(pipelineState, 'decision');
         trace.add('policy-decision', '策略决策', 'success', {
-          policyDecision: this.featureOpenClaw ? 'run_openclaw' : 'chat',
+          decisionRoute: this.featureOpenClaw ? 'run_openclaw' : 'chat',
           reason: this.featureOpenClaw
             ? `本地 ${capabilityName} 返回 ${reasonCode}，回退 OpenClaw`
             : 'OpenClaw 已关闭，回退聊天',

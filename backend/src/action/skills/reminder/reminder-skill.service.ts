@@ -8,8 +8,10 @@ import { PlanService } from '../../../plan/plan.service';
 interface ReminderParams {
   reminderAction?: 'create' | 'list' | 'cancel';
   reminderReason?: string;
-  reminderSchedule?: 'once' | 'daily' | 'weekly';
+  reminderSchedule?: 'once' | 'daily' | 'weekday' | 'weekly';
+  reminderRunAt?: string;
   reminderTime?: string;
+  reminderWeekday?: number;
   reminderTarget?: string;
 }
 
@@ -74,7 +76,7 @@ export class ReminderSkillService implements ICapability {
     if (!schedule.cronExpr && !schedule.runAt) {
       return {
         success: false,
-        content: '我没能理解提醒的时间，可以再说具体一点吗？比如"每天晚上6点"或"明天下午3点"。',
+        content: '我还缺一个明确的提醒时间，比如“工作日 18:30”或“明天下午 3 点”。',
         error: 'cannot parse schedule',
       };
     }
@@ -83,6 +85,7 @@ export class ReminderSkillService implements ICapability {
     const recurrenceMap: Record<string, string> = {
       once: 'once',
       daily: 'daily',
+      weekday: 'weekday',
       weekly: 'weekly',
     };
     const recurrence = recurrenceMap[params.reminderSchedule ?? 'once'] ?? 'once';
@@ -209,16 +212,28 @@ export class ReminderSkillService implements ICapability {
     const schedule = params.reminderSchedule ?? 'once';
     const timeStr = params.reminderTime?.trim();
 
+    if (schedule === 'once' && params.reminderRunAt?.trim()) {
+      const runAt = this.parseRunAt(params.reminderRunAt.trim());
+      if (runAt) return { runAt: runAt.toISOString() };
+    }
+
     if (schedule === 'daily') {
       const time = this.parseTimeHHMM(timeStr);
       if (!time) return {};
       return { cronExpr: `${time.minute} ${time.hour} * * *` };
     }
 
+    if (schedule === 'weekday') {
+      const time = this.parseTimeHHMM(timeStr);
+      if (!time) return {};
+      return { cronExpr: `${time.minute} ${time.hour} * * 1-5` };
+    }
+
     if (schedule === 'weekly') {
       const time = this.parseTimeHHMM(timeStr);
       if (!time) return {};
-      const dow = this.parseDayOfWeek(timeStr) ?? 1;
+      const dow = Number.isInteger(params.reminderWeekday) ? params.reminderWeekday : this.parseDayOfWeek(timeStr);
+      if (dow === null || dow === undefined) return {};
       return { cronExpr: `${time.minute} ${time.hour} * * ${dow}` };
     }
 
@@ -349,14 +364,38 @@ export class ReminderSkillService implements ICapability {
   private describeSchedule(params: ReminderParams): string {
     const schedule = params.reminderSchedule ?? 'once';
     const timeStr = params.reminderTime?.trim() ?? '';
+    const weekdayLabel = Number.isInteger(params.reminderWeekday)
+      ? this.describeWeekday(params.reminderWeekday!)
+      : '';
 
     if (schedule === 'daily') {
       const time = this.parseTimeHHMM(timeStr);
       return time ? `每天 ${String(time.hour).padStart(2, '0')}:${String(time.minute).padStart(2, '0')}` : '每天';
     }
-    if (schedule === 'weekly') {
-      return `每周${timeStr || ''}`;
+    if (schedule === 'weekday') {
+      const time = this.parseTimeHHMM(timeStr);
+      return time ? `工作日 ${String(time.hour).padStart(2, '0')}:${String(time.minute).padStart(2, '0')}` : '工作日';
     }
-    return timeStr ? `${timeStr}` : '一次性提醒';
+    if (schedule === 'weekly') {
+      const time = this.parseTimeHHMM(timeStr);
+      const timeLabel = time
+        ? ` ${String(time.hour).padStart(2, '0')}:${String(time.minute).padStart(2, '0')}`
+        : '';
+      return `每周${weekdayLabel}${timeLabel}`.trim();
+    }
+    return params.reminderRunAt?.trim() || timeStr ? `${params.reminderRunAt?.trim() || timeStr}` : '一次性提醒';
+  }
+
+  private describeWeekday(weekday: number): string {
+    switch (weekday) {
+      case 0: return '日';
+      case 1: return '一';
+      case 2: return '二';
+      case 3: return '三';
+      case 4: return '四';
+      case 5: return '五';
+      case 6: return '六';
+      default: return '';
+    }
   }
 }

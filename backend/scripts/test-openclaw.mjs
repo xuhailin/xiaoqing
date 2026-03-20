@@ -4,6 +4,8 @@
  * 支持直连 JSON 和 chat/completions 两种 API 风格。
  *
  * 用法：node scripts/test-openclaw.mjs [次数]
+ *
+ * 配置：仅读取 OPENCLAW_AGENTS（JSON 数组），与 OpenClawRegistryService 一致。
  */
 
 import { createHmac } from 'crypto';
@@ -34,27 +36,11 @@ function loadEnv() {
 }
 
 /**
- * 解析 Agent 列表：从 OPENCLAW_AGENTS JSON 或 OPENCLAW_* 单实例配置
+ * 解析 Agent 列表：从 OPENCLAW_AGENTS JSON（与后端注册表一致）
  */
 function resolveAgents(env) {
   const agents = [];
 
-  // 单实例配置（向后兼容）
-  const baseUrl = (env.OPENCLAW_PLUGIN_BASE_URL || '').replace(/\/$/, '');
-  if (baseUrl && env.FEATURE_OPENCLAW === 'true') {
-    agents.push({
-      id: env.OPENCLAW_BOT_ID || 'default',
-      name: 'OpenClaw (default)',
-      baseUrl,
-      token: env.OPENCLAW_TOKEN || '',
-      signKey: env.OPENCLAW_SIGN_KEY || '',
-      apiStyle: 'json',
-      taskPath: '/task',
-      timeout: Number(env.OPENCLAW_TIMEOUT_SECONDS) || 60,
-    });
-  }
-
-  // 多 Agent 配置
   if (env.OPENCLAW_AGENTS) {
     try {
       const parsed = JSON.parse(env.OPENCLAW_AGENTS);
@@ -150,7 +136,7 @@ async function run() {
   const agents = resolveAgents(env);
 
   if (agents.length === 0) {
-    console.error('无可用 Agent。请配置 FEATURE_OPENCLAW=true + OPENCLAW_PLUGIN_BASE_URL，或配置 OPENCLAW_AGENTS。');
+    console.error('无可用 Agent。请在 .env 中配置 OPENCLAW_AGENTS（JSON 数组，含 id、baseUrl、token）。');
     process.exit(1);
   }
 

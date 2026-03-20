@@ -27,7 +27,7 @@ export class OpenClawService {
     if (!agent) {
       const msg = req.agentId
         ? `OpenClaw Agent "${req.agentId}" 未注册`
-        : 'OpenClaw 无可用 Agent（未配置或未启用）';
+        : 'OpenClaw 无可用 Agent（未配置 OPENCLAW_AGENTS 或解析失败）';
       this.logger.warn(msg);
       return { success: false, content: '', error: msg };
     }

@@ -1,11 +1,13 @@
 import { Component, OnInit, OnDestroy, signal, inject, viewChild, ElementRef, HostListener } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import {
   ConversationService,
   AgentDelegation,
   AgentDelegationEvent,
   AgentDelegationStatus,
+  ConversationWorkItem,
+  ConversationWorkStatus,
   Message,
   MessageKind,
   DebugMeta,
@@ -14,6 +16,7 @@ import {
 } from '../core/services/conversation.service';
 import { JsonPipe, DOCUMENT, NgClass } from '@angular/common';
 import { PersonaService, EvolutionChange } from '../core/services/persona.service';
+import { RelationshipService, SessionReflectionRecord } from '../core/services/relationship.service';
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
 import { AppIconComponent, type AppIconName } from '../shared/ui/app-icon.component';
@@ -30,6 +33,17 @@ type MessageDebugEntry = {
 type ActivityNotice = {
   tone: 'info' | 'success' | 'warning' | 'danger';
   text: string;
+};
+
+type MessageCaptureReceipt = {
+  tone: 'info' | 'success' | 'warning';
+  icon: AppIconName;
+  label: string;
+  kindLabel: string;
+  statusLabel: string;
+  entityTitle: string | null;
+  summary: string | null;
+  detail: string | null;
 };
 
 const MESSAGE_KIND_META: Partial<Record<MessageKind, { icon: AppIconName; label: string }>> = {
@@ -63,7 +77,9 @@ const MESSAGE_KIND_META: Partial<Record<MessageKind, { icon: AppIconName; label:
 export class ChatComponent implements OnInit, OnDestroy {
   private conversation = inject(ConversationService);
   private personaService = inject(PersonaService);
+  private relationshipService = inject(RelationshipService);
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
   private document = inject(DOCUMENT);
   private routeSub?: Subscription;
   private pollHandle: number | null = null;
@@ -79,10 +95,12 @@ export class ChatComponent implements OnInit, OnDestroy {
   error = signal<string | null>(null);
   activityNotice = signal<ActivityNotice | null>(null);
   delegations = signal<AgentDelegation[]>([]);
+  workItems = signal<ConversationWorkItem[]>([]);
   expandedDelegationId = signal<string | null>(null);
 
   injectedMemories = signal<Array<{ id: string; type: string; content: string }>>([]);
   worldState = signal<WorldState | null>(null);
+  sessionReflection = signal<SessionReflectionRecord | null>(null);
   messageDebugState = signal<Record<string, MessageDebugEntry>>({});
   expandedTraceMessageId = signal<string | null>(null);
   activeDebugMessageId = signal<string | null>(null);
@@ -99,8 +117,8 @@ export class ChatComponent implements OnInit, OnDestroy {
       || this.evolveResult()
       || this.activityNotice()
       || this.injectedMemories().length
-      || this.delegations().length
       || this.evolveSuggestion()
+      || this.sessionReflection()
       || worldState?.city
       || worldState?.timezone
       || worldState?.language,
@@ -147,13 +165,17 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.evolveSuggestion.set(null);
     this.injectedMemories.set([]);
     this.worldState.set(null);
+    this.sessionReflection.set(null);
     this.activityNotice.set(null);
     this.delegations.set([]);
+    this.workItems.set([]);
     this.expandedDelegationId.set(null);
     this.resetMessageDebugState();
     await this.loadMessages(id, { forceScroll: true });
     await this.loadDelegations(id);
+    await this.loadWorkItems(id);
     await this.fetchWorldState(id);
+    await this.fetchSessionReflection(id);
     this.startConversationPolling(id);
     this.checkPendingEvolution();
   }
@@ -161,6 +183,7 @@ export class ChatComponent implements OnInit, OnDestroy {
   private async loadCurrent() {
     this.error.set(null);
     this.delegations.set([]);
+    this.workItems.set([]);
     this.expandedDelegationId.set(null);
     this.resetMessageDebugState();
     try {
@@ -169,7 +192,9 @@ export class ChatComponent implements OnInit, OnDestroy {
         this.conversationId.set(res.id);
         await this.loadMessages(res.id, { forceScroll: true });
         await this.loadDelegations(res.id);
+        await this.loadWorkItems(res.id);
         await this.fetchWorldState(res.id);
+        await this.fetchSessionReflection(res.id);
         this.startConversationPolling(res.id);
       }
     } catch (e) {
@@ -200,12 +225,33 @@ export class ChatComponent implements OnInit, OnDestroy {
     }
   }
 
+  private async fetchSessionReflection(cid: string) {
+    try {
+      const rows = await this.relationshipService.listSessionReflections({
+        conversationId: cid,
+        limit: 1,
+      }).toPromise();
+      this.sessionReflection.set(rows?.[0] ?? null);
+    } catch {
+      this.sessionReflection.set(null);
+    }
+  }
+
   private async loadDelegations(cid: string) {
     try {
       const list = await this.conversation.getDelegations(cid).toPromise();
       this.delegations.set(list ?? []);
     } catch {
       this.delegations.set([]);
+    }
+  }
+
+  private async loadWorkItems(cid: string) {
+    try {
+      const list = await this.conversation.getWorkItems(cid).toPromise();
+      this.workItems.set(list ?? []);
+    } catch {
+      this.workItems.set([]);
     }
   }
 
@@ -251,8 +297,13 @@ export class ChatComponent implements OnInit, OnDestroy {
         this.expandedTraceMessageId.set(null);
         this.activeDebugMessageId.set(null);
         this.copyDebugFeedback.set(null);
+        if (res.workItems?.length) {
+          this.workItems.set(res.workItems);
+        }
         await this.loadDelegations(cid);
+        await this.loadWorkItems(cid);
         await this.fetchWorldState(cid);
+        await this.fetchSessionReflection(cid);
         this.checkPendingEvolution();
       }
     } catch (e) {
@@ -451,6 +502,69 @@ export class ChatComponent implements OnInit, OnDestroy {
     return 'info';
   }
 
+  relationImpactTone(impact: SessionReflectionRecord['relationImpact']): 'neutral' | 'info' | 'success' | 'warning' | 'danger' {
+    if (impact === 'deepened') return 'success';
+    if (impact === 'repaired') return 'info';
+    if (impact === 'strained') return 'danger';
+    return 'neutral';
+  }
+
+  relationImpactLabel(impact: SessionReflectionRecord['relationImpact']) {
+    if (impact === 'deepened') return '关系加深';
+    if (impact === 'repaired') return '关系修复';
+    if (impact === 'strained') return '关系紧张';
+    return '关系平稳';
+  }
+
+  relationDeltaLabel(value: number) {
+    const percent = Math.round(Math.abs(value) * 100);
+    if (percent === 0) return '0%';
+    return `${value > 0 ? '+' : '-'}${percent}%`;
+  }
+
+  workItemForMessage(message: Message): ConversationWorkItem | null {
+    const workItemId = message.metadata?.workItemId;
+    if (!workItemId) return null;
+    return this.workItems().find((item) => item.id === workItemId) ?? null;
+  }
+
+  shouldRenderWorkCard(message: Message): boolean {
+    return message.role === 'assistant' && message.metadata?.workProjection === 'receipt';
+  }
+
+  workStatusTone(status: ConversationWorkStatus): 'neutral' | 'info' | 'success' | 'warning' | 'danger' {
+    if (status === 'completed') return 'success';
+    if (status === 'failed' || status === 'cancelled' || status === 'timed_out') return 'danger';
+    if (status === 'running') return 'info';
+    if (status === 'waiting_input') return 'warning';
+    if (status === 'queued') return 'warning';
+    return 'neutral';
+  }
+
+  workStatusLabel(status: ConversationWorkStatus): string {
+    if (status === 'accepted') return '已接手';
+    if (status === 'queued') return '排队中';
+    if (status === 'running') return '处理中';
+    if (status === 'waiting_input') return '待补充';
+    if (status === 'completed') return '已完成';
+    if (status === 'failed') return '未完成';
+    if (status === 'cancelled') return '已取消';
+    if (status === 'timed_out') return '超时';
+    return status;
+  }
+
+  workCardMeta(item: ConversationWorkItem): string | null {
+    const executorLabel = item.executorType === 'agent_delegation'
+      ? '协作任务'
+      : item.executorType === 'dev_run'
+        ? '开发任务'
+        : null;
+    const timeLabel = this.formatDateTime(item.updatedAt)
+      || this.formatDateTime(item.startedAt)
+      || this.formatDateTime(item.createdAt);
+    return [executorLabel, timeLabel].filter(Boolean).join(' · ') || null;
+  }
+
   messageMetaLine(message: Message): string | null {
     if (message.kind === 'agent_receipt' || message.kind === 'agent_result') {
       const flow = this.agentFlowLabel(message.metadata?.fromAgentId, message.metadata?.toAgentId);
@@ -479,6 +593,95 @@ export class ChatComponent implements OnInit, OnDestroy {
       return message.metadata?.triggerMode === 'accept_suggestion' ? '由轻提示接续生成' : '由对话自然生成';
     }
     return null;
+  }
+
+  messageCaptureReceipt(message: Message): MessageCaptureReceipt | null {
+    if (message.role !== 'assistant' || !message.metadata) return null;
+    if (
+      message.kind === 'tool'
+      || message.kind === 'agent_receipt'
+      || message.kind === 'agent_result'
+      || message.kind === 'system'
+      || message.kind === 'reminder_created'
+      || message.kind === 'reminder_list'
+      || message.kind === 'reminder_cancelled'
+      || message.kind === 'reminder_triggered'
+    ) {
+      return null;
+    }
+
+    const captureKind = message.metadata.captureKind;
+    const hasPlan = Boolean(message.metadata.planId);
+    if (!captureKind && !hasPlan) return null;
+
+    const scheduleDetail = [
+      message.metadata.scheduleText,
+      this.formatDateTime(message.metadata.nextRunAt),
+    ].filter(Boolean).join(' · ') || null;
+
+    if (captureKind === 'idea') {
+      const ideaTitle = message.metadata.ideaTitle?.trim();
+      return {
+        tone: 'info',
+        icon: 'sparkles',
+        label: '已收进工作台',
+        kindLabel: '想法',
+        statusLabel: '待整理',
+        entityTitle: ideaTitle ?? null,
+        summary: '这条内容先收进想法区，后面再决定要不要转成待办。',
+        detail: null,
+      };
+    }
+
+    if (captureKind === 'todo') {
+      const todoTitle = message.metadata.todoTitle?.trim();
+      return {
+        tone: hasPlan ? 'warning' : 'success',
+        icon: hasPlan ? 'bell' : 'check',
+        label: hasPlan ? '已记成待办并安排提醒' : '已记成待办',
+        kindLabel: '待办',
+        statusLabel: hasPlan ? '已安排提醒' : '可继续执行',
+        entityTitle: todoTitle ?? null,
+        summary: hasPlan ? '我已经把这件事记成待办，并顺手挂上了提醒。' : '我已经把这件事记成待办，后面可以再送进执行。',
+        detail: [message.metadata.planTitle, scheduleDetail].filter(Boolean).join(' · ') || null,
+      };
+    }
+
+    return {
+      tone: 'warning',
+      icon: 'bell',
+      label: '已进入提醒链路',
+      kindLabel: '提醒',
+      statusLabel: '已调度',
+      entityTitle: message.metadata.planTitle?.trim() ?? null,
+      summary: '这条内容已经进入提醒/调度链路。',
+      detail: scheduleDetail,
+    };
+  }
+
+  openCaptureTarget(message: Message, target: 'idea' | 'todo' | 'execution') {
+    const metadata = message.metadata;
+    if (!metadata) return;
+
+    if (target === 'idea' && metadata.ideaId) {
+      void this.router.navigate(['/workspace/ideas'], {
+        queryParams: { ideaId: metadata.ideaId },
+      });
+      return;
+    }
+
+    if (target === 'todo' && metadata.todoId) {
+      void this.router.navigate(['/workspace/todos'], {
+        queryParams: { todoId: metadata.todoId },
+      });
+      return;
+    }
+
+    if (target === 'execution' && metadata.planId) {
+      void this.router.navigate(['/workspace/execution'], {
+        queryParams: { planId: metadata.planId },
+      });
+    }
   }
 
   toggleDelegationDetail(delegationId: string) {
@@ -636,7 +839,9 @@ export class ChatComponent implements OnInit, OnDestroy {
       }
       void this.loadMessages(conversationId, { announceSpecial: true });
       void this.loadDelegations(conversationId);
-    }, 15000);
+      void this.loadWorkItems(conversationId);
+      void this.fetchSessionReflection(conversationId);
+    }, 5000);
   }
 
   private stopConversationPolling() {
@@ -660,7 +865,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     });
   }
 
-  private formatDateTime(value?: string | null): string | null {
+  protected formatDateTime(value?: string | null): string | null {
     if (!value) return null;
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return null;

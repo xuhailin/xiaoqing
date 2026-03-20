@@ -40,13 +40,8 @@ export class AgentInboundAuthService {
           }
         }
       } catch {
-        // Ignore malformed JSON and keep fallback envs.
+        // Ignore malformed JSON.
       }
-    }
-
-    const xiaoqinToken = this.config.get<string>('XIAOQIN_AGENT_BUS_TOKEN');
-    if (xiaoqinToken?.trim()) {
-      configured.xiaoqin = xiaoqinToken.trim();
     }
 
     return configured;

@@ -119,16 +119,35 @@ interface OpenClawAgentConfig {
 
 ### 4.3 注册表（OpenClawRegistryService）
 
-管理多个 Agent 实例，配置来源：
+管理多个 Agent 实例。**推荐仅使用 `OPENCLAW_AGENTS`（JSON 数组）**：每项的 **`id` 即实例标识**（等价于旧版单实例的 `OPENCLAW_BOT_ID` 角色，但多实例时必须在 JSON 里逐条声明）。
 
-1. **OPENCLAW_* 单实例变量**（向后兼容）：自动构造默认 Agent
-2. **OPENCLAW_AGENTS 环境变量**（JSON 数组）：注册多个 Agent，ID 冲突时覆盖单实例配置
+> 演进说明：legacy 单实例环境变量已移除；统一为 `OPENCLAW_AGENTS` 数组（详见 [`docs/plans/openclaw-agents-env-plan.md`](../plans/openclaw-agents-env-plan.md)）。
 
 查询方法：
 - `getAgent(id)` — 按 ID 精确查找
 - `getDefaultAgent()` — 获取默认 Agent
 - `findByCapability(cap)` — 按能力标签查找
 - `listAll()` — 列出全部
+
+### 4.3.1 OPENCLAW_AGENTS 配置示例
+
+在 `.env` 中为**一行 JSON 数组**（外层常用单引号，内层双引号）。
+
+**远端 HTTPS 标准 `/task`（不走 Agent Bus 桥接）**：
+
+```bash
+OPENCLAW_AGENTS='[{"id":"remote-bot","name":"远端OpenClaw","baseUrl":"https://api.example.com","token":"YOUR_BEARER","capabilities":["general"],"timeout":120,"apiStyle":"json","taskPath":"/task"}]'
+```
+
+**对接小勤 / 需 `AGENT_DELEGATION_V1` 时**：为对应项增加 **`agent-bus`** 能力（或由实现根据 `baseUrl` 识别），例如：
+
+```bash
+OPENCLAW_AGENTS='[{"id":"xiaoqin","name":"小勤","baseUrl":"http://127.0.0.1:8787","token":"YOUR_BEARER","capabilities":["agent-bus","external-assist"],"timeout":60,"apiStyle":"json","taskPath":"/task"}]'
+```
+
+**多实例**：数组内多条对象即可，`id` 唯一；默认项由注册顺序与实现规则决定（通常为首项或显式路由）。
+
+**与小晴入站**：外部 Agent 回调/打入小晴 inbound 时的 Bearer 由 **`AGENT_BUS_INBOUND_TOKENS`** 配置，与 `OPENCLAW_AGENTS[].token` 方向相反；二者数值可以相同（共享密钥），也可以不同。
 
 ### 4.4 通信协议
 
@@ -187,19 +206,11 @@ interface OpenClawTaskResult {
 ## 6. 环境变量
 
 ```bash
-# ── OpenClaw 集成（远端 Agent 直连，JSON + Bearer Token）──
-FEATURE_OPENCLAW=false
-
-# 方式一：单 Agent 快速配置（向后兼容）
-OPENCLAW_BOT_ID=               # Agent ID
-OPENCLAW_TOKEN=                # Bearer Token
-OPENCLAW_SIGN_KEY=             # 可选 HMAC 签名密钥
-OPENCLAW_PLUGIN_BASE_URL=      # API 基地址
-OPENCLAW_TIMEOUT_SECONDS=60
+# ── OpenClaw 远端 Agent（至少注册 1 个 agent 即视为启用出站委派）──
 OPENCLAW_CONFIDENCE_THRESHOLD=0.7
 
-# 方式二：多 Agent 注册（JSON 数组）
-OPENCLAW_AGENTS='[{"id":"intel-cat","name":"情报喵","baseUrl":"https://your-server/api","token":"xxx","capabilities":["web-search","news"],"timeout":60}]'
+# JSON 数组：每项 id、baseUrl、token 必填；timeout 等可选（默认 60）
+OPENCLAW_AGENTS='[{"id":"intel-cat","name":"情报喵","baseUrl":"https://your-server/api","token":"xxx","capabilities":["web-search","news"],"timeout":60,"apiStyle":"json","taskPath":"/task"}]'
 ```
 
 ---
@@ -248,7 +259,7 @@ ConversationService.sendMessage()
 | 场景 | 处理方式 |
 |------|---------|
 | 本地 Weather Skill 未配置或失败 | fallback 到 OpenClaw Agent |
-| OpenClaw 未启用 | `FEATURE_OPENCLAW=false` 时跳过；小晴说"我现在没法帮你查" |
+| 未配置任何远端 Agent | `OPENCLAW_AGENTS` 为空或解析失败 → 注册表为空，跳过 OpenClaw；小晴委婉表示暂无法执行 |
 | Agent 超时 | 超过 timeout → 返回 toolError |
 | 意图识别不确定 | `confidence < 0.7` → 不走 OpenClaw，走普通聊天 |
 | 指定 Agent 不存在 | 返回错误，不降级到默认 Agent |
@@ -270,7 +281,7 @@ ConversationService.sendMessage()
 1. ✅ 创建 `openclaw/` 模块（Service + Module + Types）
 2. ✅ 在 `sendMessage()` 中接入 IntentService 分流
 3. ✅ 实现 `buildToolResultMessages()` 结果包装
-4. ✅ 添加 `FEATURE_OPENCLAW` feature flag
+4. ✅ 远端启用条件：注册表 `hasAny()`（由 `OPENCLAW_AGENTS` 决定），不再使用 `FEATURE_OPENCLAW`
 
 ### Phase A2：多 Agent 支持（v2.0，已完成）
 5. ✅ 创建 `OpenClawRegistryService` 多 Agent 注册表

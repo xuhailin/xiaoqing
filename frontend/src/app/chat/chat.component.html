@@ -45,64 +45,55 @@
         }
       }
 
-      @if (delegations().length) {
-        <div class="delegation-panel ui-workbench-surface ui-workbench-surface--soft">
-          <div class="delegation-panel__header">
-            <div class="delegation-panel__title">代理协作</div>
-            <app-badge tone="info" appearance="outline">{{ delegations().length }} 条</app-badge>
-          </div>
-
-          <div class="delegation-list">
-            @for (delegation of delegations(); track delegation.id) {
-              <div class="delegation-card">
-                <div class="delegation-card__header">
-                  <div class="delegation-card__main">
-                    <div class="delegation-card__title">{{ delegationTitle(delegation) }}</div>
-                    <div class="delegation-card__meta">{{ delegationFlowLine(delegation) }}</div>
-                  </div>
-                  <app-badge [tone]="delegationStatusTone(delegation.status)">
-                    {{ delegationStatusLabel(delegation.status) }}
-                  </app-badge>
-                </div>
-
-                @if (delegationLatestEventLine(delegation); as latestLine) {
-                  <div class="delegation-card__latest">最新：{{ latestLine }}</div>
-                }
-
-                <div class="delegation-card__actions">
-                  <app-badge tone="neutral" appearance="outline" size="sm">
-                    {{ delegationKindLabel(delegation.kind) }}
-                  </app-badge>
-                  <app-button
-                    type="button"
-                    variant="ghost"
-                    size="xs"
-                    (click)="toggleDelegationDetail(delegation.id)"
-                  >
-                    {{ expandedDelegationId() === delegation.id ? '收起轨迹' : '协作轨迹' }}
-                  </app-button>
-                </div>
-
-                @if (expandedDelegationId() === delegation.id) {
-                  <div class="delegation-events">
-                    @for (event of delegation.events; track event.id) {
-                      <div class="delegation-event">
-                        <div class="delegation-event__head">
-                          <span class="delegation-event__title">
-                            {{ agentLabel(event.actorAgentId) }} · {{ delegationEventLabel(event.eventType) }}
-                          </span>
-                          <span class="delegation-event__time">{{ formatMessageTime(event.createdAt) }}</span>
-                        </div>
-                        @if (event.message) {
-                          <div class="delegation-event__body">{{ event.message }}</div>
-                        }
-                      </div>
-                    }
-                  </div>
-                }
+      @if (sessionReflection(); as reflection) {
+        <div class="session-reflection-card">
+          <div class="session-reflection-card__header">
+            <div>
+              <div class="session-reflection-card__title">本次关系回顾</div>
+              <div class="session-reflection-card__time">
+                {{ formatDateTime(reflection.createdAt) || formatMessageTime(reflection.createdAt) }}
               </div>
-            }
+            </div>
+
+            <div class="session-reflection-card__badges">
+              <app-badge [tone]="relationImpactTone(reflection.relationImpact)" appearance="outline">
+                {{ relationImpactLabel(reflection.relationImpact) }}
+              </app-badge>
+              @if (reflection.sharedMoment) {
+                <app-badge tone="warning" appearance="outline">共同经历</app-badge>
+              }
+            </div>
           </div>
+
+          <div class="session-reflection-card__summary">{{ reflection.summary }}</div>
+
+          <div class="session-reflection-card__metrics">
+            <div class="session-reflection-card__metric">
+              <span class="session-reflection-card__metric-label">信任变化</span>
+              <span class="session-reflection-card__metric-value">{{ relationDeltaLabel(reflection.trustDelta) }}</span>
+            </div>
+            <div class="session-reflection-card__metric">
+              <span class="session-reflection-card__metric-label">亲密变化</span>
+              <span class="session-reflection-card__metric-value">{{ relationDeltaLabel(reflection.closenessDelta) }}</span>
+            </div>
+          </div>
+
+          @if (reflection.rhythmNote || reflection.momentHint) {
+            <div class="session-reflection-card__notes">
+              @if (reflection.rhythmNote) {
+                <div class="session-reflection-card__note">
+                  <span class="session-reflection-card__note-label">节奏观察</span>
+                  <span>{{ reflection.rhythmNote }}</span>
+                </div>
+              }
+              @if (reflection.momentHint) {
+                <div class="session-reflection-card__note">
+                  <span class="session-reflection-card__note-label">共同经历</span>
+                  <span>{{ reflection.momentHint }}</span>
+                </div>
+              }
+            </div>
+          }
         </div>
       }
 
@@ -161,6 +152,67 @@
             </div>
             @if (messageMetaLine(m); as metaLine) {
               <div class="message-submeta">{{ metaLine }}</div>
+            }
+            @if (messageCaptureReceipt(m); as receipt) {
+              <div class="capture-receipt" [class.capture-receipt--info]="receipt.tone === 'info'"
+                [class.capture-receipt--success]="receipt.tone === 'success'"
+                [class.capture-receipt--warning]="receipt.tone === 'warning'">
+                <div class="capture-receipt__head">
+                  <div class="capture-receipt__title">
+                    <app-icon [name]="receipt.icon" size="0.9rem" />
+                    <span>{{ receipt.label }}</span>
+                  </div>
+                  <app-badge [tone]="receipt.tone" appearance="outline" size="sm">已记录</app-badge>
+                </div>
+                <div class="capture-receipt__badges">
+                  <app-badge tone="neutral" appearance="outline" size="sm">{{ receipt.kindLabel }}</app-badge>
+                  <app-badge [tone]="receipt.tone" appearance="outline" size="sm">{{ receipt.statusLabel }}</app-badge>
+                </div>
+                @if (receipt.entityTitle) {
+                  <div class="capture-receipt__entity">{{ receipt.entityTitle }}</div>
+                }
+                @if (receipt.summary) {
+                  <div class="capture-receipt__summary">{{ receipt.summary }}</div>
+                }
+                @if (receipt.detail) {
+                  <div class="capture-receipt__detail">{{ receipt.detail }}</div>
+                }
+                <div class="capture-receipt__actions">
+                  @if (m.metadata?.ideaId) {
+                    <app-button type="button" variant="ghost" size="xs" (click)="openCaptureTarget(m, 'idea')">
+                      去想法
+                    </app-button>
+                  }
+                  @if (m.metadata?.todoId) {
+                    <app-button type="button" variant="ghost" size="xs" (click)="openCaptureTarget(m, 'todo')">
+                      去待办
+                    </app-button>
+                  }
+                  @if (m.metadata?.planId) {
+                    <app-button type="button" variant="ghost" size="xs" (click)="openCaptureTarget(m, 'execution')">
+                      看执行
+                    </app-button>
+                  }
+                </div>
+              </div>
+            }
+            @if (shouldRenderWorkCard(m) && workItemForMessage(m); as workItem) {
+              <div class="work-card">
+                <div class="work-card__header">
+                  <div class="work-card__title">{{ workItem.title || workItem.userFacingGoal }}</div>
+                  <app-badge [tone]="workStatusTone(workItem.status)" appearance="outline" size="sm">
+                    {{ workStatusLabel(workItem.status) }}
+                  </app-badge>
+                </div>
+                @if (workItem.latestSummary) {
+                  <div class="work-card__summary">{{ workItem.latestSummary }}</div>
+                }
+                @if (workItem.blockReason || workItem.waitingQuestion || workCardMeta(workItem); as metaLine) {
+                  <div class="work-card__meta">
+                    {{ workItem.waitingQuestion || workItem.blockReason || metaLine }}
+                  </div>
+                }
+              </div>
             }
 
             @if (m.role === 'assistant') {

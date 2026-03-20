@@ -61,6 +61,20 @@ import { XiaoqingAvatarComponent } from '../shared/ui/xiaoqing-avatar.component'
       overflow: hidden;
     }
 
+    .home-sidebar__surface {
+      border-color: rgba(96, 122, 170, 0.08);
+      border-radius: 22px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.12));
+      box-shadow: none;
+    }
+
+    .home-stage__surface {
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
     .home-stage__surface > * {
       flex: 1 1 auto;
       min-width: 0;
@@ -88,7 +102,7 @@ import { XiaoqingAvatarComponent } from '../shared/ui/xiaoqing-avatar.component'
       align-items: center;
       gap: var(--space-3);
       padding: var(--space-2) var(--space-2) var(--space-3);
-      border-bottom: 1px solid var(--color-border-light);
+      border-bottom: 1px solid rgba(212, 222, 237, 0.22);
     }
 
     .home-profile__copy {
