@@ -1,126 +1,130 @@
 <div class="chat">
-  @if (error()) {
-    <div class="notification notification--error">{{ error() }}</div>
-  }
-  @if (evolveResult()) {
-    <div class="notification notification--success">{{ evolveResult() }}</div>
-  }
-  @if (activityNotice(); as notice) {
-    <div class="notification" [class.notification--warning]="notice.tone === 'warning'"
-      [class.notification--success]="notice.tone === 'success'"
-      [class.notification--error]="notice.tone === 'danger'"
-      [class.notification--info]="notice.tone === 'info'">
-      <app-icon class="notification__icon" [name]="activityNoticeIcon(notice.tone)" size="0.95rem" />
-      {{ notice.text }}
-    </div>
-  }
-
-  @if (injectedMemories().length) {
-    <div class="injected-bar">
-      <span class="injected-label">本次注入记忆：</span>
-      @for (m of injectedMemories(); track m.id) {
-        <app-badge class="injected-tag" tone="warning" appearance="outline" [title]="m.content">
-          [{{ m.type }}] {{ m.content.slice(0, 30) }}{{ m.content.length > 30 ? '…' : '' }}
-        </app-badge>
+  @if (hasTopPanels()) {
+    <div class="chat-top">
+      @if (error()) {
+        <div class="notification notification--error">{{ error() }}</div>
       }
-    </div>
-  }
+      @if (evolveResult()) {
+        <div class="notification notification--success">{{ evolveResult() }}</div>
+      }
+      @if (activityNotice(); as notice) {
+        <div class="notification" [class.notification--warning]="notice.tone === 'warning'"
+          [class.notification--success]="notice.tone === 'success'"
+          [class.notification--error]="notice.tone === 'danger'"
+          [class.notification--info]="notice.tone === 'info'">
+          <app-icon class="notification__icon" [name]="activityNoticeIcon(notice.tone)" size="0.95rem" />
+          {{ notice.text }}
+        </div>
+      }
 
-  @if (worldState(); as ws) {
-    @if (ws.city ?? ws.timezone ?? ws.language) {
-      <div class="world-state-bar">
-        <span class="world-state-label">当前会话前提：</span>
-        @if (ws.city) {
-          <app-badge class="world-state-tag" tone="info" appearance="outline">地点 {{ ws.city }}</app-badge>
-        }
-        @if (ws.timezone) {
-          <app-badge class="world-state-tag" tone="info" appearance="outline">时区 {{ ws.timezone }}</app-badge>
-        }
-        @if (ws.language) {
-          <app-badge class="world-state-tag" tone="info" appearance="outline">语言 {{ ws.language }}</app-badge>
-        }
-      </div>
-    }
-  }
+      @if (injectedMemories().length) {
+        <div class="injected-bar">
+          <span class="injected-label">本次注入记忆：</span>
+          @for (m of injectedMemories(); track m.id) {
+            <app-badge class="injected-tag" tone="warning" appearance="outline" [title]="m.content">
+              [{{ m.type }}] {{ m.content.slice(0, 30) }}{{ m.content.length > 30 ? '…' : '' }}
+            </app-badge>
+          }
+        </div>
+      }
 
-  @if (delegations().length) {
-    <div class="delegation-panel ui-workbench-surface ui-workbench-surface--soft">
-      <div class="delegation-panel__header">
-        <div class="delegation-panel__title">代理协作</div>
-        <app-badge tone="info" appearance="outline">{{ delegations().length }} 条</app-badge>
-      </div>
-
-      <div class="delegation-list">
-        @for (delegation of delegations(); track delegation.id) {
-          <div class="delegation-card">
-            <div class="delegation-card__header">
-              <div class="delegation-card__main">
-                <div class="delegation-card__title">{{ delegationTitle(delegation) }}</div>
-                <div class="delegation-card__meta">{{ delegationFlowLine(delegation) }}</div>
-              </div>
-              <app-badge [tone]="delegationStatusTone(delegation.status)">
-                {{ delegationStatusLabel(delegation.status) }}
-              </app-badge>
-            </div>
-
-            @if (delegationLatestEventLine(delegation); as latestLine) {
-              <div class="delegation-card__latest">最新：{{ latestLine }}</div>
+      @if (worldState(); as ws) {
+        @if (ws.city ?? ws.timezone ?? ws.language) {
+          <div class="world-state-bar">
+            <span class="world-state-label">当前会话前提：</span>
+            @if (ws.city) {
+              <app-badge class="world-state-tag" tone="info" appearance="outline">地点 {{ ws.city }}</app-badge>
             }
+            @if (ws.timezone) {
+              <app-badge class="world-state-tag" tone="info" appearance="outline">时区 {{ ws.timezone }}</app-badge>
+            }
+            @if (ws.language) {
+              <app-badge class="world-state-tag" tone="info" appearance="outline">语言 {{ ws.language }}</app-badge>
+            }
+          </div>
+        }
+      }
 
-            <div class="delegation-card__actions">
-              <app-badge tone="neutral" appearance="outline" size="sm">
-                {{ delegationKindLabel(delegation.kind) }}
-              </app-badge>
-              <app-button
-                type="button"
-                variant="ghost"
-                size="xs"
-                (click)="toggleDelegationDetail(delegation.id)"
-              >
-                {{ expandedDelegationId() === delegation.id ? '收起轨迹' : '协作轨迹' }}
-              </app-button>
-            </div>
+      @if (delegations().length) {
+        <div class="delegation-panel ui-workbench-surface ui-workbench-surface--soft">
+          <div class="delegation-panel__header">
+            <div class="delegation-panel__title">代理协作</div>
+            <app-badge tone="info" appearance="outline">{{ delegations().length }} 条</app-badge>
+          </div>
 
-            @if (expandedDelegationId() === delegation.id) {
-              <div class="delegation-events">
-                @for (event of delegation.events; track event.id) {
-                  <div class="delegation-event">
-                    <div class="delegation-event__head">
-                      <span class="delegation-event__title">
-                        {{ agentLabel(event.actorAgentId) }} · {{ delegationEventLabel(event.eventType) }}
-                      </span>
-                      <span class="delegation-event__time">{{ formatMessageTime(event.createdAt) }}</span>
-                    </div>
-                    @if (event.message) {
-                      <div class="delegation-event__body">{{ event.message }}</div>
+          <div class="delegation-list">
+            @for (delegation of delegations(); track delegation.id) {
+              <div class="delegation-card">
+                <div class="delegation-card__header">
+                  <div class="delegation-card__main">
+                    <div class="delegation-card__title">{{ delegationTitle(delegation) }}</div>
+                    <div class="delegation-card__meta">{{ delegationFlowLine(delegation) }}</div>
+                  </div>
+                  <app-badge [tone]="delegationStatusTone(delegation.status)">
+                    {{ delegationStatusLabel(delegation.status) }}
+                  </app-badge>
+                </div>
+
+                @if (delegationLatestEventLine(delegation); as latestLine) {
+                  <div class="delegation-card__latest">最新：{{ latestLine }}</div>
+                }
+
+                <div class="delegation-card__actions">
+                  <app-badge tone="neutral" appearance="outline" size="sm">
+                    {{ delegationKindLabel(delegation.kind) }}
+                  </app-badge>
+                  <app-button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    (click)="toggleDelegationDetail(delegation.id)"
+                  >
+                    {{ expandedDelegationId() === delegation.id ? '收起轨迹' : '协作轨迹' }}
+                  </app-button>
+                </div>
+
+                @if (expandedDelegationId() === delegation.id) {
+                  <div class="delegation-events">
+                    @for (event of delegation.events; track event.id) {
+                      <div class="delegation-event">
+                        <div class="delegation-event__head">
+                          <span class="delegation-event__title">
+                            {{ agentLabel(event.actorAgentId) }} · {{ delegationEventLabel(event.eventType) }}
+                          </span>
+                          <span class="delegation-event__time">{{ formatMessageTime(event.createdAt) }}</span>
+                        </div>
+                        @if (event.message) {
+                          <div class="delegation-event__body">{{ event.message }}</div>
+                        }
+                      </div>
                     }
                   </div>
                 }
               </div>
             }
           </div>
-        }
-      </div>
-    </div>
-  }
-
-  @if (evolveSuggestion(); as changes) {
-    <div class="evolve-panel evolve-panel--green">
-      <div class="evolve-title">人格进化建议</div>
-      @for (c of changes; track c.field) {
-        <div class="evolve-change">
-          <app-badge class="evolve-field" tone="info" size="sm">{{ c.field }}</app-badge>
-          <p class="evolve-text">{{ c.content }}</p>
-          <p class="evolve-reason">{{ c.reason }}</p>
         </div>
       }
-      <div class="evolve-actions">
-        <app-button type="button" variant="success" size="sm"
-          (click)="confirmEvolve()" [disabled]="evolveConfirming()">
-          {{ evolveConfirming() ? '写入中...' : '确认写入' }}
-        </app-button>
-        <app-button type="button" variant="ghost" size="sm" (click)="dismissEvolve()">丢弃</app-button>
-      </div>
+
+      @if (evolveSuggestion(); as changes) {
+        <div class="evolve-panel evolve-panel--green">
+          <div class="evolve-title">人格进化建议</div>
+          @for (c of changes; track c.field) {
+            <div class="evolve-change">
+              <app-badge class="evolve-field" tone="info" size="sm">{{ c.field }}</app-badge>
+              <p class="evolve-text">{{ c.content }}</p>
+              <p class="evolve-reason">{{ c.reason }}</p>
+            </div>
+          }
+          <div class="evolve-actions">
+            <app-button type="button" variant="success" size="sm"
+              (click)="confirmEvolve()" [disabled]="evolveConfirming()">
+              {{ evolveConfirming() ? '写入中...' : '确认写入' }}
+            </app-button>
+            <app-button type="button" variant="ghost" size="sm" (click)="dismissEvolve()">丢弃</app-button>
+          </div>
+        </div>
+      }
     </div>
   }
 
@@ -240,24 +244,30 @@
       </div>
     </div>
 
-    <div class="chat-composer-actions">
-      <app-chat-quick-actions mode="composer" />
-    </div>
+    <div class="chat-composer">
+      <div class="chat-composer__inner">
+        <div class="chat-composer-actions">
+          <app-chat-quick-actions mode="composer" />
+        </div>
 
-    <div class="input-row">
-      <textarea
-        class="ui-textarea"
-        #inputEl
-        (input)="inputText.set(inputEl.value)"
-        (keydown)="onKeydown($event)"
-        placeholder="输入消息..."
-        rows="2"
-        [disabled]="loading()"
-      ></textarea>
-      <app-button type="button" variant="primary" class="btn--send"
-        (click)="send()" [disabled]="loading() || !inputText().trim()">
-        {{ loading() ? '发送中...' : '发送' }}
-      </app-button>
+        <div class="input-row">
+          <div class="input-row__field">
+            <textarea
+              class="ui-textarea"
+              #inputEl
+              (input)="inputText.set(inputEl.value)"
+              (keydown)="onKeydown($event)"
+              placeholder="输入消息..."
+              rows="2"
+              [disabled]="loading()"
+            ></textarea>
+          </div>
+          <app-button type="button" variant="primary" class="btn--send"
+            (click)="send()" [disabled]="loading() || !inputText().trim()">
+            {{ loading() ? '发送中...' : '发送' }}
+          </app-button>
+        </div>
+      </div>
     </div>
   </div>
 

@@ -92,6 +92,21 @@ export class ChatComponent implements OnInit, OnDestroy {
   evolveConfirming = signal(false);
   evolveResult = signal<string | null>(null);
 
+  protected hasTopPanels(): boolean {
+    const worldState = this.worldState();
+    return Boolean(
+      this.error()
+      || this.evolveResult()
+      || this.activityNotice()
+      || this.injectedMemories().length
+      || this.delegations().length
+      || this.evolveSuggestion()
+      || worldState?.city
+      || worldState?.timezone
+      || worldState?.language,
+    );
+  }
+
   ngOnInit() {
     this.routeSub = this.route.paramMap.subscribe((params) => {
       const id = params.get('id');

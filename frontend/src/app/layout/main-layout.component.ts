@@ -149,7 +149,7 @@ type MemorySubNavItem = {
       grid-template-columns: 84px minmax(0, 1fr);
       gap: 0;
       padding: 0;
-      background: linear-gradient(180deg, #f8fafe 0%, #f2f6fc 100%);
+      background: var(--workbench-shell-background);
     }
 
     .app-sidebar,
@@ -275,7 +275,7 @@ type MemorySubNavItem = {
 
     .app-main {
       overflow: hidden;
-      background: #edf2fa;
+      background: var(--color-workbench-bg);
     }
 
     .app-main__chrome {
@@ -290,39 +290,40 @@ type MemorySubNavItem = {
       align-items: center;
       justify-content: space-between;
       gap: var(--space-4);
-      padding: 0.9rem 1.15rem;
-      border-bottom: 1px solid var(--color-border-light);
-      background: transparent;
+      padding: var(--workbench-header-padding);
+      border-bottom: 1px solid var(--color-workbench-border);
+      background: var(--workbench-header-background);
       flex-shrink: 0;
     }
 
     .app-subnav {
       display: inline-flex;
       align-items: center;
-      gap: 0.45rem;
-      padding: 0.35rem;
-      border-radius: 999px;
-      border: 1px solid var(--color-border);
-      background: var(--workbench-header-background);
-      box-shadow: var(--shadow-sm);
+      gap: var(--space-1);
+      padding: var(--space-1);
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--color-workbench-border);
+      background: var(--color-workbench-panel-strong);
+      box-shadow: 0 1px 0 rgba(20, 27, 39, 0.03);
     }
 
     .app-subnav__item {
       border: none;
       background: transparent;
-      color: #56657d;
-      min-height: 38px;
-      padding: 0 1rem;
-      border-radius: 999px;
+      color: var(--color-text-secondary);
+      min-height: 36px;
+      padding: 0 var(--space-4);
+      border-radius: var(--radius-md);
       display: inline-flex;
       align-items: center;
-      gap: 0.45rem;
+      gap: var(--space-2);
       font-size: var(--font-size-sm);
       font-weight: var(--font-weight-semibold);
       cursor: pointer;
       transition:
         background var(--transition-base),
         color var(--transition-fast),
+        border-color var(--transition-base),
         box-shadow var(--transition-base);
     }
 
@@ -332,13 +333,13 @@ type MemorySubNavItem = {
 
     .app-subnav__item:hover:not(:disabled) {
       color: var(--color-text);
-      background: var(--color-primary-light);
+      background: rgba(79, 109, 245, 0.08);
     }
 
     .app-subnav__item--active {
       color: var(--color-primary);
-      background: var(--color-surface);
-      box-shadow: inset 0 0 0 1px var(--color-border-light);
+      background: var(--workbench-surface-gradient);
+      box-shadow: inset 0 0 0 1px rgba(79, 109, 245, 0.14);
     }
 
     .app-subnav__item:disabled {
@@ -347,14 +348,14 @@ type MemorySubNavItem = {
     }
 
     .app-subnav__coming {
-      font-size: 0.68rem;
+      font-size: var(--font-size-xxs);
       font-weight: var(--font-weight-medium);
       opacity: 0.76;
     }
 
     .app-subnav__meta {
       font-size: var(--font-size-xs);
-      color: var(--color-text-muted);
+      color: var(--color-text-secondary);
       white-space: nowrap;
     }
 
@@ -406,6 +407,7 @@ type MemorySubNavItem = {
       .app-subnav-wrap {
         flex-direction: column;
         align-items: stretch;
+        padding: var(--workbench-header-padding-mobile);
       }
 
       .app-subnav {

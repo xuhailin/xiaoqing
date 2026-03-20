@@ -19,7 +19,7 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
   standalone: true,
   imports: [DatePipe, AppBadgeComponent, AppButtonComponent, AppIconComponent, AppStateComponent],
   template: `
-    <div class="conv-list">
+    <div class="conv-list ui-scrollbar">
       <app-button class="new-btn" variant="primary" size="sm" [stretch]="true" (click)="createNew()">
         <app-icon name="plus" size="0.9rem" />
         <span>新对话</span>
@@ -98,20 +98,18 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
     .conv-list {
       display: flex;
       flex-direction: column;
-      gap: 0;
+      gap: var(--space-2);
       overflow-y: auto;
       flex: 1;
       min-height: 0;
-      padding: var(--space-2);
-      background: var(--color-workbench-panel);
-      border: 1px solid var(--color-workbench-border);
-      border-radius: var(--workbench-card-radius);
+      padding: 0 var(--space-1) var(--space-1);
+      background: transparent;
     }
 
     .new-btn {
       width: 100%;
       flex-shrink: 0;
-      margin: 0 0 var(--space-2);
+      margin: 0;
     }
 
     .conv-item {
@@ -119,15 +117,7 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
       cursor: pointer;
       position: relative;
       overflow: hidden;
-      border: 1px solid transparent;
-      border-bottom: 1px solid var(--color-border-light);
-      border-radius: var(--radius-lg);
-      background: transparent;
-      box-shadow: none;
-    }
-
-    .conv-item + .conv-item {
-      margin-top: var(--space-1);
+      border-radius: var(--workbench-card-radius);
     }
 
     .conv-item::before {
@@ -136,7 +126,7 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
       left: 0;
       top: var(--space-3);
       bottom: var(--space-3);
-      width: 2px;
+      width: 3px;
       border-radius: var(--radius-pill);
       background: transparent;
       transition: background var(--transition-fast);
@@ -147,8 +137,8 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
     }
 
     .conv-item.is-active {
-      background: var(--color-workbench-accent);
-      border-color: var(--color-workbench-accent-strong);
+      border-color: var(--color-primary);
+      background: var(--sidebar-card-background-active);
     }
 
     .conv-header {
@@ -174,7 +164,7 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
 
     .conv-count {
       font-size: var(--font-size-xs);
-      color: var(--color-text-secondary);
+      color: var(--color-text-muted);
       margin-left: var(--space-2);
       flex-shrink: 0;
     }
@@ -192,6 +182,10 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
       align-items: center;
       gap: var(--space-2);
       min-width: 0;
+      padding: var(--space-2);
+      border-radius: var(--radius-md);
+      background: var(--color-workbench-accent);
+      border: 1px solid var(--color-workbench-accent-strong);
       color: var(--color-text-secondary);
       font-size: var(--font-size-xs);
     }
