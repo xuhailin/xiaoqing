@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Subject } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 export type EntryAgentId = 'xiaoqing' | 'xiaoqin';
@@ -39,7 +39,7 @@ export interface MessageMetadata {
   count?: number;
   triggerMode?: string;
   workItemId?: string;
-  workProjection?: 'receipt' | 'result';
+  workProjection?: 'receipt' | 'result' | 'followup';
   workStatus?: ConversationWorkStatus;
   captureKind?: 'idea' | 'todo';
   ideaId?: string;
@@ -94,6 +94,13 @@ export type ConversationWorkExecutorType =
   | 'tool_run'
   | 'scheduled_action';
 
+export type ConversationWorkHealthState =
+  | 'normal'
+  | 'attention'
+  | 'stalled'
+  | 'waiting_user'
+  | 'timed_out';
+
 export interface ConversationWorkItem {
   id: string;
   conversationId: string;
@@ -115,6 +122,11 @@ export interface ConversationWorkItem {
   startedAt: string | null;
   finishedAt: string | null;
   lastEventAt: string | null;
+  parentWorkItemId: string | null;
+  childCount: number;
+  activeChildCount: number;
+  healthState: ConversationWorkHealthState;
+  healthSummary: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -268,6 +280,7 @@ export interface TraceStep {
 export interface SendMessageResponse {
   userMessage: Message;
   assistantMessage: Message;
+  extraMessages?: Message[];
   injectedMemories: InjectedMemory[];
   workItems?: ConversationWorkItem[];
   debugMeta?: DebugMeta;
@@ -326,6 +339,27 @@ export class ConversationService {
 
   getWorkItems(conversationId: string) {
     return this.http.get<ConversationWorkItem[]>(`${this.base}/${conversationId}/work-items`);
+  }
+
+  streamWorkItems(conversationId: string): Observable<ConversationWorkItem> {
+    return new Observable<ConversationWorkItem>((subscriber) => {
+      const eventSource = new EventSource(`${this.base}/${conversationId}/work-items/stream`);
+
+      eventSource.onmessage = (event) => {
+        try {
+          subscriber.next(JSON.parse(event.data) as ConversationWorkItem);
+        } catch (error) {
+          subscriber.error(error);
+        }
+      };
+
+      eventSource.onerror = (error) => {
+        subscriber.error(error);
+        eventSource.close();
+      };
+
+      return () => eventSource.close();
+    });
   }
 
   getDelegations(conversationId: string) {

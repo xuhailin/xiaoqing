@@ -199,7 +199,7 @@ const TONE_LABELS: Record<SharedExperienceTone, string> = {
       top: 4px;
       bottom: 4px;
       width: 2px;
-      background: linear-gradient(180deg, rgba(113, 138, 186, 0.14), rgba(113, 138, 186, 0.03));
+      background: var(--relation-shared-rail-bg);
     }
 
     .timeline-item {
@@ -222,16 +222,16 @@ const TONE_LABELS: Record<SharedExperienceTone, string> = {
       height: 12px;
       border-radius: 50%;
       background: var(--experience-accent);
-      box-shadow: 0 0 0 4px color-mix(in srgb, var(--experience-accent) 18%, white);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--experience-accent) 18%, var(--relation-dot-ring-target));
     }
 
     .timeline-item__card {
       padding: var(--space-4);
       border-radius: calc(var(--workbench-card-radius) - 6px);
-      border: calc(1px + (var(--significance-weight) * 0.8px)) solid color-mix(in srgb, var(--experience-accent) 24%, white);
+      border: calc(1px + (var(--significance-weight) * 0.8px)) solid color-mix(in srgb, var(--experience-accent) 24%, var(--relation-surface-mix-target));
       background:
-        linear-gradient(180deg, color-mix(in srgb, var(--experience-accent) calc(5% + (var(--significance-weight) * 10%)), white) 0%, rgba(255, 255, 255, 0.92) 100%);
-      box-shadow: 0 12px 34px rgba(24, 34, 56, 0.05);
+        linear-gradient(180deg, color-mix(in srgb, var(--experience-accent) calc(5% + (var(--significance-weight) * 10%)), var(--relation-surface-mix-target)) 0%, var(--relation-card-bg-strong) 100%);
+      box-shadow: var(--relation-shared-card-shadow);
     }
 
     .timeline-item__header,

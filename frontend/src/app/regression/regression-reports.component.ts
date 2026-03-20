@@ -307,12 +307,12 @@ import {
     .refresh-btn {
       border: none;
       border-radius: 999px;
-      background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover));
-      color: #f4f6f1;
+      background: var(--color-button-primary-bg);
+      color: var(--color-button-primary-text);
       padding: 10px 16px;
       font-size: 14px;
       cursor: pointer;
-      box-shadow: var(--shadow-sm);
+      box-shadow: var(--color-button-primary-shadow);
     }
 
     .error-banner,
@@ -371,10 +371,11 @@ import {
       border: none;
       border-radius: 999px;
       padding: 10px 14px;
-      background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover));
-      color: #f5f5ef;
+      background: var(--color-button-primary-bg);
+      color: var(--color-button-primary-text);
       font-size: 13px;
       cursor: pointer;
+      box-shadow: var(--shadow-sm);
     }
 
     .run-btn:disabled {
@@ -394,8 +395,8 @@ import {
     }
 
     .run-idle {
-      background: rgba(99, 114, 107, 0.12);
-      color: #63726b;
+      background: var(--regression-run-idle-bg);
+      color: var(--regression-run-idle-text);
     }
 
     .run-running {
@@ -426,7 +427,8 @@ import {
       gap: 4px;
       padding: 8px 10px;
       border-radius: 14px;
-      background: rgba(255, 255, 255, 0.74);
+      background: var(--color-surface-highlight);
+      border: 1px solid var(--color-surface-highlight-border);
     }
 
     .mode-stats strong {
@@ -442,10 +444,12 @@ import {
 
     .console-panel {
       border-radius: var(--workbench-panel-radius);
-      background: linear-gradient(180deg, #182235 0%, #101827 100%);
-      color: #dce5fb;
+      background: var(--regression-console-bg);
+      color: var(--regression-console-text);
       padding: 16px 18px 18px;
-      box-shadow: 0 18px 36px rgba(16, 24, 39, 0.18);
+      box-shadow: var(--workbench-surface-shadow);
+      border: 1px solid var(--color-workbench-border);
+      backdrop-filter: blur(20px);
     }
 
     .console-head {
@@ -460,20 +464,20 @@ import {
       margin: 0;
       font-size: 15px;
       font-weight: 700;
-      color: #f4f7ff;
+      color: var(--regression-console-title);
     }
 
     .console-subtitle {
       margin: 6px 0 0;
       font-size: 12px;
-      color: #93a4cc;
+      color: var(--regression-console-muted);
     }
 
     .console-meta {
       display: flex;
       gap: 12px;
       flex-wrap: wrap;
-      color: #9fb0d6;
+      color: var(--regression-console-meta);
       font-size: 12px;
       font-family: "SFMono-Regular", "JetBrains Mono", monospace;
     }
@@ -485,14 +489,14 @@ import {
       max-height: 360px;
       overflow: auto;
       border-radius: 18px;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(180, 198, 255, 0.1);
+      background: var(--regression-console-output-bg);
+      border: 1px solid var(--regression-console-output-border);
       white-space: pre-wrap;
       word-break: break-word;
       font-size: 12px;
       line-height: 1.55;
       font-family: "SFMono-Regular", "JetBrains Mono", monospace;
-      color: #dce5fb;
+      color: var(--regression-console-text);
     }
 
     .summary-strip {
@@ -632,7 +636,7 @@ import {
       align-items: center;
       padding: 0.625rem 0.75rem;
       border-radius: var(--workbench-card-radius);
-      background: rgba(255, 255, 255, 0.66);
+      background: var(--regression-result-action-bg);
       border: 1px solid var(--color-workbench-border);
     }
 
@@ -640,12 +644,12 @@ import {
       border: none;
       border-radius: 999px;
       padding: 8px 12px;
-      background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover));
-      color: #f4f7f6;
+      background: var(--color-button-primary-bg);
+      color: var(--color-button-primary-text);
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
-      box-shadow: var(--shadow-sm);
+      box-shadow: var(--color-button-primary-shadow);
     }
 
     .diagnose-btn:disabled {
@@ -709,7 +713,7 @@ import {
       word-break: break-word;
       padding: 0.875rem;
       border-radius: var(--workbench-card-radius);
-      background: rgba(255, 255, 255, 0.7);
+      background: var(--regression-final-reply-bg);
       border: 1px solid var(--color-workbench-border);
       line-height: 1.65;
       color: var(--color-text);

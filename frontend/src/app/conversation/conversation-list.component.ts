@@ -117,10 +117,11 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
       cursor: pointer;
       position: relative;
       overflow: hidden;
-      border: 1px solid rgba(96, 122, 170, 0.07);
+      border: 1px solid var(--conversation-card-border);
       border-radius: 18px;
-      background: rgba(255, 255, 255, 0.18);
-      box-shadow: none;
+      background: var(--conversation-card-bg);
+      box-shadow: var(--conversation-card-shadow);
+      backdrop-filter: blur(12px);
     }
 
     .conv-item::before {
@@ -140,15 +141,15 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
     }
 
     .conv-item.is-active {
-      border-color: rgba(79, 109, 245, 0.14);
-      background: rgba(255, 255, 255, 0.36);
-      box-shadow: none;
+      border-color: var(--conversation-card-active-border);
+      background: var(--conversation-card-active-bg);
+      box-shadow: var(--conversation-card-active-shadow);
     }
 
     .conv-item:hover {
-      border-color: rgba(96, 122, 170, 0.1);
-      background: rgba(255, 255, 255, 0.26);
-      box-shadow: none;
+      border-color: var(--conversation-card-hover-border);
+      background: var(--conversation-card-hover-bg);
+      box-shadow: var(--conversation-card-hover-shadow);
     }
 
     .conv-header {

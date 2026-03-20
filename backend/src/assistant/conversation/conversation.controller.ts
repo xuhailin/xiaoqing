@@ -7,14 +7,20 @@ import {
   Patch,
   Post,
   Query,
+  Sse,
 } from '@nestjs/common';
+import { Observable, map } from 'rxjs';
 import { ConversationService } from './conversation.service';
 import type { WorldStateUpdate } from '../../infra/world-state/world-state.types';
 import { DEFAULT_ENTRY_AGENT_ID, type EntryAgentId } from '../../gateway/message-router.types';
+import { ConversationWorkService } from '../../conversation-work/conversation-work.service';
 
 @Controller('conversations')
 export class ConversationController {
-  constructor(private conversation: ConversationService) {}
+  constructor(
+    private conversation: ConversationService,
+    private readonly conversationWork: ConversationWorkService,
+  ) {}
 
   @Get()
   async list() {
@@ -43,6 +49,15 @@ export class ConversationController {
   @Get(':id/work-items')
   async getWorkItems(@Param('id') id: string) {
     return this.conversation.listWorkItems(id);
+  }
+
+  @Sse(':id/work-items/stream')
+  workItemStream(@Param('id') id: string): Observable<MessageEvent> {
+    return this.conversationWork.streamByConversation(id).pipe(
+      map((item) => ({
+        data: item,
+      }) as MessageEvent),
+    );
   }
 
   @Get(':id/work-items/:workItemId')

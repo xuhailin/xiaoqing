@@ -39,6 +39,10 @@ export class DevAgentService {
     const session = await this.resolveSession(conversationId, requestedWorkspace, {
       forceNewSession: metadata?.forceNewSession === true,
     });
+    const work = await this.conversationWork.createDevWorkItem({
+      conversationId,
+      userInput: normalizedInput,
+    });
 
     let workspace = await this.resolveSessionWorkspace(session.id);
     if (requestedWorkspace) {
@@ -49,14 +53,38 @@ export class DevAgentService {
         );
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        throw new BadRequestException(`workspaceRoot 不可用：${message}`);
+        const followup = await this.conversationWork.markWaitingInputById(
+          work.workItem.id,
+          '我需要一个可访问的项目目录，回复我新的 workspace 路径后我就继续处理。',
+          `工作区不可用：${message}`,
+        );
+        return {
+          userMessage: toConversationMessageDto(work.userMessage),
+          assistantMessage: toConversationMessageDto(work.receiptMessage),
+          extraMessages: followup ? [toConversationMessageDto(followup.followupMessage)] : [],
+          workItems: [followup?.workItem ?? work.workItem],
+          injectedMemories: [],
+          session: {
+            id: session.id,
+            status: session.status,
+            workspace,
+          },
+          run: {
+            id: '',
+            userInput: normalizedInput,
+            rerunFromRunId: null,
+            status: 'waiting_input',
+            executor: null,
+            plan: null,
+            result: null,
+            error: null,
+            artifactPath: null,
+            workspace,
+          },
+          reply: followup?.followupMessage.content ?? work.receiptMessage.content,
+        };
       }
     }
-
-    const work = await this.conversationWork.createDevWorkItem({
-      conversationId,
-      userInput: normalizedInput,
-    });
 
     let run;
     let workItem;
@@ -231,6 +259,133 @@ export class DevAgentService {
         workspace,
       },
       reply: `已基于 run ${sourceRun.id} 创建恢复任务（run: ${run.id}），将恢复 agent 会话上下文继续执行。`,
+    };
+  }
+
+  async resumeWorkItem(
+    conversationId: string,
+    workItemId: string,
+    userInput: string,
+  ): Promise<DevTaskResult> {
+    const waitingWorkItem = await this.conversationWork.findWaitingDevWorkItemForConversation(
+      conversationId,
+      workItemId,
+    );
+    if (!waitingWorkItem) {
+      throw new BadRequestException('当前没有可恢复的开发任务');
+    }
+
+    if (!waitingWorkItem.sourceRefId) {
+      const requestedWorkspace = normalizeWorkspaceInput({ workspaceRoot: userInput.trim() });
+      if (!requestedWorkspace) {
+        throw new BadRequestException('请提供可访问的 workspace 路径');
+      }
+
+      const session = await this.resolveSession(conversationId, requestedWorkspace);
+      let workspace: DevWorkspaceMeta | null = await this.resolveSessionWorkspace(session.id);
+      try {
+        workspace = await this.workspaceManager.bindSessionWorkspace(session.id, requestedWorkspace);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        const followup = await this.conversationWork.reaskWaitingInputById({
+          workItemId: waitingWorkItem.id,
+          userInput,
+          question: '这个路径我还是访问不到，换一个可访问的项目目录给我，我继续接着处理。',
+          blockReason: `工作区不可用：${message}`,
+        });
+        return {
+          userMessage: toConversationMessageDto(followup?.userMessage ?? {
+            id: '',
+            role: 'user',
+            kind: 'user',
+            content: userInput.trim(),
+            createdAt: new Date(),
+          } as any),
+          assistantMessage: toConversationMessageDto(followup?.assistantMessage ?? {
+            id: '',
+            role: 'assistant',
+            kind: 'chat',
+            content: '这个路径我还是访问不到，换一个可访问的项目目录给我，我继续接着处理。',
+            createdAt: new Date(),
+          } as any),
+          extraMessages: [],
+          workItems: [followup?.workItem ?? waitingWorkItem],
+          injectedMemories: [],
+          session: {
+            id: session.id,
+            status: session.status,
+            workspace,
+          },
+          run: {
+            id: '',
+            userInput: waitingWorkItem.userFacingGoal,
+            rerunFromRunId: null,
+            status: 'waiting_input',
+            executor: null,
+            plan: null,
+            result: null,
+            error: null,
+            artifactPath: null,
+            workspace,
+          },
+          reply: followup?.assistantMessage.content ?? '这个路径我还是访问不到，换一个可访问的项目目录给我，我继续接着处理。',
+        };
+      }
+
+      const run = await this.sessions.createRun(
+        session.id,
+        waitingWorkItem.userFacingGoal,
+        this.buildQueuedResult(workspace, { mode: 'orchestrated' }),
+      );
+      const projection = await this.conversationWork.resumeDevWorkItem({
+        conversationId,
+        workItemId: waitingWorkItem.id,
+        newRunId: run.id,
+        userInput,
+      });
+      this.runner.startRun(run.id, session.id);
+
+      return {
+        userMessage: toConversationMessageDto(projection.userMessage),
+        assistantMessage: toConversationMessageDto(projection.assistantMessage),
+        extraMessages: [],
+        workItems: [projection.workItem],
+        injectedMemories: [],
+        session: {
+          id: session.id,
+          status: session.status,
+          workspace,
+        },
+        run: {
+          id: run.id,
+          userInput: waitingWorkItem.userFacingGoal,
+          rerunFromRunId: null,
+          status: run.status,
+          executor: run.executor ?? null,
+          plan: null,
+          result: run.result,
+          error: null,
+          artifactPath: null,
+          workspace,
+        },
+        reply: projection.assistantMessage.content,
+      };
+    }
+
+    const resumed = await this.resumeRun(waitingWorkItem.sourceRefId, userInput);
+    const projection = await this.conversationWork.resumeDevWorkItem({
+      conversationId,
+      workItemId: waitingWorkItem.id,
+      newRunId: resumed.run.id,
+      userInput,
+    });
+
+    return {
+      ...resumed,
+      userMessage: toConversationMessageDto(projection.userMessage),
+      assistantMessage: toConversationMessageDto(projection.assistantMessage),
+      workItems: [projection.workItem],
+      reply: projection.assistantMessage.content,
     };
   }
 

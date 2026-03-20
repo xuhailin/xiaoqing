@@ -306,7 +306,7 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
 
     .item-card.is-active {
       border-color: var(--color-primary);
-      box-shadow: inset 0 0 0 1px rgba(79, 109, 245, 0.08);
+      box-shadow: var(--color-surface-highlight-shadow);
     }
 
     .item-title,
@@ -335,8 +335,8 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
     .task-card--highlight {
       border-radius: var(--radius-lg);
       padding: var(--space-3);
-      background: rgba(242, 246, 255, 0.72);
-      border: 1px solid rgba(79, 109, 245, 0.12);
+      background: var(--color-surface-highlight);
+      border: 1px solid var(--color-surface-highlight-border);
     }
 
     .detail-links {

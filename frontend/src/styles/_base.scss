@@ -16,6 +16,7 @@ html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  background: var(--color-bg);
 }
 
 body {
@@ -24,6 +25,9 @@ body {
   color: var(--color-text);
   line-height: var(--line-height-base);
   overflow: hidden;
+  transition:
+    background var(--transition-base),
+    color var(--transition-base);
 }
 
 // Inherit font in interactive elements

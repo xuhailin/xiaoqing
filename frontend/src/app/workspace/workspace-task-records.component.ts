@@ -209,8 +209,8 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
 
     .record-card--highlight {
       border-color: var(--color-primary);
-      box-shadow: inset 0 0 0 1px rgba(79, 109, 245, 0.1);
-      background: rgba(242, 246, 255, 0.72);
+      box-shadow: var(--color-surface-highlight-shadow);
+      background: var(--color-surface-highlight);
     }
 
     .record-title {

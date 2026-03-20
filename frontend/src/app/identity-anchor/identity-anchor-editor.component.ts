@@ -514,7 +514,7 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
       &:focus {
         outline: none;
         border-color: var(--color-primary);
-        box-shadow: 0 0 0 3px rgba(92, 103, 242, 0.1);
+        box-shadow: 0 0 0 3px var(--color-focus-ring);
       }
 
       &::placeholder { color: var(--color-text-muted); }
@@ -533,15 +533,18 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
       padding: var(--space-1) var(--space-3);
       border-radius: var(--radius-md);
       border: none;
-      background: var(--color-primary);
-      color: #fff;
+      background: var(--color-button-primary-bg);
+      color: var(--color-button-primary-text);
       cursor: pointer;
       font-size: var(--font-size-xs);
       font-family: var(--font-family);
       font-weight: var(--font-weight-medium);
-      transition: background var(--transition-fast);
+      transition: background var(--transition-fast), box-shadow var(--transition-fast);
 
-      &:not(:disabled):hover { background: var(--color-primary-hover); }
+      &:not(:disabled):hover {
+        background: var(--color-button-primary-hover-bg);
+        box-shadow: var(--color-button-primary-shadow);
+      }
       &:disabled { opacity: 0.45; cursor: not-allowed; }
     }
 
@@ -611,6 +614,7 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
       margin-bottom: var(--space-3);
       background: color-mix(in srgb, var(--color-surface-hover) 55%, var(--color-surface));
       border-color: color-mix(in srgb, var(--color-primary-soft) 45%, var(--color-border-light));
+      box-shadow: var(--chat-panel-shadow);
     }
   `],
 })

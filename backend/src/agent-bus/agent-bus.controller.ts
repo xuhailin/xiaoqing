@@ -68,6 +68,7 @@ export class AgentBusController {
     return this.executor.createDelegationAndDispatch({
       originConversationId: conversationId,
       originMessageId: body.originMessageId,
+      parentWorkItemId: this.normalizeOptionalText(body.parentWorkItemId) ?? undefined,
       requesterAgentId: body.requesterAgentId,
       executorAgentId: body.executorAgentId,
       kind,

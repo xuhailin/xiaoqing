@@ -39,6 +39,7 @@ export class AgentDelegationExecutorService {
       conversationId: input.originConversationId,
       delegationId: delegation.id,
       originMessageId: input.originMessageId,
+      parentWorkItemId: input.parentWorkItemId,
       fromAgentId: input.requesterAgentId,
       toAgentId: input.executorAgentId,
       delegationKind: input.kind ?? input.payload.requestType,

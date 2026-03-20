@@ -59,13 +59,14 @@ import { WorkspaceFocusPanelComponent } from './components/workspace-focus-panel
       top: var(--space-4);
       z-index: 2;
       font-size: var(--font-size-xs);
-      color: #1f8a4d;
-      border: 1px solid rgba(39, 174, 96, 0.3);
-      background: rgba(240, 253, 244, 0.95);
+      color: var(--dev-agent-notice-text);
+      border: 1px solid var(--dev-agent-notice-border);
+      background: var(--dev-agent-notice-bg);
       border-radius: var(--radius-md);
       padding: 0.5rem 0.75rem;
-      box-shadow: var(--shadow-sm);
+      box-shadow: var(--chat-panel-shadow);
       max-width: min(340px, 72vw);
+      backdrop-filter: blur(12px);
     }
 
     @media (max-width: 980px) {

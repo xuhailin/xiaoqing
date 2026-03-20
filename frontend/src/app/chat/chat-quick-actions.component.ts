@@ -107,7 +107,7 @@ import { AppIconComponent } from '../shared/ui/app-icon.component';
       text-align: left;
       cursor: pointer;
       border-radius: var(--radius-md);
-      border: 1px solid rgba(96, 122, 170, 0.08);
+      border: 1px solid var(--chat-quick-action-border);
       background: transparent;
       box-shadow: none;
     }
@@ -116,7 +116,7 @@ import { AppIconComponent } from '../shared/ui/app-icon.component';
       min-height: 34px;
       padding: 0 var(--space-2);
       border-radius: var(--radius-sm);
-      background: rgba(255, 255, 255, 0.24);
+      background: var(--chat-quick-action-composer-bg);
     }
 
     .quick-actions__item-main {

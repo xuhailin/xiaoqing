@@ -162,9 +162,7 @@ const STAGE_META: Record<RelationshipStage, {
     .overview-card {
       gap: var(--space-5);
       overflow: hidden;
-      background:
-        radial-gradient(circle at top right, rgba(94, 145, 255, 0.12), transparent 36%),
-        radial-gradient(circle at left bottom, rgba(79, 196, 171, 0.12), transparent 30%);
+      background: var(--relation-hero-background);
     }
 
     .overview-hero {
@@ -217,8 +215,8 @@ const STAGE_META: Record<RelationshipStage, {
     .detail-card {
       padding: var(--space-4);
       border-radius: calc(var(--workbench-card-radius) - 6px);
-      border: 1px solid rgba(95, 117, 160, 0.16);
-      background: rgba(255, 255, 255, 0.6);
+      border: 1px solid var(--relation-card-border);
+      background: var(--relation-card-bg);
       backdrop-filter: blur(8px);
     }
 
@@ -241,7 +239,7 @@ const STAGE_META: Record<RelationshipStage, {
       margin-top: var(--space-3);
       height: 10px;
       border-radius: 999px;
-      background: rgba(116, 136, 173, 0.14);
+      background: var(--relation-track-bg);
       overflow: hidden;
     }
 
@@ -252,11 +250,11 @@ const STAGE_META: Record<RelationshipStage, {
     }
 
     .metric-bar__fill--trust {
-      background: linear-gradient(90deg, #5d8dff, #7bc7ff);
+      background: var(--relation-fill-trust);
     }
 
     .metric-bar__fill--close {
-      background: linear-gradient(90deg, #52b39d, #8ad2b3);
+      background: var(--relation-fill-close);
     }
 
     .metric-card__hint,
@@ -286,8 +284,8 @@ const STAGE_META: Record<RelationshipStage, {
     .preference-chip {
       padding: var(--space-3);
       border-radius: var(--radius-2xl);
-      background: rgba(90, 129, 211, 0.08);
-      border: 1px solid rgba(90, 129, 211, 0.12);
+      background: var(--relation-chip-bg);
+      border: 1px solid var(--relation-chip-border);
     }
 
     .preference-chip__title,
@@ -309,13 +307,13 @@ const STAGE_META: Record<RelationshipStage, {
       height: 12px;
       margin-top: 0.35rem;
       border-radius: 50%;
-      background: #5d8dff;
-      box-shadow: 0 0 0 4px rgba(93, 141, 255, 0.12);
+      background: var(--relation-milestone-primary);
+      box-shadow: 0 0 0 4px var(--relation-milestone-primary-ring);
     }
 
     .milestone-item__dot--experience {
-      background: #57b48c;
-      box-shadow: 0 0 0 4px rgba(87, 180, 140, 0.16);
+      background: var(--relation-milestone-success);
+      box-shadow: 0 0 0 4px var(--relation-milestone-success-ring);
     }
 
     @media (max-width: 980px) {

@@ -7,6 +7,7 @@ import type {
 
 export interface CreateAgentDelegationBody {
   originMessageId?: string;
+  parentWorkItemId?: string;
   requesterAgentId: EntryAgentId;
   executorAgentId: EntryAgentId;
   kind?: AgentDelegationKind;
@@ -43,4 +44,3 @@ export function isAgentMemoryPolicy(value: unknown): value is AgentMemoryPolicy 
 export function defaultMemoryPolicyForExecutor(executorAgentId: EntryAgentId): AgentMemoryPolicy {
   return executorAgentId === 'xiaoqin' ? 'proposal_only' : 'main_owner_only';
 }
-

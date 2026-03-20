@@ -59,6 +59,7 @@ export interface IDevAgentExecutor {
 export interface DevTaskResult {
   userMessage?: ConversationMessageDto;
   assistantMessage?: ConversationMessageDto;
+  extraMessages?: ConversationMessageDto[];
   workItems?: ConversationWorkItemDto[];
   injectedMemories?: Array<{ id: string; type: string; content: string }>;
   session: {

@@ -193,7 +193,7 @@ import { SystemOverviewService, type SystemOverview } from '../core/services/sys
 
     .persona-meta__system {
       padding: var(--workbench-card-padding);
-      border: 1px solid rgba(96, 122, 170, 0.12);
+      border: 1px solid var(--relation-card-border);
     }
 
     .system-self__title {

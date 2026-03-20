@@ -177,7 +177,7 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
 
     .item-card.is-active {
       border-color: var(--color-primary);
-      box-shadow: inset 0 0 0 1px rgba(79, 109, 245, 0.08);
+      box-shadow: var(--color-surface-highlight-shadow);
     }
 
     .item-title {

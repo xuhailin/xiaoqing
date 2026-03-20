@@ -7,6 +7,7 @@ import {
 import type { AgentDelegation } from '@prisma/client';
 import { ConversationService } from '../assistant/conversation/conversation.service';
 import type { EntryAgentId } from '../gateway/message-router.types';
+import { ConversationWorkService } from '../conversation-work/conversation-work.service';
 import { AgentBusRepository } from './agent-bus.repository';
 import { AgentBusService } from './agent-bus.service';
 import {
@@ -34,6 +35,7 @@ export class AgentInboundDelegationService {
     private readonly repo: AgentBusRepository,
     private readonly conversation: ConversationService,
     private readonly linkService: AgentConversationLinkService,
+    private readonly conversationWork: ConversationWorkService,
   ) {}
 
   async handleInboundDelegation(
@@ -68,27 +70,48 @@ export class AgentInboundDelegationService {
       summary: this.resolveSummary(request) ?? undefined,
       payload,
     });
+    const work = await this.conversationWork.createDelegationWorkItem({
+      conversationId: localConversation.id,
+      delegationId: delegation.id,
+      originMessageId: request.requester.messageId ?? request.responseContract?.sourceMessageId,
+      fromAgentId: requesterAgentId,
+      toAgentId: 'xiaoqing',
+      delegationKind: request.requestType,
+      title: this.normalizeText(request.title) ?? undefined,
+      summary: this.resolveSummary(request) ?? undefined,
+      userFacingGoal: this.resolveSummary(request) ?? request.userInput ?? undefined,
+    });
 
     await this.bus.updateStatus({
       delegationId: delegation.id,
       status: 'acknowledged',
+      receiptMessageId: work.receiptMessage.id,
     });
     await this.bus.appendEvent({
       delegationId: delegation.id,
       actorAgentId: requesterAgentId,
       eventType: 'acknowledged',
       message: 'inbound delegation accepted by xiaoqing',
+      relatedMessageId: work.receiptMessage.id,
     });
     await this.bus.updateStatus({
       delegationId: delegation.id,
       status: 'running',
     });
+    await this.conversationWork.markDelegationRunning(
+      delegation.id,
+      '小晴已开始处理这条协作任务。',
+    );
     await this.bus.appendEvent({
       delegationId: delegation.id,
       actorAgentId: 'xiaoqing',
       eventType: 'started',
       message: 'xiaoqing started inbound execution',
     });
+    await this.conversationWork.markDelegationProgress(
+      delegation.id,
+      '我已经接到这条协作任务，正在当前线程里处理。',
+    );
 
     const prompt = this.buildInboundPrompt(request);
 
@@ -109,24 +132,39 @@ export class AgentInboundDelegationService {
 
       const content = result.assistantMessage.content.trim();
       const summary = this.resolveSummary(request) ?? this.deriveSummaryFromContent(content);
+      await this.conversationWork.markDelegationProgress(
+        delegation.id,
+        '我已经整理好结果，准备回流这条协作回复。',
+      );
+
+      const projection = await this.conversationWork.markDelegationCompleted({
+        delegationId: delegation.id,
+        fromAgentId: 'xiaoqing',
+        toAgentId: requesterAgentId,
+        delegationKind: request.requestType,
+        content,
+        summary,
+        relatedMessageId: work.receiptMessage.id,
+      });
+      const resultMessageId = projection?.resultMessage.id ?? result.assistantMessage.id;
 
       await this.bus.updateStatus({
         delegationId: delegation.id,
         status: 'completed',
         result: {
           content,
-          assistantMessageId: result.assistantMessage.id,
+          assistantMessageId: resultMessageId,
           localConversationId: localConversation.id,
           entryAgentId: 'xiaoqing',
         },
-        resultMessageId: result.assistantMessage.id,
+        resultMessageId,
       });
       await this.bus.appendEvent({
         delegationId: delegation.id,
         actorAgentId: 'xiaoqing',
         eventType: 'completed',
         message: 'xiaoqing completed inbound execution',
-        relatedMessageId: result.assistantMessage.id,
+        relatedMessageId: resultMessageId,
       });
 
       const persisted = await this.repo.findById(delegation.id);
@@ -139,6 +177,15 @@ export class AgentInboundDelegationService {
       return this.mapDelegationToResult(persisted, summary);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      await this.conversationWork.markDelegationFailed({
+        delegationId: delegation.id,
+        fromAgentId: 'xiaoqing',
+        toAgentId: requesterAgentId,
+        delegationKind: request.requestType,
+        reason: message,
+        content: `我处理这条协作任务时失败了：${message}`,
+        relatedMessageId: work.receiptMessage.id,
+      });
       await this.bus.updateStatus({
         delegationId: delegation.id,
         status: 'failed',
@@ -390,4 +437,3 @@ export class AgentInboundDelegationService {
     return value as Record<string, unknown>;
   }
 }
-

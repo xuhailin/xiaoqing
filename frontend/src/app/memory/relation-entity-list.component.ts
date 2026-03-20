@@ -317,10 +317,10 @@ const RELATION_META: Record<SocialRelation, {
       gap: var(--space-3);
       padding: var(--space-4);
       border-radius: calc(var(--workbench-card-radius) - 4px);
-      border: 1px solid color-mix(in srgb, var(--relation-accent) 26%, white);
+      border: 1px solid color-mix(in srgb, var(--relation-accent) 26%, var(--relation-surface-mix-target));
       background:
-        linear-gradient(180deg, color-mix(in srgb, var(--relation-accent) calc(4% + (var(--mention-weight) * 10%)), white) 0%, rgba(255, 255, 255, 0.9) 100%);
-      box-shadow: 0 14px 40px rgba(25, 37, 64, 0.06);
+        linear-gradient(180deg, color-mix(in srgb, var(--relation-accent) calc(4% + (var(--mention-weight) * 10%)), var(--relation-surface-mix-target)) 0%, var(--relation-card-bg-strong) 100%);
+      box-shadow: var(--relation-shared-card-shadow);
       min-height: 0;
     }
 
@@ -395,8 +395,8 @@ const RELATION_META: Record<SocialRelation, {
       border-radius: 999px;
       font-size: 0.72rem;
       color: var(--color-text-secondary);
-      background: rgba(96, 122, 170, 0.08);
-      border: 1px solid rgba(96, 122, 170, 0.12);
+      background: var(--relation-chip-bg);
+      border: 1px solid var(--relation-chip-border);
     }
 
     .entity-card__editor {
@@ -404,7 +404,7 @@ const RELATION_META: Record<SocialRelation, {
       flex-direction: column;
       gap: var(--space-3);
       padding-top: var(--space-2);
-      border-top: 1px solid rgba(96, 122, 170, 0.12);
+      border-top: 1px solid var(--relation-card-border);
     }
 
     .entity-form__field {
@@ -418,7 +418,7 @@ const RELATION_META: Record<SocialRelation, {
     .entity-card__merge {
       align-items: center;
       padding-top: var(--space-2);
-      border-top: 1px dashed rgba(96, 122, 170, 0.18);
+      border-top: 1px dashed var(--color-tabs-secondary-border);
     }
 
     .entity-card__merge .ui-select {
@@ -427,8 +427,8 @@ const RELATION_META: Record<SocialRelation, {
     }
 
     .entity-action {
-      border: 1px solid rgba(96, 122, 170, 0.16);
-      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid var(--color-button-secondary-border);
+      background: var(--color-button-secondary-bg);
       color: var(--color-text);
       border-radius: var(--radius-xl);
       padding: 0.55rem 0.85rem;
@@ -442,8 +442,8 @@ const RELATION_META: Record<SocialRelation, {
 
     .entity-action:hover:not(:disabled) {
       transform: translateY(-1px);
-      border-color: color-mix(in srgb, var(--relation-accent) 35%, white);
-      background: rgba(255, 255, 255, 0.92);
+      border-color: color-mix(in srgb, var(--relation-accent) 35%, var(--relation-surface-mix-target));
+      background: var(--relation-card-bg-strong);
     }
 
     .entity-action:disabled {
@@ -452,7 +452,7 @@ const RELATION_META: Record<SocialRelation, {
     }
 
     .entity-action--primary {
-      background: color-mix(in srgb, var(--relation-accent) 12%, white);
+      background: color-mix(in srgb, var(--relation-accent) 12%, var(--relation-surface-mix-target));
     }
 
     @media (max-width: 980px) {

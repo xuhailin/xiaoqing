@@ -54,6 +54,7 @@ export interface CreateAgentDelegationInput {
   delegationId?: string;
   originConversationId: string;
   originMessageId?: string;
+  parentWorkItemId?: string;
   requesterAgentId: EntryAgentId;
   executorAgentId: EntryAgentId;
   kind?: AgentDelegationKind;

@@ -3,7 +3,10 @@
     "allow": [
       "Bash(npx ng:*)",
       "Bash(gh pr:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(find /Users/xuhailin/development/agents/xiaoqing/frontend/src/app -type f -name \"*.ts\" -exec grep -l \"type\\\\|interface\" {})",
+      "Bash(grep -r \"relationship\\\\|social\\\\|entity\\\\|reflection\" /Users/xuhailin/development/agents/xiaoqing/frontend/src/app --include=*.ts)",
+      "Bash(find /Users/xuhailin/development/agents/xiaoqing/backend/src/xiaoqing -type f -name *.ts)"
     ]
   },
   "defaultMode": "bypassPermissions"

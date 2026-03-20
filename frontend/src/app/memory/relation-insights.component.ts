@@ -177,13 +177,13 @@ const TREND_META: Record<SocialRelationTrend, {
     .edge-card {
       padding: var(--space-4);
       border-radius: calc(var(--workbench-card-radius) - 6px);
-      border: 1px solid rgba(96, 122, 170, 0.14);
-      background: rgba(255, 255, 255, 0.66);
+      border: 1px solid var(--relation-card-border);
+      background: var(--relation-card-bg);
     }
 
     .edge-card--declining {
-      border-color: rgba(216, 106, 106, 0.24);
-      background: linear-gradient(180deg, rgba(255, 246, 246, 0.96), rgba(255, 255, 255, 0.92));
+      border-color: var(--relation-card-danger-border);
+      background: var(--relation-card-danger-bg);
     }
 
     .insight-card__header,
@@ -239,14 +239,14 @@ const TREND_META: Record<SocialRelationTrend, {
       height: 8px;
       border-radius: 999px;
       overflow: hidden;
-      background: rgba(117, 138, 180, 0.14);
+      background: var(--relation-track-bg);
     }
 
     .edge-card__quality-fill {
       display: block;
       height: 100%;
       border-radius: inherit;
-      background: linear-gradient(90deg, #6f9bff, #7ed0bd);
+      background: var(--relation-fill-quality);
     }
 
     .edge-card__quality-meta {

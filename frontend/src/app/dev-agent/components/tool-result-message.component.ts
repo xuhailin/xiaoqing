@@ -49,8 +49,9 @@ import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
     .tool-result {
       border: 1px solid var(--color-workbench-border);
       border-radius: var(--workbench-card-radius);
-      background: linear-gradient(180deg, rgba(244, 248, 255, 0.95), rgba(255, 255, 255, 0.92));
+      background: var(--dev-agent-tool-result-bg);
       overflow: hidden;
+      box-shadow: var(--chat-panel-shadow);
     }
 
     .result-head {
@@ -101,6 +102,7 @@ import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
 
     .detail {
       border-top: 1px solid var(--color-border-light);
+      background: var(--dev-agent-tool-result-detail-bg);
       padding: 0.75rem 0.875rem 0.875rem;
       display: flex;
       flex-direction: column;
@@ -116,7 +118,7 @@ import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
     .meta span {
       font-size: 11px;
       color: var(--color-text-secondary);
-      background: rgba(244, 248, 255, 0.92);
+      background: var(--dev-agent-tool-result-meta-bg);
       border-radius: 999px;
       padding: 4px 8px;
       border: 1px solid var(--color-border-light);
@@ -126,7 +128,8 @@ import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
       margin: 0;
       padding: 0.75rem 0.875rem;
       border-radius: 12px;
-      background: rgba(246, 249, 255, 0.94);
+      background: var(--dev-agent-tool-result-detail-bg);
+      border: 1px solid var(--color-workbench-border);
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       font-size: 12px;
       line-height: 1.6;
@@ -138,6 +141,7 @@ import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
     .error {
       color: var(--color-error);
       background: var(--color-error-bg);
+      border-color: var(--color-error-border);
     }
   `],
 })

@@ -1,8 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
 import { AppIconComponent } from '../shared/ui/app-icon.component';
 import { XiaoqingAvatarComponent } from '../shared/ui/xiaoqing-avatar.component';
+import { ThemeService } from '../core/services/theme.service';
 
 type ChatSubNavItem = {
   value: 'chat' | 'xiaoqin';
@@ -56,8 +57,28 @@ type MemorySubNavItem = {
         </nav>
 
         <div class="app-sidebar__footer">
-          <app-button type="button" variant="ghost" size="sm" class="app-settings-btn" (click)="openSettings()" title="配置">
-            <span class="app-settings-btn__icon">
+          <app-button
+            type="button"
+            variant="ghost"
+            size="sm"
+            class="app-sidebar__utility"
+            (click)="toggleTheme()"
+            [title]="themeToggleTitle()"
+          >
+            <span class="app-sidebar__utility-icon">
+              <app-icon [name]="currentTheme() === 'dark' ? 'sun' : 'moon'" size="0.95rem" />
+            </span>
+          </app-button>
+
+          <app-button
+            type="button"
+            variant="ghost"
+            size="sm"
+            class="app-sidebar__utility"
+            (click)="openSettings()"
+            title="配置"
+          >
+            <span class="app-sidebar__utility-icon">
               <app-icon name="tool" size="0.95rem" />
             </span>
           </app-button>
@@ -168,13 +189,14 @@ type MemorySubNavItem = {
       padding: var(--space-4) var(--space-2);
       border-right: 1px solid var(--color-workbench-border);
       background: var(--sidebar-surface-background);
+      box-shadow: var(--sidebar-surface-shadow);
     }
 
     .app-brand-card {
       display: flex;
       justify-content: center;
       padding: 0 0 var(--space-3);
-      border-bottom: 1px solid var(--color-border-light);
+      border-bottom: 1px solid var(--layout-sidebar-divider);
     }
 
     .app-brand {
@@ -258,19 +280,22 @@ type MemorySubNavItem = {
 
     .app-sidebar__footer {
       margin-top: auto;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
     }
 
-    .app-settings-btn {
+    .app-sidebar__utility {
       width: 100%;
       justify-content: center;
       min-height: 40px;
       border-radius: var(--radius-md);
       background: transparent;
-      border: 1px solid var(--color-workbench-border);
+      border: 1px solid var(--layout-sidebar-utility-border);
       padding: 0;
     }
 
-    .app-settings-btn__icon {
+    .app-sidebar__utility-icon {
       width: auto;
       display: inline-flex;
       justify-content: center;
@@ -278,7 +303,7 @@ type MemorySubNavItem = {
 
     .app-main {
       overflow: hidden;
-      background: var(--color-workbench-bg);
+      background: var(--layout-main-background);
     }
 
     .app-main__chrome {
@@ -294,8 +319,9 @@ type MemorySubNavItem = {
       justify-content: space-between;
       gap: var(--space-4);
       padding: var(--workbench-header-padding);
-      border-bottom: 1px solid rgba(212, 222, 237, 0.24);
-      background: rgba(255, 255, 255, 0.54);
+      border-bottom: 1px solid var(--layout-subnav-wrap-border);
+      background: var(--layout-subnav-wrap-bg);
+      box-shadow: var(--layout-subnav-wrap-shadow);
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
       flex-shrink: 0;
@@ -307,9 +333,9 @@ type MemorySubNavItem = {
       gap: var(--space-1);
       padding: var(--space-1);
       border-radius: var(--radius-xl);
-      border: 1px solid rgba(212, 222, 237, 0.24);
-      background: rgba(255, 255, 255, 0.26);
-      box-shadow: none;
+      border: 1px solid var(--layout-subnav-border);
+      background: var(--layout-subnav-bg);
+      box-shadow: var(--layout-subnav-shadow);
     }
 
     .app-subnav__item {
@@ -338,13 +364,13 @@ type MemorySubNavItem = {
 
     .app-subnav__item:hover:not(:disabled) {
       color: var(--color-text);
-      background: rgba(79, 109, 245, 0.04);
+      background: var(--layout-subnav-item-hover-bg);
     }
 
     .app-subnav__item--active {
       color: var(--color-primary);
-      background: rgba(255, 255, 255, 0.44);
-      box-shadow: inset 0 0 0 1px rgba(79, 109, 245, 0.1);
+      background: var(--layout-subnav-item-active-bg);
+      box-shadow: var(--layout-subnav-item-active-shadow);
     }
 
     .app-subnav__item:disabled {
@@ -373,16 +399,15 @@ type MemorySubNavItem = {
       flex: 1;
       min-height: 0;
       overflow: hidden;
+      position: relative;
     }
 
     .app-main__content--chat {
-      background:
-        radial-gradient(circle at 18% 10%, rgba(120, 140, 255, 0.12), transparent 42%),
-        radial-gradient(circle at 0% 34%, rgba(255, 255, 255, 0.3), transparent 28%);
+      background: var(--layout-chat-content-background);
     }
 
     .app-main__content--default {
-      background: var(--color-bg);
+      background: var(--layout-default-content-background);
     }
 
     @media (max-width: 980px) {
@@ -403,6 +428,17 @@ type MemorySubNavItem = {
         flex: 1;
         flex-direction: row;
         justify-content: center;
+      }
+
+      .app-sidebar__footer {
+        margin-top: 0;
+        margin-left: auto;
+        flex-direction: row;
+      }
+
+      .app-sidebar__utility {
+        width: 40px;
+        min-width: 40px;
       }
 
       .app-nav__item {
@@ -436,6 +472,8 @@ type MemorySubNavItem = {
   `],
 })
 export class MainLayoutComponent {
+  private readonly router = inject(Router);
+  protected readonly themeService = inject(ThemeService);
   protected readonly mainNavItems = [
     { value: 'chat', label: '对话', hint: '会话与陪伴', icon: 'message' as const },
     { value: 'workspace', label: '工作台', hint: '收纳与执行', icon: 'tool' as const },
@@ -489,9 +527,6 @@ export class MainLayoutComponent {
       description: '把你身边的人、你们的互动状态和共同经历放到一张可浏览的关系地图里。',
     },
   ];
-
-  constructor(private readonly router: Router) {}
-
   currentPrimary(): 'chat' | 'workspace' | 'memory' {
     const url = this.router.url;
     if (url.startsWith('/workspace/dev-agent')) return 'chat';
@@ -570,6 +605,18 @@ export class MainLayoutComponent {
 
   openSettings() {
     this.router.navigate(['/settings']);
+  }
+
+  currentTheme() {
+    return this.themeService.theme();
+  }
+
+  themeToggleTitle() {
+    return this.currentTheme() === 'dark' ? '切换到浅色主题' : '切换到深色主题';
+  }
+
+  toggleTheme() {
+    this.themeService.toggleTheme();
   }
 
   private findSubnavDescription<T extends { value: string; description: string }>(

@@ -25,17 +25,14 @@
 
 .life-panel {
   padding: 1rem 1.05rem;
-  border: 1px solid rgba(96, 122, 170, 0.12);
+  border: 1px solid var(--timeline-card-border);
   border-radius: 18px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 255, 0.95));
-  box-shadow: 0 14px 28px rgba(30, 52, 98, 0.05);
+  background: var(--timeline-panel-bg);
+  box-shadow: var(--workbench-surface-shadow);
 }
 
 .life-panel--hero {
-  background:
-    radial-gradient(circle at top right, rgba(117, 143, 255, 0.2), transparent 34%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(240, 245, 255, 0.96));
+  background: var(--timeline-panel-hero-bg);
 }
 
 .life-panel--wide {
@@ -102,9 +99,9 @@
 
 .life-insight-card {
   padding: 0.85rem 0.9rem;
-  border: 1px solid rgba(96, 122, 170, 0.1);
+  border: 1px solid var(--timeline-card-border);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--timeline-card-bg);
 }
 
 .life-insight-card__label {
@@ -138,9 +135,9 @@
 .life-day-option {
   width: 100%;
   padding: 0.85rem 0.9rem;
-  border: 1px solid rgba(96, 122, 170, 0.1);
+  border: 1px solid var(--timeline-card-border);
   border-radius: 16px;
-  background: rgba(79, 109, 245, 0.04);
+  background: var(--timeline-option-bg);
   cursor: pointer;
   text-align: left;
   transition:
@@ -150,14 +147,14 @@
 }
 
 .life-day-option:hover {
-  background: rgba(79, 109, 245, 0.08);
+  background: var(--timeline-option-hover-bg);
   transform: translateY(-1px);
 }
 
 .life-day-option.is-active {
-  border-color: rgba(79, 109, 245, 0.22);
-  background: rgba(79, 109, 245, 0.12);
-  box-shadow: 0 10px 24px rgba(79, 109, 245, 0.09);
+  border-color: var(--timeline-option-active-border);
+  background: var(--timeline-option-active-bg);
+  box-shadow: var(--timeline-option-active-shadow);
 }
 
 .life-day-option__head {
@@ -197,7 +194,7 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.55rem 0;
-  border-bottom: 1px solid rgba(96, 122, 170, 0.08);
+  border-bottom: 1px solid color-mix(in srgb, var(--timeline-card-border) 80%, transparent);
 }
 
 .life-stat-row:last-child {
@@ -254,57 +251,57 @@
 }
 
 .life-count-chip {
-  border: 1px solid rgba(96, 122, 170, 0.1);
-  background: rgba(81, 96, 114, 0.08);
+  border: 1px solid var(--timeline-card-border);
+  background: var(--color-badge-neutral-bg);
   color: var(--color-text-secondary);
 }
 
 .life-count-chip--person {
-  background: rgba(79, 109, 245, 0.09);
-  border-color: rgba(79, 109, 245, 0.12);
+  background: var(--color-primary-light);
+  border-color: var(--color-primary-soft);
   color: var(--color-primary);
 }
 
 .life-count-chip--tag {
-  background: rgba(55, 87, 125, 0.08);
-  border-color: rgba(55, 87, 125, 0.12);
+  background: var(--color-panel-soft-bg);
+  border-color: var(--timeline-card-border);
   color: var(--color-text-secondary);
 }
 
 .life-count-chip--success {
-  background: rgba(47, 158, 106, 0.1);
-  border-color: rgba(47, 158, 106, 0.14);
-  color: var(--color-success);
+  background: var(--color-success-soft-bg);
+  border-color: var(--color-success-soft-border);
+  color: var(--color-success-soft-text);
 }
 
 .life-count-chip--warning {
-  background: rgba(245, 159, 11, 0.1);
-  border-color: rgba(245, 159, 11, 0.15);
-  color: var(--color-warning);
+  background: var(--color-warning-soft-bg);
+  border-color: var(--color-warning-soft-border);
+  color: var(--color-warning-soft-text);
 }
 
 .life-count-chip--info {
-  background: rgba(79, 109, 245, 0.09);
-  border-color: rgba(79, 109, 245, 0.12);
+  background: var(--color-primary-light);
+  border-color: var(--color-primary-soft);
   color: var(--color-primary);
 }
 
 .life-count-chip--danger {
-  background: rgba(224, 49, 49, 0.09);
-  border-color: rgba(224, 49, 49, 0.12);
-  color: var(--color-danger);
+  background: var(--color-danger-soft-bg);
+  border-color: var(--color-danger-soft-border);
+  color: var(--color-danger-soft-text);
 }
 
 .life-count-chip--neutral {
-  background: rgba(81, 96, 114, 0.08);
-  border-color: rgba(81, 96, 114, 0.1);
+  background: var(--color-badge-neutral-bg);
+  border-color: var(--color-badge-neutral-border);
   color: var(--color-text-secondary);
 }
 
 .life-empty-chip {
-  border: 1px dashed rgba(96, 122, 170, 0.18);
+  border: 1px dashed var(--timeline-empty-chip-border);
   color: var(--color-text-muted);
-  background: rgba(255, 255, 255, 0.66);
+  background: var(--timeline-empty-chip-bg);
 }
 
 .life-week-rhythm__list {
@@ -318,9 +315,9 @@
   gap: 0.7rem;
   min-width: 0;
   padding: 0.9rem;
-  border: 1px solid rgba(96, 122, 170, 0.1);
+  border: 1px solid var(--timeline-card-border);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--timeline-card-bg);
 }
 
 .life-rhythm-card.is-empty {
@@ -357,14 +354,14 @@
   height: 10px;
   border-radius: 999px;
   overflow: hidden;
-  background: rgba(79, 109, 245, 0.08);
+  background: var(--timeline-bar-bg);
 }
 
 .life-rhythm-card__bar span {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(125, 150, 255, 0.92), rgba(79, 109, 245, 0.92));
+  background: var(--timeline-bar-fill);
 }
 
 .life-rhythm-card__meta {
@@ -387,14 +384,14 @@
 
 .day-detail-point {
   padding: 0.9rem 1rem;
-  border: 1px solid rgba(96, 122, 170, 0.12);
+  border: 1px solid var(--timeline-card-border);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--timeline-card-bg);
 }
 
 .day-detail-point.is-ai {
   border-style: dashed;
-  background: rgba(247, 249, 255, 0.82);
+  background: var(--timeline-card-strong-bg);
 }
 
 .day-detail-point__top {

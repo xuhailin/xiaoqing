@@ -25,11 +25,12 @@ import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
     .tool-card {
       border: 1px solid var(--color-workbench-border);
       border-radius: var(--workbench-card-radius);
-      background: linear-gradient(180deg, rgba(246, 249, 255, 0.95), rgba(255, 255, 255, 0.9));
+      background: var(--dev-agent-tool-card-bg);
       padding: 0.625rem 0.75rem;
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
+      box-shadow: var(--chat-panel-shadow);
     }
 
     .tool-head {
@@ -59,7 +60,7 @@ import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
       word-break: break-all;
       font-size: var(--font-size-xs);
       color: var(--color-workbench-muted);
-      background: rgba(79, 109, 245, 0.06);
+      background: var(--dev-agent-tool-code-bg);
       border-radius: var(--radius-md);
       padding: 0.5rem 0.75rem;
     }

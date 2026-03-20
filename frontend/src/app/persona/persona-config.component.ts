@@ -241,7 +241,7 @@ const FIELD_LAYOUT: FieldEntry[] = [
       &:focus {
         outline: none;
         border-color: var(--color-primary);
-        box-shadow: 0 0 0 3px rgba(92, 103, 242, 0.1);
+        box-shadow: 0 0 0 3px var(--color-focus-ring);
       }
 
       &::placeholder { color: var(--color-text-muted); }
@@ -258,15 +258,18 @@ const FIELD_LAYOUT: FieldEntry[] = [
       padding: var(--space-1) var(--space-3);
       border-radius: var(--radius-md);
       border: none;
-      background: var(--color-primary);
-      color: #fff;
+      background: var(--color-button-primary-bg);
+      color: var(--color-button-primary-text);
       cursor: pointer;
       font-size: var(--font-size-xs);
       font-family: var(--font-family);
       font-weight: var(--font-weight-medium);
-      transition: background var(--transition-fast);
+      transition: background var(--transition-fast), box-shadow var(--transition-fast);
 
-      &:not(:disabled):hover { background: var(--color-primary-hover); }
+      &:not(:disabled):hover {
+        background: var(--color-button-primary-hover-bg);
+        box-shadow: var(--color-button-primary-shadow);
+      }
       &:disabled { opacity: 0.45; cursor: not-allowed; }
     }
 
@@ -286,12 +289,12 @@ const FIELD_LAYOUT: FieldEntry[] = [
     .pending-section {
       margin-top: var(--space-4);
       padding-top: var(--space-3);
-      border-top: 2px solid #ff9800;
+      border-top: 2px solid var(--color-warning-border);
     }
 
     .pending-section .section-title {
-      color: #e65100;
-      border-bottom-color: #ff9800;
+      color: var(--color-warning-soft-text);
+      border-bottom-color: var(--color-warning-border);
     }
 
     .pending-card {
@@ -384,21 +387,24 @@ const FIELD_LAYOUT: FieldEntry[] = [
     }
 
     .diff-chip--add {
-      background: rgba(40, 167, 69, 0.1);
-      color: #1b5e20;
+      background: var(--color-success-soft-bg);
+      border: 1px solid var(--color-success-soft-border);
+      color: var(--color-success-soft-text);
     }
 
     .diff-chip--remove {
-      background: rgba(220, 53, 69, 0.08);
-      color: #b71c1c;
+      background: var(--color-danger-soft-bg);
+      border: 1px solid var(--color-danger-soft-border);
+      color: var(--color-danger-soft-text);
     }
 
     .risk-warning {
       margin-top: var(--space-1);
       padding: var(--space-1) var(--space-2);
       border-radius: var(--radius-sm);
-      background: rgba(230, 81, 0, 0.08);
-      color: #e65100;
+      background: var(--color-warning-soft-bg);
+      border: 1px solid var(--color-warning-soft-border);
+      color: var(--color-warning-soft-text);
       font-size: var(--font-size-xs);
     }
   `],

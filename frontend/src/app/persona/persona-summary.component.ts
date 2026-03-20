@@ -49,7 +49,7 @@ import { UserProfileService, UserProfileDto } from '../core/services/user-profil
       padding: 0.875rem 1rem 0.75rem;
       border-bottom: 1px solid var(--color-border-light);
       flex-shrink: 0;
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0));
+      background: var(--persona-summary-header-bg);
     }
 
     .header-row {
@@ -62,7 +62,7 @@ import { UserProfileService, UserProfileDto } from '../core/services/user-profil
     .app-name {
       font-size: var(--font-size-md);
       font-weight: var(--font-weight-bold);
-      color: #3b56d6;
+      color: var(--persona-summary-brand);
       letter-spacing: -0.02em;
     }
 

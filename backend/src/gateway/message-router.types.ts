@@ -13,6 +13,8 @@ export interface SendMessageMetadata {
   devRunMode?: 'orchestrated' | 'agent';
   /** 是否强制创建新的 session，而不是复用当前会话线程 */
   forceNewSession?: boolean;
+  /** 内部字段：将当前消息接回指定的异步工作项 */
+  resumeWorkItemId?: string;
 }
 
 /** 路由判定结果 */

@@ -62,17 +62,17 @@ import { XiaoqingAvatarComponent } from '../shared/ui/xiaoqing-avatar.component'
     }
 
     .home-sidebar__surface {
-      border-color: rgba(96, 122, 170, 0.08);
+      border-color: var(--home-sidebar-surface-border);
       border-radius: 22px;
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.12));
-      box-shadow: none;
+      background: var(--home-sidebar-surface-bg);
+      box-shadow: var(--home-sidebar-surface-shadow);
     }
 
     .home-stage__surface {
-      border: none;
-      border-radius: 0;
-      background: transparent;
-      box-shadow: none;
+      border: 1px solid var(--home-stage-surface-border);
+      border-radius: 26px;
+      background: var(--home-stage-surface-bg);
+      box-shadow: var(--home-stage-surface-shadow);
     }
 
     .home-stage__surface > * {
@@ -102,7 +102,7 @@ import { XiaoqingAvatarComponent } from '../shared/ui/xiaoqing-avatar.component'
       align-items: center;
       gap: var(--space-3);
       padding: var(--space-2) var(--space-2) var(--space-3);
-      border-bottom: 1px solid rgba(212, 222, 237, 0.22);
+      border-bottom: 1px solid var(--home-profile-divider);
     }
 
     .home-profile__copy {

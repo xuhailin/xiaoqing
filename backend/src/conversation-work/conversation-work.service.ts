@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
+import { Observable, Subject, filter } from 'rxjs';
 import {
   ConversationWorkEventType,
   ConversationWorkExecutorType,
@@ -11,15 +12,21 @@ import { estimateTokens } from '../infra/token-estimator';
 import type { EntryAgentId } from '../gateway/message-router.types';
 import type { AgentDelegationKind } from '../agent-bus/agent-bus.types';
 import type {
+  ConversationWorkHealthState,
   ConversationWorkItemDto,
   ConversationWorkProjectionType,
 } from './conversation-work.types';
 
 const DEFAULT_DEV_TIMEOUT_MS = 15 * 60 * 1000;
+const ACCEPTED_ATTENTION_MS = 60 * 1000;
+const ACCEPTED_STALLED_MS = 3 * 60 * 1000;
+const RUNNING_ATTENTION_MS = 2 * 60 * 1000;
+const RUNNING_STALLED_MS = 6 * 60 * 1000;
 
 @Injectable()
 export class ConversationWorkService {
   private readonly logger = new Logger(ConversationWorkService.name);
+  private readonly updates$ = new Subject<ConversationWorkItemDto>();
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -27,6 +34,7 @@ export class ConversationWorkService {
     conversationId: string;
     userInput: string;
     title?: string | null;
+    parentWorkItemId?: string | null;
   }) {
     const goal = input.userInput.trim();
     const now = new Date();
@@ -47,6 +55,7 @@ export class ConversationWorkService {
         conversationId: input.conversationId,
         originUserMessageId: userMessage.id,
         status: ConversationWorkStatus.accepted,
+        executorType: ConversationWorkExecutorType.dev_run,
         title: this.normalizeTitle(input.title, goal),
         userFacingGoal: goal,
         latestSummary: '我已经接手，准备开始处理。',
@@ -58,6 +67,7 @@ export class ConversationWorkService {
           mustProjectTerminalResult: true,
           resultProjectionMode: 'same_conversation',
           timeoutAt: timeoutAt.toISOString(),
+          ...(input.parentWorkItemId?.trim() ? { parentWorkItemId: input.parentWorkItemId.trim() } : {}),
         } satisfies Prisma.JsonObject,
       },
     });
@@ -99,7 +109,7 @@ export class ConversationWorkService {
     return {
       userMessage,
       receiptMessage,
-      workItem: this.toDto(updated),
+      workItem: this.publish(this.toDto(updated)),
     };
   }
 
@@ -121,7 +131,7 @@ export class ConversationWorkService {
       sourceRefId: runId,
     });
 
-    return this.toDto(workItem);
+    return this.publish(this.toDto(workItem));
   }
 
   async createDelegationWorkItem(input: {
@@ -134,6 +144,7 @@ export class ConversationWorkService {
     title?: string | null;
     summary?: string | null;
     userFacingGoal?: string | null;
+    parentWorkItemId?: string | null;
   }) {
     const goal = input.userFacingGoal?.trim()
       || input.summary?.trim()
@@ -145,6 +156,8 @@ export class ConversationWorkService {
       input.originMessageId,
       goal,
     );
+    const parentWorkItemId = input.parentWorkItemId?.trim()
+      || await this.resolveParentWorkItemId(input.originMessageId);
 
     const workItem = await this.prisma.conversationWorkItem.create({
       data: {
@@ -166,6 +179,7 @@ export class ConversationWorkService {
           timeoutAt: timeoutAt.toISOString(),
           executorType: 'agent_delegation',
           sourceRefId: input.delegationId,
+          ...(parentWorkItemId ? { parentWorkItemId } : {}),
         } satisfies Prisma.JsonObject,
       },
     });
@@ -224,7 +238,7 @@ export class ConversationWorkService {
 
     return {
       receiptMessage,
-      workItem: this.toDto(updated),
+      workItem: this.publish(this.toDto(updated)),
     };
   }
 
@@ -276,7 +290,92 @@ export class ConversationWorkService {
       },
     });
 
-    return this.toDto(updated);
+    return this.publish(this.toDto(updated));
+  }
+
+  async markWaitingInputById(
+    workItemId: string,
+    question: string,
+    blockReason?: string | null,
+  ) {
+    const workItem = await this.prisma.conversationWorkItem.findUnique({
+      where: { id: workItemId },
+    });
+    if (!workItem || this.isTerminalStatus(workItem.status)) return null;
+
+    const waitingQuestion = question.trim();
+    const nextBlockReason = blockReason?.trim() || waitingQuestion;
+    const now = new Date();
+    const updated = await this.prisma.conversationWorkItem.update({
+      where: { id: workItem.id },
+      data: {
+        status: ConversationWorkStatus.waiting_input,
+        latestSummary: nextBlockReason,
+        blockReason: nextBlockReason,
+        waitingQuestion,
+        lastEventAt: now,
+      },
+    });
+
+    await this.appendEvent(updated.id, ConversationWorkEventType.waiting_input, {
+      summary: nextBlockReason,
+      sourceRefId: updated.sourceRefId ?? undefined,
+    });
+
+    const followupMessage = await this.prisma.message.create({
+      data: {
+        conversationId: updated.conversationId,
+        role: 'assistant',
+        kind: 'chat',
+        content: waitingQuestion,
+        metadata: this.buildProjectionMetadata({
+          workItemId: updated.id,
+          projectionType: 'followup',
+          status: ConversationWorkStatus.waiting_input,
+        }),
+        tokenCount: estimateTokens(waitingQuestion),
+      },
+    });
+
+    return {
+      workItem: this.publish(this.toDto(updated)),
+      followupMessage,
+    };
+  }
+
+  async reaskWaitingInputById(input: {
+    workItemId: string;
+    userInput: string;
+    question: string;
+    blockReason?: string | null;
+  }) {
+    const workItem = await this.prisma.conversationWorkItem.findUnique({
+      where: { id: input.workItemId },
+    });
+    if (!workItem || this.isTerminalStatus(workItem.status)) return null;
+
+    const userContent = input.userInput.trim() || '继续处理';
+    const userMessage = await this.prisma.message.create({
+      data: {
+        conversationId: workItem.conversationId,
+        role: 'user',
+        kind: 'user',
+        content: userContent,
+        tokenCount: estimateTokens(userContent),
+      },
+    });
+
+    const waiting = await this.markWaitingInputById(
+      workItem.id,
+      input.question,
+      input.blockReason,
+    );
+
+    return waiting ? {
+      userMessage,
+      assistantMessage: waiting.followupMessage,
+      workItem: waiting.workItem,
+    } : null;
   }
 
   async markDevRunRunning(runId: string, summary?: string) {
@@ -300,7 +399,17 @@ export class ConversationWorkService {
       sourceRefId: runId,
     });
 
-    return this.toDto(updated);
+    return this.publish(this.toDto(updated));
+  }
+
+  async markDevRunWaitingInput(
+    runId: string,
+    question: string,
+    blockReason?: string | null,
+  ) {
+    const workItem = await this.findBySourceRef(ConversationWorkExecutorType.dev_run, runId);
+    if (!workItem) return null;
+    return this.markWaitingInputById(workItem.id, question, blockReason);
   }
 
   async markDevRunCompleted(runId: string, content: string) {
@@ -352,7 +461,7 @@ export class ConversationWorkService {
       },
     });
 
-    return this.toDto(updated);
+    return this.publish(this.toDto(updated));
   }
 
   async markDevRunFailed(runId: string, reason: string) {
@@ -401,7 +510,7 @@ export class ConversationWorkService {
       },
     });
 
-    return this.toDto(updated);
+    return this.publish(this.toDto(updated));
   }
 
   async markDevRunCancelled(runId: string, reason: string) {
@@ -450,7 +559,7 @@ export class ConversationWorkService {
       },
     });
 
-    return this.toDto(updated);
+    return this.publish(this.toDto(updated));
   }
 
   async markDelegationRunning(delegationId: string, summary?: string) {
@@ -477,7 +586,7 @@ export class ConversationWorkService {
       sourceRefId: delegationId,
     });
 
-    return this.toDto(updated);
+    return this.publish(this.toDto(updated));
   }
 
   async markDelegationProgress(delegationId: string, summary: string) {
@@ -508,7 +617,7 @@ export class ConversationWorkService {
       sourceRefId: delegationId,
     });
 
-    return this.toDto(updated);
+    return this.publish(this.toDto(updated));
   }
 
   async markDelegationCompleted(input: {
@@ -582,7 +691,7 @@ export class ConversationWorkService {
 
     return {
       resultMessage,
-      workItem: this.toDto(updated),
+      workItem: this.publish(this.toDto(updated)),
     };
   }
 
@@ -658,6 +767,124 @@ export class ConversationWorkService {
 
     return {
       resultMessage,
+      workItem: this.publish(this.toDto(updated)),
+    };
+  }
+
+  streamByConversation(conversationId: string): Observable<ConversationWorkItemDto> {
+    return this.updates$.pipe(
+      filter((item) => item.conversationId === conversationId),
+    );
+  }
+
+  async findLatestWaitingInputByConversation(conversationId: string): Promise<ConversationWorkItemDto | null> {
+    const item = await this.prisma.conversationWorkItem.findFirst({
+      where: {
+        conversationId,
+        status: ConversationWorkStatus.waiting_input,
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+    return item ? this.toDto(item) : null;
+  }
+
+  async findWaitingDevWorkItemForConversation(
+    conversationId: string,
+    workItemId: string,
+  ): Promise<ConversationWorkItemDto | null> {
+    const item = await this.prisma.conversationWorkItem.findFirst({
+      where: {
+        id: workItemId,
+        conversationId,
+        status: ConversationWorkStatus.waiting_input,
+        executorType: ConversationWorkExecutorType.dev_run,
+      },
+    });
+    return item ? this.toDto(item) : null;
+  }
+
+  async resumeDevWorkItem(input: {
+    conversationId: string;
+    workItemId: string;
+    newRunId: string;
+    userInput: string;
+  }) {
+    const workItem = await this.prisma.conversationWorkItem.findFirst({
+      where: {
+        id: input.workItemId,
+        conversationId: input.conversationId,
+        status: ConversationWorkStatus.waiting_input,
+        executorType: ConversationWorkExecutorType.dev_run,
+      },
+    });
+    if (!workItem) {
+      throw new Error(`waiting dev work item not found: ${input.workItemId}`);
+    }
+
+    const now = new Date();
+    const userContent = input.userInput.trim() || '继续处理';
+    const previousRunId = workItem.sourceRefId;
+    const userMessage = await this.prisma.message.create({
+      data: {
+        conversationId: workItem.conversationId,
+        role: 'user',
+        kind: 'user',
+        content: userContent,
+        tokenCount: estimateTokens(userContent),
+      },
+    });
+
+    const assistantContent = '收到你补充的信息了，我继续接着处理，进展和结果还是会直接回到这条对话。';
+    const assistantMessage = await this.prisma.message.create({
+      data: {
+        conversationId: workItem.conversationId,
+        role: 'assistant',
+        kind: 'chat',
+        content: assistantContent,
+        metadata: this.buildProjectionMetadata({
+          workItemId: workItem.id,
+          projectionType: 'followup',
+          status: ConversationWorkStatus.queued,
+        }),
+        tokenCount: estimateTokens(assistantContent),
+      },
+    });
+
+    const updated = await this.prisma.conversationWorkItem.update({
+      where: { id: workItem.id },
+      data: {
+        status: ConversationWorkStatus.queued,
+        executorType: ConversationWorkExecutorType.dev_run,
+        sourceRefId: input.newRunId,
+        latestSummary: '已收到补充信息，继续处理中。',
+        blockReason: null,
+        waitingQuestion: null,
+        errorCode: null,
+        errorMessage: null,
+        retryable: false,
+        lastEventAt: now,
+        timeoutAt: new Date(now.getTime() + DEFAULT_DEV_TIMEOUT_MS),
+      },
+    });
+
+    await this.appendEvent(updated.id, ConversationWorkEventType.resumed, {
+      summary: '已收到补充信息，恢复处理。',
+      sourceRefId: input.newRunId,
+      payload: {
+        newRunId: input.newRunId,
+        userMessageId: userMessage.id,
+        assistantMessageId: assistantMessage.id,
+        ...(previousRunId ? { previousRunId } : {}),
+      },
+    });
+    await this.appendEvent(updated.id, ConversationWorkEventType.queued, {
+      summary: '恢复后的任务已重新进入后台队列',
+      sourceRefId: input.newRunId,
+    });
+
+    return {
+      userMessage,
+      assistantMessage,
       workItem: this.toDto(updated),
     };
   }
@@ -667,7 +894,7 @@ export class ConversationWorkService {
       where: { conversationId },
       orderBy: { createdAt: 'desc' },
     });
-    return items.map((item) => this.toDto(item));
+    return this.toDtos(items);
   }
 
   async findByConversationAndId(
@@ -677,7 +904,12 @@ export class ConversationWorkService {
     const item = await this.prisma.conversationWorkItem.findFirst({
       where: { id: workItemId, conversationId },
     });
-    return item ? this.toDto(item) : null;
+    if (!item) return null;
+    const related = await this.prisma.conversationWorkItem.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: 'desc' },
+    });
+    return this.toDtos(related).find((entry) => entry.id === item.id) ?? null;
   }
 
   @Interval(30000)
@@ -725,7 +957,7 @@ export class ConversationWorkService {
         },
       });
 
-      await this.prisma.conversationWorkItem.update({
+      const updated = await this.prisma.conversationWorkItem.update({
         where: { id: item.id },
         data: {
           status: ConversationWorkStatus.timed_out,
@@ -737,6 +969,7 @@ export class ConversationWorkService {
           lastEventAt: now,
         },
       });
+      this.publish(this.toDto(updated));
 
       await this.appendEvent(item.id, ConversationWorkEventType.result_projected, {
         summary: '超时结果已回流到原会话',
@@ -745,6 +978,24 @@ export class ConversationWorkService {
           resultMessageId: resultMessage.id,
         },
       });
+    }
+
+    const activeItems = await this.prisma.conversationWorkItem.findMany({
+      where: {
+        status: {
+          in: [
+            ConversationWorkStatus.accepted,
+            ConversationWorkStatus.queued,
+            ConversationWorkStatus.running,
+            ConversationWorkStatus.waiting_input,
+          ],
+        },
+      },
+      take: 100,
+      orderBy: { updatedAt: 'desc' },
+    });
+    for (const item of activeItems) {
+      this.publish(this.toDto(item));
     }
   }
 
@@ -796,12 +1047,21 @@ export class ConversationWorkService {
     errorMessage: string | null;
     retryable: boolean;
     timeoutAt: Date | null;
+    closureContractJson?: Prisma.JsonValue | null;
     startedAt: Date | null;
     finishedAt: Date | null;
     lastEventAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
   }): ConversationWorkItemDto {
+    const parentWorkItemId = this.readParentWorkItemId(item.closureContractJson ?? null);
+    const health = this.resolveHealthState({
+      status: item.status,
+      lastEventAt: item.lastEventAt,
+      timeoutAt: item.timeoutAt,
+      createdAt: item.createdAt,
+      waitingQuestion: item.waitingQuestion,
+    });
     return {
       id: item.id,
       conversationId: item.conversationId,
@@ -823,9 +1083,61 @@ export class ConversationWorkService {
       startedAt: item.startedAt,
       finishedAt: item.finishedAt,
       lastEventAt: item.lastEventAt,
+      parentWorkItemId,
+      childCount: 0,
+      activeChildCount: 0,
+      healthState: health.state,
+      healthSummary: health.summary,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     };
+  }
+
+  private toDtos(items: Array<{
+    id: string;
+    conversationId: string;
+    originUserMessageId: string;
+    originReceiptMessageId: string | null;
+    resultMessageId: string | null;
+    status: ConversationWorkStatus;
+    executorType: ConversationWorkExecutorType | null;
+    sourceRefId: string | null;
+    title: string | null;
+    userFacingGoal: string;
+    latestSummary: string | null;
+    blockReason: string | null;
+    waitingQuestion: string | null;
+    errorCode: string | null;
+    errorMessage: string | null;
+    retryable: boolean;
+    timeoutAt: Date | null;
+    closureContractJson?: Prisma.JsonValue | null;
+    startedAt: Date | null;
+    finishedAt: Date | null;
+    lastEventAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }>): ConversationWorkItemDto[] {
+    const childCounts = new Map<string, number>();
+    const activeChildCounts = new Map<string, number>();
+
+    for (const item of items) {
+      const parentWorkItemId = this.readParentWorkItemId(item.closureContractJson ?? null);
+      if (!parentWorkItemId) continue;
+      childCounts.set(parentWorkItemId, (childCounts.get(parentWorkItemId) ?? 0) + 1);
+      if (!this.isTerminalStatus(item.status)) {
+        activeChildCounts.set(parentWorkItemId, (activeChildCounts.get(parentWorkItemId) ?? 0) + 1);
+      }
+    }
+
+    return items.map((item) => {
+      const dto = this.toDto(item);
+      return {
+        ...dto,
+        childCount: childCounts.get(item.id) ?? 0,
+        activeChildCount: activeChildCounts.get(item.id) ?? 0,
+      };
+    });
   }
 
   private buildProjectionMetadata(input: {
@@ -903,5 +1215,87 @@ export class ConversationWorkService {
 
   private getAgentLabel(agentId: EntryAgentId): string {
     return agentId === 'xiaoqin' ? '小勤' : '小晴';
+  }
+
+  private publish(item: ConversationWorkItemDto): ConversationWorkItemDto {
+    this.updates$.next(item);
+    return item;
+  }
+
+  private readParentWorkItemId(value: Prisma.JsonValue | null | undefined): string | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+    const candidate = (value as Record<string, unknown>).parentWorkItemId;
+    return typeof candidate === 'string' && candidate.trim() ? candidate.trim() : null;
+  }
+
+  private resolveHealthState(input: {
+    status: ConversationWorkStatus;
+    lastEventAt: Date | null;
+    timeoutAt: Date | null;
+    createdAt: Date;
+    waitingQuestion: string | null;
+  }): { state: ConversationWorkHealthState; summary: string | null } {
+    if (input.status === ConversationWorkStatus.timed_out) {
+      return { state: 'timed_out', summary: '这件事已经超时，我这边不会继续空等。' };
+    }
+    if (input.status === ConversationWorkStatus.waiting_input) {
+      return {
+        state: 'waiting_user',
+        summary: input.waitingQuestion?.trim() || '等你补充一下，我就继续处理。',
+      };
+    }
+    if (this.isTerminalStatus(input.status)) {
+      return { state: 'normal', summary: null };
+    }
+
+    const now = Date.now();
+    const baseline = input.lastEventAt?.getTime() ?? input.createdAt.getTime();
+    const ageMs = Math.max(0, now - baseline);
+    if (input.timeoutAt && input.timeoutAt.getTime() <= now) {
+      return { state: 'timed_out', summary: '这件事已经超过预计时限。' };
+    }
+
+    const attentionMs = input.status === ConversationWorkStatus.running
+      ? RUNNING_ATTENTION_MS
+      : ACCEPTED_ATTENTION_MS;
+    const stalledMs = input.status === ConversationWorkStatus.running
+      ? RUNNING_STALLED_MS
+      : ACCEPTED_STALLED_MS;
+
+    if (ageMs >= stalledMs) {
+      return {
+        state: 'stalled',
+        summary: input.status === ConversationWorkStatus.running
+          ? '处理卡住得有点久，我还在继续跟进。'
+          : '排队时间有点久，我还在继续推进。',
+      };
+    }
+    if (ageMs >= attentionMs) {
+      return {
+        state: 'attention',
+        summary: input.status === ConversationWorkStatus.running
+          ? '处理时间比平时久一些，我还在继续跟进。'
+          : '这件事还在排队，我会继续盯着。',
+      };
+    }
+
+    return { state: 'normal', summary: null };
+  }
+
+  private async resolveParentWorkItemId(originMessageId?: string | null): Promise<string | null> {
+    if (!originMessageId?.trim()) {
+      return null;
+    }
+    const message = await this.prisma.message.findUnique({
+      where: { id: originMessageId.trim() },
+      select: { metadata: true },
+    });
+    if (!message?.metadata || typeof message.metadata !== 'object' || Array.isArray(message.metadata)) {
+      return null;
+    }
+    const workItemId = (message.metadata as Record<string, unknown>).workItemId;
+    return typeof workItemId === 'string' && workItemId.trim() ? workItemId.trim() : null;
   }
 }

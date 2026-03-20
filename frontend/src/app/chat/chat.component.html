@@ -197,15 +197,25 @@
               </div>
             }
             @if (shouldRenderWorkCard(m) && workItemForMessage(m); as workItem) {
-              <div class="work-card">
+              <div class="work-card" [ngClass]="workCardClasses(workItem)">
                 <div class="work-card__header">
                   <div class="work-card__title">{{ workItem.title || workItem.userFacingGoal }}</div>
-                  <app-badge [tone]="workStatusTone(workItem.status)" appearance="outline" size="sm">
-                    {{ workStatusLabel(workItem.status) }}
-                  </app-badge>
+                  <div class="work-card__badges">
+                    <app-badge [tone]="workStatusTone(workItem.status)" appearance="outline" size="sm">
+                      {{ workStatusLabel(workItem.status) }}
+                    </app-badge>
+                    @if (workHealthLabel(workItem); as healthLabel) {
+                      <app-badge [tone]="workHealthTone(workItem.healthState)" appearance="outline" size="sm">
+                        {{ healthLabel }}
+                      </app-badge>
+                    }
+                  </div>
                 </div>
                 @if (workItem.latestSummary) {
                   <div class="work-card__summary">{{ workItem.latestSummary }}</div>
+                }
+                @if (workItem.healthSummary && workItem.healthSummary !== workItem.waitingQuestion && workItem.healthSummary !== workItem.blockReason) {
+                  <div class="work-card__health">{{ workItem.healthSummary }}</div>
                 }
                 @if (workItem.blockReason || workItem.waitingQuestion || workCardMeta(workItem); as metaLine) {
                   <div class="work-card__meta">

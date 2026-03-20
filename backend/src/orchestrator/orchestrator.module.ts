@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConversationModule } from '../assistant/conversation/conversation.module';
 import { IntentModule } from '../assistant/intent/intent.module';
 import { DevAgentModule } from '../dev-agent/dev-agent.module';
+import { ConversationWorkModule } from '../conversation-work/conversation-work.module';
 import { LlmModule } from '../infra/llm/llm.module';
 import { DispatcherService } from './dispatcher.service';
 import { ConversationLockService } from './conversation-lock.service';
@@ -11,7 +12,7 @@ import { MessageRouterService } from '../gateway/message-router.service';
 import { AGENT_TOKEN } from './agent.interface';
 
 @Module({
-  imports: [ConversationModule, IntentModule, DevAgentModule, LlmModule],
+  imports: [ConversationModule, IntentModule, DevAgentModule, ConversationWorkModule, LlmModule],
   providers: [
     ConversationLockService,
     AssistantAgentAdapter,

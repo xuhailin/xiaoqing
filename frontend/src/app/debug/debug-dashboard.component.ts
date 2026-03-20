@@ -223,7 +223,7 @@ interface PendingEvolution {
     }
 
     .stat-card.warn .stat-value {
-      color: #e67e22;
+      color: var(--color-warning);
     }
 
     .stat-value {
@@ -389,7 +389,7 @@ interface PendingEvolution {
 
     .scenario-warning {
       margin-top: 4px;
-      color: #b45a00;
+      color: var(--debug-warning-text);
       font-size: var(--font-size-xxs);
     }
 

@@ -28,7 +28,14 @@ export type ConversationWorkEventType =
   | 'receipt_projected'
   | 'result_projected';
 
-export type ConversationWorkProjectionType = 'receipt' | 'result';
+export type ConversationWorkProjectionType = 'receipt' | 'result' | 'followup';
+
+export type ConversationWorkHealthState =
+  | 'normal'
+  | 'attention'
+  | 'stalled'
+  | 'waiting_user'
+  | 'timed_out';
 
 export interface ConversationWorkItemDto {
   id: string;
@@ -51,6 +58,11 @@ export interface ConversationWorkItemDto {
   startedAt: Date | null;
   finishedAt: Date | null;
   lastEventAt: Date | null;
+  parentWorkItemId: string | null;
+  childCount: number;
+  activeChildCount: number;
+  healthState: ConversationWorkHealthState;
+  healthSummary: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { MessageRouterService } from '../gateway/message-router.service';
 import { PrismaService } from '../infra/prisma.service';
 import { ConversationLockService } from './conversation-lock.service';
+import { ConversationWorkService } from '../conversation-work/conversation-work.service';
 import type { IAgent, AgentRequest, AgentResult } from './agent.interface';
 import { AGENT_TOKEN } from './agent.interface';
 import {
@@ -29,6 +30,7 @@ export class DispatcherService {
     private readonly router: MessageRouterService,
     private readonly lock: ConversationLockService,
     private readonly prisma: PrismaService,
+    private readonly conversationWork: ConversationWorkService,
     @Inject(AGENT_TOKEN) agents: IAgent[],
   ) {
     // 构建 channel → agent 映射
@@ -51,8 +53,16 @@ export class DispatcherService {
     metadata?: SendMessageMetadata,
     entryAgentId?: EntryAgentId,
   ): Promise<AgentResult> {
-    // 1. 路由
-    const decision = await this.router.route(content, mode);
+    const resumeTarget = await this.conversationWork.findLatestWaitingInputByConversation(conversationId);
+    const shouldResumeDevWork = !mode
+      && resumeTarget?.executorType === 'dev_run';
+    const decision = shouldResumeDevWork
+      ? {
+        channel: 'dev' as const,
+        content,
+        reason: `resume waiting work item ${resumeTarget.id}`,
+      }
+      : await this.router.route(content, mode);
     this.logger.log(
       `Dispatch: conv=${conversationId} channel=${decision.channel} reason="${decision.reason}"`,
     );
@@ -74,7 +84,12 @@ export class DispatcherService {
         content: decision.content,
         mode: decision.channel,
         entryAgentId: resolvedEntryAgentId,
-        metadata,
+        metadata: shouldResumeDevWork && resumeTarget
+          ? {
+            ...(metadata ?? {}),
+            resumeWorkItemId: resumeTarget.id,
+          }
+          : metadata,
       };
       return await agent.handle(req);
     } finally {

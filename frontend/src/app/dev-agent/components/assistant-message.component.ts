@@ -43,18 +43,18 @@ import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
     .bubble {
       padding: var(--workbench-message-padding);
       border-radius: var(--workbench-card-radius);
-      background: linear-gradient(180deg, rgba(245, 249, 255, 0.96), rgba(255, 255, 255, 0.92));
-      border: 1px solid rgba(116, 130, 151, 0.14);
+      background: var(--dev-agent-assistant-bg);
+      border: 1px solid var(--dev-agent-assistant-border);
       color: var(--color-text);
       font-size: var(--font-size-sm);
       line-height: 1.62;
       white-space: pre-wrap;
       word-break: break-word;
-      box-shadow: var(--shadow-sm);
+      box-shadow: var(--chat-bubble-shadow);
     }
 
     .bubble.progress {
-      background: linear-gradient(180deg, rgba(240, 246, 255, 0.98), rgba(248, 251, 255, 0.94));
+      background: var(--dev-agent-assistant-progress-bg);
     }
   `],
 })

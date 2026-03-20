@@ -3,10 +3,9 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import {
   ConversationService,
-  AgentDelegation,
-  AgentDelegationEvent,
   AgentDelegationStatus,
   ConversationWorkItem,
+  ConversationWorkHealthState,
   ConversationWorkStatus,
   Message,
   MessageKind,
@@ -82,6 +81,7 @@ export class ChatComponent implements OnInit, OnDestroy {
   private router = inject(Router);
   private document = inject(DOCUMENT);
   private routeSub?: Subscription;
+  private workItemStreamSub?: Subscription;
   private pollHandle: number | null = null;
   private noticeTimer: number | null = null;
 
@@ -94,9 +94,7 @@ export class ChatComponent implements OnInit, OnDestroy {
   loading = signal(false);
   error = signal<string | null>(null);
   activityNotice = signal<ActivityNotice | null>(null);
-  delegations = signal<AgentDelegation[]>([]);
   workItems = signal<ConversationWorkItem[]>([]);
-  expandedDelegationId = signal<string | null>(null);
 
   injectedMemories = signal<Array<{ id: string; type: string; content: string }>>([]);
   worldState = signal<WorldState | null>(null);
@@ -138,6 +136,7 @@ export class ChatComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.routeSub?.unsubscribe();
+    this.stopWorkItemStream();
     this.stopConversationPolling();
     this.clearActivityNoticeTimer();
   }
@@ -159,6 +158,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.error.set(null);
     this.messages.set([]);
     this.conversationId.set(id);
+    this.stopWorkItemStream();
     this.stopConversationPolling();
     // 切换对话时重置所有通知/状态
     this.evolveResult.set(null);
@@ -167,13 +167,11 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.worldState.set(null);
     this.sessionReflection.set(null);
     this.activityNotice.set(null);
-    this.delegations.set([]);
     this.workItems.set([]);
-    this.expandedDelegationId.set(null);
     this.resetMessageDebugState();
     await this.loadMessages(id, { forceScroll: true });
-    await this.loadDelegations(id);
     await this.loadWorkItems(id);
+    this.startWorkItemStream(id);
     await this.fetchWorldState(id);
     await this.fetchSessionReflection(id);
     this.startConversationPolling(id);
@@ -182,17 +180,16 @@ export class ChatComponent implements OnInit, OnDestroy {
 
   private async loadCurrent() {
     this.error.set(null);
-    this.delegations.set([]);
+    this.stopWorkItemStream();
     this.workItems.set([]);
-    this.expandedDelegationId.set(null);
     this.resetMessageDebugState();
     try {
       const res = await this.conversation.getOrCreateCurrent().toPromise();
       if (res?.id) {
         this.conversationId.set(res.id);
         await this.loadMessages(res.id, { forceScroll: true });
-        await this.loadDelegations(res.id);
         await this.loadWorkItems(res.id);
+        this.startWorkItemStream(res.id);
         await this.fetchWorldState(res.id);
         await this.fetchSessionReflection(res.id);
         this.startConversationPolling(res.id);
@@ -237,15 +234,6 @@ export class ChatComponent implements OnInit, OnDestroy {
     }
   }
 
-  private async loadDelegations(cid: string) {
-    try {
-      const list = await this.conversation.getDelegations(cid).toPromise();
-      this.delegations.set(list ?? []);
-    } catch {
-      this.delegations.set([]);
-    }
-  }
-
   private async loadWorkItems(cid: string) {
     try {
       const list = await this.conversation.getWorkItems(cid).toPromise();
@@ -278,7 +266,7 @@ export class ChatComponent implements OnInit, OnDestroy {
       const res = await this.conversation.sendMessage(cid, text).toPromise();
       if (res) {
         this.applyMessageSnapshot(
-          [...this.messages(), res.userMessage, res.assistantMessage],
+          [...this.messages(), res.userMessage, res.assistantMessage, ...(res.extraMessages ?? [])],
           { forceScroll: true },
         );
         this.inputText.set('');
@@ -298,10 +286,10 @@ export class ChatComponent implements OnInit, OnDestroy {
         this.activeDebugMessageId.set(null);
         this.copyDebugFeedback.set(null);
         if (res.workItems?.length) {
-          this.workItems.set(res.workItems);
+          for (const item of res.workItems) {
+            this.upsertWorkItem(item);
+          }
         }
-        await this.loadDelegations(cid);
-        await this.loadWorkItems(cid);
         await this.fetchWorldState(cid);
         await this.fetchSessionReflection(cid);
         this.checkPendingEvolution();
@@ -529,7 +517,8 @@ export class ChatComponent implements OnInit, OnDestroy {
   }
 
   shouldRenderWorkCard(message: Message): boolean {
-    return message.role === 'assistant' && message.metadata?.workProjection === 'receipt';
+    return message.role === 'assistant'
+      && (message.metadata?.workProjection === 'receipt' || message.metadata?.workProjection === 'followup');
   }
 
   workStatusTone(status: ConversationWorkStatus): 'neutral' | 'info' | 'success' | 'warning' | 'danger' {
@@ -553,16 +542,45 @@ export class ChatComponent implements OnInit, OnDestroy {
     return status;
   }
 
+  workHealthTone(state: ConversationWorkHealthState): 'neutral' | 'info' | 'warning' | 'danger' {
+    if (state === 'timed_out' || state === 'stalled') return 'danger';
+    if (state === 'attention' || state === 'waiting_user') return 'warning';
+    return 'neutral';
+  }
+
+  workHealthLabel(item: ConversationWorkItem): string | null {
+    if (item.healthState === 'waiting_user') return '等你回复';
+    if (item.healthState === 'attention') return '持续跟进中';
+    if (item.healthState === 'stalled') return '暂时卡住';
+    if (item.healthState === 'timed_out') return '已超时';
+    return null;
+  }
+
   workCardMeta(item: ConversationWorkItem): string | null {
     const executorLabel = item.executorType === 'agent_delegation'
       ? '协作任务'
       : item.executorType === 'dev_run'
         ? '开发任务'
         : null;
+    const hierarchyLabel = item.childCount > 0
+      ? `含 ${item.childCount} 个子任务${item.activeChildCount > 0 ? `，进行中 ${item.activeChildCount}` : ''}`
+      : item.parentWorkItemId
+        ? '子任务'
+        : null;
     const timeLabel = this.formatDateTime(item.updatedAt)
       || this.formatDateTime(item.startedAt)
       || this.formatDateTime(item.createdAt);
-    return [executorLabel, timeLabel].filter(Boolean).join(' · ') || null;
+    return [executorLabel, hierarchyLabel, timeLabel].filter(Boolean).join(' · ') || null;
+  }
+
+  workCardClasses(item: ConversationWorkItem): Record<string, boolean> {
+    return {
+      'work-card--attention': item.healthState === 'attention',
+      'work-card--stalled': item.healthState === 'stalled',
+      'work-card--waiting': item.healthState === 'waiting_user',
+      'work-card--timed-out': item.healthState === 'timed_out',
+      'work-card--child': !!item.parentWorkItemId,
+    };
   }
 
   messageMetaLine(message: Message): string | null {
@@ -684,27 +702,6 @@ export class ChatComponent implements OnInit, OnDestroy {
     }
   }
 
-  toggleDelegationDetail(delegationId: string) {
-    this.expandedDelegationId.update((current) => current === delegationId ? null : delegationId);
-  }
-
-  delegationTitle(item: AgentDelegation): string {
-    if (item.title?.trim()) return item.title.trim();
-    if (item.summary?.trim()) return item.summary.trim();
-    if (item.payloadJson.userFacingSummary?.trim()) {
-      return item.payloadJson.userFacingSummary.trim();
-    }
-    return this.delegationKindLabel(item.kind);
-  }
-
-  delegationStatusTone(status: AgentDelegationStatus): 'neutral' | 'info' | 'success' | 'warning' | 'danger' {
-    if (status === 'completed') return 'success';
-    if (status === 'failed' || status === 'cancelled') return 'danger';
-    if (status === 'running') return 'info';
-    if (status === 'acknowledged') return 'warning';
-    return 'neutral';
-  }
-
   delegationStatusLabel(status?: AgentDelegationStatus | null): string | null {
     if (!status) return null;
     if (status === 'queued') return '排队中';
@@ -714,53 +711,6 @@ export class ChatComponent implements OnInit, OnDestroy {
     if (status === 'failed') return '失败';
     if (status === 'cancelled') return '已取消';
     return status;
-  }
-
-  delegationKindLabel(kind: AgentDelegation['kind']): string {
-    if (kind === 'memory_proposal') return '记忆提议';
-    if (kind === 'capability_fallback') return '能力回退';
-    return '协作委托';
-  }
-
-  delegationLatestEvent(item: AgentDelegation): AgentDelegationEvent | null {
-    return item.events.length ? item.events[item.events.length - 1] : null;
-  }
-
-  delegationLatestEventLine(item: AgentDelegation): string | null {
-    const event = this.delegationLatestEvent(item);
-    if (!event) return null;
-    const pieces = [
-      this.agentLabel(event.actorAgentId),
-      this.delegationEventLabel(event.eventType),
-      event.message?.trim() || null,
-    ].filter(Boolean);
-    return pieces.join(' · ') || null;
-  }
-
-  delegationEventLabel(eventType: AgentDelegationEvent['eventType']): string {
-    if (eventType === 'created') return '已创建';
-    if (eventType === 'acknowledged') return '已接收';
-    if (eventType === 'started') return '开始执行';
-    if (eventType === 'progress') return '执行中';
-    if (eventType === 'completed') return '执行完成';
-    if (eventType === 'failed') return '执行失败';
-    if (eventType === 'cancelled') return '已取消';
-    if (eventType === 'receipt_projected') return '已生成回执';
-    if (eventType === 'result_projected') return '已回投结果';
-    return eventType;
-  }
-
-  delegationFlowLine(item: AgentDelegation): string {
-    const flow = this.agentFlowLabel(item.requesterAgentId, item.executorAgentId);
-    const time = this.formatDelegationTime(item);
-    return [flow, time].filter(Boolean).join(' · ');
-  }
-
-  formatDelegationTime(item: AgentDelegation): string | null {
-    return this.formatDateTime(item.finishedAt)
-      || this.formatDateTime(item.startedAt)
-      || this.formatDateTime(item.ackedAt)
-      || this.formatDateTime(item.createdAt);
   }
 
   agentLabel(agentId?: string | null): string | null {
@@ -838,10 +788,50 @@ export class ChatComponent implements OnInit, OnDestroy {
         return;
       }
       void this.loadMessages(conversationId, { announceSpecial: true });
-      void this.loadDelegations(conversationId);
-      void this.loadWorkItems(conversationId);
+      if (!this.workItemStreamSub) {
+        void this.loadWorkItems(conversationId);
+        this.startWorkItemStream(conversationId);
+      }
       void this.fetchSessionReflection(conversationId);
     }, 5000);
+  }
+
+  private startWorkItemStream(conversationId: string) {
+    this.stopWorkItemStream();
+    this.workItemStreamSub = this.conversation.streamWorkItems(conversationId).subscribe({
+      next: (item) => {
+        const previous = this.workItems().find((entry) => entry.id === item.id) ?? null;
+        this.upsertWorkItem(item);
+        const statusChanged = previous?.status !== item.status;
+        const messageLinkedChanged = previous?.resultMessageId !== item.resultMessageId
+          || previous?.waitingQuestion !== item.waitingQuestion;
+        if (statusChanged || messageLinkedChanged) {
+          void this.loadMessages(conversationId, { announceSpecial: true });
+        }
+      },
+      error: () => {
+        this.workItemStreamSub = undefined;
+        void this.loadWorkItems(conversationId);
+      },
+    });
+  }
+
+  private stopWorkItemStream() {
+    this.workItemStreamSub?.unsubscribe();
+    this.workItemStreamSub = undefined;
+  }
+
+  private upsertWorkItem(item: ConversationWorkItem) {
+    this.workItems.update((current) => {
+      const next = [...current];
+      const index = next.findIndex((entry) => entry.id === item.id);
+      if (index >= 0) {
+        next[index] = item;
+      } else {
+        next.unshift(item);
+      }
+      return next;
+    });
   }
 
   private stopConversationPolling() {
