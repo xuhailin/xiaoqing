@@ -10,3 +10,6 @@ qa/reports/history/*
 ### Backend session / local state (e.g. checkin)
 backend/.sessions/checkin.json
 
+### Logs
+**/*.log
+
