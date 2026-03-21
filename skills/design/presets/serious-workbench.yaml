@@ -1,0 +1,34 @@
+version: 1
+id: serious-workbench
+summary: 面向任务与操作的工作台风格。强调秩序、边界和高信息密度。
+
+applies_to:
+  - workbench
+  - dev-agent
+  - config
+  - data-heavy tools
+
+theme_relation:
+  light: 边框和层级更清晰，背景氛围弱于 warm-tech
+  dark: 优先通过边界和对比建立层级，不依赖发光效果
+
+rule_offsets:
+  card_usage:
+    direction: 允许一级 panel 承载功能区，但列表项和子模块仍需克制
+    hard_limit: 禁止每个工具块都单独造 hero 卡片
+  gradients:
+    direction: 背景和 header 可弱用，主功能面板默认不用强渐变
+    hard_limit: 强调渐变只给主 CTA 或摘要结果
+  header_hierarchy:
+    direction: header 比 chat 更强，但仍弱于主操作区域
+  density:
+    direction: 默认 compact；筛选区、状态区、表单区要统一高度与节奏
+
+do:
+  - 优先保证扫读效率和结构一致
+  - 让工具、结果、状态区主次清楚
+
+do_not:
+  - 不做娱乐化氛围
+  - 不用大阴影制造“高级感”
+  - 不引入多套 panel 语言

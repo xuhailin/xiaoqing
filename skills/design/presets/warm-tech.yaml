@@ -1,0 +1,33 @@
+version: 1
+id: warm-tech
+summary: 小晴主风格。带一点温度感的科技工作台，用于聊天及助手核心入口。
+
+applies_to:
+  - chat
+  - home
+  - assistant-first pages
+
+theme_relation:
+  light: 作为默认表现，允许轻暖环境渐变与柔和高光
+  dark: 保持克制，只保留低饱和蓝紫冷光，不做霓虹化
+
+rule_offsets:
+  card_usage:
+    direction: 更少外层卡片，更强调消息流与少量高价值信息块
+    hard_limit: 同屏最多一个强调型摘要卡
+  gradients:
+    direction: 允许 shell 背景和 summary 块使用一次柔和渐变
+    hard_limit: 不给 message、list item、composer 主体上渐变
+  header_hierarchy:
+    direction: header 可以更亲和，但必须比消息流更轻
+  density:
+    direction: 维持 balanced，避免因为“空气感”拉大留白
+
+do:
+  - 让页面看起来温和、轻盈、可信
+  - 让强调块服务于陪伴感和状态感知
+
+do_not:
+  - 不把聊天区做成工作台大面板
+  - 不为了温暖感增加多层粉紫渐变
+  - 不把按钮、badge、输入框都做成发光体

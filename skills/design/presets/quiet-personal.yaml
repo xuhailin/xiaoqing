@@ -1,0 +1,34 @@
+version: 1
+id: quiet-personal
+summary: 安静的个人内容风格。服务记忆、关系、长期内容与阅读型页面。
+
+applies_to:
+  - memory
+  - relation
+  - persona
+  - content-first pages
+
+theme_relation:
+  light: 允许轻柔暖感，但正文容器保持朴素
+  dark: 保持低噪音和高可读性，减少发光与彩色点缀
+
+rule_offsets:
+  card_usage:
+    direction: 允许安静卡片承接列表与详情，但优先 section 分组而非碎片卡片
+    hard_limit: 长内容页面不要被切成满屏小卡片
+  gradients:
+    direction: 仅保留页面背景级极弱渐变
+    hard_limit: 详情正文与长文本区域禁止使用渐变底
+  header_hierarchy:
+    direction: header 退后，正文内容成为真正重心
+  density:
+    direction: balanced 到 relaxed；增加阅读留白，但不松散
+
+do:
+  - 优先可读性、内容节奏、关系感
+  - 减少控件对正文的打扰
+
+do_not:
+  - 不做“笔记产品风”的大量圆角卡片
+  - 不把内容页做成控制台
+  - 不用大面积暖色装饰替代信息层级
