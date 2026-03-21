@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
 import { AppPanelComponent } from '../shared/ui/app-panel.component';
+import { AppSectionHeaderComponent } from '../shared/ui/app-section-header.component';
 import { AppStateComponent } from '../shared/ui/app-state.component';
 import { PlanApiService, type CreatePlanRequest, type PlanRecord } from '../core/services/plan.service';
 
@@ -15,13 +16,14 @@ import { PlanApiService, type CreatePlanRequest, type PlanRecord } from '../core
     AppBadgeComponent,
     AppButtonComponent,
     AppPanelComponent,
+    AppSectionHeaderComponent,
     AppStateComponent,
   ],
   template: `
     <div class="workspace-page">
       <div class="workspace-grid">
         <app-panel variant="workbench" class="workspace-card">
-          <div class="card-header">新提醒</div>
+          <app-section-header class="workspace-section-header" title="新提醒" />
           <label class="field">
             <span>提醒内容</span>
             <input class="ui-input" [ngModel]="title()" (ngModelChange)="title.set($event)" placeholder="例如：晚上六点吃饭" />
@@ -70,10 +72,9 @@ import { PlanApiService, type CreatePlanRequest, type PlanRecord } from '../core
         </app-panel>
 
         <app-panel variant="workbench" class="workspace-card">
-          <div class="card-header">
-            <span>提醒列表</span>
-            <app-badge tone="info">{{ reminders().length }}</app-badge>
-          </div>
+          <app-section-header class="workspace-section-header" title="提醒列表">
+            <app-badge actions tone="info">{{ reminders().length }}</app-badge>
+          </app-section-header>
 
           @if (loading()) {
             <app-state [compact]="true" kind="loading" title="提醒加载中..." />
@@ -132,19 +133,13 @@ import { PlanApiService, type CreatePlanRequest, type PlanRecord } from '../core
     }
 
     .workspace-card {
-      gap: var(--space-3);
+      gap: var(--space-4);
       min-height: 0;
     }
 
-    .card-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-3);
-      font-size: var(--font-size-sm);
-      font-weight: var(--font-weight-semibold);
-      line-height: var(--line-height-tight);
-      color: var(--color-text);
+    .workspace-section-header {
+      padding-bottom: var(--space-2);
+      border-bottom: 1px solid var(--color-border-light);
     }
 
     .field {

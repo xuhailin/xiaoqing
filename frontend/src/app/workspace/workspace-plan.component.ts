@@ -6,6 +6,7 @@ import { SystemOverviewService } from '../core/services/system-overview.service'
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
 import { AppPanelComponent } from '../shared/ui/app-panel.component';
+import { AppSectionHeaderComponent } from '../shared/ui/app-section-header.component';
 import { AppStateComponent } from '../shared/ui/app-state.component';
 
 type PlanFormDispatchType = 'notify' | 'action' | 'noop';
@@ -19,13 +20,14 @@ type DispatchFilter = 'all' | PlanDispatchType;
     AppBadgeComponent,
     AppButtonComponent,
     AppPanelComponent,
+    AppSectionHeaderComponent,
     AppStateComponent,
   ],
   template: `
     <div class="workspace-page">
       <div class="workspace-grid">
         <app-panel variant="workbench" class="workspace-card">
-          <div class="card-header">新计划</div>
+          <app-section-header class="workspace-section-header" title="新计划" />
 
           <label class="field">
             <span>标题</span>
@@ -134,9 +136,8 @@ type DispatchFilter = 'all' | PlanDispatchType;
 
         <div class="workspace-stack">
           <app-panel variant="workbench" class="workspace-card">
-            <div class="card-header">
-              <span>计划列表</span>
-              <div class="card-toolbar">
+            <app-section-header class="workspace-section-header" title="计划列表">
+              <div actions class="card-toolbar">
                 <select class="ui-select ui-select--compact" [ngModel]="dispatchFilter()" (ngModelChange)="setDispatchFilter($event)">
                   <option value="all">全部</option>
                   <option value="notify">notify</option>
@@ -146,7 +147,7 @@ type DispatchFilter = 'all' | PlanDispatchType;
                 </select>
                 <app-badge tone="info">{{ visiblePlans().length }}</app-badge>
               </div>
-            </div>
+            </app-section-header>
 
             @if (loading()) {
               <app-state [compact]="true" kind="loading" title="计划加载中..." />
@@ -190,7 +191,7 @@ type DispatchFilter = 'all' | PlanDispatchType;
           </app-panel>
 
           <app-panel variant="workbench" class="workspace-card">
-            <div class="card-header">最近触发记录</div>
+            <app-section-header class="workspace-section-header" title="最近触发记录" />
             @if (selectedPlan(); as plan) {
               <div class="occurrence-header">
                 <div>
@@ -268,11 +269,10 @@ type DispatchFilter = 'all' | PlanDispatchType;
     }
 
     .workspace-card {
-      gap: var(--space-3);
+      gap: var(--space-4);
       min-height: 0;
     }
 
-    .card-header,
     .card-toolbar,
     .occurrence-row {
       display: flex;
@@ -281,11 +281,9 @@ type DispatchFilter = 'all' | PlanDispatchType;
       gap: var(--space-3);
     }
 
-    .card-header {
-      font-size: var(--font-size-sm);
-      font-weight: var(--font-weight-semibold);
-      line-height: var(--line-height-tight);
-      color: var(--color-text);
+    .workspace-section-header {
+      padding-bottom: var(--space-2);
+      border-bottom: 1px solid var(--color-border-light);
     }
 
     .field,
@@ -334,7 +332,8 @@ type DispatchFilter = 'all' | PlanDispatchType;
     }
 
     .item-card.is-active {
-      border-color: var(--color-primary);
+      border-color: var(--color-surface-highlight-border);
+      background: var(--color-surface-highlight);
       box-shadow: var(--color-surface-highlight-shadow);
     }
 
@@ -378,7 +377,7 @@ type DispatchFilter = 'all' | PlanDispatchType;
       border-radius: var(--radius-md);
       background: var(--color-surface-muted);
       color: var(--color-text-secondary);
-      font-size: 11px;
+      font-size: var(--font-size-xxs);
       line-height: 1.5;
       overflow: auto;
       white-space: pre-wrap;
@@ -403,7 +402,6 @@ type DispatchFilter = 'all' | PlanDispatchType;
       }
 
       .field-row,
-      .card-header,
       .card-toolbar,
       .occurrence-row {
         align-items: stretch;

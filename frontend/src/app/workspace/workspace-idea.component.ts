@@ -6,6 +6,7 @@ import { IdeaApiService, type IdeaRecord } from '../core/services/idea.service';
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
 import { AppPanelComponent } from '../shared/ui/app-panel.component';
+import { AppSectionHeaderComponent } from '../shared/ui/app-section-header.component';
 import { AppStateComponent } from '../shared/ui/app-state.component';
 import { WorkspaceArrivalNoticeComponent } from '../shared/ui/workspace-arrival-notice.component';
 import {
@@ -22,6 +23,7 @@ import { ideaStatusLabel, ideaStatusTone, todoStatusLabel, todoStatusTone } from
     AppBadgeComponent,
     AppButtonComponent,
     AppPanelComponent,
+    AppSectionHeaderComponent,
     AppStateComponent,
     WorkspaceArrivalNoticeComponent,
     WorkspaceRelationSummaryComponent,
@@ -31,7 +33,7 @@ import { ideaStatusLabel, ideaStatusTone, todoStatusLabel, todoStatusTone } from
       <app-workspace-arrival-notice [text]="arrivalNotice()" />
       <div class="workspace-grid">
         <app-panel variant="workbench" class="workspace-card">
-          <div class="card-header">记录想法</div>
+          <app-section-header class="workspace-section-header" title="记录想法" />
 
           <label class="field">
             <span>标题</span>
@@ -54,10 +56,9 @@ import { ideaStatusLabel, ideaStatusTone, todoStatusLabel, todoStatusTone } from
         </app-panel>
 
         <app-panel variant="workbench" class="workspace-card">
-          <div class="card-header">
-            <span>想法列表</span>
-            <app-badge tone="info">{{ visibleIdeas().length }}</app-badge>
-          </div>
+          <app-section-header class="workspace-section-header" title="想法列表">
+            <app-badge actions tone="info">{{ visibleIdeas().length }}</app-badge>
+          </app-section-header>
 
           <div class="filter-row">
             <select class="ui-select ui-select--compact" [ngModel]="statusFilter()" (ngModelChange)="setStatusFilter($event)">
@@ -128,18 +129,13 @@ import { ideaStatusLabel, ideaStatusTone, todoStatusLabel, todoStatusTone } from
     }
 
     .workspace-card {
-      gap: var(--space-3);
+      gap: var(--space-4);
       min-height: 0;
     }
 
-    .card-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-3);
-      font-size: var(--font-size-sm);
-      font-weight: var(--font-weight-semibold);
-      color: var(--color-text);
+    .workspace-section-header {
+      padding-bottom: var(--space-2);
+      border-bottom: 1px solid var(--color-border-light);
     }
 
     .field {
@@ -179,15 +175,9 @@ import { ideaStatusLabel, ideaStatusTone, todoStatusLabel, todoStatusTone } from
     }
 
     .item-card.is-active {
-      border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
-      background: color-mix(in srgb, var(--color-surface-highlight) 65%, transparent);
-      box-shadow: 0 12px 24px rgba(79, 109, 245, 0.08);
-    }
-
-    @media (prefers-reduced-motion: no-preference) {
-      .item-card.is-active {
-        animation: workbenchArrivalPulse 700ms ease-out;
-      }
+      border-color: var(--color-surface-highlight-border);
+      background: var(--color-surface-highlight);
+      box-shadow: var(--color-surface-highlight-shadow);
     }
 
     .item-title {
@@ -228,17 +218,6 @@ import { ideaStatusLabel, ideaStatusTone, todoStatusLabel, todoStatusTone } from
       }
     }
 
-    @keyframes workbenchArrivalPulse {
-      0% {
-        box-shadow: 0 0 0 rgba(79, 109, 245, 0);
-      }
-      35% {
-        box-shadow: 0 0 0 6px rgba(79, 109, 245, 0.12);
-      }
-      100% {
-        box-shadow: 0 12px 24px rgba(79, 109, 245, 0.08);
-      }
-    }
   `],
 })
 export class WorkspaceIdeaComponent implements OnInit, OnDestroy {

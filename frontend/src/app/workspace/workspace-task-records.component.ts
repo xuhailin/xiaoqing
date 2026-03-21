@@ -7,6 +7,7 @@ import { TodoApiService } from '../core/services/todo.service';
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
 import { AppPanelComponent } from '../shared/ui/app-panel.component';
+import { AppSectionHeaderComponent } from '../shared/ui/app-section-header.component';
 import { AppStateComponent } from '../shared/ui/app-state.component';
 import { WorkspaceArrivalNoticeComponent } from '../shared/ui/workspace-arrival-notice.component';
 import {
@@ -23,6 +24,7 @@ import { executionStatusLabel, executionStatusTone } from '../shared/workbench-s
     AppBadgeComponent,
     AppButtonComponent,
     AppPanelComponent,
+    AppSectionHeaderComponent,
     AppStateComponent,
     WorkspaceArrivalNoticeComponent,
     WorkspaceRelationSummaryComponent,
@@ -31,7 +33,7 @@ import { executionStatusLabel, executionStatusTone } from '../shared/workbench-s
     <div class="workspace-page">
       <app-workspace-arrival-notice [text]="arrivalNotice()" />
       <app-panel variant="workbench" class="workspace-card workspace-card--filters">
-        <div class="card-header">筛选条件</div>
+        <app-section-header class="workspace-section-header" title="筛选条件" />
 
         <div class="filter-grid">
           <label class="field">
@@ -77,10 +79,9 @@ import { executionStatusLabel, executionStatusTone } from '../shared/workbench-s
       </app-panel>
 
       <app-panel variant="workbench" class="workspace-card workspace-card--list">
-        <div class="card-header">
-          <span>执行记录</span>
-          <app-badge tone="info">{{ visibleRecords().length }}</app-badge>
-        </div>
+        <app-section-header class="workspace-section-header" title="执行记录">
+          <app-badge actions tone="info">{{ visibleRecords().length }}</app-badge>
+        </app-section-header>
 
         @if (focusedPlanSummary(); as summary) {
           <div class="focus-card">
@@ -176,7 +177,7 @@ import { executionStatusLabel, executionStatusTone } from '../shared/workbench-s
     }
 
     .workspace-card {
-      gap: var(--space-3);
+      gap: var(--space-4);
       min-height: 0;
     }
 
@@ -191,9 +192,7 @@ import { executionStatusLabel, executionStatusTone } from '../shared/workbench-s
       padding: var(--workbench-card-padding);
       border: 1px solid var(--color-surface-highlight-border);
       border-radius: var(--workbench-card-radius);
-      background:
-        linear-gradient(180deg, rgba(79, 109, 245, 0.04), rgba(79, 109, 245, 0.015)),
-        var(--workbench-surface-gradient-soft);
+      background: var(--color-surface-highlight);
       box-shadow: var(--color-surface-highlight-shadow);
     }
 
@@ -207,7 +206,7 @@ import { executionStatusLabel, executionStatusTone } from '../shared/workbench-s
     }
 
     .focus-card__eyebrow {
-      font-size: 11px;
+      font-size: var(--font-size-xxs);
       font-weight: var(--font-weight-semibold);
       letter-spacing: 0.04em;
       text-transform: uppercase;
@@ -227,14 +226,9 @@ import { executionStatusLabel, executionStatusTone } from '../shared/workbench-s
       color: var(--color-text-secondary);
     }
 
-    .card-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-3);
-      font-size: var(--font-size-sm);
-      font-weight: var(--font-weight-semibold);
-      color: var(--color-text);
+    .workspace-section-header {
+      padding-bottom: var(--space-2);
+      border-bottom: 1px solid var(--color-border-light);
     }
 
     .filter-grid {
@@ -276,15 +270,9 @@ import { executionStatusLabel, executionStatusTone } from '../shared/workbench-s
     }
 
     .record-card--highlight {
-      border-color: color-mix(in srgb, var(--color-primary) 50%, var(--color-border));
-      box-shadow: 0 12px 24px rgba(79, 109, 245, 0.08);
-      background: color-mix(in srgb, var(--color-surface-highlight) 72%, transparent);
-    }
-
-    @media (prefers-reduced-motion: no-preference) {
-      .record-card--highlight {
-        animation: workbenchArrivalPulse 700ms ease-out;
-      }
+      border-color: var(--color-surface-highlight-border);
+      box-shadow: var(--color-surface-highlight-shadow);
+      background: var(--color-surface-highlight);
     }
 
     .record-title {
@@ -328,7 +316,7 @@ import { executionStatusLabel, executionStatusTone } from '../shared/workbench-s
       border-radius: var(--radius-md);
       background: var(--color-surface-muted);
       color: var(--color-text-secondary);
-      font-size: 11px;
+      font-size: var(--font-size-xxs);
       line-height: 1.5;
       overflow: auto;
       white-space: pre-wrap;
@@ -342,18 +330,6 @@ import { executionStatusLabel, executionStatusTone } from '../shared/workbench-s
 
       .filter-grid {
         grid-template-columns: 1fr;
-      }
-    }
-
-    @keyframes workbenchArrivalPulse {
-      0% {
-        box-shadow: 0 0 0 rgba(79, 109, 245, 0);
-      }
-      35% {
-        box-shadow: 0 0 0 6px rgba(79, 109, 245, 0.12);
-      }
-      100% {
-        box-shadow: 0 12px 24px rgba(79, 109, 245, 0.08);
       }
     }
   `],

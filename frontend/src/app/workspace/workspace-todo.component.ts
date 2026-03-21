@@ -7,6 +7,7 @@ import { TodoApiService, type TodoRecord, type TodoStatus } from '../core/servic
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
 import { AppPanelComponent } from '../shared/ui/app-panel.component';
+import { AppSectionHeaderComponent } from '../shared/ui/app-section-header.component';
 import { AppStateComponent } from '../shared/ui/app-state.component';
 import { WorkspaceArrivalNoticeComponent } from '../shared/ui/workspace-arrival-notice.component';
 import {
@@ -23,6 +24,7 @@ import { executionStatusLabel, executionStatusTone, ideaStatusLabel, ideaStatusT
     AppBadgeComponent,
     AppButtonComponent,
     AppPanelComponent,
+    AppSectionHeaderComponent,
     AppStateComponent,
     WorkspaceArrivalNoticeComponent,
     WorkspaceRelationSummaryComponent,
@@ -32,7 +34,7 @@ import { executionStatusLabel, executionStatusTone, ideaStatusLabel, ideaStatusT
       <app-workspace-arrival-notice [text]="arrivalNotice()" />
       <div class="workspace-grid">
         <app-panel variant="workbench" class="workspace-card workspace-card--form">
-          <div class="card-header">新增待办</div>
+          <app-section-header class="workspace-section-header" title="新增待办" />
 
           <label class="field">
             <span>标题</span>
@@ -61,9 +63,8 @@ import { executionStatusLabel, executionStatusTone, ideaStatusLabel, ideaStatusT
 
         <div class="workspace-stack">
           <app-panel variant="workbench" class="workspace-card workspace-card--list">
-            <div class="card-header">
-              <span>待办列表</span>
-              <div class="card-toolbar">
+            <app-section-header class="workspace-section-header" title="待办列表">
+              <div actions class="card-toolbar">
                 <select class="ui-select ui-select--compact" [ngModel]="statusFilter()" (ngModelChange)="setStatusFilter($event)">
                   <option value="open">进行中</option>
                   <option value="blocked">待补充</option>
@@ -73,7 +74,7 @@ import { executionStatusLabel, executionStatusTone, ideaStatusLabel, ideaStatusT
                 </select>
                 <app-badge tone="info">{{ visibleTodos().length }}</app-badge>
               </div>
-            </div>
+            </app-section-header>
 
             @if (loading()) {
               <app-state [compact]="true" kind="loading" title="待办加载中..." />
@@ -123,7 +124,7 @@ import { executionStatusLabel, executionStatusTone, ideaStatusLabel, ideaStatusT
           </app-panel>
 
           <app-panel variant="workbench" class="workspace-card workspace-card--execution">
-            <div class="card-header">执行入口</div>
+            <app-section-header class="workspace-section-header" title="执行入口" />
             @if (selectedTodo(); as todo) {
               <div class="detail-block detail-block--hero">
                 <div class="detail-title">{{ todo.title || todo.description || todo.id }}</div>
@@ -250,7 +251,7 @@ import { executionStatusLabel, executionStatusTone, ideaStatusLabel, ideaStatusT
     }
 
     .workspace-card {
-      gap: var(--space-3);
+      gap: var(--space-4);
       min-height: 0;
     }
 
@@ -259,13 +260,11 @@ import { executionStatusLabel, executionStatusTone, ideaStatusLabel, ideaStatusT
       box-shadow: var(--workbench-surface-shadow);
     }
 
-    .workspace-card--execution {
-      box-shadow:
-        0 18px 34px rgba(79, 109, 245, 0.08),
-        inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    .workspace-section-header {
+      padding-bottom: var(--space-2);
+      border-bottom: 1px solid var(--color-border-light);
     }
 
-    .card-header,
     .card-toolbar,
     .form-actions,
     .item-actions,
@@ -274,15 +273,6 @@ import { executionStatusLabel, executionStatusTone, ideaStatusLabel, ideaStatusT
       align-items: center;
       gap: var(--space-3);
       flex-wrap: wrap;
-    }
-
-    .card-header {
-      justify-content: space-between;
-      font-size: var(--font-size-sm);
-      font-weight: var(--font-weight-semibold);
-      color: var(--color-text);
-      padding-bottom: var(--space-2);
-      border-bottom: 1px solid var(--color-border-light);
     }
 
     .field,
@@ -325,9 +315,9 @@ import { executionStatusLabel, executionStatusTone, ideaStatusLabel, ideaStatusT
     }
 
     .item-card.is-active {
-      border-color: color-mix(in srgb, var(--color-primary) 50%, var(--color-border));
-      box-shadow: var(--color-list-card-active-shadow);
-      background: color-mix(in srgb, var(--sidebar-card-background-active) 72%, transparent);
+      border-color: var(--color-surface-highlight-border);
+      box-shadow: var(--color-surface-highlight-shadow);
+      background: var(--color-surface-highlight);
     }
 
     .item-card::before {
@@ -379,27 +369,16 @@ import { executionStatusLabel, executionStatusTone, ideaStatusLabel, ideaStatusT
       padding: var(--workbench-card-padding);
       border: 1px solid var(--color-surface-highlight-border);
       border-radius: var(--workbench-card-radius);
-      background:
-        linear-gradient(180deg, rgba(79, 109, 245, 0.04), rgba(79, 109, 245, 0.015)),
-        var(--workbench-surface-gradient-soft);
+      background: var(--color-surface-highlight);
       box-shadow: var(--color-surface-highlight-shadow);
     }
 
     .task-card--highlight {
       border-radius: var(--workbench-card-radius);
       padding: var(--workbench-card-padding);
-      background:
-        linear-gradient(180deg, rgba(79, 109, 245, 0.045), rgba(79, 109, 245, 0.015)),
-        var(--color-surface-highlight);
+      background: var(--color-surface-highlight);
       border: 1px solid var(--color-surface-highlight-border);
       box-shadow: var(--color-surface-highlight-shadow);
-    }
-
-    @media (prefers-reduced-motion: no-preference) {
-      .item-card.is-active,
-      .task-card--highlight {
-        animation: workbenchArrivalPulse 700ms ease-out;
-      }
     }
 
     .detail-links {
@@ -425,7 +404,7 @@ import { executionStatusLabel, executionStatusTone, ideaStatusLabel, ideaStatusT
       border-radius: var(--radius-md);
       background: var(--color-surface-muted);
       color: var(--color-text-secondary);
-      font-size: 11px;
+      font-size: var(--font-size-xxs);
       line-height: 1.5;
       overflow: auto;
       white-space: pre-wrap;
@@ -468,17 +447,6 @@ import { executionStatusLabel, executionStatusTone, ideaStatusLabel, ideaStatusT
       }
     }
 
-    @keyframes workbenchArrivalPulse {
-      0% {
-        box-shadow: 0 0 0 rgba(79, 109, 245, 0);
-      }
-      35% {
-        box-shadow: 0 0 0 6px rgba(79, 109, 245, 0.12);
-      }
-      100% {
-        box-shadow: var(--color-surface-highlight-shadow);
-      }
-    }
   `],
 })
 export class WorkspaceTodoComponent implements OnInit, OnDestroy {
