@@ -13,3 +13,7 @@ backend/.sessions/checkin.json
 ### Logs
 **/*.log
 
+### Local tooling / generated artifacts
+.playwright-cli/
+/output/
+
