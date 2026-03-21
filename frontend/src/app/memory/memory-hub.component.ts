@@ -31,10 +31,30 @@ import { SystemOverviewService, type SystemOverview } from '../core/services/sys
   template: `
     <div class="memory-hub">
       @if (currentView() === 'profile') {
+        <section class="memory-profile-hero ui-workbench-surface ui-workbench-surface--soft">
+          <div class="memory-profile-hero__copy">
+            <span class="memory-profile-hero__eyebrow">Memory Profile</span>
+            <h1 class="memory-profile-hero__title">身份、偏好与长期自我</h1>
+            <p class="memory-profile-hero__description">
+              把身份锚定、默认用户偏好、Persona 与 system self 放在同一个视图里，方便按“用户是谁 / 系统如何理解自己”两条线一起维护。
+            </p>
+          </div>
+
+          <div class="memory-profile-hero__badges">
+            <app-badge tone="info" appearance="outline">Identity</app-badge>
+            <app-badge tone="warning" appearance="outline">Persona</app-badge>
+            <app-badge tone="neutral" appearance="outline">System Self</app-badge>
+          </div>
+        </section>
+
         <div class="memory-grid memory-grid--profile">
           <app-panel variant="workbench" class="memory-card">
             <div class="module-header">
-              <div class="module-title">用户画像</div>
+              <div class="module-header__copy">
+                <span class="module-eyebrow">Identity Layer</span>
+                <div class="module-title">用户画像</div>
+                <div class="module-description">身份锚定、默认偏好与用户相关长期线索。</div>
+              </div>
               <app-badge tone="info" appearance="outline">Profile</app-badge>
             </div>
             <app-identity-anchor-editor />
@@ -42,7 +62,11 @@ import { SystemOverviewService, type SystemOverview } from '../core/services/sys
 
           <app-panel variant="workbench" class="memory-card memory-card--wide">
             <div class="module-header">
-              <div class="module-title">Persona / System Self</div>
+              <div class="module-header__copy">
+                <span class="module-eyebrow">System Layer</span>
+                <div class="module-title">Persona / System Self</div>
+                <div class="module-description">系统对自身的稳定设定，以及允许进化的边界。</div>
+              </div>
               <app-badge tone="warning" appearance="outline">Memory</app-badge>
             </div>
 
@@ -137,6 +161,53 @@ import { SystemOverviewService, type SystemOverview } from '../core/services/sys
       width: min(440px, 100%);
     }
 
+    .memory-profile-hero {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-4);
+      padding: var(--workbench-panel-padding-lg);
+      border-radius: var(--workbench-panel-radius);
+    }
+
+    .memory-profile-hero__copy {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      max-width: 58rem;
+    }
+
+    .memory-profile-hero__eyebrow,
+    .module-eyebrow {
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-weight-semibold);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--color-primary);
+    }
+
+    .memory-profile-hero__title {
+      margin: 0;
+      font-size: var(--font-size-xl);
+      line-height: 1.05;
+      letter-spacing: -0.04em;
+      color: var(--color-text);
+    }
+
+    .memory-profile-hero__description,
+    .module-description {
+      font-size: var(--font-size-sm);
+      line-height: 1.7;
+      color: var(--color-text-secondary);
+    }
+
+    .memory-profile-hero__badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+      justify-content: flex-end;
+    }
+
     .memory-toolbar {
       display: flex;
       justify-content: flex-end;
@@ -167,7 +238,15 @@ import { SystemOverviewService, type SystemOverview } from '../core/services/sys
       align-items: center;
       justify-content: space-between;
       gap: var(--space-3);
-      margin-bottom: var(--space-3);
+      margin-bottom: var(--space-4);
+      padding-bottom: var(--space-3);
+      border-bottom: 1px solid var(--color-border-light);
+    }
+
+    .module-header__copy {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
     }
 
     .module-title {
@@ -220,6 +299,10 @@ import { SystemOverviewService, type SystemOverview } from '../core/services/sys
       .memory-grid,
       .persona-meta {
         grid-template-columns: 1fr;
+      }
+
+      .memory-profile-hero {
+        flex-direction: column;
       }
     }
 

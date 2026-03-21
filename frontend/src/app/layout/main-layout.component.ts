@@ -1,21 +1,23 @@
 import { Component, inject } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
-import { AppIconComponent } from '../shared/ui/app-icon.component';
+import { AppIconComponent, type AppIconName } from '../shared/ui/app-icon.component';
 import { XiaoqingAvatarComponent } from '../shared/ui/xiaoqing-avatar.component';
 import { ThemeService } from '../core/services/theme.service';
 
 type ChatSubNavItem = {
-  value: 'chat' | 'xiaoqin';
+  value: 'chat' | 'dev-agent' | 'xiaoqin';
   label: string;
   description: string;
+  icon: AppIconName;
   disabled?: boolean;
 };
 
 type WorkspaceSubNavItem = {
-  value: 'ideas' | 'todos' | 'execution';
+  value: 'ideas' | 'reminder' | 'plan' | 'todos' | 'execution';
   label: string;
   description: string;
+  icon: AppIconName;
   disabled?: boolean;
 };
 
@@ -23,6 +25,7 @@ type MemorySubNavItem = {
   value: 'life-record' | 'cognitive-trace' | 'memories' | 'profile' | 'relations';
   label: string;
   description: string;
+  icon: AppIconName;
   disabled?: boolean;
 };
 
@@ -99,9 +102,7 @@ type MemorySubNavItem = {
                       [disabled]="item.disabled"
                       (click)="selectChatSubnav(item.value)"
                     >
-                      @if (item.value === 'chat') {
-                        <app-xiaoqing-avatar class="app-subnav__avatar" size="1.15rem" iconSize="0.7rem" />
-                      }
+                      <app-icon class="app-subnav__icon" [name]="item.icon" size="0.95rem" />
                       <span>{{ item.label }}</span>
                       @if (item.disabled) {
                         <span class="app-subnav__coming">即将开放</span>
@@ -121,6 +122,7 @@ type MemorySubNavItem = {
                       [disabled]="item.disabled"
                       (click)="selectWorkspaceSubnav(item.value)"
                     >
+                      <app-icon class="app-subnav__icon" [name]="item.icon" size="0.95rem" />
                       <span>{{ item.label }}</span>
                     </button>
                   }
@@ -137,13 +139,19 @@ type MemorySubNavItem = {
                       [disabled]="item.disabled"
                       (click)="selectMemorySubnav(item.value)"
                     >
+                      <app-icon class="app-subnav__icon" [name]="item.icon" size="0.95rem" />
                       <span>{{ item.label }}</span>
                     </button>
                   }
                 </nav>
               }
 
-              <div class="app-subnav__meta">{{ currentSubnavDescription() }}</div>
+              <div class="app-subnav__meta">
+                @if (currentPageHeader(); as header) {
+                  <div class="app-subnav__title">{{ header.title }}</div>
+                  <div class="app-subnav__description">{{ header.description }}</div>
+                }
+              </div>
             </div>
           }
 
@@ -358,10 +366,6 @@ type MemorySubNavItem = {
         box-shadow var(--transition-base);
     }
 
-    .app-subnav__avatar {
-      filter: saturate(0.96);
-    }
-
     .app-subnav__item:hover:not(:disabled) {
       color: var(--color-text);
       background: var(--layout-subnav-item-hover-bg);
@@ -388,15 +392,30 @@ type MemorySubNavItem = {
       margin-left: auto;
       flex: 0 1 32rem;
       min-width: 0;
+      text-align: right;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+
+    .app-subnav__title {
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-weight-semibold);
+      color: var(--color-text);
+      line-height: var(--line-height-tight);
+    }
+
+    .app-subnav__description {
       font-size: var(--font-size-xs);
       color: var(--color-text-secondary);
       line-height: 1.5;
-      text-align: right;
       white-space: normal;
     }
 
     .app-main__content {
       flex: 1;
+      display: flex;
+      flex-direction: column;
       min-height: 0;
       overflow: hidden;
       position: relative;
@@ -476,27 +495,43 @@ export class MainLayoutComponent {
   protected readonly themeService = inject(ThemeService);
   protected readonly mainNavItems = [
     { value: 'chat', label: '对话', hint: '会话与陪伴', icon: 'message' as const },
-    { value: 'workspace', label: '工作台', hint: '收纳与执行', icon: 'tool' as const },
+    { value: 'workspace', label: '工作台', hint: '收纳与执行', icon: 'layoutTemplate' as const },
     { value: 'memory', label: '记忆', hint: '画像与轨迹', icon: 'brain' as const },
   ];
   protected readonly chatSubNavItems: readonly ChatSubNavItem[] = [
-    { value: 'chat', label: '小晴', description: '小晴陪你聊天、记事、提醒，也能自然衔接执行。' },
-    { value: 'xiaoqin', label: '小勤', description: '小勤这边先承接 DevAgent 面板，处理偏执行、排障和协作类工作。' },
+    { value: 'chat', label: '小晴', icon: 'openai', description: '小晴陪你聊天、记事、提醒，也能自然衔接执行。' },
+    { value: 'dev-agent', label: 'devAgent', icon: 'claude', description: 'DevAgent 面板聚焦执行会话、workspace 上下文和开发协作。' },
+    { value: 'xiaoqin', label: '小勤', icon: 'claw', description: '小勤侧的对话入口用于承接偏执行、排障和协作类工作。' },
   ];
   protected readonly workspaceSubNavItems: readonly WorkspaceSubNavItem[] = [
     {
       value: 'ideas',
       label: '想法',
+      icon: 'lightbulb',
       description: '先收纳灵感、念头和暂不执行的计划，再决定是否升级成待办。',
+    },
+    {
+      value: 'reminder',
+      label: '提醒',
+      icon: 'bell',
+      description: '直接管理固定提醒和周期提醒，不经过对话和 LLM。',
+    },
+    {
+      value: 'plan',
+      label: '计划',
+      icon: 'calendarCheck',
+      description: '统一查看提醒型、执行型和 noop 计划，以及最近触发记录。',
     },
     {
       value: 'todos',
       label: '待办',
+      icon: 'check',
       description: '管理用户自己的事项、承诺和需要跟进的内容，执行只是它的下游动作。',
     },
     {
       value: 'execution',
       label: '执行',
+      icon: 'route',
       description: '查看现有 Task 执行链里的结果和流水，不改变底层执行体系。',
     },
   ];
@@ -504,26 +539,31 @@ export class MainLayoutComponent {
     {
       value: 'life-record',
       label: '生活',
+      icon: 'footprints',
       description: '把对话里的事件、情绪、人物和计划串成一条可浏览的生活轨迹。',
     },
     {
       value: 'cognitive-trace',
       label: '认知',
+      icon: 'brain',
       description: '查看小晴自己的认知变化，包括感知、记忆、决策与演进轨迹。',
     },
     {
       value: 'memories',
       label: '记忆',
+      icon: 'bookmark',
       description: '阶段记忆、长期记忆与待确认成长记录统一放在这里。',
     },
     {
       value: 'profile',
       label: '用户画像',
+      icon: 'userCircle',
       description: '身份锚定、默认偏好与用户相关记忆都在这里维护。',
     },
     {
       value: 'relations',
       label: '关系',
+      icon: 'heartPulse',
       description: '把你身边的人、你们的互动状态和共同经历放到一张可浏览的关系地图里。',
     },
   ];
@@ -552,30 +592,39 @@ export class MainLayoutComponent {
     return primary === 'chat' || primary === 'workspace' || primary === 'memory';
   }
 
-  currentChatSubnav(): 'chat' | 'xiaoqin' {
+  currentChatSubnav(): 'chat' | 'dev-agent' | 'xiaoqin' {
     const url = this.router.url;
     if (url.startsWith('/workspace/dev-agent')) {
+      return 'dev-agent';
+    }
+    if (url.startsWith('/chat') && /[?&]entryAgentId=xiaoqin\b/.test(url)) {
       return 'xiaoqin';
     }
     return 'chat';
   }
 
-  selectChatSubnav(value: 'chat' | 'xiaoqin') {
-    if (value === 'xiaoqin') {
+  selectChatSubnav(value: 'chat' | 'dev-agent' | 'xiaoqin') {
+    if (value === 'dev-agent') {
       this.router.navigate(['/workspace/dev-agent']);
       return;
     }
-    this.router.navigate(['/chat']);
+    if (value === 'xiaoqin') {
+      this.router.navigate(['/chat'], { queryParams: { entryAgentId: 'xiaoqin' } });
+      return;
+    }
+    this.router.navigate(['/chat'], { queryParams: {} });
   }
 
-  currentWorkspaceSubnav(): 'ideas' | 'todos' | 'execution' {
+  currentWorkspaceSubnav(): 'ideas' | 'reminder' | 'plan' | 'todos' | 'execution' {
     const url = this.router.url;
     if (url.startsWith('/workspace/ideas')) return 'ideas';
+    if (url.startsWith('/workspace/reminder')) return 'reminder';
+    if (url.startsWith('/workspace/plan')) return 'plan';
     if (url.startsWith('/workspace/execution') || url.startsWith('/workspace/task-records') || url.startsWith('/workspace/dev-agent') || url.startsWith('/workspace/regression')) return 'execution';
     return 'todos';
   }
 
-  selectWorkspaceSubnav(value: 'ideas' | 'todos' | 'execution') {
+  selectWorkspaceSubnav(value: 'ideas' | 'reminder' | 'plan' | 'todos' | 'execution') {
     this.router.navigate([`/workspace/${value}`]);
   }
 
@@ -592,15 +641,15 @@ export class MainLayoutComponent {
     this.router.navigate([`/memory/${value}`]);
   }
 
-  currentSubnavDescription(): string {
+  currentPageHeader(): { title: string; description: string } {
     const primary = this.currentPrimary();
     if (primary === 'chat') {
-      return this.findSubnavDescription(this.chatSubNavItems, this.currentChatSubnav());
+      return this.findPageHeader('对话', this.chatSubNavItems, this.currentChatSubnav());
     }
     if (primary === 'workspace') {
-      return this.findSubnavDescription(this.workspaceSubNavItems, this.currentWorkspaceSubnav());
+      return this.findPageHeader('工作台', this.workspaceSubNavItems, this.currentWorkspaceSubnav());
     }
-    return this.findSubnavDescription(this.memorySubNavItems, this.currentMemorySubnav());
+    return this.findPageHeader('记忆', this.memorySubNavItems, this.currentMemorySubnav());
   }
 
   openSettings() {
@@ -619,10 +668,15 @@ export class MainLayoutComponent {
     this.themeService.toggleTheme();
   }
 
-  private findSubnavDescription<T extends { value: string; description: string }>(
+  private findPageHeader<T extends { value: string; label: string; description: string }>(
+    eyebrow: string,
     items: readonly T[],
     value: string,
-  ): string {
-    return items.find((item) => item.value === value)?.description ?? '';
+  ) {
+    const item = items.find((candidate) => candidate.value === value) ?? items[0];
+    return {
+      title: eyebrow,
+      description: item?.description ?? '',
+    };
   }
 }

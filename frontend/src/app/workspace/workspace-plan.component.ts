@@ -5,7 +5,6 @@ import { PlanApiService, type CreatePlanRequest, type PlanDispatchType, type Pla
 import { SystemOverviewService } from '../core/services/system-overview.service';
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
-import { AppPageHeaderComponent } from '../shared/ui/app-page-header.component';
 import { AppPanelComponent } from '../shared/ui/app-panel.component';
 import { AppStateComponent } from '../shared/ui/app-state.component';
 
@@ -19,17 +18,11 @@ type DispatchFilter = 'all' | PlanDispatchType;
     FormsModule,
     AppBadgeComponent,
     AppButtonComponent,
-    AppPageHeaderComponent,
     AppPanelComponent,
     AppStateComponent,
   ],
   template: `
     <div class="workspace-page">
-      <app-page-header
-        title="计划"
-        description="统一管理提醒、执行计划和 noop 规则，全部基于同一个 Plan 模型。"
-      />
-
       <div class="workspace-grid">
         <app-panel variant="workbench" class="workspace-card">
           <div class="card-header">新计划</div>

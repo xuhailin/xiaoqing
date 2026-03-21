@@ -48,6 +48,13 @@ export interface MessageMetadata {
   todoTitle?: string;
   planId?: string;
   planTitle?: string;
+  requesterAgentId?: EntryAgentId;
+  executorAgentId?: EntryAgentId;
+  requesterConversationRef?: string;
+  requestType?: AgentDelegationKind;
+  inboundAgentBus?: boolean;
+  inboundSummary?: string;
+  inboundUserInput?: string;
 }
 
 export interface Message {
@@ -75,6 +82,19 @@ export interface ConversationItem {
   updatedAt: string;
   messageCount: number;
   activeReminderCount: number;
+  latestMessage: Message | null;
+}
+
+export interface CollaborationThreadItem {
+  id: string;
+  title: string | null;
+  entryAgentId: EntryAgentId;
+  isInternal: true;
+  requesterAgentId: EntryAgentId | null;
+  requesterConversationRef: string | null;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
   latestMessage: Message | null;
 }
 
@@ -182,6 +202,7 @@ export interface AgentDelegationEnvelope {
 
 export interface CreateAgentDelegationRequest {
   originMessageId?: string;
+  parentWorkItemId?: string;
   requesterAgentId: EntryAgentId;
   executorAgentId: EntryAgentId;
   kind?: AgentDelegationKind;
@@ -319,6 +340,11 @@ export class ConversationService {
 
   list() {
     return this.http.get<ConversationItem[]>(this.base);
+  }
+
+  getCollaborationThreads(requesterAgentId?: EntryAgentId) {
+    const query = requesterAgentId ? `?requesterAgentId=${requesterAgentId}` : '';
+    return this.http.get<CollaborationThreadItem[]>(`${this.base}/collaboration-threads${query}`);
   }
 
   getOrCreateCurrent(entryAgentId: EntryAgentId = 'xiaoqing') {

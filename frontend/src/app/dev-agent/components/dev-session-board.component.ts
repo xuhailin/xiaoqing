@@ -120,6 +120,8 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       gap: var(--space-3);
       padding: var(--workbench-panel-padding);
       border-bottom: 1px solid var(--color-border-light);
+      background: var(--workbench-header-background);
+      backdrop-filter: blur(12px);
     }
 
     .lane-title {
@@ -151,6 +153,9 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       text-align: left;
       cursor: pointer;
       color: var(--color-text);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
     }
 
     .card-head {
@@ -175,13 +180,22 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       display: flex;
       flex-wrap: wrap;
       gap: var(--space-1) var(--space-3);
-      margin-top: var(--space-2);
       font-size: var(--font-size-xs);
       color: var(--color-text-secondary);
     }
 
+    .card-meta span,
+    .card-stats span {
+      display: inline-flex;
+      align-items: center;
+      min-height: 1.4rem;
+      padding: 0 var(--space-2);
+      border-radius: var(--radius-pill);
+      background: var(--color-badge-neutral-bg);
+      border: 1px solid var(--color-badge-neutral-border);
+    }
+
     .card-task {
-      margin-top: var(--space-2);
       font-size: var(--font-size-sm);
       color: var(--color-workbench-muted);
       line-height: 1.55;
@@ -189,16 +203,25 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       -webkit-line-clamp: 3;
       -webkit-box-orient: vertical;
       overflow: hidden;
+      padding-left: var(--space-2);
+      border-left: 2px solid var(--color-surface-highlight-border);
     }
 
     .card-stats {
-      margin-top: var(--space-3);
       padding-top: var(--space-2);
       border-top: 1px solid var(--color-border-light);
     }
 
     .card-cost {
       font-variant-numeric: tabular-nums;
+    }
+
+    .session-card.is-active .card-title {
+      color: var(--color-primary);
+    }
+
+    .session-card.is-active .card-task {
+      border-left-color: var(--color-primary);
     }
 
     @media (max-width: 1180px) {

@@ -23,6 +23,7 @@ import { SessionReflectionService } from '../session-reflection/session-reflecti
 import { SocialEntityService } from '../life-record/social-entity/social-entity.service';
 import { SocialInsightService } from '../life-record/social-insight/social-insight.service';
 import { SocialRelationEdgeService } from '../life-record/social-relation-edge/social-relation-edge.service';
+import type { CollaborationTurnContext } from './orchestration.types';
 
 @Injectable()
 export class TurnContextAssembler {
@@ -65,6 +66,7 @@ export class TurnContextAssembler {
     userMessage: { id: string; role: 'user'; content: string; createdAt: Date };
     now: Date;
     recentRounds: number;
+    collaborationContext?: CollaborationTurnContext | null;
   }): Promise<TurnContext> {
     const [recentRaw, personaDto, profile, anchors, storedWorldState, growthContext, systemSelf] = await Promise.all([
       this.prisma.message.findMany({
@@ -159,6 +161,7 @@ export class TurnContextAssembler {
         intentState: intentCtx.intentState,
         mergedIntentState: intentCtx.mergedIntentState,
         actionDecision,
+        collaborationContext: input.collaborationContext ?? null,
         memoryRecall: {
           candidatesCount: memoryCtx.candidatesCount,
           selectedCount: memoryCtx.injectedMemories.length,
@@ -175,6 +178,7 @@ export class TurnContextAssembler {
     userMessage: { id: string; role: 'user'; content: string; createdAt: Date };
     now: Date;
     recentRounds: number;
+    collaborationContext?: CollaborationTurnContext | null;
   }): Promise<TurnContext> {
     const [recentRaw, personaDto, profile, anchors, storedWorldState, growthContext, systemSelf] = await Promise.all([
       this.prisma.message.findMany({
@@ -220,7 +224,9 @@ export class TurnContextAssembler {
         draftClaimsDebug: [],
       },
       system: { systemSelf },
-      runtime: {},
+      runtime: {
+        collaborationContext: input.collaborationContext ?? null,
+      },
     };
   }
 

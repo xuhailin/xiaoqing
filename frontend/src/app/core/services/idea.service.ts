@@ -47,6 +47,10 @@ export class IdeaApiService {
     return this.http.get<IdeaRecord[]>(this.base, { params });
   }
 
+  get(id: string) {
+    return this.http.get<IdeaRecord>(`${this.base}/${id}`);
+  }
+
   create(payload: CreateIdeaRequest) {
     return this.http.post<IdeaRecord>(this.base, payload);
   }

@@ -6,9 +6,14 @@ import { SystemOverviewService } from '../core/services/system-overview.service'
 import { TodoApiService, type TodoRecord, type TodoStatus } from '../core/services/todo.service';
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
-import { AppPageHeaderComponent } from '../shared/ui/app-page-header.component';
 import { AppPanelComponent } from '../shared/ui/app-panel.component';
 import { AppStateComponent } from '../shared/ui/app-state.component';
+import { WorkspaceArrivalNoticeComponent } from '../shared/ui/workspace-arrival-notice.component';
+import {
+  WorkspaceRelationSummaryComponent,
+  type WorkspaceRelationSummaryItem,
+} from '../shared/ui/workspace-relation-summary.component';
+import { executionStatusLabel, executionStatusTone, ideaStatusLabel, ideaStatusTone, todoStatusLabel, todoStatusTone } from '../shared/workbench-status.utils';
 
 @Component({
   selector: 'app-workspace-todo',
@@ -17,19 +22,16 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
     FormsModule,
     AppBadgeComponent,
     AppButtonComponent,
-    AppPageHeaderComponent,
     AppPanelComponent,
     AppStateComponent,
+    WorkspaceArrivalNoticeComponent,
+    WorkspaceRelationSummaryComponent,
   ],
   template: `
     <div class="workspace-page">
-      <app-page-header
-        title="待办"
-        description="这里放用户自己的事项、承诺和需要跟进的内容，执行只是它的下游动作。"
-      />
-
+      <app-workspace-arrival-notice [text]="arrivalNotice()" />
       <div class="workspace-grid">
-        <app-panel variant="workbench" class="workspace-card">
+        <app-panel variant="workbench" class="workspace-card workspace-card--form">
           <div class="card-header">新增待办</div>
 
           <label class="field">
@@ -58,7 +60,7 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
         </app-panel>
 
         <div class="workspace-stack">
-          <app-panel variant="workbench" class="workspace-card">
+          <app-panel variant="workbench" class="workspace-card workspace-card--list">
             <div class="card-header">
               <span>待办列表</span>
               <div class="card-toolbar">
@@ -76,35 +78,31 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
             @if (loading()) {
               <app-state [compact]="true" kind="loading" title="待办加载中..." />
             } @else if (!visibleTodos().length) {
-              <app-state [compact]="true" title="还没有待办" description="左侧可以先记下一条需要跟进的事项。" />
+              <app-state [compact]="true" title="当前筛选下还没有待办" [description]="emptyStateDescription()" />
             } @else {
               <div class="item-list">
                 @for (todo of visibleTodos(); track todo.id) {
                   <div
                     class="ui-list-card item-card"
                     [class.is-active]="selectedTodoId() === todo.id"
+                    [attr.data-todo-id]="todo.id"
                     (click)="selectedTodoId.set(todo.id)"
                   >
                     <div class="item-main">
                       <div class="item-title">{{ todo.title || todo.description || '未命名待办' }}</div>
                       <div class="item-meta">
-                        <app-badge [tone]="statusTone(todo.status)">{{ todo.status }}</app-badge>
+                        <app-badge [tone]="statusTone(todo.status)">{{ statusLabel(todo.status) }}</app-badge>
                         @if (todo.dueAt) {
                           <span>截止：{{ formatDateTime(todo.dueAt) }}</span>
-                        }
-                        @if (todo.sourceIdea) {
-                          <span>来自想法：{{ todo.sourceIdea.title || todo.sourceIdea.id }}</span>
-                        }
-                        @if (todo.latestTask) {
-                          <span>最新执行：{{ todo.latestTask.status }}</span>
-                        }
-                        @if (todo.latestTask?.errorSummary) {
-                          <span>失败原因：{{ todo.latestTask?.errorSummary }}</span>
                         }
                         @if (todo.blockReason) {
                           <span>待补充：{{ todo.blockReason }}</span>
                         }
                       </div>
+                      <app-workspace-relation-summary
+                        [items]="todoRelationItems(todo)"
+                        (action)="handleTodoRelationAction($event, todo)"
+                      />
                     </div>
 
                     <div class="item-actions" (click)="$event.stopPropagation()">
@@ -124,13 +122,13 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
             }
           </app-panel>
 
-          <app-panel variant="workbench" class="workspace-card">
+          <app-panel variant="workbench" class="workspace-card workspace-card--execution">
             <div class="card-header">执行入口</div>
             @if (selectedTodo(); as todo) {
-              <div class="detail-block">
+              <div class="detail-block detail-block--hero">
                 <div class="detail-title">{{ todo.title || todo.description || todo.id }}</div>
                 <div class="detail-meta">
-                  <app-badge [tone]="statusTone(todo.status)">{{ todo.status }}</app-badge>
+                  <app-badge [tone]="statusTone(todo.status)">{{ statusLabel(todo.status) }}</app-badge>
                   @if (todo.latestExecutionPlan) {
                     <app-badge tone="info" appearance="outline">{{ todo.latestExecutionPlan.dispatchType }}</app-badge>
                   }
@@ -138,13 +136,11 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
                     <span>最近执行：{{ formatDateTime(todo.latestTask.scheduledAt) }}</span>
                   }
                 </div>
-                @if (todo.sourceIdea) {
-                  <div class="detail-links">
-                    <app-button variant="ghost" size="xs" (click)="openIdea(todo.sourceIdea.id)">
-                      查看来源想法
-                    </app-button>
-                  </div>
-                }
+                <app-workspace-relation-summary
+                  [title]="'关联关系'"
+                  [items]="todoRelationItems(todo)"
+                  (action)="handleTodoRelationAction($event, todo)"
+                />
                 @if (todo.blockReason) {
                   <div class="task-error">{{ todo.blockReason }}</div>
                 }
@@ -169,11 +165,11 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
 
               <div class="form-actions">
                 <app-button variant="primary" size="sm" [disabled]="taskSaving()" (click)="createTask(todo)">
-                  {{ taskSaving() ? '提交中...' : '转为执行任务' }}
+                  {{ taskSaving() ? '提交中...' : '送去执行' }}
                 </app-button>
                 @if (todo.latestExecutionPlan) {
                   <app-button variant="ghost" size="sm" (click)="openExecution(todo)">
-                    查看执行
+                    看执行
                   </app-button>
                 }
                 @if (taskNotice()) {
@@ -182,9 +178,13 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
               </div>
 
               @if (todo.latestTask) {
-                <div class="task-card" [class.task-card--highlight]="highlightedTaskId() === todo.latestTask.id">
+                <div
+                  class="task-card"
+                  [class.task-card--highlight]="highlightedTaskId() === todo.latestTask.id"
+                  [attr.data-task-id]="todo.latestTask.id"
+                >
                   <div class="detail-meta">
-                    <app-badge tone="neutral" appearance="outline">{{ todo.latestTask.status }}</app-badge>
+                    <app-badge [tone]="executionTone(todo.latestTask.status)" appearance="outline">{{ executionLabel(todo.latestTask.status) }}</app-badge>
                     @if (todo.latestTask.action) {
                       <span>{{ todo.latestTask.action }}</span>
                     }
@@ -201,7 +201,7 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
                   @if (todo.latestTask.action) {
                     <div class="detail-links">
                       <app-button variant="ghost" size="xs" [disabled]="taskSaving()" (click)="retryLatestTask(todo)">
-                        {{ taskSaving() ? '重试中...' : '重试执行' }}
+                        {{ taskSaving() ? '重试中...' : '再次执行' }}
                       </app-button>
                     </div>
                   }
@@ -210,10 +210,10 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
                   }
                 </div>
               } @else {
-                <app-state [compact]="true" title="还没有执行记录" description="这里先只做手动把待办送入现有 Task 执行链。" />
+                <app-state [compact]="true" title="还没有执行记录" description="这里会显示这条待办最近一次进入执行链后的结果。" />
               }
             } @else {
-              <app-state [compact]="true" title="选择一条待办" description="右侧会显示它的执行入口和最近的执行结果。" />
+              <app-state [compact]="true" title="选择一条待办" description="右侧会显示它的关系摘要、执行入口和最近结果。" />
             }
           </app-panel>
         </div>
@@ -232,6 +232,7 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
       flex-direction: column;
       gap: var(--workbench-stack-gap);
       min-height: 100%;
+      background: var(--bg-page, var(--color-bg));
     }
 
     .workspace-grid {
@@ -253,6 +254,17 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
       min-height: 0;
     }
 
+    .workspace-card--form,
+    .workspace-card--list {
+      box-shadow: var(--workbench-surface-shadow);
+    }
+
+    .workspace-card--execution {
+      box-shadow:
+        0 18px 34px rgba(79, 109, 245, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    }
+
     .card-header,
     .card-toolbar,
     .form-actions,
@@ -269,6 +281,8 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
       font-size: var(--font-size-sm);
       font-weight: var(--font-weight-semibold);
       color: var(--color-text);
+      padding-bottom: var(--space-2);
+      border-bottom: 1px solid var(--color-border-light);
     }
 
     .field,
@@ -296,17 +310,41 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
       gap: var(--space-2);
       min-height: 0;
       overflow: auto;
+      padding-right: var(--space-1);
     }
 
     .item-card {
       width: 100%;
       padding: var(--workbench-card-padding);
       text-align: left;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
+      gap: var(--space-3);
+      position: relative;
     }
 
     .item-card.is-active {
-      border-color: var(--color-primary);
-      box-shadow: var(--color-surface-highlight-shadow);
+      border-color: color-mix(in srgb, var(--color-primary) 50%, var(--color-border));
+      box-shadow: var(--color-list-card-active-shadow);
+      background: color-mix(in srgb, var(--sidebar-card-background-active) 72%, transparent);
+    }
+
+    .item-card::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 12px;
+      bottom: 12px;
+      width: 3px;
+      border-radius: var(--radius-pill);
+      background: transparent;
+      transition: background var(--transition-fast);
+    }
+
+    .item-card:hover::before,
+    .item-card.is-active::before {
+      background: var(--color-primary);
     }
 
     .item-title,
@@ -320,9 +358,14 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
       display: flex;
       flex-wrap: wrap;
       gap: var(--space-2);
-      margin-top: var(--space-2);
+      margin: var(--space-2) 0;
       font-size: var(--font-size-xs);
       color: var(--color-text-secondary);
+      line-height: 1.5;
+    }
+
+    .item-main {
+      min-width: 0;
     }
 
     .task-card,
@@ -332,11 +375,31 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
       gap: var(--space-2);
     }
 
-    .task-card--highlight {
-      border-radius: var(--radius-lg);
-      padding: var(--space-3);
-      background: var(--color-surface-highlight);
+    .detail-block--hero {
+      padding: var(--workbench-card-padding);
       border: 1px solid var(--color-surface-highlight-border);
+      border-radius: var(--workbench-card-radius);
+      background:
+        linear-gradient(180deg, rgba(79, 109, 245, 0.04), rgba(79, 109, 245, 0.015)),
+        var(--workbench-surface-gradient-soft);
+      box-shadow: var(--color-surface-highlight-shadow);
+    }
+
+    .task-card--highlight {
+      border-radius: var(--workbench-card-radius);
+      padding: var(--workbench-card-padding);
+      background:
+        linear-gradient(180deg, rgba(79, 109, 245, 0.045), rgba(79, 109, 245, 0.015)),
+        var(--color-surface-highlight);
+      border: 1px solid var(--color-surface-highlight-border);
+      box-shadow: var(--color-surface-highlight-shadow);
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .item-card.is-active,
+      .task-card--highlight {
+        animation: workbenchArrivalPulse 700ms ease-out;
+      }
     }
 
     .detail-links {
@@ -373,6 +436,20 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
       min-width: 120px;
     }
 
+    @media (prefers-reduced-motion: no-preference) {
+      .item-card {
+        transition:
+          border-color var(--transition-fast),
+          background var(--transition-fast),
+          box-shadow var(--transition-fast),
+          transform var(--transition-fast);
+      }
+
+      .item-card:hover {
+        transform: translateY(-1px);
+      }
+    }
+
     @media (max-width: 980px) {
       .workspace-page {
         padding: var(--workbench-shell-padding-mobile);
@@ -385,6 +462,22 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
       .workspace-stack {
         grid-template-rows: auto auto;
       }
+
+      .item-card {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @keyframes workbenchArrivalPulse {
+      0% {
+        box-shadow: 0 0 0 rgba(79, 109, 245, 0);
+      }
+      35% {
+        box-shadow: 0 0 0 6px rgba(79, 109, 245, 0.12);
+      }
+      100% {
+        box-shadow: var(--color-surface-highlight-shadow);
+      }
     }
   `],
 })
@@ -394,6 +487,7 @@ export class WorkspaceTodoComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private querySub?: { unsubscribe(): void };
+  private arrivalNoticeTimer: number | null = null;
 
   readonly todos = signal<TodoRecord[]>([]);
   readonly selectedTodoId = signal<string | null>(null);
@@ -403,6 +497,7 @@ export class WorkspaceTodoComponent implements OnInit, OnDestroy {
   readonly highlightedTaskId = signal<string | null>(null);
   readonly notice = signal<string | null>(null);
   readonly taskNotice = signal<string | null>(null);
+  readonly arrivalNotice = signal<string | null>(null);
 
   readonly title = signal('');
   readonly description = signal('');
@@ -426,6 +521,7 @@ export class WorkspaceTodoComponent implements OnInit, OnDestroy {
     this.querySub = this.route.queryParamMap.subscribe((params) => {
       const todoId = params.get('todoId');
       this.selectedTodoId.set(todoId);
+      this.highlightedTaskId.set(null);
       this.syncSelectedTodo();
     });
     await Promise.all([this.load(), this.loadCapabilities()]);
@@ -433,6 +529,7 @@ export class WorkspaceTodoComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.querySub?.unsubscribe();
+    this.clearArrivalNotice();
   }
 
   async load() {
@@ -443,8 +540,10 @@ export class WorkspaceTodoComponent implements OnInit, OnDestroy {
       const selectedTodoId = this.selectedTodoId();
       if (selectedTodoId && !this.todos().some((todo) => todo.id === selectedTodoId)) {
         this.selectedTodoId.set(null);
+        this.highlightedTaskId.set(null);
       } else {
         this.syncSelectedTodo();
+        this.announceArrival();
       }
     } finally {
       this.loading.set(false);
@@ -543,11 +642,19 @@ export class WorkspaceTodoComponent implements OnInit, OnDestroy {
   }
 
   statusTone(status: string): 'neutral' | 'info' | 'success' | 'warning' | 'danger' {
-    if (status === 'open') return 'info';
-    if (status === 'blocked') return 'warning';
-    if (status === 'done') return 'success';
-    if (status === 'failed') return 'danger';
-    return 'neutral';
+    return todoStatusTone(status);
+  }
+
+  statusLabel(status: string): string {
+    return todoStatusLabel(status);
+  }
+
+  executionTone(status: string) {
+    return executionStatusTone(status);
+  }
+
+  executionLabel(status: string) {
+    return executionStatusLabel(status);
   }
 
   formatDateTime(value: string) {
@@ -574,11 +681,62 @@ export class WorkspaceTodoComponent implements OnInit, OnDestroy {
       ?? '最近一次执行已完成。';
   }
 
+  emptyStateDescription(): string {
+    if (this.statusFilter() === 'blocked') {
+      return '当前没有待补充信息的待办。';
+    }
+    if (this.statusFilter() === 'done') {
+      return '当前还没有已完成的待办。';
+    }
+    if (this.statusFilter() === 'dropped') {
+      return '当前还没有已放弃的待办。';
+    }
+    return '左侧可以先记下一条需要继续推进的事项。';
+  }
+
+  todoRelationItems(todo: TodoRecord): WorkspaceRelationSummaryItem[] {
+    const items: WorkspaceRelationSummaryItem[] = [];
+    if (todo.sourceIdea) {
+      items.push({
+        key: 'idea',
+        label: '来自想法',
+        title: todo.sourceIdea.title || todo.sourceIdea.id,
+        detail: todo.sourceIdea.status === 'promoted' ? '对应想法已经推进成待办。' : '这条待办是从想法区继续推进出来的。',
+        badge: ideaStatusLabel(todo.sourceIdea.status),
+        tone: ideaStatusTone(todo.sourceIdea.status),
+        actionLabel: '去想法',
+        icon: 'sparkles',
+      });
+    }
+    if (todo.latestExecutionPlan) {
+      items.push({
+        key: 'execution',
+        label: '最近执行',
+        title: todo.latestExecutionPlan.title || todo.latestExecutionPlan.id,
+        detail: todo.latestTask?.errorSummary
+          ? `失败原因：${todo.latestTask.errorSummary}`
+          : todo.latestTask
+            ? `状态：${this.executionLabel(todo.latestTask.status)}`
+            : '已经创建执行入口，等待后续结果。',
+        meta: todo.latestTask?.scheduledAt ? `触发时间：${this.formatDateTime(todo.latestTask.scheduledAt)}` : null,
+        badge: this.executionLabel(todo.latestTask?.status || todo.latestExecutionPlan.status),
+        tone: this.executionTone(todo.latestTask?.status || todo.latestExecutionPlan.status),
+        actionLabel: '看执行',
+        icon: 'route',
+      });
+    }
+    return items;
+  }
+
   openExecution(todo: TodoRecord) {
     const planId = todo.latestExecutionPlan?.id;
     if (!planId) return;
     void this.router.navigate(['/workspace/execution'], {
-      queryParams: { planId },
+      queryParams: {
+        planId,
+        todoId: todo.id,
+        taskId: todo.latestTask?.id ?? undefined,
+      },
     });
   }
 
@@ -587,6 +745,16 @@ export class WorkspaceTodoComponent implements OnInit, OnDestroy {
     void this.router.navigate(['/workspace/ideas'], {
       queryParams: { ideaId },
     });
+  }
+
+  handleTodoRelationAction(action: string, todo: TodoRecord) {
+    if (action === 'idea') {
+      this.openIdea(todo.sourceIdea?.id);
+      return;
+    }
+    if (action === 'execution') {
+      this.openExecution(todo);
+    }
   }
 
   private async loadCapabilities() {
@@ -630,7 +798,43 @@ export class WorkspaceTodoComponent implements OnInit, OnDestroy {
     if (!selectedTodoId) return;
     const selectedTodo = this.todos().find((todo) => todo.id === selectedTodoId);
     if (!selectedTodo) return;
+    this.highlightedTaskId.set(selectedTodo.latestTask?.id ?? null);
     if (this.statusFilter() === 'all' || this.statusFilter() === selectedTodo.status) return;
     this.statusFilter.set(selectedTodo.status);
+    this.scrollIntoView(`[data-todo-id="${selectedTodo.id}"]`);
+    if (selectedTodo.latestTask?.id) {
+      this.scrollIntoView(`[data-task-id="${selectedTodo.latestTask.id}"]`, 160);
+    }
+  }
+
+  private announceArrival() {
+    const selectedTodo = this.selectedTodo();
+    if (!selectedTodo) return;
+    const taskSummary = selectedTodo.latestTask ? '最近执行结果已前置显示。' : '这条待办当前还没有执行记录。';
+    this.setArrivalNotice(`已定位到待办“${selectedTodo.title || selectedTodo.description || selectedTodo.id}”。${taskSummary}`);
+  }
+
+  private setArrivalNotice(text: string) {
+    this.arrivalNotice.set(text);
+    this.clearArrivalNotice();
+    this.arrivalNoticeTimer = window.setTimeout(() => {
+      this.arrivalNotice.set(null);
+      this.arrivalNoticeTimer = null;
+    }, 2800);
+  }
+
+  private clearArrivalNotice() {
+    if (this.arrivalNoticeTimer !== null) {
+      window.clearTimeout(this.arrivalNoticeTimer);
+      this.arrivalNoticeTimer = null;
+    }
+  }
+
+  private scrollIntoView(selector: string, delay = 40) {
+    window.setTimeout(() => {
+      const node = document.querySelector(selector);
+      if (!(node instanceof HTMLElement)) return;
+      node.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }, delay);
   }
 }

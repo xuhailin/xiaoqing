@@ -154,10 +154,6 @@ export class ChatCompletionEngine {
       );
     }
 
-    this.dailyMoment
-      .ingestUserSignal(conversationId, content, now)
-      .catch((err) => this.logger.warn(`DailyMoment signal ingest failed: ${String(err)}`));
-
     const dailyMomentIntent = await this.dailyMoment.detectUserTriggerIntent(
       conversationId,
       content,
@@ -170,7 +166,6 @@ export class ChatCompletionEngine {
         conversationId,
         now,
         triggerMode: dailyMomentIntent.mode,
-        acceptedSuggestionId: dailyMomentIntent.acceptedSuggestionId,
       });
       this.recordPipelineStep(trace, pipelineState, 'expression', {
         path: 'daily-moment-manual',
@@ -1429,7 +1424,7 @@ export class ChatCompletionEngine {
         composition.cognitiveState.situation.kind === 'decision_support' ||
         composition.cognitiveState.situation.kind === 'advice_request' ||
         composition.cognitiveState.situation.kind === 'task_execution',
-      beforeReturn: [{ type: 'daily_moment_suggestion' }],
+      beforeReturn: [],
       afterReturn: [
         { type: 'life_record_sync' },
         { type: 'record_growth' },

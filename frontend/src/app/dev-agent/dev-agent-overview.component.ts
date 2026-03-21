@@ -3,30 +3,24 @@ import { Router } from '@angular/router';
 import { DevAgentPageStore } from './dev-agent-page.store';
 import { DevSessionBoardComponent } from './components/dev-session-board.component';
 import { buildSessionBoard } from './dev-agent.view-model';
-import { AppPageHeaderComponent } from '../shared/ui/app-page-header.component';
 import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.component';
 
 @Component({
   selector: 'app-dev-agent-overview',
   standalone: true,
-  imports: [DevSessionBoardComponent, AppPageHeaderComponent, AppTabsComponent],
+  imports: [DevSessionBoardComponent, AppTabsComponent],
   template: `
     <div class="overview">
-      <app-page-header
-        title="DevAgent"
-        description="统一查看当前工作区与全局 sessions 的运行状态，再决定进入哪条执行会话。"
-      >
-        <div actions class="board-header__actions">
-          <app-tabs
-            class="board-tabs"
-            [items]="boardScopeTabs()"
-            [value]="boardScope()"
-            [appearance]="'secondary'"
-            [size]="'sm'"
-            (valueChange)="boardScope.set($any($event))"
-          />
-        </div>
-      </app-page-header>
+      <div class="board-header__actions">
+        <app-tabs
+          class="board-tabs"
+          [items]="boardScopeTabs()"
+          [value]="boardScope()"
+          [appearance]="'secondary'"
+          [size]="'sm'"
+          (valueChange)="boardScope.set($any($event))"
+        />
+      </div>
 
       <div class="board-metrics">
         <div class="metric-card ui-stat-card">

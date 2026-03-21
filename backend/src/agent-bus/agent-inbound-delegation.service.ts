@@ -15,6 +15,7 @@ import {
   isAgentMemoryPolicy,
   isEntryAgentId,
 } from './agent-bus.dto';
+import type { CollaborationTurnContext } from '../assistant/conversation/orchestration.types';
 import type {
   AgentInboundDelegationRequest,
   AgentInboundDelegationResult,
@@ -113,12 +114,12 @@ export class AgentInboundDelegationService {
       '我已经接到这条协作任务，正在当前线程里处理。',
     );
 
-    const prompt = this.buildInboundPrompt(request);
+    const delegatedUserInput = this.resolveDelegatedUserInput(request);
 
     try {
       const result = await this.conversation.sendDelegatedMessage({
         conversationId: localConversation.id,
-        content: prompt,
+        content: delegatedUserInput ?? this.buildInboundPrompt(request),
         metadata: {
           source: 'system',
           delegationId: delegation.id,
@@ -126,8 +127,11 @@ export class AgentInboundDelegationService {
           executorAgentId: 'xiaoqing',
           requesterConversationRef: request.requester.conversationRef,
           requestType: request.requestType,
+          inboundSummary: this.resolveSummary(request) ?? undefined,
+          inboundUserInput: this.normalizeText(request.userInput) ?? undefined,
           inboundAgentBus: true,
         },
+        collaborationContext: this.buildCollaborationContext(request),
       });
 
       const content = result.assistantMessage.content.trim();
@@ -340,6 +344,29 @@ export class AgentInboundDelegationService {
 
     lines.push('', '请输出最终协作结果正文。');
     return lines.join('\n');
+  }
+
+  private buildCollaborationContext(
+    request: AgentInboundDelegationRequest,
+  ): CollaborationTurnContext {
+    return {
+      mode: 'inbound_delegation',
+      requesterAgentId: request.requester.agentId as EntryAgentId,
+      executorAgentId: 'xiaoqing',
+      delegationId: request.delegationId,
+      requestType: request.requestType,
+      summary: this.resolveSummary(request),
+      userInput: this.normalizeText(request.userInput),
+      memoryPolicy: this.resolveMemoryPolicy(request.memoryPolicy),
+      contextExcerpt: this.normalizeContextExcerpt(request.contextExcerpt),
+    };
+  }
+
+  private resolveDelegatedUserInput(
+    request: AgentInboundDelegationRequest,
+  ): string | null {
+    return this.normalizeText(request.userInput)
+      ?? this.resolveSummary(request);
   }
 
   private normalizeContextExcerpt(

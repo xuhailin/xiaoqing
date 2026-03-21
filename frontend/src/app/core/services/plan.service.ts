@@ -110,6 +110,10 @@ export class PlanApiService {
     return this.http.get<PlanRecord[]>(this.base, { params });
   }
 
+  get(id: string) {
+    return this.http.get<PlanRecord>(`${this.base}/${id}`);
+  }
+
   create(payload: CreatePlanRequest) {
     return this.http.post<PlanRecord>(this.base, payload);
   }
@@ -126,9 +130,10 @@ export class PlanApiService {
     return this.http.post<PlanRecord>(`${this.base}/${id}/${action}`, {});
   }
 
-  listOccurrences(planId: string, status?: OccurrenceStatus) {
+  listOccurrences(planId: string, status?: OccurrenceStatus, limit?: number) {
     let params = new HttpParams();
     if (status) params = params.set('status', status);
+    if (limit !== undefined) params = params.set('limit', String(limit));
     return this.http.get<TaskOccurrenceRecord[]>(`${this.base}/${planId}/occurrences`, { params });
   }
 

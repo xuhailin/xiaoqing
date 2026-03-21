@@ -87,6 +87,8 @@
 - 主工作台容器用 `workbench` panel，不再各写一套背景和阴影
 - 列表项容器优先复用 `ui-list-card`
 - 上下文菜单统一复用 `ui-context-menu`
+- 聊天主区默认不是 `panel`，不要把整个 chat flow 包成带背景、边框、圆角、阴影的大卡片
+- chat 外层容器应保持透明或仅有极轻分层，卡片感只留给消息内的信息块
 
 ## 4. Shared Primitive
 
@@ -167,6 +169,17 @@
 - list item 负责单项交互
 - 同类容器必须复用同一个视觉基类
 
+### Chat Flow
+
+- chat 区是“流式容器”，不是 `ui-panel / ui-card`
+- 禁止把 chat 主区重新 panel 化；不要为了“更完整”再给 chat 外层套 `AppPanel`、`ui-panel`、`ui-workbench-surface` 或等价的大卡片容器
+- 不要给整个 chat container 添加明显的 `background / border / shadow / radius`
+- 禁止出现“外层大卡片 + 内层 message/work item 卡片”这种双层卡片结构
+- message 可以使用轻背景、细边框和中小圆角，但不要做成厚重卡片
+- work item、capture receipt、session reflection 这类信息块可以保留更明确的卡片边界
+- composer / input 只允许轻 surface，不要做成高浮层或重面板
+- 层级顺序必须稳定：页面背景 `<` chat 流 `<` message `<` 需要强调的信息卡片
+
 ## 6. 页面结构规则
 
 新页面优先遵守：
@@ -211,5 +224,6 @@
 - DevAgent 主界面与 session 区
 - 聊天区的按钮、badge、trace/status 标签
 - LongMemory 高使用频率列表与详情区
+- 聊天区容器去卡片化，message 与 work item 层级重新收口
 
 本轮未强行深改的区域，应在后续继续沿用本规范补齐。

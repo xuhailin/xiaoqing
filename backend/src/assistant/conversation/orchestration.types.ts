@@ -14,7 +14,6 @@ import type { DialogueIntentState } from '../intent/intent.types';
 import type { WorldState } from '../../infra/world-state/world-state.types';
 import type {
   DailyMomentRecord,
-  DailyMomentSuggestion,
 } from '../life-record/daily-moment/daily-moment.types';
 import type { LocalSkillRunResult } from '../../action/local-skills/local-skill.types';
 import type { SystemSelf } from '../../system-self/system-self.types';
@@ -23,6 +22,7 @@ import type { SharedExperienceRecord } from '../shared-experience/shared-experie
 import type { SocialEntityRecord } from '../life-record/social-entity/social-entity.types';
 import type { SocialInsightRecord } from '../life-record/social-insight/social-insight.types';
 import type { RelevantSocialRelationEdgeRecord } from '../life-record/social-relation-edge/social-relation-edge.types';
+import type { EntryAgentId } from '../../gateway/message-router.types';
 import type {
   ConversationWorkItemDto,
   ConversationWorkProjectionType,
@@ -86,6 +86,23 @@ export interface MemoryRecallPlan {
   candidatesCount: number;
   selectedCount: number;
   needDetail: boolean;
+}
+
+export interface CollaborationContextExcerptItem {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface CollaborationTurnContext {
+  mode: 'inbound_delegation';
+  requesterAgentId: EntryAgentId;
+  executorAgentId: EntryAgentId;
+  delegationId: string;
+  requestType: string;
+  summary?: string | null;
+  userInput?: string | null;
+  memoryPolicy?: string | null;
+  contextExcerpt?: CollaborationContextExcerptItem[] | null;
 }
 
 export interface TurnContext {
@@ -153,6 +170,7 @@ export interface TurnContext {
     mergedIntentState?: DialogueIntentState | null;
     actionDecision?: ActionDecision;
     memoryRecall?: MemoryRecallPlan;
+    collaborationContext?: CollaborationTurnContext | null;
     cognitiveState?: CognitiveTurnState;
     boundaryPrompt?: BoundaryPromptContext | null;
     previousReflection?: {
@@ -170,9 +188,8 @@ export interface SendMessageResult {
   openclawUsed?: boolean;
   localSkillUsed?: 'weather' | 'book_download' | 'general_action' | 'timesheet' | 'reminder';
   dailyMoment?: {
-    mode: 'entry' | 'suggestion';
+    mode: 'entry';
     record?: DailyMomentRecord;
-    suggestion?: DailyMomentSuggestion;
   };
   meta?: {
     localSkillRun?: LocalSkillRunResult;

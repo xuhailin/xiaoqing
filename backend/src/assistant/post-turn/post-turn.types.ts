@@ -31,7 +31,6 @@ export interface PostTurnPlan {
 }
 
 export type PostTurnTask =
-  | { type: 'daily_moment_suggestion' }
   | { type: 'life_record_sync' }
   | { type: 'record_growth' }
   | { type: 'summarize_trigger'; trigger: 'instant' | 'threshold' | 'flush' }

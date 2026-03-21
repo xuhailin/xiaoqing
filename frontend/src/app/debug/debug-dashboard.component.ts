@@ -192,10 +192,17 @@ interface PendingEvolution {
   styles: [`
     .debug-panel {
       font-family: var(--font-family);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
     }
 
     .section {
-      margin-bottom: var(--space-4);
+      padding: var(--workbench-card-padding);
+      border-radius: var(--workbench-card-radius);
+      border: 1px solid var(--color-workbench-border);
+      background: var(--workbench-surface-gradient-soft);
+      box-shadow: var(--chat-panel-shadow);
     }
 
     .section-title {

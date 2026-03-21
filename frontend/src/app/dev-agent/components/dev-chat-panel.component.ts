@@ -33,15 +33,17 @@ import { AppPanelComponent } from '../../shared/ui/app-panel.component';
                 {{ mode === 'agent' ? 'Agent' : 'Orchestrated' }}
               </app-badge>
             }
-            @if (runState?.updatedAtLabel) {
-              <span class="header-time">{{ runState?.updatedAtLabel }}</span>
-            }
-            @if (runState && runState.toolCallCount != null && runState.toolCallCount > 0) {
-              <span class="header-tools">{{ runState.toolCallCount }} tools</span>
-            }
-            @if (runState && runState.costUsd != null) {
-              <span class="header-cost">\${{ formatCost(runState!.costUsd!) }}</span>
-            }
+            <div class="header-meta">
+              @if (runState?.updatedAtLabel) {
+                <span class="header-time">{{ runState?.updatedAtLabel }}</span>
+              }
+              @if (runState && runState.toolCallCount != null && runState.toolCallCount > 0) {
+                <span class="header-tools">{{ runState.toolCallCount }} tools</span>
+              }
+              @if (runState && runState.costUsd != null) {
+                <span class="header-cost">\${{ formatCost(runState!.costUsd!) }}</span>
+              }
+            </div>
           </div>
 
           <div class="header-actions">
@@ -110,6 +112,8 @@ import { AppPanelComponent } from '../../shared/ui/app-panel.component';
       padding: var(--workbench-header-padding);
       border-bottom: 1px solid var(--color-border-light);
       flex-shrink: 0;
+      background: var(--workbench-header-background);
+      backdrop-filter: blur(14px);
     }
 
     .header-left {
@@ -130,9 +134,24 @@ import { AppPanelComponent } from '../../shared/ui/app-panel.component';
       white-space: nowrap;
     }
 
+    .header-meta {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+      min-width: 0;
+    }
+
     .header-time,
     .header-cost,
     .header-tools {
+      display: inline-flex;
+      align-items: center;
+      min-height: 1.45rem;
+      padding: 0 var(--space-2);
+      border-radius: var(--radius-pill);
+      background: var(--color-badge-neutral-bg);
+      border: 1px solid var(--color-badge-neutral-border);
       font-size: var(--font-size-xs);
       color: var(--color-text-muted);
       white-space: nowrap;

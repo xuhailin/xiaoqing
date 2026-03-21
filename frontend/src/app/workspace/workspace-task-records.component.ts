@@ -6,9 +6,14 @@ import { PlanApiService, type PlanRecord, type TaskOccurrenceRecord } from '../c
 import { TodoApiService } from '../core/services/todo.service';
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
-import { AppPageHeaderComponent } from '../shared/ui/app-page-header.component';
 import { AppPanelComponent } from '../shared/ui/app-panel.component';
 import { AppStateComponent } from '../shared/ui/app-state.component';
+import { WorkspaceArrivalNoticeComponent } from '../shared/ui/workspace-arrival-notice.component';
+import {
+  WorkspaceRelationSummaryComponent,
+  type WorkspaceRelationSummaryItem,
+} from '../shared/ui/workspace-relation-summary.component';
+import { executionStatusLabel, executionStatusTone } from '../shared/workbench-status.utils';
 
 @Component({
   selector: 'app-workspace-task-records',
@@ -17,17 +22,14 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
     FormsModule,
     AppBadgeComponent,
     AppButtonComponent,
-    AppPageHeaderComponent,
     AppPanelComponent,
     AppStateComponent,
+    WorkspaceArrivalNoticeComponent,
+    WorkspaceRelationSummaryComponent,
   ],
   template: `
     <div class="workspace-page">
-      <app-page-header
-        title="执行"
-        description="统一查看系统执行链里的 TaskOccurrence 流水，先保持现有执行层不变。"
-      />
-
+      <app-workspace-arrival-notice [text]="arrivalNotice()" />
       <app-panel variant="workbench" class="workspace-card workspace-card--filters">
         <div class="card-header">筛选条件</div>
 
@@ -65,7 +67,7 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
 
         <div class="form-actions">
           <app-button variant="primary" size="sm" [disabled]="loading()" (click)="loadRecords()">
-            {{ loading() ? '加载中...' : '刷新记录' }}
+            {{ loading() ? '加载中...' : '刷新列表' }}
           </app-button>
           <span class="notice">默认展示最近 7 天到未来 7 天的触发记录。</span>
           @if (actionNotice()) {
@@ -80,6 +82,31 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
           <app-badge tone="info">{{ visibleRecords().length }}</app-badge>
         </div>
 
+        @if (focusedPlanSummary(); as summary) {
+          <div class="focus-card">
+            <div class="focus-card__header">
+              <div>
+                <div class="focus-card__eyebrow">当前定位</div>
+                <div class="focus-card__title">{{ summary.title }}</div>
+              </div>
+              <div class="focus-card__badges">
+                <app-badge [tone]="summary.tone">{{ summary.status }}</app-badge>
+                @if (summary.dispatchType) {
+                  <app-badge tone="info" appearance="outline">{{ summary.dispatchType }}</app-badge>
+                }
+              </div>
+            </div>
+            @if (summary.detail) {
+              <div class="focus-card__summary">{{ summary.detail }}</div>
+            }
+            <app-workspace-relation-summary
+              [embedded]="false"
+              [items]="summary.relations"
+              (action)="handleFocusedPlanAction($event)"
+            />
+          </div>
+        }
+
         @if (loading()) {
           <app-state [compact]="true" kind="loading" title="任务记录加载中..." />
         } @else if (!visibleRecords().length) {
@@ -87,7 +114,7 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
         } @else {
           <div class="record-list">
             @for (record of visibleRecords(); track record.id) {
-              <div class="ui-list-card record-card" [class.record-card--highlight]="highlightedRecordId() === record.id">
+              <div class="ui-list-card record-card" [class.record-card--highlight]="highlightedRecordId() === record.id" [attr.data-record-id]="record.id">
                 <div class="record-main">
                   <div class="record-title">
                     {{ record.plan?.title || planTitle(record.planId) || record.planId }}
@@ -101,12 +128,10 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
                       <app-badge tone="info" appearance="outline">{{ record.plan?.dispatchType }}</app-badge>
                     }
                   </div>
-                  @if (record.plan?.sourceTodoId) {
-                    <div class="record-source">
-                      <span>来源待办：{{ record.plan?.sourceTodo?.title || record.plan?.sourceTodoId }}</span>
-                      <app-badge tone="success" appearance="outline" size="sm">Todo</app-badge>
-                    </div>
-                  }
+                  <app-workspace-relation-summary
+                    [items]="recordRelationItems(record)"
+                    (action)="handleRecordRelationAction($event, record)"
+                  />
                 </div>
 
                 @if (record.resultRef) {
@@ -121,7 +146,7 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
                   <div class="record-actions">
                     <app-button variant="ghost" size="xs" (click)="openTodo(record.plan?.sourceTodoId)">去待办</app-button>
                     @if (record.action) {
-                      <app-button variant="ghost" size="xs" (click)="retryRecord(record)">重试执行</app-button>
+                      <app-button variant="ghost" size="xs" (click)="retryRecord(record)">再次执行</app-button>
                     }
                   </div>
                 }
@@ -157,6 +182,49 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
 
     .workspace-card--list {
       flex: 1 1 auto;
+    }
+
+    .focus-card {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      padding: var(--workbench-card-padding);
+      border: 1px solid var(--color-surface-highlight-border);
+      border-radius: var(--workbench-card-radius);
+      background:
+        linear-gradient(180deg, rgba(79, 109, 245, 0.04), rgba(79, 109, 245, 0.015)),
+        var(--workbench-surface-gradient-soft);
+      box-shadow: var(--color-surface-highlight-shadow);
+    }
+
+    .focus-card__header,
+    .focus-card__badges {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+    }
+
+    .focus-card__eyebrow {
+      font-size: 11px;
+      font-weight: var(--font-weight-semibold);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+    }
+
+    .focus-card__title {
+      margin-top: 0.2rem;
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-weight-semibold);
+      color: var(--color-text);
+    }
+
+    .focus-card__summary {
+      font-size: var(--font-size-sm);
+      line-height: 1.6;
+      color: var(--color-text-secondary);
     }
 
     .card-header {
@@ -208,9 +276,15 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
     }
 
     .record-card--highlight {
-      border-color: var(--color-primary);
-      box-shadow: var(--color-surface-highlight-shadow);
-      background: var(--color-surface-highlight);
+      border-color: color-mix(in srgb, var(--color-primary) 50%, var(--color-border));
+      box-shadow: 0 12px 24px rgba(79, 109, 245, 0.08);
+      background: color-mix(in srgb, var(--color-surface-highlight) 72%, transparent);
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .record-card--highlight {
+        animation: workbenchArrivalPulse 700ms ease-out;
+      }
     }
 
     .record-title {
@@ -222,15 +296,6 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
     .record-meta {
       display: flex;
       flex-wrap: wrap;
-      gap: var(--space-2);
-      margin-top: var(--space-2);
-      font-size: var(--font-size-xs);
-      color: var(--color-text-secondary);
-    }
-
-    .record-source {
-      display: flex;
-      align-items: center;
       gap: var(--space-2);
       margin-top: var(--space-2);
       font-size: var(--font-size-xs);
@@ -279,6 +344,18 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
         grid-template-columns: 1fr;
       }
     }
+
+    @keyframes workbenchArrivalPulse {
+      0% {
+        box-shadow: 0 0 0 rgba(79, 109, 245, 0);
+      }
+      35% {
+        box-shadow: 0 0 0 6px rgba(79, 109, 245, 0.12);
+      }
+      100% {
+        box-shadow: 0 12px 24px rgba(79, 109, 245, 0.08);
+      }
+    }
   `],
 })
 export class WorkspaceTaskRecordsComponent implements OnInit, OnDestroy {
@@ -287,15 +364,19 @@ export class WorkspaceTaskRecordsComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private querySub?: { unsubscribe(): void };
+  private arrivalNoticeTimer: number | null = null;
 
   readonly plans = signal<PlanRecord[]>([]);
   readonly records = signal<TaskOccurrenceRecord[]>([]);
   readonly loading = signal(false);
   readonly actionNotice = signal<string | null>(null);
+  readonly arrivalNotice = signal<string | null>(null);
   readonly highlightedRecordId = signal<string | null>(null);
   readonly from = signal(this.defaultDateTimeInput(-7));
   readonly to = signal(this.defaultDateTimeInput(7));
   readonly planId = signal('');
+  readonly sourceTodoId = signal('');
+  readonly focusTaskId = signal('');
   readonly statusFilter = signal<'all' | 'pending' | 'success' | 'failed'>('all');
 
   readonly planLookup = computed(() =>
@@ -310,10 +391,41 @@ export class WorkspaceTaskRecordsComponent implements OnInit, OnDestroy {
       return record.status === 'pending';
     });
   });
+  readonly focusedPlanSummary = computed(() => {
+    const currentPlanId = this.planId();
+    if (!currentPlanId) return null;
+
+    const currentPlan = this.plans().find((plan) => plan.id === currentPlanId) ?? null;
+    const latestRecord = this.records().find((record) => record.planId === currentPlanId) ?? null;
+    const title = currentPlan?.title || currentPlan?.description || latestRecord?.plan?.title || currentPlanId;
+    const status = latestRecord
+      ? this.recordStatusLabel(latestRecord)
+      : currentPlan?.status === 'archived'
+        ? executionStatusLabel('archived')
+        : executionStatusLabel('pending');
+    const tone = latestRecord ? this.statusTone(latestRecord) : currentPlan?.status === 'active' ? 'warning' : 'neutral';
+    const detail = latestRecord
+      ? this.recordSummary(latestRecord)
+      : currentPlan?.nextRunAt
+        ? `下次计划时间：${this.formatDateTime(currentPlan.nextRunAt)}`
+        : '这条执行链还没有新的结果。';
+    const relations = latestRecord ? this.recordRelationItems(latestRecord) : [];
+    return {
+      title,
+      status,
+      tone,
+      detail,
+      dispatchType: currentPlan?.dispatchType ?? latestRecord?.plan?.dispatchType ?? null,
+      relations,
+    };
+  });
 
   async ngOnInit() {
     this.querySub = this.route.queryParamMap.subscribe((params) => {
       this.planId.set(params.get('planId') ?? '');
+      this.sourceTodoId.set(params.get('todoId') ?? '');
+      this.focusTaskId.set(params.get('taskId') ?? '');
+      this.statusFilter.set('all');
     });
     await this.loadPlans();
     await this.loadRecords();
@@ -321,6 +433,7 @@ export class WorkspaceTaskRecordsComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.querySub?.unsubscribe();
+    this.clearArrivalNotice();
   }
 
   async loadPlans() {
@@ -337,6 +450,8 @@ export class WorkspaceTaskRecordsComponent implements OnInit, OnDestroy {
         planId: this.planId() || undefined,
       }));
       this.records.set(list ?? []);
+      this.syncHighlightRecord();
+      this.announceArrival();
     } finally {
       this.loading.set(false);
     }
@@ -362,7 +477,7 @@ export class WorkspaceTaskRecordsComponent implements OnInit, OnDestroy {
   }
 
   recordStatusLabel(record: TaskOccurrenceRecord): string {
-    return this.isFailedRecord(record) ? 'failed' : record.status;
+    return executionStatusLabel(this.isFailedRecord(record) ? 'failed' : record.status);
   }
 
   formatDateTime(value: string) {
@@ -391,6 +506,23 @@ export class WorkspaceTaskRecordsComponent implements OnInit, OnDestroy {
       ?? '执行完成。';
   }
 
+  recordRelationItems(record: TaskOccurrenceRecord): WorkspaceRelationSummaryItem[] {
+    if (!record.plan?.sourceTodoId) {
+      return [];
+    }
+    return [{
+      key: 'todo',
+      label: '来源待办',
+      title: record.plan.sourceTodo?.title || record.plan.sourceTodoId,
+      detail: record.action ? `执行能力：${record.action}` : '这次执行来自待办推进。',
+      meta: record.plan.dispatchType ? `派发方式：${record.plan.dispatchType}` : null,
+      badge: 'todo',
+      tone: 'success',
+      actionLabel: '去待办',
+      icon: 'check',
+    }];
+  }
+
   emptyStateDescription(): string {
     if (this.statusFilter() === 'failed') {
       return '当前时间范围里还没有失败记录。';
@@ -417,6 +549,18 @@ export class WorkspaceTaskRecordsComponent implements OnInit, OnDestroy {
     });
   }
 
+  handleFocusedPlanAction(action: string) {
+    if (action === 'todo') {
+      this.openTodo(this.currentSourceTodoId());
+    }
+  }
+
+  handleRecordRelationAction(action: string, record: TaskOccurrenceRecord) {
+    if (action === 'todo') {
+      this.openTodo(record.plan?.sourceTodoId);
+    }
+  }
+
   async retryRecord(record: TaskOccurrenceRecord) {
     const todoId = record.plan?.sourceTodoId;
     const action = record.action;
@@ -441,6 +585,64 @@ export class WorkspaceTaskRecordsComponent implements OnInit, OnDestroy {
 
   private readString(value: unknown): string | null {
     return typeof value === 'string' && value.trim() ? value.trim() : null;
+  }
+
+  private syncHighlightRecord() {
+    const focusTaskId = this.focusTaskId();
+    if (focusTaskId && this.records().some((record) => record.id === focusTaskId)) {
+      this.highlightedRecordId.set(focusTaskId);
+      this.scrollIntoView(`[data-record-id="${focusTaskId}"]`);
+      return;
+    }
+    const currentPlanId = this.planId();
+    if (!currentPlanId) {
+      this.highlightedRecordId.set(null);
+      return;
+    }
+    const latestRecord = this.records().find((record) => record.planId === currentPlanId) ?? null;
+    this.highlightedRecordId.set(latestRecord?.id ?? null);
+    if (latestRecord?.id) {
+      this.scrollIntoView(`[data-record-id="${latestRecord.id}"]`);
+    }
+  }
+
+  private currentSourceTodoId(): string | null {
+    return this.sourceTodoId()
+      || this.records().find((record) => record.planId === this.planId())?.plan?.sourceTodoId
+      || null;
+  }
+
+  private announceArrival() {
+    const summary = this.focusedPlanSummary();
+    if (!summary) return;
+    const suffix = this.highlightedRecordId()
+      ? '已自动定位到最近相关记录。'
+      : '当前显示这条执行链的整体摘要。';
+    this.setArrivalNotice(`已定位到执行“${summary.title}”。${suffix}`);
+  }
+
+  private setArrivalNotice(text: string) {
+    this.arrivalNotice.set(text);
+    this.clearArrivalNotice();
+    this.arrivalNoticeTimer = window.setTimeout(() => {
+      this.arrivalNotice.set(null);
+      this.arrivalNoticeTimer = null;
+    }, 2800);
+  }
+
+  private clearArrivalNotice() {
+    if (this.arrivalNoticeTimer !== null) {
+      window.clearTimeout(this.arrivalNoticeTimer);
+      this.arrivalNoticeTimer = null;
+    }
+  }
+
+  private scrollIntoView(selector: string, delay = 60) {
+    window.setTimeout(() => {
+      const node = document.querySelector(selector);
+      if (!(node instanceof HTMLElement)) return;
+      node.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }, delay);
   }
 
   private defaultDateTimeInput(dayOffset: number) {

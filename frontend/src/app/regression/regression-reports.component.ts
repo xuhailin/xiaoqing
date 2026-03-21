@@ -513,6 +513,12 @@ import {
       gap: 6px;
     }
 
+    .meta-card {
+      background: var(--color-surface-highlight);
+      border-color: var(--color-surface-highlight-border);
+      box-shadow: var(--color-surface-highlight-shadow);
+    }
+
     .summary-label,
     .meta-label {
       font-size: 12px;
@@ -620,6 +626,16 @@ import {
       gap: 0.875rem;
     }
 
+    .signal-block {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      padding: 0.875rem;
+      border-radius: var(--workbench-card-radius);
+      background: var(--color-panel-subtle-bg);
+      border: 1px solid var(--color-workbench-border);
+    }
+
     .error-box {
       padding: 0.75rem 0.875rem;
       border-radius: var(--workbench-card-radius);
@@ -678,15 +694,17 @@ import {
       gap: 10px;
       padding: 8px 10px;
       border-radius: 14px;
-      margin-bottom: 6px;
+      border: 1px solid transparent;
     }
 
     .signal-row.fail {
       background: var(--color-error-bg);
+      border-color: var(--color-error-border);
     }
 
     .signal-row.warn {
       background: var(--color-warning-bg);
+      border-color: var(--color-warning-border);
     }
 
     .signal-name {
@@ -727,6 +745,9 @@ import {
 
     .turn-card {
       padding: 0.75rem 0.875rem;
+      background: var(--color-surface-muted);
+      border: 1px solid var(--color-workbench-border);
+      box-shadow: none;
     }
 
     .turn-head {
@@ -736,6 +757,7 @@ import {
       color: var(--color-text-secondary);
       font-size: 12px;
       font-family: "SFMono-Regular", "JetBrains Mono", monospace;
+      flex-wrap: wrap;
     }
 
     .turn-line {
@@ -762,6 +784,9 @@ import {
       white-space: pre-wrap;
       line-height: 1.6;
       color: var(--color-text);
+      padding: 0.625rem 0.75rem;
+      border-radius: var(--radius-md);
+      background: var(--color-panel-subtle-bg);
     }
 
     @media (max-width: 900px) {
@@ -792,6 +817,11 @@ import {
       .signal-row,
       .turn-line {
         grid-template-columns: 1fr;
+      }
+
+      .result-actions {
+        flex-direction: column;
+        align-items: flex-start;
       }
     }
   `],

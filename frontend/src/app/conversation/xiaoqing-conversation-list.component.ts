@@ -1,10 +1,10 @@
-import { Component, OnInit, OnDestroy, signal, inject, HostListener } from '@angular/core';
-import { Router } from '@angular/router';
+import { Component, HostListener, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import {
-  ConversationService,
   ConversationItem,
+  ConversationService,
   EntryAgentId,
   Message,
   MessageKind,
@@ -15,14 +15,14 @@ import { AppIconComponent, type AppIconName } from '../shared/ui/app-icon.compon
 import { AppStateComponent } from '../shared/ui/app-state.component';
 
 @Component({
-  selector: 'app-conversation-list',
+  selector: 'app-xiaoqing-conversation-list',
   standalone: true,
   imports: [DatePipe, AppBadgeComponent, AppButtonComponent, AppIconComponent, AppStateComponent],
   template: `
     <div class="conv-list ui-scrollbar">
       <app-button class="new-btn" variant="primary" size="sm" [stretch]="true" (click)="createNew()">
         <app-icon name="plus" size="0.9rem" />
-        <span>新对话</span>
+        <span>和小晴新开一段</span>
       </app-button>
 
       @if (loading()) {
@@ -74,8 +74,8 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
       @if (!loading() && conversations().length === 0) {
         <app-state
           [compact]="true"
-          title="暂无对话"
-          description="从这里创建新对话，或切回主区继续当前会话。"
+          title="暂无和小晴的对话"
+          description="这里单独只展示小晴前台会话。"
         />
       }
     </div>
@@ -95,15 +95,39 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
     }
   `,
   styles: [`
+    :host {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      height: 100%;
+    }
+
     .conv-list {
       display: flex;
       flex-direction: column;
       gap: var(--space-2);
-      overflow-y: auto;
+      overflow-y: scroll;
+      overflow-x: hidden;
+      scrollbar-gutter: stable;
+      scrollbar-width: thin;
+      scrollbar-color: var(--color-border-strong, var(--color-border)) transparent;
       flex: 1;
       min-height: 0;
       padding: 0 var(--space-1) var(--space-1);
       background: transparent;
+    }
+
+    .conv-list::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .conv-list::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .conv-list::-webkit-scrollbar-thumb {
+      background: var(--color-border-strong, var(--color-border));
+      border-radius: 999px;
     }
 
     .new-btn {
@@ -122,6 +146,7 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
       background: var(--conversation-card-bg);
       box-shadow: var(--conversation-card-shadow);
       backdrop-filter: blur(12px);
+      min-height: max-content;
     }
 
     .conv-item::before {
@@ -214,13 +239,14 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-
   `],
 })
-export class ConversationListComponent implements OnInit, OnDestroy {
+export class XiaoqingConversationListComponent implements OnInit, OnDestroy {
   private conversationService = inject(ConversationService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
   private refreshSub?: Subscription;
+  private routeSub?: Subscription;
 
   conversations = signal<ConversationItem[]>([]);
   loading = signal(false);
@@ -231,11 +257,15 @@ export class ConversationListComponent implements OnInit, OnDestroy {
   contextMenuPos = signal({ x: 0, y: 0 });
 
   ngOnInit() {
-    this.load();
-    this.refreshSub = this.conversationService.refreshList$.subscribe(() => this.load());
+    this.routeSub = this.route.paramMap.subscribe((params) => {
+      this.activeId.set(params.get('id'));
+      void this.load();
+    });
+    this.refreshSub = this.conversationService.refreshList$.subscribe(() => void this.load());
   }
 
   ngOnDestroy() {
+    this.routeSub?.unsubscribe();
     this.refreshSub?.unsubscribe();
   }
 
@@ -243,23 +273,23 @@ export class ConversationListComponent implements OnInit, OnDestroy {
     this.loading.set(true);
     try {
       const list = await this.conversationService.list().toPromise();
-      this.conversations.set(list ?? []);
+      this.conversations.set((list ?? []).filter((item) => item.entryAgentId === 'xiaoqing'));
     } finally {
       this.loading.set(false);
     }
   }
 
   async createNew() {
-    const res = await this.conversationService.create().toPromise();
+    const res = await this.conversationService.create('xiaoqing').toPromise();
     if (res?.id) {
       await this.load();
-      this.router.navigate(['/chat', res.id]);
+      this.router.navigate(['/chat', res.id], { queryParams: {} });
     }
   }
 
   open(id: string) {
     this.activeId.set(id);
-    this.router.navigate(['/chat', id]);
+    this.router.navigate(['/chat', id], { queryParams: {} });
   }
 
   @HostListener('document:click') closeContextMenuOnClick() {
@@ -308,7 +338,7 @@ export class ConversationListComponent implements OnInit, OnDestroy {
       await this.conversationService.delete(id).toPromise();
       if (this.activeId() === id) {
         this.activeId.set(null);
-        this.router.navigate(['/chat']);
+        this.router.navigate(['/chat'], { queryParams: {} });
       }
       await this.load();
     } finally {
@@ -323,11 +353,16 @@ export class ConversationListComponent implements OnInit, OnDestroy {
 
   previewText(message: Message): string {
     const prefix = message.role === 'user' ? '我：' : '';
-    const content = message.metadata?.summary?.trim() || message.content.trim();
+    const content = message.metadata?.summary?.trim()
+      || message.metadata?.inboundSummary?.trim()
+      || message.metadata?.inboundUserInput?.trim()
+      || message.content.trim();
     return `${prefix}${content}`.slice(0, 46) + (`${prefix}${content}`.length > 46 ? '…' : '');
   }
 
   kindIcon(kind: MessageKind): AppIconName {
+    if (kind === 'agent_receipt') return 'route';
+    if (kind === 'agent_result') return 'sparkles';
     if (kind === 'reminder_triggered' || kind === 'reminder_created' || kind === 'reminder_list' || kind === 'reminder_cancelled') {
       return 'bell';
     }
@@ -338,6 +373,8 @@ export class ConversationListComponent implements OnInit, OnDestroy {
   }
 
   kindLabel(kind: MessageKind): string {
+    if (kind === 'agent_receipt') return '代理回执';
+    if (kind === 'agent_result') return '代理结果';
     if (kind === 'reminder_triggered') return '到点提醒';
     if (kind === 'reminder_created') return '提醒已设';
     if (kind === 'reminder_list') return '提醒列表';
@@ -349,6 +386,8 @@ export class ConversationListComponent implements OnInit, OnDestroy {
   }
 
   kindTone(kind: MessageKind): 'neutral' | 'info' | 'success' | 'warning' | 'danger' {
+    if (kind === 'agent_receipt') return 'info';
+    if (kind === 'agent_result') return 'success';
     if (kind === 'reminder_triggered' || kind === 'reminder_created' || kind === 'reminder_list' || kind === 'reminder_cancelled') {
       return 'warning';
     }

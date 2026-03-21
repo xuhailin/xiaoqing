@@ -36,6 +36,7 @@ import { AppPanelComponent } from '../shared/ui/app-panel.component';
 
     .memory-card {
       min-height: 0;
+      box-shadow: var(--workbench-surface-shadow);
     }
 
     @media (max-width: 980px) {

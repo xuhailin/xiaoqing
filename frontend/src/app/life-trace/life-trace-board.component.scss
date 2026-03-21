@@ -134,7 +134,7 @@
 
 .life-day-option {
   width: 100%;
-  padding: 0.85rem 0.9rem;
+  padding: 0.95rem 1rem;
   border: 1px solid var(--timeline-card-border);
   border-radius: 16px;
   background: var(--timeline-option-bg);
@@ -143,7 +143,8 @@
   transition:
     background var(--transition-fast),
     border-color var(--transition-fast),
-    transform var(--transition-fast);
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .life-day-option:hover {
@@ -170,6 +171,16 @@
   color: var(--color-text-muted);
 }
 
+.life-day-option__count {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.4rem;
+  padding: 0 0.55rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-badge-neutral-bg);
+  border: 1px solid var(--color-badge-neutral-border);
+}
+
 .life-day-option__title {
   margin-top: 0.45rem;
   font-size: var(--font-size-sm);
@@ -182,6 +193,21 @@
   flex-wrap: wrap;
   gap: 0.4rem;
   margin-top: 0.7rem;
+  align-items: center;
+}
+
+.life-day-option.is-active .life-day-option__date,
+.life-day-option.is-active .life-day-option__count {
+  color: var(--color-primary);
+}
+
+.life-day-option.is-active .life-day-option__count {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary-soft);
+}
+
+.life-day-option.is-active .life-day-option__title {
+  color: var(--color-text);
 }
 
 .life-stat-list {
@@ -324,6 +350,10 @@
   opacity: 0.8;
 }
 
+.life-rhythm-card.is-busy {
+  box-shadow: 0 16px 30px color-mix(in srgb, var(--timeline-option-active-border) 32%, transparent);
+}
+
 .life-rhythm-card__head {
   display: flex;
   align-items: flex-start;
@@ -348,6 +378,10 @@
 .life-rhythm-card__count {
   font-size: 1rem;
   color: var(--color-text);
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-badge-neutral-bg);
+  border: 1px solid var(--color-badge-neutral-border);
 }
 
 .life-rhythm-card__bar {

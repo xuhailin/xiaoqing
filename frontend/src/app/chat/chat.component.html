@@ -121,18 +121,51 @@
 
   <div class="chat-stage">
     <div class="messages ui-scrollbar" #messagesEl>
-      <div class="messages-track">
+      <div class="messages-track" [class.messages-track--empty]="showEmptyState()">
+        @if (showEmptyState()) {
+          <section class="chat-empty">
+            <div class="chat-empty__card">
+              <div class="chat-empty__hero">
+                @if (entryAgentId() === 'xiaoqin') {
+                  <span class="chat-empty__agent-icon">
+                    <app-icon name="claw" size="1.2rem" />
+                  </span>
+                } @else {
+                  <app-xiaoqing-avatar class="chat-empty__avatar" size="3rem" shape="circle" />
+                }
+                <div class="chat-empty__copy">
+                  <div class="chat-empty__eyebrow">{{ entryAgentId() === 'xiaoqin' ? 'Execution Agent' : 'Assistant' }}</div>
+                  <div class="chat-empty__title">{{ emptyStateTitle() }}</div>
+                  <div class="chat-empty__description">{{ emptyStateDescription() }}</div>
+                </div>
+              </div>
+
+              <div class="chat-empty__hints">
+                @for (hint of emptyStateHints(); track hint) {
+                  <div class="chat-empty__hint">{{ hint }}</div>
+                }
+              </div>
+            </div>
+          </section>
+        }
+
         @for (m of messages(); track m.id) {
           <div class="message" [ngClass]="messageClasses(m)">
             <div class="message-head">
               <div class="message-head-main">
                 @if (m.role === 'assistant') {
                   <span class="assistant-role">
-                    <app-xiaoqing-avatar class="assistant-role__avatar" size="1.35rem" shape="circle" />
-                    <span class="role-label">小晴</span>
+                    @if (messageSpeakerAgentId(m) === 'xiaoqing') {
+                      <app-xiaoqing-avatar class="assistant-role__avatar" size="1.35rem" shape="circle" />
+                    } @else if (messageSpeakerAgentId(m) === 'xiaoqin') {
+                      <span class="assistant-role__agent-icon">
+                        <app-icon name="claw" size="0.9rem" />
+                      </span>
+                    }
+                    <span class="role-label">{{ messageSpeakerLabel(m) }}</span>
                   </span>
                 } @else {
-                  <span class="role-label">我</span>
+                  <span class="role-label">{{ messageSpeakerLabel(m) }}</span>
                 }
                 @if (messageKindMeta(m.kind); as kindMeta) {
                   <app-badge class="message-kind-badge" [tone]="messageKindTone(m.kind, m)">
@@ -145,8 +178,8 @@
             </div>
             <div class="bubble">
               <app-message-content
-                [content]="m.content"
-                [contentType]="m.contentType"
+                [content]="displayedMessageContent(m)"
+                [contentType]="displayedMessageContentType(m)"
                 [role]="m.role"
               />
             </div>
@@ -168,11 +201,26 @@
                   <app-badge tone="neutral" appearance="outline" size="sm">{{ receipt.kindLabel }}</app-badge>
                   <app-badge [tone]="receipt.tone" appearance="outline" size="sm">{{ receipt.statusLabel }}</app-badge>
                 </div>
+                @if (receiptStatusesForMessage(m).length) {
+                  <div class="capture-receipt__live-list">
+                    @for (status of receiptStatusesForMessage(m); track status.key) {
+                      <div class="capture-receipt__live-item">
+                        <app-badge [tone]="status.tone" appearance="outline" size="sm">{{ status.label }}</app-badge>
+                        @if (status.detail) {
+                          <span class="capture-receipt__live-detail">{{ status.detail }}</span>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
                 @if (receipt.entityTitle) {
                   <div class="capture-receipt__entity">{{ receipt.entityTitle }}</div>
                 }
                 @if (receipt.summary) {
                   <div class="capture-receipt__summary">{{ receipt.summary }}</div>
+                }
+                @if (receiptLiveSummary(m); as liveSummary) {
+                  <div class="capture-receipt__summary capture-receipt__summary--live">{{ liveSummary }}</div>
                 }
                 @if (receipt.detail) {
                   <div class="capture-receipt__detail">{{ receipt.detail }}</div>
@@ -199,9 +247,14 @@
             @if (shouldRenderWorkCard(m) && workItemForMessage(m); as workItem) {
               <div class="work-card" [ngClass]="workCardClasses(workItem)">
                 <div class="work-card__header">
-                  <div class="work-card__title">{{ workItem.title || workItem.userFacingGoal }}</div>
+                  <div class="work-card__title-group">
+                    @if (workHierarchyLabel(workItem); as hierarchyLabel) {
+                      <div class="work-card__eyebrow">{{ hierarchyLabel }}</div>
+                    }
+                    <div class="work-card__title">{{ workCardTitle(workItem) }}</div>
+                  </div>
                   <div class="work-card__badges">
-                    <app-badge [tone]="workStatusTone(workItem.status)" appearance="outline" size="sm">
+                    <app-badge [tone]="workStatusTone(workItem.status)" size="sm">
                       {{ workStatusLabel(workItem.status) }}
                     </app-badge>
                     @if (workHealthLabel(workItem); as healthLabel) {
@@ -211,15 +264,25 @@
                     }
                   </div>
                 </div>
-                @if (workItem.latestSummary) {
-                  <div class="work-card__summary">{{ workItem.latestSummary }}</div>
+                @if (workCardSummary(workItem); as summary) {
+                  <div class="work-card__summary">{{ summary }}</div>
                 }
-                @if (workItem.healthSummary && workItem.healthSummary !== workItem.waitingQuestion && workItem.healthSummary !== workItem.blockReason) {
-                  <div class="work-card__health">{{ workItem.healthSummary }}</div>
+                @if (workCardSignal(workItem); as signal) {
+                  <div class="work-card__signal">
+                    <div class="work-card__signal-head">
+                      <app-badge [tone]="signal.tone" size="sm">
+                        <app-icon [name]="signal.icon" size="0.82rem" />
+                        <span>{{ signal.label }}</span>
+                      </app-badge>
+                    </div>
+                    @if (signal.detail) {
+                      <div class="work-card__signal-detail">{{ signal.detail }}</div>
+                    }
+                  </div>
                 }
-                @if (workItem.blockReason || workItem.waitingQuestion || workCardMeta(workItem); as metaLine) {
+                @if (workCardMeta(workItem); as metaLine) {
                   <div class="work-card__meta">
-                    {{ workItem.waitingQuestion || workItem.blockReason || metaLine }}
+                    {{ metaLine }}
                   </div>
                 }
               </div>

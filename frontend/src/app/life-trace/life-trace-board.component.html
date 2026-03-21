@@ -189,6 +189,9 @@
                 @if (summary.hasSummary) {
                   <app-badge tone="success" appearance="outline" size="sm">摘要</app-badge>
                 }
+                @if (selectedDayKey() === summary.dayKey) {
+                  <app-badge tone="info" appearance="outline" size="sm">当前查看</app-badge>
+                }
               </div>
             </button>
           }
@@ -351,7 +354,7 @@
 
         <div class="life-week-rhythm__list">
           @for (item of weekWindow(); track item.dayKey) {
-            <article class="life-rhythm-card" [class.is-empty]="item.count === 0">
+            <article class="life-rhythm-card" [class.is-empty]="item.count === 0" [class.is-busy]="item.count > 0">
               <div class="life-rhythm-card__head">
                 <div>
                   <span class="life-rhythm-card__day">{{ item.day }}</span>

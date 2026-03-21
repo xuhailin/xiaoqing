@@ -48,6 +48,13 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
             }
           </datalist>
         </label>
+
+        @if (workspaceRoot.trim()) {
+          <div class="workspace-summary">
+            <span class="workspace-summary__path">{{ workspaceRoot }}</span>
+            <span class="workspace-summary__meta">{{ sortedSessions().length }} 条会话会跟随这个上下文继续展开</span>
+          </div>
+        }
       </header>
 
       <section class="new-session">
@@ -128,7 +135,8 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       flex-direction: column;
       gap: var(--workbench-stack-gap);
       border-bottom: 1px solid var(--color-border-light);
-      background: transparent;
+      background: var(--workbench-header-background);
+      backdrop-filter: blur(12px);
     }
 
     .header-actions {
@@ -149,9 +157,33 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       text-transform: uppercase;
     }
 
+    .workspace-summary {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+      padding: var(--space-2) var(--space-3);
+      border-radius: var(--radius-md);
+      background: var(--color-surface-highlight);
+      border: 1px solid var(--color-surface-highlight-border);
+    }
+
+    .workspace-summary__path {
+      font-size: var(--font-size-xs);
+      color: var(--color-text);
+      font-family: "SFMono-Regular", "JetBrains Mono", monospace;
+      word-break: break-all;
+    }
+
+    .workspace-summary__meta {
+      font-size: var(--font-size-xs);
+      color: var(--color-text-secondary);
+      line-height: 1.5;
+    }
+
     .new-session {
       padding: var(--workbench-panel-padding);
       border-bottom: 1px solid var(--color-border-light);
+      background: color-mix(in srgb, var(--color-panel-subtle-bg) 72%, transparent);
     }
 
     .new-session-button {
@@ -186,6 +218,9 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       text-align: left;
       color: var(--color-text);
       cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
     }
 
     .card-head {
@@ -209,13 +244,21 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       display: flex;
       flex-wrap: wrap;
       gap: var(--space-1) var(--space-3);
-      margin-top: var(--space-2);
       font-size: var(--font-size-xs);
       color: var(--color-text-secondary);
     }
 
+    .card-meta span {
+      display: inline-flex;
+      align-items: center;
+      min-height: 1.4rem;
+      padding: 0 var(--space-2);
+      border-radius: var(--radius-pill);
+      background: var(--color-badge-neutral-bg);
+      border: 1px solid var(--color-badge-neutral-border);
+    }
+
     .card-task {
-      margin-top: var(--space-2);
       font-size: var(--font-size-sm);
       color: var(--color-workbench-muted);
       line-height: 1.55;
@@ -223,6 +266,16 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       -webkit-line-clamp: 3;
       -webkit-box-orient: vertical;
       overflow: hidden;
+      padding-left: var(--space-2);
+      border-left: 2px solid var(--color-surface-highlight-border);
+    }
+
+    .session-card.is-active .card-title {
+      color: var(--color-primary);
+    }
+
+    .session-card.is-active .card-task {
+      border-left-color: var(--color-primary);
     }
   `],
 })

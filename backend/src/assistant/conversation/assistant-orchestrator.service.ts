@@ -10,7 +10,6 @@ import { TurnContextAssembler } from './turn-context-assembler.service';
 import { ChatCompletionRunner } from './chat-completion-runner.service';
 import { SummarizeTriggerService } from './summarize-trigger.service';
 import { SessionStateService } from '../claim-engine/session-state.service';
-import { DailyMomentService } from '../life-record/daily-moment/daily-moment.service';
 import { CognitiveGrowthService } from '../cognitive-pipeline/cognitive-growth.service';
 import { ObservationEmitterService } from '../cognitive-trace/observation/observation-emitter.service';
 import type { TurnCognitiveResult } from '../cognitive-trace/cognitive-trace.types';
@@ -24,7 +23,12 @@ import { TracePointExtractorService } from '../life-record/trace-point/trace-poi
 import { SocialEntityClassifierService } from '../life-record/social-entity/social-entity-classifier.service';
 import { SocialEntityService } from '../life-record/social-entity/social-entity.service';
 import { SocialRelationEdgeService } from '../life-record/social-relation-edge/social-relation-edge.service';
-import type { SendMessageResult, ToolPolicyDecision, TurnContext } from './orchestration.types';
+import type {
+  CollaborationTurnContext,
+  SendMessageResult,
+  ToolPolicyDecision,
+  TurnContext,
+} from './orchestration.types';
 import { toConversationMessageDto } from './message.dto';
 import { PlanService } from '../../plan/plan.service';
 import { IdeaService } from '../../idea/idea.service';
@@ -51,7 +55,6 @@ export class AssistantOrchestrator {
     private readonly socialEntityClassifier: SocialEntityClassifierService,
     private readonly socialEntity: SocialEntityService,
     private readonly socialRelationEdge: SocialRelationEdgeService,
-    private readonly dailyMoment: DailyMomentService,
     private readonly cognitiveGrowth: CognitiveGrowthService,
     private readonly observationEmitter: ObservationEmitterService,
     private readonly relationshipOverview: RelationshipOverviewService,
@@ -67,6 +70,7 @@ export class AssistantOrchestrator {
     userInput: string;
     userMessage: { id: string; role: 'user'; content: string; createdAt: Date };
     recentRounds: number;
+    collaborationContext?: CollaborationTurnContext | null;
     runtimePolicy?: {
       allowPostTurn?: boolean;
       allowReflection?: boolean;
@@ -82,6 +86,7 @@ export class AssistantOrchestrator {
         userMessage: input.userMessage,
         now: new Date(),
         recentRounds: input.recentRounds,
+        collaborationContext: input.collaborationContext ?? null,
       });
     } catch (err) {
       this.logger.warn(`assemble failed, fallback assembleFallback: ${String(err)}`);
@@ -91,6 +96,7 @@ export class AssistantOrchestrator {
         userMessage: input.userMessage,
         now: new Date(),
         recentRounds: Math.min(2, input.recentRounds),
+        collaborationContext: input.collaborationContext ?? null,
       });
     }
 
@@ -593,31 +599,7 @@ export class AssistantOrchestrator {
     initialResult: SendMessageResult,
   ): Promise<SendMessageResult> {
     let result = initialResult;
-    await this.postTurnPipeline.runBeforeReturn(plan, async (task, currentPlan) => {
-      if (task.type !== 'daily_moment_suggestion') return;
-
-      const suggestion = await this.runDailyMomentSuggestion(currentPlan);
-      if (!suggestion) return;
-
-      const mergedContent = `${result.assistantMessage.content}\n\n${suggestion.hint}`;
-      const assistantMsg = await this.prisma.message.update({
-        where: { id: result.assistantMessage.id },
-        data: {
-          content: mergedContent,
-          tokenCount: estimateTokens(mergedContent),
-        },
-      });
-
-      currentPlan.turn.assistantOutput = assistantMsg.content;
-      result = {
-        ...result,
-        assistantMessage: toConversationMessageDto(assistantMsg),
-        dailyMoment: {
-          mode: 'suggestion',
-          suggestion,
-        },
-      };
-    });
+    await this.postTurnPipeline.runBeforeReturn(plan, async () => {});
     return result;
   }
 
@@ -691,17 +673,6 @@ export class AssistantOrchestrator {
     if (task.type === 'session_reflection') {
       await this.runSessionReflection(plan);
     }
-  }
-
-  private async runDailyMomentSuggestion(
-    plan: PostTurnPlan,
-  ): Promise<NonNullable<SendMessageResult['dailyMoment']>['suggestion'] | null> {
-    const suggestionCheck = await this.dailyMoment.maybeSuggest({
-      conversationId: plan.conversationId,
-      now: plan.turn.now,
-    });
-
-    return suggestionCheck.shouldSuggest ? suggestionCheck.suggestion ?? null : null;
   }
 
   private async runSessionReflection(plan: PostTurnPlan): Promise<void> {

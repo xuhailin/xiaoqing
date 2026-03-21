@@ -7,6 +7,8 @@ import { DevAgentSessionComponent } from './dev-agent/dev-agent-session.componen
 import { RegressionReportsComponent } from './regression/regression-reports.component';
 import { HomeShellComponent } from './home/home-shell.component';
 import { WorkspaceIdeaComponent } from './workspace/workspace-idea.component';
+import { WorkspacePlanComponent } from './workspace/workspace-plan.component';
+import { WorkspaceReminderComponent } from './workspace/workspace-reminder.component';
 import { WorkspaceTaskRecordsComponent } from './workspace/workspace-task-records.component';
 import { WorkspaceTodoComponent } from './workspace/workspace-todo.component';
 import { WorkspaceShellComponent } from './workspace/workspace-shell.component';
@@ -46,10 +48,10 @@ export const routes: Routes = [
             ],
           },
           { path: 'ideas', component: WorkspaceIdeaComponent },
+          { path: 'reminder', component: WorkspaceReminderComponent },
+          { path: 'plan', component: WorkspacePlanComponent },
           { path: 'todos', component: WorkspaceTodoComponent },
           { path: 'execution', component: WorkspaceTaskRecordsComponent },
-          { path: 'reminder', pathMatch: 'full', redirectTo: 'todos' },
-          { path: 'plan', pathMatch: 'full', redirectTo: 'todos' },
           { path: 'regression', component: RegressionReportsComponent },
           { path: 'task-records', pathMatch: 'full', redirectTo: 'execution' },
         ],

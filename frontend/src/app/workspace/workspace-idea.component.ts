@@ -5,9 +5,14 @@ import { firstValueFrom } from 'rxjs';
 import { IdeaApiService, type IdeaRecord } from '../core/services/idea.service';
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
-import { AppPageHeaderComponent } from '../shared/ui/app-page-header.component';
 import { AppPanelComponent } from '../shared/ui/app-panel.component';
 import { AppStateComponent } from '../shared/ui/app-state.component';
+import { WorkspaceArrivalNoticeComponent } from '../shared/ui/workspace-arrival-notice.component';
+import {
+  WorkspaceRelationSummaryComponent,
+  type WorkspaceRelationSummaryItem,
+} from '../shared/ui/workspace-relation-summary.component';
+import { ideaStatusLabel, ideaStatusTone, todoStatusLabel, todoStatusTone } from '../shared/workbench-status.utils';
 
 @Component({
   selector: 'app-workspace-idea',
@@ -16,17 +21,14 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
     FormsModule,
     AppBadgeComponent,
     AppButtonComponent,
-    AppPageHeaderComponent,
     AppPanelComponent,
     AppStateComponent,
+    WorkspaceArrivalNoticeComponent,
+    WorkspaceRelationSummaryComponent,
   ],
   template: `
     <div class="workspace-page">
-      <app-page-header
-        title="想法"
-        description="先记一下灵感、念头和暂不执行的计划，再决定要不要转成待办。"
-      />
-
+      <app-workspace-arrival-notice [text]="arrivalNotice()" />
       <div class="workspace-grid">
         <app-panel variant="workbench" class="workspace-card">
           <div class="card-header">记录想法</div>
@@ -69,21 +71,22 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
           @if (loading()) {
             <app-state [compact]="true" kind="loading" title="想法加载中..." />
           } @else if (!visibleIdeas().length) {
-            <app-state [compact]="true" title="当前筛选下还没有想法" [description]="emptyStateDescription()" />
+            <app-state [compact]="true" title="当前筛选下还没有可显示的想法" [description]="emptyStateDescription()" />
           } @else {
             <div class="item-list">
               @for (idea of visibleIdeas(); track idea.id) {
-                <div class="ui-list-card item-card" [class.is-active]="selectedIdeaId() === idea.id">
+                <div class="ui-list-card item-card" [class.is-active]="selectedIdeaId() === idea.id" [attr.data-idea-id]="idea.id">
                   <div class="item-main">
                     <div class="item-title">{{ idea.title || firstLine(idea.content) }}</div>
                     <div class="item-content">{{ idea.content }}</div>
                     <div class="item-meta">
-                      <app-badge [tone]="statusTone(idea.status)">{{ idea.status }}</app-badge>
-                      @if (idea.promotedTodo) {
-                        <span>已转待办：{{ idea.promotedTodo.title || idea.promotedTodo.id }}</span>
-                      }
+                      <app-badge [tone]="statusTone(idea.status)">{{ statusLabel(idea.status) }}</app-badge>
                       <span>{{ formatDateTime(idea.updatedAt) }}</span>
                     </div>
+                    <app-workspace-relation-summary
+                      [items]="ideaRelationItems(idea)"
+                      (action)="handleRelationAction($event, idea)"
+                    />
                   </div>
 
                   <div class="item-actions">
@@ -92,7 +95,7 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
                       <app-button variant="ghost" size="xs" (click)="archive(idea.id)">归档</app-button>
                     }
                     @if (idea.promotedTodoId) {
-                      <app-button variant="ghost" size="xs" (click)="openTodo(idea.promotedTodoId)">查看待办</app-button>
+                      <app-button variant="ghost" size="xs" (click)="openTodo(idea.promotedTodoId)">去待办</app-button>
                     }
                   </div>
                 </div>
@@ -176,8 +179,15 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
     }
 
     .item-card.is-active {
-      border-color: var(--color-primary);
-      box-shadow: var(--color-surface-highlight-shadow);
+      border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
+      background: color-mix(in srgb, var(--color-surface-highlight) 65%, transparent);
+      box-shadow: 0 12px 24px rgba(79, 109, 245, 0.08);
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .item-card.is-active {
+        animation: workbenchArrivalPulse 700ms ease-out;
+      }
     }
 
     .item-title {
@@ -199,7 +209,7 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
       display: flex;
       flex-wrap: wrap;
       gap: var(--space-2);
-      margin-top: var(--space-2);
+      margin: var(--space-2) 0;
       font-size: var(--font-size-xs);
       color: var(--color-text-secondary);
     }
@@ -217,6 +227,18 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
         grid-template-columns: 1fr;
       }
     }
+
+    @keyframes workbenchArrivalPulse {
+      0% {
+        box-shadow: 0 0 0 rgba(79, 109, 245, 0);
+      }
+      35% {
+        box-shadow: 0 0 0 6px rgba(79, 109, 245, 0.12);
+      }
+      100% {
+        box-shadow: 0 12px 24px rgba(79, 109, 245, 0.08);
+      }
+    }
   `],
 })
 export class WorkspaceIdeaComponent implements OnInit, OnDestroy {
@@ -224,12 +246,14 @@ export class WorkspaceIdeaComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private querySub?: { unsubscribe(): void };
+  private arrivalNoticeTimer: number | null = null;
 
   readonly ideas = signal<IdeaRecord[]>([]);
   readonly selectedIdeaId = signal<string | null>(null);
   readonly loading = signal(false);
   readonly saving = signal(false);
   readonly notice = signal<string | null>(null);
+  readonly arrivalNotice = signal<string | null>(null);
 
   readonly title = signal('');
   readonly content = signal('');
@@ -251,6 +275,7 @@ export class WorkspaceIdeaComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.querySub?.unsubscribe();
+    this.clearArrivalNotice();
   }
 
   async load() {
@@ -259,6 +284,7 @@ export class WorkspaceIdeaComponent implements OnInit, OnDestroy {
       const list = await firstValueFrom(this.ideasApi.list());
       this.ideas.set(list ?? []);
       this.syncSelectedIdea();
+      this.announceArrival();
     } finally {
       this.loading.set(false);
     }
@@ -305,9 +331,11 @@ export class WorkspaceIdeaComponent implements OnInit, OnDestroy {
   }
 
   statusTone(status: string): 'neutral' | 'info' | 'success' | 'warning' | 'danger' {
-    if (status === 'open') return 'info';
-    if (status === 'promoted') return 'success';
-    return 'neutral';
+    return ideaStatusTone(status);
+  }
+
+  statusLabel(status: string): string {
+    return ideaStatusLabel(status);
   }
 
   firstLine(content: string) {
@@ -316,12 +344,12 @@ export class WorkspaceIdeaComponent implements OnInit, OnDestroy {
 
   emptyStateDescription() {
     if (this.statusFilter() === 'promoted') {
-      return '还没有已经转成待办的想法。';
+      return '还没有已经转入待办的想法。';
     }
     if (this.statusFilter() === 'archived') {
-      return '还没有归档的想法。';
+      return '这里还没有归档内容。';
     }
-    return '左侧先记下一条，后面再决定是否转成待办。';
+    return '先把灵感记下来，后面再决定是否推进成待办。';
   }
 
   openTodo(todoId?: string | null) {
@@ -336,6 +364,7 @@ export class WorkspaceIdeaComponent implements OnInit, OnDestroy {
     if (!selectedIdeaId) return;
     const selectedIdea = this.ideas().find((idea) => idea.id === selectedIdeaId);
     if (!selectedIdea) return;
+    this.scrollIntoView(`[data-idea-id="${selectedIdea.id}"]`);
     if (this.statusFilter() === 'all' || this.statusFilter() === selectedIdea.status) return;
     this.statusFilter.set(selectedIdea.status);
   }
@@ -344,5 +373,57 @@ export class WorkspaceIdeaComponent implements OnInit, OnDestroy {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
     return date.toLocaleString('zh-CN', { hour12: false });
+  }
+
+  ideaRelationItems(idea: IdeaRecord): WorkspaceRelationSummaryItem[] {
+    if (!idea.promotedTodo) {
+      return [];
+    }
+    return [{
+      key: 'todo',
+      label: '已转待办',
+      title: idea.promotedTodo.title || idea.promotedTodo.id,
+      detail: idea.promotedTodo.dueAt ? `截止：${this.formatDateTime(idea.promotedTodo.dueAt)}` : '已从想法区推进到待办区。',
+      badge: todoStatusLabel(idea.promotedTodo.status),
+      tone: todoStatusTone(idea.promotedTodo.status),
+      actionLabel: '去待办',
+      icon: 'check',
+    }];
+  }
+
+  handleRelationAction(action: string, idea: IdeaRecord) {
+    if (action === 'todo') {
+      this.openTodo(idea.promotedTodoId);
+    }
+  }
+
+  private announceArrival() {
+    const selectedIdea = this.ideas().find((idea) => idea.id === this.selectedIdeaId());
+    if (!selectedIdea) return;
+    this.setArrivalNotice(`已定位到想法“${selectedIdea.title || this.firstLine(selectedIdea.content)}”。`);
+  }
+
+  private setArrivalNotice(text: string) {
+    this.arrivalNotice.set(text);
+    this.clearArrivalNotice();
+    this.arrivalNoticeTimer = window.setTimeout(() => {
+      this.arrivalNotice.set(null);
+      this.arrivalNoticeTimer = null;
+    }, 2800);
+  }
+
+  private clearArrivalNotice() {
+    if (this.arrivalNoticeTimer !== null) {
+      window.clearTimeout(this.arrivalNoticeTimer);
+      this.arrivalNoticeTimer = null;
+    }
+  }
+
+  private scrollIntoView(selector: string, delay = 40) {
+    window.setTimeout(() => {
+      const node = document.querySelector(selector);
+      if (!(node instanceof HTMLElement)) return;
+      node.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }, delay);
   }
 }

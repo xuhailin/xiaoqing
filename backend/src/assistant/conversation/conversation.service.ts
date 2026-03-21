@@ -7,7 +7,11 @@ import type { WorldStateUpdate } from '../../infra/world-state/world-state.types
 import { DailyMomentService } from '../life-record/daily-moment/daily-moment.service';
 import { CognitiveGrowthService } from '../cognitive-pipeline/cognitive-growth.service';
 import { AssistantOrchestrator } from './assistant-orchestrator.service';
-import type { ConversationMessageDto, SendMessageResult } from './orchestration.types';
+import type {
+  CollaborationTurnContext,
+  ConversationMessageDto,
+  SendMessageResult,
+} from './orchestration.types';
 import { FeatureFlagConfig } from './feature-flag.config';
 import { SummarizeTriggerService } from './summarize-trigger.service';
 import { toConversationMessageDto } from './message.dto';
@@ -19,6 +23,21 @@ type ConversationWithCount = Prisma.ConversationGetPayload<{
     _count: { select: { messages: true } };
     messages: {
       orderBy: { createdAt: 'desc' };
+      take: 1;
+    };
+  };
+}>;
+
+type CollaborationConversationWithCount = Prisma.ConversationGetPayload<{
+  include: {
+    _count: { select: { messages: true } };
+    messages: {
+      orderBy: { createdAt: 'desc' };
+      take: 1;
+    };
+    agentLinks: {
+      where?: { requesterAgentId?: EntryAgentId };
+      orderBy: { updatedAt: 'desc' };
       take: 1;
     };
   };
@@ -80,6 +99,46 @@ export class ConversationService {
       activeReminderCount: reminderCountMap.get(c.id) ?? 0,
       latestMessage: c.messages[0] ? toConversationMessageDto(c.messages[0]) : null,
     }));
+  }
+
+  async listCollaborationThreads(requesterAgentId?: EntryAgentId) {
+    const conversations: CollaborationConversationWithCount[] = await this.prisma.conversation.findMany({
+      where: {
+        isInternal: true,
+        agentLinks: requesterAgentId
+          ? { some: { requesterAgentId } }
+          : { some: {} },
+      },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        _count: { select: { messages: true } },
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+        agentLinks: {
+          ...(requesterAgentId ? { where: { requesterAgentId } } : {}),
+          orderBy: { updatedAt: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    return conversations.map((conversation) => {
+      const link = conversation.agentLinks[0] ?? null;
+      return {
+        id: conversation.id,
+        title: conversation.title,
+        entryAgentId: conversation.entryAgentId,
+        isInternal: conversation.isInternal,
+        requesterAgentId: link?.requesterAgentId ?? null,
+        requesterConversationRef: link?.requesterConversationRef ?? null,
+        createdAt: conversation.createdAt,
+        updatedAt: conversation.updatedAt,
+        messageCount: conversation._count.messages,
+        latestMessage: conversation.messages[0] ? toConversationMessageDto(conversation.messages[0]) : null,
+      };
+    });
   }
 
   async create(
@@ -237,6 +296,7 @@ export class ConversationService {
     conversationId: string;
     content: string;
     metadata?: Record<string, unknown>;
+    collaborationContext?: CollaborationTurnContext | null;
   }): Promise<SendMessageResult> {
     const userMsg = await this.prisma.message.create({
       data: {
@@ -265,6 +325,7 @@ export class ConversationService {
         allowPostTurn: false,
         allowReflection: false,
       },
+      collaborationContext: input.collaborationContext ?? null,
     });
   }
 

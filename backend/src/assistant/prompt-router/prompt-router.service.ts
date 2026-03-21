@@ -19,6 +19,7 @@ import type { SharedExperienceRecord } from '../shared-experience/shared-experie
 import type { SocialEntityRecord } from '../life-record/social-entity/social-entity.types';
 import type { SocialInsightRecord } from '../life-record/social-insight/social-insight.types';
 import type { RelevantSocialRelationEdgeRecord } from '../life-record/social-relation-edge/social-relation-edge.types';
+import type { CollaborationTurnContext } from '../conversation/orchestration.types';
 
 export const CHAT_PROMPT_VERSION = 'chat_v6';
 export const SUMMARY_PROMPT_VERSION = 'summary_v2';
@@ -88,6 +89,8 @@ export interface ChatContext {
   decisionSummaryText?: string;
   /** 表达提示：来自推理层的语气/风格建议 */
   expressionHintsText?: string;
+  /** 协作上下文：当前是 agent 间委托，而非直接前台聊天 */
+  collaborationContext?: CollaborationTurnContext | null;
 }
 
 export interface SummaryContext {
@@ -111,6 +114,7 @@ export interface ToolResultContext {
   toolResult: string | null;
   toolError: string | null;
   recentMessages?: { role: string; content: string }[];
+  collaborationContext?: CollaborationTurnContext | null;
 }
 
 @Injectable()
@@ -170,6 +174,7 @@ export class PromptRouterService {
     const socialEntityPart = this.buildSocialEntityPart(ctx.socialEntities);
     const socialInsightPart = this.buildSocialInsightPart(ctx.socialInsights);
     const socialRelationPart = this.buildSocialRelationPart(ctx.socialRelationSignals);
+    const collaborationPart = this.buildCollaborationContextPrompt(ctx.collaborationContext);
 
     // 决策上下文：优先使用 DecisionSummaryBuilder 生成的摘要，降级为内联构建
     let decisionContextPart = '';
@@ -239,6 +244,7 @@ export class PromptRouterService {
       memoryPart,
       userProfilePart,
       worldStatePart,
+      collaborationPart,
       intentPart,
       growthPart,
       claimPart,
@@ -788,6 +794,7 @@ ${schemaHints}
     const systemContent = [
       `[${TOOL_WRAP_PROMPT_VERSION}]`,
       ctx.personaText,
+      this.buildCollaborationContextPrompt(ctx.collaborationContext),
       this.buildMetaFilterPolicy(ctx.metaFilterPolicy),
       ctx.expressionText ?? '',
       ctx.userProfileText ?? '',
@@ -822,5 +829,36 @@ ${schemaHints}
       { role: 'system' as const, content: systemContent },
       { role: 'user' as const, content: userContent },
     ];
+  }
+
+  buildCollaborationContextPrompt(ctx?: CollaborationTurnContext | null): string {
+    if (!ctx || ctx.mode !== 'inbound_delegation') {
+      return '';
+    }
+
+    const requesterLabel = ctx.requesterAgentId === 'xiaoqin' ? '小勤' : '小晴';
+    const lines = [
+      '[协作上下文]',
+      `- 当前在处理来自${requesterLabel}的协作线程，不是直接面对终端用户。`,
+      '- 对用户原话的理解、意图识别和决策，仍按小晴默认聊天链路进行，不要把协作说明当成用户问题本身。',
+      '- 输出应是可供协作 agent 直接转述或继续使用的正文，不要提内部协议、系统设定或“看不到上下文”。',
+      `- requestType: ${ctx.requestType}`,
+    ];
+
+    if (ctx.summary?.trim()) {
+      lines.push(`- 协作摘要：${ctx.summary.trim()}`);
+    }
+    if (ctx.memoryPolicy?.trim()) {
+      lines.push(`- memoryPolicy: ${ctx.memoryPolicy.trim()}`);
+    }
+    if (ctx.contextExcerpt?.length) {
+      lines.push('- 补充上下文：');
+      ctx.contextExcerpt.slice(-6).forEach((item, index) => {
+        const speaker = item.role === 'user' ? '用户' : requesterLabel;
+        lines.push(`  ${index + 1}. ${speaker}：${item.content}`);
+      });
+    }
+
+    return lines.join('\n');
   }
 }

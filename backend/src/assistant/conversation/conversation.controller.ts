@@ -27,6 +27,13 @@ export class ConversationController {
     return this.conversation.list();
   }
 
+  @Get('collaboration-threads')
+  async listCollaborationThreads(
+    @Query('requesterAgentId') requesterAgentId?: EntryAgentId,
+  ) {
+    return this.conversation.listCollaborationThreads(requesterAgentId);
+  }
+
   @Post()
   async create(
     @Body() body?: { entryAgentId?: EntryAgentId },

@@ -165,6 +165,7 @@ export class ResponseComposer {
       actionDecision: actionDecision ?? undefined,
       decisionSummaryText: decisionSummary.text || undefined,
       expressionHintsText: this.buildExpressionHintsText(decisionSummary),
+      collaborationContext: context.runtime.collaborationContext ?? undefined,
     });
 
     const estimatedTokens = estimateMessagesTokens(
@@ -252,6 +253,7 @@ export class ResponseComposer {
         input.profilePrompt,
       ),
       metaFilterPolicy: personaDto.metaFilterPolicy,
+      collaborationContext: context.runtime.collaborationContext ?? undefined,
       toolKind: input.toolKind,
       userInput,
       toolResult: input.toolResult,
@@ -292,6 +294,7 @@ export class ResponseComposer {
 
     const systemContent = [
       this.persona.buildPersonaPrompt(input.personaDto),
+      this.router.buildCollaborationContextPrompt(input.context.runtime.collaborationContext),
       '',
       this.router.buildExpressionPolicy(
         this.persona.getExpressionFields(input.personaDto),

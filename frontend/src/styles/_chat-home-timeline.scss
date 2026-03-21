@@ -532,6 +532,10 @@ app-cognitive-trace-board {
     display: flex;
     align-items: center;
     gap: 0.75rem;
+    padding: 0.8rem 0.9rem;
+    border-radius: 18px;
+    border: 1px solid var(--timeline-card-border);
+    background: var(--timeline-card-bg);
   }
 
   .detail-list__label {
@@ -616,16 +620,16 @@ app-cognitive-trace-board {
 
   .theme-list__progress {
     flex: 1;
-    height: 10px;
+    height: 12px;
     border-radius: 999px;
     overflow: hidden;
-    background: rgba(79, 109, 245, 0.08);
+    background: var(--timeline-bar-bg);
   }
 
   .theme-list__progress-bar {
     height: 100%;
     border-radius: 999px;
-    background: linear-gradient(90deg, rgba(125, 150, 255, 0.92), rgba(79, 109, 245, 0.92));
+    background: var(--timeline-bar-fill);
     box-shadow: 0 8px 18px rgba(79, 109, 245, 0.18);
     animation: grow-width 0.7s ease both;
     transform-origin: left;

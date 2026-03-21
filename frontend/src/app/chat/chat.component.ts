@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy, signal, inject, viewChild, ElementRef, HostListener } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Subscription } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
+import { Subscription, combineLatest } from 'rxjs';
 import {
   ConversationService,
   AgentDelegationStatus,
@@ -8,20 +9,26 @@ import {
   ConversationWorkHealthState,
   ConversationWorkStatus,
   Message,
+  MessageContentType,
   MessageKind,
   DebugMeta,
   TraceStep,
   WorldState,
+  EntryAgentId,
 } from '../core/services/conversation.service';
 import { JsonPipe, DOCUMENT, NgClass } from '@angular/common';
+import { IdeaApiService } from '../core/services/idea.service';
 import { PersonaService, EvolutionChange } from '../core/services/persona.service';
+import { PlanApiService, type TaskOccurrenceRecord } from '../core/services/plan.service';
 import { RelationshipService, SessionReflectionRecord } from '../core/services/relationship.service';
+import { TodoApiService } from '../core/services/todo.service';
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
 import { AppIconComponent, type AppIconName } from '../shared/ui/app-icon.component';
 import { MessageContentComponent } from './message-content.component';
 import { XiaoqingAvatarComponent } from '../shared/ui/xiaoqing-avatar.component';
 import { ChatQuickActionsComponent } from './chat-quick-actions.component';
+import { executionStatusLabel, executionStatusTone, ideaStatusLabel, ideaStatusTone, todoStatusLabel, todoStatusTone } from '../shared/workbench-status.utils';
 
 type MessageDebugEntry = {
   debugMeta: DebugMeta | null;
@@ -42,6 +49,20 @@ type MessageCaptureReceipt = {
   statusLabel: string;
   entityTitle: string | null;
   summary: string | null;
+  detail: string | null;
+};
+
+type ReceiptLiveStatus = {
+  key: string;
+  label: string;
+  tone: 'neutral' | 'info' | 'success' | 'warning' | 'danger';
+  detail?: string | null;
+};
+
+type WorkCardSignal = {
+  tone: 'info' | 'warning' | 'success' | 'danger';
+  icon: AppIconName;
+  label: string;
   detail: string | null;
 };
 
@@ -75,26 +96,32 @@ const MESSAGE_KIND_META: Partial<Record<MessageKind, { icon: AppIconName; label:
 })
 export class ChatComponent implements OnInit, OnDestroy {
   private conversation = inject(ConversationService);
+  private ideaApi = inject(IdeaApiService);
   private personaService = inject(PersonaService);
+  private planApi = inject(PlanApiService);
   private relationshipService = inject(RelationshipService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
+  private todoApi = inject(TodoApiService);
   private document = inject(DOCUMENT);
   private routeSub?: Subscription;
   private workItemStreamSub?: Subscription;
   private pollHandle: number | null = null;
   private noticeTimer: number | null = null;
+  private readonly receiptStatusRequests = new Set<string>();
 
   private inputEl = viewChild<ElementRef<HTMLTextAreaElement>>('inputEl');
   private messagesEl = viewChild<ElementRef<HTMLDivElement>>('messagesEl');
 
   conversationId = signal<string | null>(null);
+  entryAgentId = signal<EntryAgentId>('xiaoqing');
   messages = signal<Message[]>([]);
   inputText = signal('');
   loading = signal(false);
   error = signal<string | null>(null);
   activityNotice = signal<ActivityNotice | null>(null);
   workItems = signal<ConversationWorkItem[]>([]);
+  receiptLiveStatus = signal<Record<string, ReceiptLiveStatus>>({});
 
   injectedMemories = signal<Array<{ id: string; type: string; content: string }>>([]);
   worldState = signal<WorldState | null>(null);
@@ -123,8 +150,29 @@ export class ChatComponent implements OnInit, OnDestroy {
     );
   }
 
+  protected showEmptyState(): boolean {
+    return !this.loading() && this.messages().length === 0;
+  }
+
+  protected emptyStateTitle(): string {
+    return this.entryAgentId() === 'xiaoqin' ? '和小勤开始一段新协作' : '和小晴开始一段新对话';
+  }
+
+  protected emptyStateDescription(): string {
+    return this.entryAgentId() === 'xiaoqin'
+      ? '这里会保留你和小勤的前台对话；如果小勤转给小晴处理，协作记录会单独沉淀下来。'
+      : '小晴会陪你聊天、记事、提醒，也能在需要时自然接入执行能力。你可以直接说想法，也可以先从下面的快捷入口开始。';
+  }
+
+  protected emptyStateHints(): string[] {
+    return this.entryAgentId() === 'xiaoqin'
+      ? ['适合执行、排障、协作类话题', '需要转给小晴时会保留协作轨迹', '可以先描述目标、问题，或想让她代做的事']
+      : ['适合闲聊、记录、提醒与长期陪伴', '短消息也没关系，小晴会顺着你的节奏接住', '可以直接输入近况、想法，或一句“帮我记一下”'];
+  }
+
   ngOnInit() {
-    this.routeSub = this.route.paramMap.subscribe((params) => {
+    this.routeSub = combineLatest([this.route.paramMap, this.route.queryParamMap]).subscribe(([params, queryParams]) => {
+      this.entryAgentId.set(queryParams.get('entryAgentId') === 'xiaoqin' ? 'xiaoqin' : 'xiaoqing');
       const id = params.get('id');
       if (id) {
         this.loadConversation(id);
@@ -168,6 +216,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.sessionReflection.set(null);
     this.activityNotice.set(null);
     this.workItems.set([]);
+    this.receiptLiveStatus.set({});
     this.resetMessageDebugState();
     await this.loadMessages(id, { forceScroll: true });
     await this.loadWorkItems(id);
@@ -182,9 +231,10 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.error.set(null);
     this.stopWorkItemStream();
     this.workItems.set([]);
+    this.receiptLiveStatus.set({});
     this.resetMessageDebugState();
     try {
-      const res = await this.conversation.getOrCreateCurrent().toPromise();
+      const res = await this.conversation.getOrCreateCurrent(this.entryAgentId()).toPromise();
       if (res?.id) {
         this.conversationId.set(res.id);
         await this.loadMessages(res.id, { forceScroll: true });
@@ -263,7 +313,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.loading.set(true);
     this.error.set(null);
     try {
-      const res = await this.conversation.sendMessage(cid, text).toPromise();
+      const res = await this.conversation.sendMessage(cid, text, this.entryAgentId()).toPromise();
       if (res) {
         this.applyMessageSnapshot(
           [...this.messages(), res.userMessage, res.assistantMessage, ...(res.extraMessages ?? [])],
@@ -521,13 +571,13 @@ export class ChatComponent implements OnInit, OnDestroy {
       && (message.metadata?.workProjection === 'receipt' || message.metadata?.workProjection === 'followup');
   }
 
-  workStatusTone(status: ConversationWorkStatus): 'neutral' | 'info' | 'success' | 'warning' | 'danger' {
+  workStatusTone(status: ConversationWorkStatus): 'info' | 'success' | 'warning' | 'danger' {
     if (status === 'completed') return 'success';
     if (status === 'failed' || status === 'cancelled' || status === 'timed_out') return 'danger';
     if (status === 'running') return 'info';
     if (status === 'waiting_input') return 'warning';
     if (status === 'queued') return 'warning';
-    return 'neutral';
+    return 'info';
   }
 
   workStatusLabel(status: ConversationWorkStatus): string {
@@ -536,19 +586,22 @@ export class ChatComponent implements OnInit, OnDestroy {
     if (status === 'running') return '处理中';
     if (status === 'waiting_input') return '待补充';
     if (status === 'completed') return '已完成';
-    if (status === 'failed') return '未完成';
+    if (status === 'failed') return '失败';
     if (status === 'cancelled') return '已取消';
-    if (status === 'timed_out') return '超时';
+    if (status === 'timed_out') return '已超时';
     return status;
   }
 
-  workHealthTone(state: ConversationWorkHealthState): 'neutral' | 'info' | 'warning' | 'danger' {
+  workHealthTone(state: ConversationWorkHealthState): 'info' | 'warning' | 'danger' {
     if (state === 'timed_out' || state === 'stalled') return 'danger';
     if (state === 'attention' || state === 'waiting_user') return 'warning';
-    return 'neutral';
+    return 'info';
   }
 
   workHealthLabel(item: ConversationWorkItem): string | null {
+    if (item.status === 'failed' || item.status === 'cancelled' || item.status === 'timed_out') {
+      return null;
+    }
     if (item.healthState === 'waiting_user') return '等你回复';
     if (item.healthState === 'attention') return '持续跟进中';
     if (item.healthState === 'stalled') return '暂时卡住';
@@ -556,29 +609,79 @@ export class ChatComponent implements OnInit, OnDestroy {
     return null;
   }
 
+  workHierarchyTone(item: ConversationWorkItem): 'neutral' | 'info' | 'warning' {
+    if (item.parentWorkItemId) return 'info';
+    if (item.childCount > 0) return 'warning';
+    return 'neutral';
+  }
+
+  workHierarchyLabel(item: ConversationWorkItem): string | null {
+    if (item.parentWorkItemId) {
+      return '协作子任务';
+    }
+    if (item.childCount > 0) {
+      return item.activeChildCount > 0 ? `协作任务 · 进行中 ${item.activeChildCount}` : '协作任务';
+    }
+    return null;
+  }
+
+  workCardTitle(item: ConversationWorkItem): string {
+    const raw = (item.title || item.userFacingGoal || '').trim();
+    return raw.replace(/^(父任务|子任务|协作任务)\s*[:：]\s*/u, '') || raw;
+  }
+
+  workCardSummary(item: ConversationWorkItem): string | null {
+    const latest = item.latestSummary?.trim();
+    if (latest) return latest;
+
+    if (item.status === 'timed_out') return '处理超时，已停止等待。';
+    if (item.status === 'failed') return '处理失败，当前没有拿到可用结果。';
+    if (item.status === 'cancelled') return '任务已取消。';
+    if (item.status === 'waiting_input') return item.waitingQuestion?.trim() ?? '等待你补充更多信息。';
+    if (item.status === 'queued') return '已接手，等待开始。';
+    if (item.status === 'running') return '正在处理中。';
+    return null;
+  }
+
   workCardMeta(item: ConversationWorkItem): string | null {
-    const executorLabel = item.executorType === 'agent_delegation'
-      ? '协作任务'
-      : item.executorType === 'dev_run'
-        ? '开发任务'
-        : null;
-    const hierarchyLabel = item.childCount > 0
-      ? `含 ${item.childCount} 个子任务${item.activeChildCount > 0 ? `，进行中 ${item.activeChildCount}` : ''}`
-      : item.parentWorkItemId
-        ? '子任务'
-        : null;
     const timeLabel = this.formatDateTime(item.updatedAt)
       || this.formatDateTime(item.startedAt)
       || this.formatDateTime(item.createdAt);
-    return [executorLabel, hierarchyLabel, timeLabel].filter(Boolean).join(' · ') || null;
+    return timeLabel ? `更新于 ${timeLabel}` : null;
+  }
+
+  workCardSignal(item: ConversationWorkItem): WorkCardSignal | null {
+    const detail = item.waitingQuestion
+      || item.blockReason
+      || (item.healthSummary && item.healthSummary !== item.waitingQuestion && item.healthSummary !== item.blockReason
+        ? item.healthSummary
+        : null)
+      || null;
+
+    if (item.healthState === 'stalled') {
+      return { tone: 'danger', icon: 'alert', label: '任务卡住', detail };
+    }
+    if (item.status === 'waiting_input' || item.healthState === 'waiting_user') {
+      return { tone: 'warning', icon: 'alert', label: '等待补充信息', detail };
+    }
+    if (item.status === 'running') {
+      return { tone: 'info', icon: 'route', label: '正在执行', detail };
+    }
+    if (item.status === 'queued' || item.status === 'accepted') {
+      return { tone: 'warning', icon: 'info', label: '等待开始', detail };
+    }
+    if (item.status === 'completed' && detail) {
+      return { tone: 'success', icon: 'check', label: '执行完成', detail };
+    }
+    return detail ? { tone: 'info', icon: 'info', label: '任务说明', detail } : null;
   }
 
   workCardClasses(item: ConversationWorkItem): Record<string, boolean> {
     return {
       'work-card--attention': item.healthState === 'attention',
-      'work-card--stalled': item.healthState === 'stalled',
-      'work-card--waiting': item.healthState === 'waiting_user',
-      'work-card--timed-out': item.healthState === 'timed_out',
+      'work-card--stalled': item.healthState === 'stalled' || item.status === 'failed' || item.status === 'cancelled',
+      'work-card--waiting': item.healthState === 'waiting_user' || item.status === 'waiting_input' || item.status === 'queued',
+      'work-card--timed-out': item.healthState === 'timed_out' || item.status === 'timed_out',
       'work-card--child': !!item.parentWorkItemId,
     };
   }
@@ -588,6 +691,11 @@ export class ChatComponent implements OnInit, OnDestroy {
       const flow = this.agentFlowLabel(message.metadata?.fromAgentId, message.metadata?.toAgentId);
       const status = this.delegationStatusLabel(message.metadata?.delegationStatus);
       return [flow, status].filter(Boolean).join(' · ') || null;
+    }
+    if (message.metadata?.inboundAgentBus) {
+      const flow = this.agentFlowLabel(message.metadata.requesterAgentId, message.metadata.executorAgentId);
+      const summary = message.metadata.inboundSummary?.trim();
+      return [flow, '后台协作', summary].filter(Boolean).join(' · ') || null;
     }
     if (message.kind === 'reminder_created') {
       const parts = [message.metadata?.scheduleText, this.formatDateTime(message.metadata?.nextRunAt)];
@@ -608,9 +716,53 @@ export class ChatComponent implements OnInit, OnDestroy {
       return `${toolName}${message.metadata?.success === false ? ' · 执行失败' : ''}`;
     }
     if (message.kind === 'daily_moment') {
-      return message.metadata?.triggerMode === 'accept_suggestion' ? '由轻提示接续生成' : '由对话自然生成';
+      return '由用户主动生成';
     }
     return null;
+  }
+
+  messageSpeakerAgentId(message: Message): EntryAgentId | null {
+    if (message.kind === 'agent_receipt' || message.kind === 'agent_result') {
+      return message.metadata?.fromAgentId ?? null;
+    }
+    if (message.role === 'assistant') {
+      return 'xiaoqing';
+    }
+    if (message.metadata?.inboundAgentBus) {
+      return message.metadata.requesterAgentId ?? null;
+    }
+    return null;
+  }
+
+  messageSpeakerLabel(message: Message): string {
+    const agentId = this.messageSpeakerAgentId(message);
+    if (agentId) {
+      if (message.role === 'user' && message.metadata?.inboundAgentBus) {
+        return `${this.agentLabel(agentId) ?? '协作'}转达`;
+      }
+      return this.agentLabel(agentId) ?? '协作消息';
+    }
+    return message.role === 'assistant' ? '小晴' : '我';
+  }
+
+  displayedMessageContent(message: Message): string {
+    if (!message.metadata?.inboundAgentBus) return message.content;
+
+    const parts = [
+      message.metadata.inboundSummary?.trim()
+        ? `协作摘要：${message.metadata.inboundSummary.trim()}`
+        : null,
+      message.metadata.inboundUserInput?.trim()
+        ? `转达内容：${message.metadata.inboundUserInput.trim()}`
+        : null,
+    ].filter((item): item is string => !!item);
+
+    return parts.length ? parts.join('\n\n') : message.content;
+  }
+
+  displayedMessageContentType(message: Message): MessageContentType {
+    if (message.metadata?.inboundAgentBus) return 'markdown';
+    return message.contentType ?? (message.role === 'assistant' ? 'markdown' : 'text');
   }
 
   messageCaptureReceipt(message: Message): MessageCaptureReceipt | null {
@@ -644,7 +796,7 @@ export class ChatComponent implements OnInit, OnDestroy {
         icon: 'sparkles',
         label: '已收进工作台',
         kindLabel: '想法',
-        statusLabel: '待整理',
+        statusLabel: ideaStatusLabel('open'),
         entityTitle: ideaTitle ?? null,
         summary: '这条内容先收进想法区，后面再决定要不要转成待办。',
         detail: null,
@@ -658,7 +810,7 @@ export class ChatComponent implements OnInit, OnDestroy {
         icon: hasPlan ? 'bell' : 'check',
         label: hasPlan ? '已记成待办并安排提醒' : '已记成待办',
         kindLabel: '待办',
-        statusLabel: hasPlan ? '已安排提醒' : '可继续执行',
+        statusLabel: hasPlan ? executionStatusLabel('pending') : todoStatusLabel('open'),
         entityTitle: todoTitle ?? null,
         summary: hasPlan ? '我已经把这件事记成待办，并顺手挂上了提醒。' : '我已经把这件事记成待办，后面可以再送进执行。',
         detail: [message.metadata.planTitle, scheduleDetail].filter(Boolean).join(' · ') || null,
@@ -670,11 +822,38 @@ export class ChatComponent implements OnInit, OnDestroy {
       icon: 'bell',
       label: '已进入提醒链路',
       kindLabel: '提醒',
-      statusLabel: '已调度',
+      statusLabel: executionStatusLabel('pending'),
       entityTitle: message.metadata.planTitle?.trim() ?? null,
       summary: '这条内容已经进入提醒/调度链路。',
       detail: scheduleDetail,
     };
+  }
+
+  receiptStatusesForMessage(message: Message): ReceiptLiveStatus[] {
+    const metadata = message.metadata;
+    if (!metadata) return [];
+
+    return [
+      metadata.ideaId ? this.receiptLiveStatus()[`idea:${metadata.ideaId}`] : null,
+      metadata.todoId ? this.receiptLiveStatus()[`todo:${metadata.todoId}`] : null,
+      metadata.planId ? this.receiptLiveStatus()[`plan:${metadata.planId}`] : null,
+    ].filter((item): item is ReceiptLiveStatus => !!item);
+  }
+
+  receiptLiveSummary(message: Message): string | null {
+    const statuses = this.receiptStatusesForMessage(message);
+    if (!statuses.length) return null;
+    if (statuses.length === 1) {
+      return statuses[0].detail ?? null;
+    }
+
+    const primary = statuses[statuses.length - 1];
+    const secondary = statuses
+      .slice(0, -1)
+      .map((item) => item.label)
+      .join(' · ');
+
+    return [primary.detail, secondary ? `关联：${secondary}` : null].filter(Boolean).join(' ');
   }
 
   openCaptureTarget(message: Message, target: 'idea' | 'todo' | 'execution') {
@@ -697,7 +876,10 @@ export class ChatComponent implements OnInit, OnDestroy {
 
     if (target === 'execution' && metadata.planId) {
       void this.router.navigate(['/workspace/execution'], {
-        queryParams: { planId: metadata.planId },
+        queryParams: {
+          planId: metadata.planId,
+          todoId: metadata.todoId ?? undefined,
+        },
       });
     }
   }
@@ -741,6 +923,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     const newMessages = nextMessages.filter((item) => !previousIds.has(item.id));
     const shouldStickBottom = options.forceScroll || this.isNearBottom();
     this.messages.set(nextMessages);
+    void this.refreshReceiptLiveStatus(nextMessages);
 
     if (newMessages.length) {
       this.conversation.notifyListRefresh();
@@ -751,6 +934,159 @@ export class ChatComponent implements OnInit, OnDestroy {
         this.scrollMessagesToBottom();
       }
     }
+  }
+
+  private async refreshReceiptLiveStatus(messages: Message[]) {
+    const ideaIds = new Set<string>();
+    const todoIds = new Set<string>();
+    const planIds = new Set<string>();
+
+    for (const message of messages) {
+      const metadata = message.metadata;
+      if (!metadata) continue;
+      if (metadata.ideaId) ideaIds.add(metadata.ideaId);
+      if (metadata.todoId) todoIds.add(metadata.todoId);
+      if (metadata.planId) planIds.add(metadata.planId);
+    }
+
+    await Promise.all([
+      ...[...ideaIds].map((id) => this.fetchIdeaReceiptStatus(id)),
+      ...[...todoIds].map((id) => this.fetchTodoReceiptStatus(id)),
+      ...[...planIds].map((id) => this.fetchPlanReceiptStatus(id)),
+    ]);
+  }
+
+  private async fetchIdeaReceiptStatus(id: string) {
+    const key = `idea:${id}`;
+    if (this.receiptLiveStatus()[key] || this.receiptStatusRequests.has(key)) return;
+    this.receiptStatusRequests.add(key);
+    try {
+      const idea = await firstValueFrom(this.ideaApi.get(id));
+      const detail = idea.promotedTodo?.title
+        ? `已转待办：${idea.promotedTodo.title}`
+        : idea.status === 'open'
+          ? '还在想法区，尚未转入待办。'
+          : idea.status === 'archived'
+            ? '这条想法已收起归档。'
+            : '已经转入待办链路。';
+      this.receiptLiveStatus.update((current) => ({
+        ...current,
+        [key]: {
+          key,
+          label: `想法 · ${ideaStatusLabel(idea.status)}`,
+          tone: ideaStatusTone(idea.status),
+          detail,
+        },
+      }));
+    } catch {
+      // ignore
+    } finally {
+      this.receiptStatusRequests.delete(key);
+    }
+  }
+
+  private async fetchTodoReceiptStatus(id: string) {
+    const key = `todo:${id}`;
+    if (this.receiptLiveStatus()[key] || this.receiptStatusRequests.has(key)) return;
+    this.receiptStatusRequests.add(key);
+    try {
+      const todo = await firstValueFrom(this.todoApi.get(id));
+      const detail = todo.blockReason
+        ? `待补充：${todo.blockReason}`
+        : todo.latestTask?.status === 'failed' && todo.latestTask.errorSummary
+          ? `最近执行失败：${todo.latestTask.errorSummary}`
+          : todo.latestTask?.status === 'pending'
+            ? '最近一次执行仍在处理中。'
+            : todo.status === 'done'
+              ? '这条待办已经处理完成。'
+              : todo.status === 'dropped'
+                ? '这条待办已被放弃。'
+                : '这条待办仍可继续推进。';
+      this.receiptLiveStatus.update((current) => ({
+        ...current,
+        [key]: {
+          key,
+          label: `待办 · ${todoStatusLabel(todo.status)}`,
+          tone: todoStatusTone(todo.status),
+          detail,
+        },
+      }));
+    } catch {
+      // ignore
+    } finally {
+      this.receiptStatusRequests.delete(key);
+    }
+  }
+
+  private async fetchPlanReceiptStatus(id: string) {
+    const key = `plan:${id}`;
+    if (this.receiptLiveStatus()[key] || this.receiptStatusRequests.has(key)) return;
+    this.receiptStatusRequests.add(key);
+    try {
+      const [plan, occurrences] = await Promise.all([
+        firstValueFrom(this.planApi.get(id)),
+        firstValueFrom(this.planApi.listOccurrences(id, undefined, 1)),
+      ]);
+      const latest = occurrences?.[0] ?? null;
+      const normalized = this.normalizeExecutionStatus(plan.status, latest);
+      this.receiptLiveStatus.update((current) => ({
+        ...current,
+        [key]: {
+          key,
+          label: `执行 · ${normalized.label}`,
+          tone: normalized.tone,
+          detail: normalized.detail,
+        },
+      }));
+    } catch {
+      // ignore
+    } finally {
+      this.receiptStatusRequests.delete(key);
+    }
+  }
+
+  private normalizeExecutionStatus(
+    planStatus: string,
+    occurrence: TaskOccurrenceRecord | null,
+  ): Pick<ReceiptLiveStatus, 'label' | 'tone' | 'detail'> {
+    if (occurrence && this.isFailedOccurrence(occurrence)) {
+      return {
+        label: executionStatusLabel('failed'),
+        tone: executionStatusTone('failed'),
+        detail: this.readString(occurrence.resultPayload?.['error']) ?? '最近一次执行失败，仍可重试。',
+      };
+    }
+    if (occurrence?.status === 'done') {
+      return {
+        label: executionStatusLabel('success'),
+        tone: executionStatusTone('success'),
+        detail: this.readString(occurrence.resultPayload?.['summary'])
+          ?? this.readString(occurrence.resultRef)
+          ?? '最近一次执行已完成。',
+      };
+    }
+    if (occurrence?.status === 'pending' || planStatus === 'active' || planStatus === 'paused') {
+      return {
+        label: executionStatusLabel('pending'),
+        tone: executionStatusTone('pending'),
+        detail: occurrence?.scheduledAt ? `最近一次计划触发时间：${this.formatDateTime(occurrence.scheduledAt)}` : '执行仍在等待或排队中。',
+      };
+    }
+    return {
+      label: executionStatusLabel('pending'),
+      tone: 'neutral',
+      detail: '当前没有更新的执行结果，先保留为待确认状态。',
+    };
+  }
+
+  private isFailedOccurrence(record: TaskOccurrenceRecord): boolean {
+    return !!record.resultPayload
+      && !Array.isArray(record.resultPayload)
+      && record.resultPayload['success'] === false;
+  }
+
+  private readString(value: unknown): string | null {
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
   }
 
   private announceSpecialMessages(messages: Message[]) {

@@ -72,6 +72,10 @@ export class TodoApiService {
     return this.http.get<TodoRecord[]>(this.base, { params });
   }
 
+  get(id: string) {
+    return this.http.get<TodoRecord>(`${this.base}/${id}`);
+  }
+
   create(payload: CreateTodoRequest) {
     return this.http.post<TodoRecord>(this.base, payload);
   }

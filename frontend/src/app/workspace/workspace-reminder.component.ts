@@ -3,7 +3,6 @@ import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
-import { AppPageHeaderComponent } from '../shared/ui/app-page-header.component';
 import { AppPanelComponent } from '../shared/ui/app-panel.component';
 import { AppStateComponent } from '../shared/ui/app-state.component';
 import { PlanApiService, type CreatePlanRequest, type PlanRecord } from '../core/services/plan.service';
@@ -15,17 +14,11 @@ import { PlanApiService, type CreatePlanRequest, type PlanRecord } from '../core
     FormsModule,
     AppBadgeComponent,
     AppButtonComponent,
-    AppPageHeaderComponent,
     AppPanelComponent,
     AppStateComponent,
   ],
   template: `
     <div class="workspace-page">
-      <app-page-header
-        title="Reminder"
-        description="直接管理提醒型计划。这里走结构化 API，不进入对话与 LLM。"
-      />
-
       <div class="workspace-grid">
         <app-panel variant="workbench" class="workspace-card">
           <div class="card-header">新提醒</div>
