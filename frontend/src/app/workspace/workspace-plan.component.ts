@@ -1,7 +1,13 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
-import { PlanApiService, type CreatePlanRequest, type PlanDispatchType, type PlanRecord, type TaskOccurrenceRecord } from '../core/services/plan.service';
+import {
+  PlanApiService,
+  type CreatePlanRequest,
+  type PlanDispatchType,
+  type PlanRecord,
+  type TaskOccurrenceRecord,
+} from '../core/services/plan.service';
 import { SystemOverviewService } from '../core/services/system-overview.service';
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
@@ -27,22 +33,37 @@ type DispatchFilter = 'all' | PlanDispatchType;
     <div class="workspace-page">
       <div class="workspace-grid">
         <app-panel variant="workbench" class="workspace-card">
-          <app-section-header class="workspace-section-header" title="新计划" />
+          <app-section-header class="workspace-section-header" title="新增安排" />
 
           <label class="field">
             <span>标题</span>
-            <input class="ui-input" [ngModel]="title()" (ngModelChange)="title.set($event)" placeholder="例如：工作日晚间提醒收工" />
+            <input
+              class="ui-input"
+              [ngModel]="title()"
+              (ngModelChange)="title.set($event)"
+              placeholder="例如：工作日晚间提醒收工"
+            />
           </label>
 
           <label class="field">
             <span>说明</span>
-            <textarea class="ui-textarea" rows="4" [ngModel]="description()" (ngModelChange)="description.set($event)" placeholder="补充计划说明"></textarea>
+            <textarea
+              class="ui-textarea"
+              rows="4"
+              [ngModel]="description()"
+              (ngModelChange)="description.set($event)"
+              placeholder="补充安排说明"
+            ></textarea>
           </label>
 
           <div class="field-row">
             <label class="field">
               <span>类型</span>
-              <select class="ui-select" [ngModel]="dispatchType()" (ngModelChange)="setDispatchType($event)">
+              <select
+                class="ui-select"
+                [ngModel]="dispatchType()"
+                (ngModelChange)="setDispatchType($event)"
+              >
                 <option value="notify">仅提醒</option>
                 <option value="action">执行能力</option>
                 <option value="noop">noop</option>
@@ -63,7 +84,11 @@ type DispatchFilter = 'all' | PlanDispatchType;
             <div class="field-row">
               <label class="field">
                 <span>能力</span>
-                <select class="ui-select" [ngModel]="capability()" (ngModelChange)="capability.set($event)">
+                <select
+                  class="ui-select"
+                  [ngModel]="capability()"
+                  (ngModelChange)="capability.set($event)"
+                >
                   <option value="">请选择能力</option>
                   @for (item of capabilityOptions(); track item) {
                     <option [value]="item">{{ item }}</option>
@@ -91,7 +116,11 @@ type DispatchFilter = 'all' | PlanDispatchType;
 
           <label class="field">
             <span>周期</span>
-            <select class="ui-select" [ngModel]="recurrence()" (ngModelChange)="setRecurrence($event)">
+            <select
+              class="ui-select"
+              [ngModel]="recurrence()"
+              (ngModelChange)="setRecurrence($event)"
+            >
               <option value="once">一次</option>
               <option value="daily">每天</option>
               <option value="weekday">工作日</option>
@@ -102,19 +131,33 @@ type DispatchFilter = 'all' | PlanDispatchType;
           @if (recurrence() === 'once') {
             <label class="field">
               <span>执行时间</span>
-              <input class="ui-input" type="datetime-local" [ngModel]="runAt()" (ngModelChange)="runAt.set($event)" />
+              <input
+                class="ui-input"
+                type="datetime-local"
+                [ngModel]="runAt()"
+                (ngModelChange)="runAt.set($event)"
+              />
             </label>
           } @else {
             <div class="field-row">
               <label class="field">
                 <span>执行时间</span>
-                <input class="ui-input" type="time" [ngModel]="timeOfDay()" (ngModelChange)="timeOfDay.set($event)" />
+                <input
+                  class="ui-input"
+                  type="time"
+                  [ngModel]="timeOfDay()"
+                  (ngModelChange)="timeOfDay.set($event)"
+                />
               </label>
 
               @if (recurrence() === 'weekly') {
                 <label class="field">
                   <span>星期</span>
-                  <select class="ui-select" [ngModel]="weekday()" (ngModelChange)="weekday.set($event)">
+                  <select
+                    class="ui-select"
+                    [ngModel]="weekday()"
+                    (ngModelChange)="weekday.set($event)"
+                  >
                     @for (option of weekdayOptions; track option.value) {
                       <option [value]="option.value">{{ option.label }}</option>
                     }
@@ -126,7 +169,7 @@ type DispatchFilter = 'all' | PlanDispatchType;
 
           <div class="form-actions">
             <app-button variant="primary" size="sm" [disabled]="saving()" (click)="createPlan()">
-              {{ saving() ? '创建中...' : '创建计划' }}
+              {{ saving() ? '创建中...' : '创建安排' }}
             </app-button>
             @if (notice()) {
               <span class="notice">{{ notice() }}</span>
@@ -136,9 +179,13 @@ type DispatchFilter = 'all' | PlanDispatchType;
 
         <div class="workspace-stack">
           <app-panel variant="workbench" class="workspace-card">
-            <app-section-header class="workspace-section-header" title="计划列表">
+            <app-section-header class="workspace-section-header" title="自动安排">
               <div actions class="card-toolbar">
-                <select class="ui-select ui-select--compact" [ngModel]="dispatchFilter()" (ngModelChange)="setDispatchFilter($event)">
+                <select
+                  class="ui-select ui-select--compact"
+                  [ngModel]="dispatchFilter()"
+                  (ngModelChange)="setDispatchFilter($event)"
+                >
                   <option value="all">全部</option>
                   <option value="notify">notify</option>
                   <option value="action">action</option>
@@ -150,9 +197,13 @@ type DispatchFilter = 'all' | PlanDispatchType;
             </app-section-header>
 
             @if (loading()) {
-              <app-state [compact]="true" kind="loading" title="计划加载中..." />
+              <app-state [compact]="true" kind="loading" title="安排加载中..." />
             } @else if (!visiblePlans().length) {
-              <app-state [compact]="true" title="还没有计划" description="左侧可以直接创建提醒型、执行型或 noop 计划。" />
+              <app-state
+                [compact]="true"
+                title="还没有安排"
+                description="左侧可以直接创建提醒型、执行型或 noop 安排。"
+              />
             } @else {
               <div class="item-list">
                 @for (plan of visiblePlans(); track plan.id) {
@@ -162,10 +213,14 @@ type DispatchFilter = 'all' | PlanDispatchType;
                     (click)="selectPlan(plan.id)"
                   >
                     <div class="item-main">
-                      <div class="item-title">{{ plan.title || plan.description || '未命名计划' }}</div>
+                      <div class="item-title">
+                        {{ plan.title || plan.description || '未命名安排' }}
+                      </div>
                       <div class="item-meta">
                         <app-badge [tone]="statusTone(plan.status)">{{ plan.status }}</app-badge>
-                        <app-badge [tone]="dispatchTone(plan.dispatchType)" appearance="outline">{{ plan.dispatchType }}</app-badge>
+                        <app-badge [tone]="dispatchTone(plan.dispatchType)" appearance="outline">{{
+                          plan.dispatchType
+                        }}</app-badge>
                         <app-badge tone="neutral" appearance="outline">{{ plan.scope }}</app-badge>
                         @if (plan.nextRunAt) {
                           <span>下次：{{ formatDateTime(plan.nextRunAt) }}</span>
@@ -178,11 +233,17 @@ type DispatchFilter = 'all' | PlanDispatchType;
 
                     <div class="item-actions" (click)="$event.stopPropagation()">
                       @if (plan.status === 'active') {
-                        <app-button variant="ghost" size="xs" (click)="lifecycle(plan.id, 'pause')">暂停</app-button>
+                        <app-button variant="ghost" size="xs" (click)="lifecycle(plan.id, 'pause')"
+                          >暂停</app-button
+                        >
                       } @else if (plan.status === 'paused') {
-                        <app-button variant="ghost" size="xs" (click)="lifecycle(plan.id, 'resume')">恢复</app-button>
+                        <app-button variant="ghost" size="xs" (click)="lifecycle(plan.id, 'resume')"
+                          >恢复</app-button
+                        >
                       }
-                      <app-button variant="danger" size="xs" (click)="lifecycle(plan.id, 'archive')">归档</app-button>
+                      <app-button variant="danger" size="xs" (click)="lifecycle(plan.id, 'archive')"
+                        >归档</app-button
+                      >
                     </div>
                   </div>
                 }
@@ -191,13 +252,17 @@ type DispatchFilter = 'all' | PlanDispatchType;
           </app-panel>
 
           <app-panel variant="workbench" class="workspace-card">
-            <app-section-header class="workspace-section-header" title="最近触发记录" />
+            <app-section-header class="workspace-section-header" title="最近触发" />
             @if (selectedPlan(); as plan) {
               <div class="occurrence-header">
                 <div>
-                  <div class="occurrence-title">{{ plan.title || plan.description || plan.id }}</div>
+                  <div class="occurrence-title">
+                    {{ plan.title || plan.description || plan.id }}
+                  </div>
                   <div class="occurrence-meta">
-                    <app-badge [tone]="dispatchTone(plan.dispatchType)" appearance="outline">{{ plan.dispatchType }}</app-badge>
+                    <app-badge [tone]="dispatchTone(plan.dispatchType)" appearance="outline">{{
+                      plan.dispatchType
+                    }}</app-badge>
                     <app-badge tone="neutral" appearance="outline">{{ plan.recurrence }}</app-badge>
                   </div>
                 </div>
@@ -206,7 +271,11 @@ type DispatchFilter = 'all' | PlanDispatchType;
               @if (occurrenceLoading()) {
                 <app-state [compact]="true" kind="loading" title="记录加载中..." />
               } @else if (!occurrences().length) {
-                <app-state [compact]="true" title="暂无触发记录" description="计划创建后，这里会显示最近的 TaskOccurrence。" />
+                <app-state
+                  [compact]="true"
+                  title="暂无触发记录"
+                  description="安排创建后，这里会显示最近的 TaskOccurrence。"
+                />
               } @else {
                 <div class="occurrence-list">
                   @for (item of occurrences(); track item.id) {
@@ -215,8 +284,12 @@ type DispatchFilter = 'all' | PlanDispatchType;
                         <div>
                           <div class="occurrence-title">{{ formatDateTime(item.scheduledAt) }}</div>
                           <div class="occurrence-meta">
-                            <app-badge [tone]="occurrenceTone(item.status)">{{ item.status }}</app-badge>
-                            <app-badge tone="neutral" appearance="outline">{{ item.mode }}</app-badge>
+                            <app-badge [tone]="occurrenceTone(item.status)">{{
+                              item.status
+                            }}</app-badge>
+                            <app-badge tone="neutral" appearance="outline">{{
+                              item.mode
+                            }}</app-badge>
                             <span>{{ item.action || plan.dispatchType }}</span>
                             @if (item.resultRef) {
                               <span>{{ item.resultRef }}</span>
@@ -233,182 +306,188 @@ type DispatchFilter = 'all' | PlanDispatchType;
                 </div>
               }
             } @else {
-              <app-state [compact]="true" title="选择一条计划" description="右侧会显示该计划最近的 TaskOccurrence。" />
+              <app-state
+                [compact]="true"
+                title="选择一条安排"
+                description="右侧会显示该安排最近的 TaskOccurrence。"
+              />
             }
           </app-panel>
         </div>
       </div>
     </div>
   `,
-  styles: [`
-    :host {
-      display: block;
-      min-height: 100%;
-    }
+  styles: [
+    `
+      :host {
+        display: block;
+        min-height: 100%;
+      }
 
-    .workspace-page {
-      padding: var(--workbench-shell-padding);
-      display: flex;
-      flex-direction: column;
-      gap: var(--workbench-stack-gap);
-      min-height: 100%;
-    }
-
-    .workspace-grid {
-      display: grid;
-      grid-template-columns: minmax(320px, 400px) minmax(0, 1fr);
-      gap: var(--workbench-section-gap);
-      min-height: 0;
-    }
-
-    .workspace-stack {
-      display: grid;
-      grid-template-rows: minmax(0, 1fr) minmax(260px, 320px);
-      gap: var(--workbench-section-gap);
-      min-height: 0;
-    }
-
-    .workspace-card {
-      gap: var(--space-4);
-      min-height: 0;
-    }
-
-    .card-toolbar,
-    .occurrence-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-3);
-    }
-
-    .workspace-section-header {
-      padding-bottom: var(--space-2);
-      border-bottom: 1px solid var(--color-border-light);
-    }
-
-    .field,
-    .field-row {
-      display: flex;
-      gap: var(--space-3);
-    }
-
-    .field {
-      flex-direction: column;
-      font-size: var(--font-size-xs);
-      color: var(--color-text-secondary);
-    }
-
-    .field-row > .field {
-      flex: 1 1 0;
-      min-width: 0;
-    }
-
-    .form-actions {
-      display: flex;
-      align-items: center;
-      gap: var(--space-3);
-      flex-wrap: wrap;
-    }
-
-    .notice {
-      font-size: var(--font-size-xs);
-      color: var(--color-text-secondary);
-    }
-
-    .item-list,
-    .occurrence-list {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-2);
-      min-height: 0;
-      overflow: auto;
-    }
-
-    .item-card,
-    .occurrence-card {
-      width: 100%;
-      padding: var(--workbench-card-padding);
-      text-align: left;
-    }
-
-    .item-card.is-active {
-      border-color: var(--color-surface-highlight-border);
-      background: var(--color-surface-highlight);
-      box-shadow: var(--color-surface-highlight-shadow);
-    }
-
-    .item-main {
-      min-width: 0;
-    }
-
-    .item-title,
-    .occurrence-title {
-      font-size: var(--font-size-sm);
-      font-weight: var(--font-weight-semibold);
-      color: var(--color-text);
-    }
-
-    .item-meta,
-    .occurrence-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-2);
-      margin-top: var(--space-2);
-      font-size: var(--font-size-xs);
-      color: var(--color-text-secondary);
-    }
-
-    .item-actions {
-      display: flex;
-      gap: var(--space-2);
-      margin-top: var(--space-3);
-    }
-
-    .occurrence-header {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: var(--space-3);
-    }
-
-    .payload-block {
-      margin: var(--space-3) 0 0;
-      padding: var(--space-3);
-      border-radius: var(--radius-md);
-      background: var(--color-surface-muted);
-      color: var(--color-text-secondary);
-      font-size: var(--font-size-xxs);
-      line-height: 1.5;
-      overflow: auto;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-
-    .ui-select--compact {
-      min-width: 120px;
-    }
-
-    @media (max-width: 980px) {
       .workspace-page {
-        padding: var(--workbench-shell-padding-mobile);
+        padding: var(--workbench-shell-padding);
+        display: flex;
+        flex-direction: column;
+        gap: var(--workbench-stack-gap);
+        min-height: 100%;
       }
 
       .workspace-grid {
-        grid-template-columns: 1fr;
+        display: grid;
+        grid-template-columns: minmax(320px, 400px) minmax(0, 1fr);
+        gap: var(--workbench-section-gap);
+        min-height: 0;
       }
 
       .workspace-stack {
-        grid-template-rows: auto auto;
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) minmax(260px, 320px);
+        gap: var(--workbench-section-gap);
+        min-height: 0;
       }
 
-      .field-row,
+      .workspace-card {
+        gap: var(--space-4);
+        min-height: 0;
+      }
+
       .card-toolbar,
       .occurrence-row {
-        align-items: stretch;
-        flex-direction: column;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-3);
       }
-    }
-  `],
+
+      .workspace-section-header {
+        padding-bottom: var(--space-2);
+        border-bottom: 1px solid var(--color-border-light);
+      }
+
+      .field,
+      .field-row {
+        display: flex;
+        gap: var(--space-3);
+      }
+
+      .field {
+        flex-direction: column;
+        font-size: var(--font-size-xs);
+        color: var(--color-text-secondary);
+      }
+
+      .field-row > .field {
+        flex: 1 1 0;
+        min-width: 0;
+      }
+
+      .form-actions {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        flex-wrap: wrap;
+      }
+
+      .notice {
+        font-size: var(--font-size-xs);
+        color: var(--color-text-secondary);
+      }
+
+      .item-list,
+      .occurrence-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+        min-height: 0;
+        overflow: auto;
+      }
+
+      .item-card,
+      .occurrence-card {
+        width: 100%;
+        padding: var(--workbench-card-padding);
+        text-align: left;
+      }
+
+      .item-card.is-active {
+        border-color: var(--color-surface-highlight-border);
+        background: var(--color-surface-highlight);
+        box-shadow: var(--color-surface-highlight-shadow);
+      }
+
+      .item-main {
+        min-width: 0;
+      }
+
+      .item-title,
+      .occurrence-title {
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-semibold);
+        color: var(--color-text);
+      }
+
+      .item-meta,
+      .occurrence-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2);
+        margin-top: var(--space-2);
+        font-size: var(--font-size-xs);
+        color: var(--color-text-secondary);
+      }
+
+      .item-actions {
+        display: flex;
+        gap: var(--space-2);
+        margin-top: var(--space-3);
+      }
+
+      .occurrence-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: var(--space-3);
+      }
+
+      .payload-block {
+        margin: var(--space-3) 0 0;
+        padding: var(--space-3);
+        border-radius: var(--radius-md);
+        background: var(--color-surface-muted);
+        color: var(--color-text-secondary);
+        font-size: var(--font-size-xxs);
+        line-height: 1.5;
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .ui-select--compact {
+        min-width: 120px;
+      }
+
+      @media (max-width: 980px) {
+        .workspace-page {
+          padding: var(--workbench-shell-padding-mobile);
+        }
+
+        .workspace-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .workspace-stack {
+          grid-template-rows: auto auto;
+        }
+
+        .field-row,
+        .card-toolbar,
+        .occurrence-row {
+          align-items: stretch;
+          flex-direction: column;
+        }
+      }
+    `,
+  ],
 })
 export class WorkspacePlanComponent implements OnInit {
   private readonly plans = inject(PlanApiService);
@@ -440,10 +519,11 @@ export class WorkspacePlanComponent implements OnInit {
     const filter = this.dispatchFilter();
     return this.allPlans().filter((plan) => filter === 'all' || plan.dispatchType === filter);
   });
-  readonly selectedPlan = computed(() =>
-    this.visiblePlans().find((plan) => plan.id === this.selectedPlanId())
-    ?? this.allPlans().find((plan) => plan.id === this.selectedPlanId())
-    ?? null,
+  readonly selectedPlan = computed(
+    () =>
+      this.visiblePlans().find((plan) => plan.id === this.selectedPlanId()) ??
+      this.allPlans().find((plan) => plan.id === this.selectedPlanId()) ??
+      null,
   );
 
   protected readonly weekdayOptions = [
@@ -523,13 +603,13 @@ export class WorkspacePlanComponent implements OnInit {
     try {
       const created = await firstValueFrom(this.plans.create(request));
       this.resetForm();
-      this.notice.set('计划已创建。');
+      this.notice.set('安排已创建。');
       await this.load();
       if (created?.id) {
         await this.selectPlan(created.id);
       }
     } catch (error) {
-      this.notice.set(error instanceof Error ? error.message : '计划创建失败');
+      this.notice.set(error instanceof Error ? error.message : '安排创建失败');
     } finally {
       this.saving.set(false);
     }
@@ -561,7 +641,9 @@ export class WorkspacePlanComponent implements OnInit {
     return 'neutral';
   }
 
-  dispatchTone(dispatchType: PlanDispatchType): 'neutral' | 'info' | 'success' | 'warning' | 'danger' {
+  dispatchTone(
+    dispatchType: PlanDispatchType,
+  ): 'neutral' | 'info' | 'success' | 'warning' | 'danger' {
     if (dispatchType === 'notify') return 'info';
     if (dispatchType === 'action') return 'success';
     if (dispatchType === 'dev_run') return 'warning';
@@ -592,9 +674,10 @@ export class WorkspacePlanComponent implements OnInit {
 
   planActionLabel(plan: PlanRecord): string | null {
     const templateAction = plan.taskTemplates?.[0]?.action;
-    const payloadAction = typeof plan.actionPayload?.['capability'] === 'string'
-      ? plan.actionPayload['capability']
-      : null;
+    const payloadAction =
+      typeof plan.actionPayload?.['capability'] === 'string'
+        ? plan.actionPayload['capability']
+        : null;
     return templateAction ?? payloadAction;
   }
 
@@ -615,7 +698,13 @@ export class WorkspacePlanComponent implements OnInit {
   }
 
   setDispatchFilter(value: string) {
-    if (value === 'all' || value === 'notify' || value === 'action' || value === 'dev_run' || value === 'noop') {
+    if (
+      value === 'all' ||
+      value === 'notify' ||
+      value === 'action' ||
+      value === 'dev_run' ||
+      value === 'noop'
+    ) {
       this.dispatchFilter.set(value);
     }
   }

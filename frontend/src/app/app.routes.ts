@@ -6,6 +6,7 @@ import { DevAgentOverviewComponent } from './dev-agent/dev-agent-overview.compon
 import { DevAgentSessionComponent } from './dev-agent/dev-agent-session.component';
 import { RegressionReportsComponent } from './regression/regression-reports.component';
 import { HomeShellComponent } from './home/home-shell.component';
+import { WorkbenchPageComponent } from './workspace/workbench-page.component';
 import { WorkspaceIdeaComponent } from './workspace/workspace-idea.component';
 import { WorkspacePlanComponent } from './workspace/workspace-plan.component';
 import { WorkspaceReminderComponent } from './workspace/workspace-reminder.component';
@@ -38,7 +39,7 @@ export const routes: Routes = [
         path: 'workspace',
         component: WorkspaceShellComponent,
         children: [
-          { path: '', pathMatch: 'full', redirectTo: 'todos' },
+          { path: '', pathMatch: 'full', component: WorkbenchPageComponent },
           {
             path: 'dev-agent',
             component: DevAgentComponent,
@@ -56,10 +57,11 @@ export const routes: Routes = [
           { path: 'task-records', pathMatch: 'full', redirectTo: 'execution' },
         ],
       },
-      { path: 'memory', pathMatch: 'full', redirectTo: 'memory/life-record' },
-      { path: 'memory/profile', component: MemoryHubComponent },
+      { path: 'memory', pathMatch: 'full', redirectTo: 'memory/understanding' },
+      { path: 'memory/understanding', component: MemoryHubComponent },
+      { path: 'memory/profile', pathMatch: 'full', redirectTo: 'memory/understanding' },
+      { path: 'memory/memories', pathMatch: 'full', redirectTo: 'memory/understanding' },
       { path: 'memory/persona', component: MemoryHubComponent },
-      { path: 'memory/memories', component: MemoryHubComponent },
       { path: 'memory/life-record', component: MemoryHubComponent },
       { path: 'memory/cognitive-trace', component: MemoryHubComponent },
       { path: 'memory/relations', component: MemoryHubComponent },
