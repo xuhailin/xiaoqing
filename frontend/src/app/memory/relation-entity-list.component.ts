@@ -9,6 +9,7 @@ import {
 } from '../core/services/relation.service';
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
 import { AppPanelComponent } from '../shared/ui/app-panel.component';
+import { AppSectionHeaderComponent } from '../shared/ui/app-section-header.component';
 import { AppStateComponent } from '../shared/ui/app-state.component';
 import { AppTabsComponent, type AppTabItem } from '../shared/ui/app-tabs.component';
 
@@ -45,15 +46,15 @@ const RELATION_META: Record<SocialRelation, {
 @Component({
   selector: 'app-relation-entity-list',
   standalone: true,
-  imports: [DatePipe, NgClass, AppBadgeComponent, AppPanelComponent, AppStateComponent, AppTabsComponent],
+  imports: [DatePipe, NgClass, AppBadgeComponent, AppPanelComponent, AppSectionHeaderComponent, AppStateComponent, AppTabsComponent],
   template: `
-    <app-panel variant="workbench" class="entity-panel">
+    <app-panel variant="subtle" class="entity-panel">
       <div class="panel-header">
-        <div>
-          <div class="panel-header__title">社会关系人物</div>
-          <p class="panel-header__description">从生活记录里提炼出你经常提到的人，方便小晴理解你的社会世界。</p>
-        </div>
-
+        <app-section-header
+          class="panel-header__copy"
+          title="你生活里反复出现的人"
+          description="这些人物来自你的生活世界。小晴会记住他们，但不会让他们抢走“你和小晴”这条主线。"
+        />
         <label class="panel-toolbar__sort">
           <span>排序</span>
           <select class="ui-select" [value]="sortBy()" (change)="setSortBy($any($event.target).value)">
@@ -85,13 +86,15 @@ const RELATION_META: Record<SocialRelation, {
         />
       } @else if (entities().length === 0) {
         <app-state
-          title="还没有观察到明确的人物线索"
-          description="小晴还没有观察到你提到身边的人，多和我聊聊吧。"
+          [compact]="true"
+          title="我还没记住太多你身边的人"
+          description="你可以多和我聊聊他们，我会慢慢把这些名字和关系放进心里。"
         />
       } @else if (groupedEntities().length === 0) {
         <app-state
-          title="这个分类下还没有人物"
-          description="切换到其他关系类型看看，或者继续聊天积累更多线索。"
+          [compact]="true"
+          title="这一类人物暂时还没有出现"
+          description="换个分类看看，或者继续和我聊聊最近和谁一起度过了生活。"
         />
       } @else {
         <div class="entity-groups">
@@ -185,7 +188,7 @@ const RELATION_META: Record<SocialRelation, {
                     } @else {
                       <div class="entity-card__footer">
                         <div class="entity-card__meta">
-                          首次出现 {{ entity.firstSeenAt | date:'yyyy-MM-dd' }}
+                          首次出现 {{ entity.firstSeenAt | date:'yyyy-MM-dd' }} · 最近提到 {{ entity.lastSeenAt | date:'MM-dd HH:mm' }}
                         </div>
 
                         <div class="entity-card__actions">
@@ -233,6 +236,7 @@ const RELATION_META: Record<SocialRelation, {
 
     .entity-panel {
       gap: var(--space-4);
+      border-radius: calc(var(--radius-2xl) + 2px);
     }
 
     .panel-header {
@@ -240,20 +244,12 @@ const RELATION_META: Record<SocialRelation, {
       justify-content: space-between;
       align-items: start;
       gap: var(--space-4);
+      padding-bottom: var(--space-2);
+      border-bottom: 1px solid var(--color-border-light);
     }
 
-    .panel-header__title {
-      font-size: 1.05rem;
-      font-weight: var(--font-weight-semibold);
-      color: var(--color-text);
-    }
-
-    .panel-header__description {
-      margin: var(--space-2) 0 0;
-      max-width: 60ch;
-      font-size: var(--font-size-sm);
-      line-height: 1.6;
-      color: var(--color-text-secondary);
+    .panel-header__copy {
+      min-width: 0;
     }
 
     .panel-toolbar__sort {
@@ -268,7 +264,7 @@ const RELATION_META: Record<SocialRelation, {
     .entity-groups {
       display: flex;
       flex-direction: column;
-      gap: var(--space-5);
+      gap: var(--space-4);
     }
 
     .entity-group {
@@ -306,22 +302,24 @@ const RELATION_META: Record<SocialRelation, {
     }
 
     .entity-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: var(--space-3);
+      display: flex;
+      flex-direction: column;
     }
 
     .entity-card {
       display: flex;
       flex-direction: column;
       gap: var(--space-3);
-      padding: var(--space-4);
-      border-radius: calc(var(--workbench-card-radius) - 4px);
-      border: 1px solid color-mix(in srgb, var(--relation-accent) 26%, var(--relation-surface-mix-target));
-      background:
-        linear-gradient(180deg, color-mix(in srgb, var(--relation-accent) calc(4% + (var(--mention-weight) * 10%)), var(--relation-surface-mix-target)) 0%, var(--relation-card-bg-strong) 100%);
-      box-shadow: var(--relation-shared-card-shadow);
+      padding: var(--space-3) 0;
+      border: none;
+      border-top: 1px solid var(--color-border-light);
+      background: transparent;
       min-height: 0;
+    }
+
+    .entity-grid > .entity-card:first-child {
+      border-top: none;
+      padding-top: 0;
     }
 
     .entity-card__header,
@@ -363,7 +361,7 @@ const RELATION_META: Record<SocialRelation, {
     }
 
     .entity-card__count {
-      font-size: 1.4rem;
+      font-size: 1.1rem;
       font-weight: var(--font-weight-semibold);
       line-height: 1;
       color: var(--color-text);
@@ -386,7 +384,7 @@ const RELATION_META: Record<SocialRelation, {
     .entity-card__description {
       margin: 0;
       font-size: var(--font-size-sm);
-      line-height: 1.7;
+      line-height: 1.8;
       color: var(--color-text-secondary);
     }
 
@@ -403,8 +401,9 @@ const RELATION_META: Record<SocialRelation, {
       display: flex;
       flex-direction: column;
       gap: var(--space-3);
-      padding-top: var(--space-2);
-      border-top: 1px solid var(--relation-card-border);
+      padding-top: var(--space-3);
+      margin-top: calc(var(--space-1) * -1);
+      border-top: 1px solid var(--color-border-light);
     }
 
     .entity-form__field {
@@ -418,7 +417,7 @@ const RELATION_META: Record<SocialRelation, {
     .entity-card__merge {
       align-items: center;
       padding-top: var(--space-2);
-      border-top: 1px dashed var(--color-tabs-secondary-border);
+      border-top: 1px dashed var(--color-border-light);
     }
 
     .entity-card__merge .ui-select {
@@ -441,9 +440,8 @@ const RELATION_META: Record<SocialRelation, {
     }
 
     .entity-action:hover:not(:disabled) {
-      transform: translateY(-1px);
       border-color: color-mix(in srgb, var(--relation-accent) 35%, var(--relation-surface-mix-target));
-      background: var(--relation-card-bg-strong);
+      background: var(--color-surface-highlight);
     }
 
     .entity-action:disabled {

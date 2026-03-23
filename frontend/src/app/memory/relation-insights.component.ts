@@ -10,6 +10,7 @@ import {
 } from '../core/services/relation.service';
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
 import { AppPanelComponent } from '../shared/ui/app-panel.component';
+import { AppSectionHeaderComponent } from '../shared/ui/app-section-header.component';
 import { AppStateComponent } from '../shared/ui/app-state.component';
 
 type DecoratedEdge = SocialRelationEdgeRecord & {
@@ -28,15 +29,14 @@ const TREND_META: Record<SocialRelationTrend, {
 @Component({
   selector: 'app-relation-insights',
   standalone: true,
-  imports: [DatePipe, AppBadgeComponent, AppPanelComponent, AppStateComponent],
+  imports: [DatePipe, AppBadgeComponent, AppPanelComponent, AppSectionHeaderComponent, AppStateComponent],
   template: `
-    <app-panel variant="workbench" class="insights-panel">
-      <div class="panel-header">
-        <div>
-          <div class="panel-header__title">关系动态与洞察</div>
-          <p class="panel-header__description">把最近的人际变化趋势和小晴的社会洞察并排展示，方便快速扫一眼整体状态。</p>
-        </div>
-      </div>
+    <app-panel variant="subtle" class="insights-panel">
+      <app-section-header
+        class="panel-header"
+        title="外部关系动态"
+        description="这里是用户社会世界的辅助视角，用来补充理解最近哪些外部关系值得留意。"
+      />
 
       @if (loading()) {
         <app-state
@@ -52,6 +52,7 @@ const TREND_META: Record<SocialRelationTrend, {
         />
       } @else if (insights().length === 0 && decoratedEdges().length === 0) {
         <app-state
+          [compact]="true"
           title="还没有足够的关系动态"
           description="再多积累一些人物提及和关系变化后，这里会逐渐出现趋势和洞察。"
         />
@@ -132,24 +133,15 @@ const TREND_META: Record<SocialRelationTrend, {
       gap: var(--space-4);
     }
 
-    .panel-header__title {
-      font-size: 1.05rem;
-      font-weight: var(--font-weight-semibold);
-      color: var(--color-text);
-    }
-
-    .panel-header__description {
-      margin: var(--space-2) 0 0;
-      max-width: 66ch;
-      font-size: var(--font-size-sm);
-      line-height: 1.6;
-      color: var(--color-text-secondary);
+    .panel-header {
+      padding-bottom: var(--space-2);
+      border-bottom: 1px solid var(--color-border-light);
     }
 
     .insights-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: var(--space-4);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-5);
     }
 
     .insight-column {
@@ -178,7 +170,7 @@ const TREND_META: Record<SocialRelationTrend, {
       padding: var(--space-4);
       border-radius: calc(var(--workbench-card-radius) - 6px);
       border: 1px solid var(--relation-card-border);
-      background: var(--relation-card-bg);
+      background: var(--relation-card-bg-strong);
     }
 
     .edge-card--declining {
@@ -254,10 +246,6 @@ const TREND_META: Record<SocialRelationTrend, {
     }
 
     @media (max-width: 980px) {
-      .insights-grid {
-        grid-template-columns: 1fr;
-      }
-
       .insight-card__header,
       .edge-card__header {
         flex-direction: column;

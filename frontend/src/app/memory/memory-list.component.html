@@ -28,9 +28,17 @@
   @if (typeFilter() !== 'pending') {
     <ul class="list ui-scrollbar">
       @for (m of memories(); track m.id) {
-        <li class="ui-list-card" (click)="select(m)" (contextmenu)="onMemoryContextMenu($event, m.id)">
-          <app-badge tone="neutral" appearance="outline">{{ getTypeLabel(m.type) }}</app-badge>
-          <app-badge tone="info">{{ getCategoryLabel(m.category) }}</app-badge>
+        <li
+          class="ui-list-card memory-item"
+          [class.is-active]="selected()?.id === m.id"
+          (click)="select(m)"
+          (contextmenu)="onMemoryContextMenu($event, m.id)"
+        >
+          <div class="memory-item__meta">
+            <app-badge tone="neutral" appearance="outline">{{ getTypeLabel(m.type) }}</app-badge>
+            <app-badge tone="info">{{ getCategoryLabel(m.category) }}</app-badge>
+            <app-badge tone="neutral" appearance="outline">置信 {{ getConfidencePercent(m.confidence) }}</app-badge>
+          </div>
           <span class="preview">{{ m.content.slice(0, 40) }}{{ m.content.length > 40 ? '…' : '' }}</span>
         </li>
       }
@@ -48,13 +56,20 @@
     }
 
     @if (selected(); as m) {
-      <app-panel class="detail" padding="md">
-        <div class="detail-header">
-          <span>{{ getTypeLabel(m.type) }} · {{ getCategoryLabel(m.category) }} · {{ m.id.slice(0, 8) }}</span>
-          <app-button variant="ghost" size="xs" (click)="closeDetail()">关闭</app-button>
+      <app-panel class="detail" variant="subtle" padding="md">
+        <app-section-header
+          class="detail-header"
+          [title]="getCategoryLabel(m.category)"
+          [description]="'来源 messageIds：' + ((m.sourceMessageIds || []).length) + ' 条'"
+        >
+          <app-button actions variant="ghost" size="xs" (click)="closeDetail()">关闭</app-button>
+        </app-section-header>
+        <div class="detail-meta">
+          <app-badge tone="neutral" appearance="outline">{{ getTypeLabel(m.type) }}</app-badge>
+          <app-badge tone="info">{{ getCategoryLabel(m.category) }}</app-badge>
+          <app-badge tone="neutral" appearance="outline">置信 {{ getConfidencePercent(m.confidence) }}</app-badge>
+          <app-badge tone="neutral" appearance="outline">ID {{ m.id.slice(0, 8) }}</app-badge>
         </div>
-        <p class="source">来源 messageIds: {{ (m.sourceMessageIds || []).length }} 条</p>
-        <p class="source">置信度: {{ getConfidencePercent(m.confidence) }}</p>
         <textarea
           class="ui-textarea"
           [value]="editContent()"
@@ -79,7 +94,7 @@
     }
     <ul class="list ui-scrollbar">
       @for (item of pendingItems(); track item.id) {
-        <li class="pending-item ui-list-card">
+        <li class="pending-item ui-list-card memory-item">
           <div class="pending-content">
             <div class="pending-tags">
               <app-badge tone="neutral" appearance="outline">{{ getGrowthTypeLabel(item.type) }}</app-badge>

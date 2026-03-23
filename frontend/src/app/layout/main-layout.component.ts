@@ -4,6 +4,7 @@ import { AppButtonComponent } from '../shared/ui/app-button.component';
 import { AppIconComponent, type AppIconName } from '../shared/ui/app-icon.component';
 import { XiaoqingAvatarComponent } from '../shared/ui/xiaoqing-avatar.component';
 import { ThemeService } from '../core/services/theme.service';
+import { MemoryDesignAuditBarComponent } from '../design-agent/memory-design-audit-bar.component';
 
 type ChatSubNavItem = {
   value: 'chat' | 'dev-agent' | 'xiaoqin';
@@ -33,7 +34,13 @@ type MemorySubNavItem = {
 @Component({
   selector: 'app-main-layout',
   standalone: true,
-  imports: [RouterOutlet, AppButtonComponent, AppIconComponent, XiaoqingAvatarComponent],
+  imports: [
+    RouterOutlet,
+    AppButtonComponent,
+    AppIconComponent,
+    XiaoqingAvatarComponent,
+    MemoryDesignAuditBarComponent,
+  ],
   template: `
     <div class="app-shell">
       <aside class="app-sidebar">
@@ -153,6 +160,9 @@ type MemorySubNavItem = {
               }
 
               <div class="app-subnav__meta">
+                @if (currentPrimary() === 'memory') {
+                  <app-memory-design-audit-bar [memoryTab]="currentMemorySubnav()" />
+                }
                 @if (currentPageHeader(); as header) {
                   <div class="app-subnav__title">{{ header.title }}</div>
                   <div class="app-subnav__description">{{ header.description }}</div>

@@ -13,6 +13,7 @@ import { PetModule } from './assistant/pet/pet.module';
 import { ClaimEngineModule } from './assistant/claim-engine/claim-engine.module';
 import { GatewayModule } from './gateway/gateway.module';
 import { DevAgentModule } from './dev-agent/dev-agent.module';
+import { DesignAgentModule } from './design-agent/design-agent.module';
 import { WechatWorkBotModule } from './channels/wechat-work-bot/wechat-work-bot.module';
 import { RegressionReportsController } from './qa/regression-reports.controller';
 import { RegressionReportsService } from './qa/regression-reports.service';
@@ -32,6 +33,7 @@ import { TodoModule } from './todo/todo.module';
     ConversationModule,
     GatewayModule,
     DevAgentModule,
+    DesignAgentModule,
     MemoryModule,
     SummarizerModule,
     PersonaModule,

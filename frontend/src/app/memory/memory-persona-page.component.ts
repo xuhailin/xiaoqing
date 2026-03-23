@@ -4,6 +4,7 @@ import { PersonaConfigComponent } from '../persona/persona-config.component';
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
 import { AppPageHeaderComponent } from '../shared/ui/app-page-header.component';
 import { AppPanelComponent } from '../shared/ui/app-panel.component';
+import { AppSectionHeaderComponent } from '../shared/ui/app-section-header.component';
 import { AppStateComponent } from '../shared/ui/app-state.component';
 import { SystemOverviewService, type SystemOverview } from '../core/services/system-overview.service';
 
@@ -15,23 +16,31 @@ import { SystemOverviewService, type SystemOverview } from '../core/services/sys
     AppBadgeComponent,
     AppPageHeaderComponent,
     AppPanelComponent,
+    AppSectionHeaderComponent,
     AppStateComponent,
   ],
   template: `
     <div class="memory-page">
       <app-page-header
+        class="memory-page__header"
         eyebrow="Memory"
-        title="Persona / System Self"
-        description="继续沿用现有 persona 配置，同时补一块只读 system self 摘要。"
+        title="人格设定"
+        description="把小晴的人格、表达约束和系统自我摘要放在一个稳定的编辑入口里维护。"
       />
 
-      <div class="memory-grid">
-        <app-panel variant="workbench" class="summary-card">
-          <div class="summary-title">System Self</div>
+      <app-panel variant="subtle" class="summary-card">
+        <div class="summary-card__top">
+          <app-section-header
+            class="card-header"
+            title="System Self"
+            description="只读系统摘要放在上方，作为当前人格配置的运行上下文，不与主编辑器抢视觉重心。"
+          />
+        </div>
 
-          @if (loading()) {
-            <app-state [compact]="true" kind="loading" title="系统摘要加载中..." />
-          } @else if (overview(); as data) {
+        @if (loading()) {
+          <app-state [compact]="true" kind="loading" title="系统摘要加载中..." />
+        } @else if (overview(); as data) {
+          <div class="summary-grid">
             <div class="summary-group">
               <div class="summary-label">系统</div>
               <div class="summary-value">{{ data.systemSelf.system.name }} · v{{ data.systemSelf.system.version }}</div>
@@ -67,11 +76,13 @@ import { SystemOverviewService, type SystemOverview } from '../core/services/sys
                 }
               </div>
             </div>
-          } @else {
-            <app-state [compact]="true" title="暂无系统摘要" description="稍后可在设置页查看完整只读信息。" />
-          }
-        </app-panel>
+          </div>
+        } @else {
+          <app-state [compact]="true" title="暂无系统摘要" description="稍后可在设置页查看完整只读信息。" />
+        }
+      </app-panel>
 
+      <div class="memory-grid">
         <app-panel variant="workbench" class="persona-card">
           <app-persona-config />
         </app-panel>
@@ -88,27 +99,41 @@ import { SystemOverviewService, type SystemOverview } from '../core/services/sys
       padding: var(--workbench-shell-padding);
       display: flex;
       flex-direction: column;
-      gap: var(--workbench-stack-gap);
+      gap: var(--space-5);
       min-height: 100%;
     }
 
+    .memory-page__header,
+    .summary-card,
     .memory-grid {
-      display: grid;
-      grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
-      gap: var(--workbench-section-gap);
+      width: min(100%, var(--content-max-width));
+      margin: 0 auto;
+    }
+
+    .memory-grid {
       min-height: 0;
     }
 
     .summary-card,
     .persona-card {
       min-height: 0;
+      gap: var(--space-4);
     }
 
-    .summary-title {
-      font-size: var(--font-size-md);
-      font-weight: var(--font-weight-semibold);
-      color: var(--color-text);
-      margin-bottom: var(--space-3);
+    .summary-card__top {
+      padding-bottom: var(--space-2);
+      border-bottom: 1px solid var(--color-border-light);
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-4);
+      align-items: start;
+    }
+
+    .card-header {
+      min-width: 0;
     }
 
     .summary-group {
@@ -157,6 +182,10 @@ import { SystemOverviewService, type SystemOverview } from '../core/services/sys
       }
 
       .memory-grid {
+        gap: var(--space-4);
+      }
+
+      .summary-grid {
         grid-template-columns: 1fr;
       }
     }

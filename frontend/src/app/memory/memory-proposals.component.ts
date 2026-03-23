@@ -21,7 +21,7 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
     AppStateComponent,
   ],
   template: `
-    <app-panel variant="workbench" class="proposals-panel">
+    <app-panel variant="subtle" class="proposals-panel">
       <app-section-header class="proposals-header" title="待审核记忆提案">
         <app-badge actions tone="warning">{{ pending().length }}</app-badge>
       </app-section-header>
@@ -85,7 +85,7 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
     }
 
     .proposals-panel {
-      gap: var(--space-3);
+      gap: var(--space-4);
     }
 
     .proposals-header {
@@ -112,8 +112,8 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
       gap: var(--space-2);
       padding: var(--space-3);
       border-radius: var(--radius-md);
-      border: 1px solid var(--color-border-light);
-      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      background: var(--color-panel-subtle-bg);
     }
 
     .proposal-card__head {
@@ -150,7 +150,7 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
       line-height: 1.5;
       color: var(--color-text-secondary);
       padding: var(--space-2) var(--space-3);
-      background: var(--color-surface-sunken, var(--color-bg));
+      background: var(--color-surface-muted);
       border-radius: var(--radius-sm);
       border-left: 2px solid var(--color-border);
     }

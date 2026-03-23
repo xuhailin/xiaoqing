@@ -26,12 +26,39 @@ export interface MilestoneDto {
   type: MilestoneType;
 }
 
+export interface RelationshipReflectionDto {
+  id: string;
+  title: string;
+  summary: string;
+  impact: RelationImpact;
+  rhythmNote: string | null;
+  trustDelta: number;
+  closenessDelta: number;
+  sharedMoment: boolean;
+  momentHint: string | null;
+  happenedAt: string;
+}
+
+export interface RelationshipMomentPreviewDto {
+  id: string;
+  title: string;
+  summary: string;
+  category: SharedExperienceCategory | string;
+  emotionalTone: SharedExperienceTone | null;
+  significance: number;
+  happenedAt: string;
+}
+
 export interface RelationshipOverviewDto {
   stage: RelationshipStage;
   trustScore: number;
   closenessScore: number;
   rhythmPreferences: RhythmPreferenceDto[];
+  rhythmObservations: string[];
   milestones: MilestoneDto[];
+  recentReflections: RelationshipReflectionDto[];
+  recentSharedMoments: RelationshipMomentPreviewDto[];
+  lastMeaningfulMomentAt: string | null;
   summary: string;
 }
 

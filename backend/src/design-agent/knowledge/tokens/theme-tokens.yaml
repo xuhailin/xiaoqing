@@ -1,0 +1,83 @@
+version: 1
+name: XiaoQing Theme Tokens
+source_of_truth:
+  - frontend/src/styles/_variables.scss
+  - frontend/src/styles/_design-system.scss
+
+note: |
+  实际颜色值在 _variables.scss 的 :root（light）和 [data-theme="dark"]（dark）中定义。
+  本文件只定义结构性约束（spacing/radius/shadow/density）和页面类型语义映射，
+  不重复抄写 CSS 变量值。审查时 agent 应直接读 _variables.scss 获取真实 token。
+
+scales:
+  spacing:
+    1: 4
+    2: 8
+    3: 12
+    4: 16
+    5: 24
+    6: 32
+  radius:
+    xs: 6
+    sm: 8
+    md: 12
+    lg: 16
+    xl: 20
+    pill: 999
+  shadow:
+    none: none
+    sm: var(--shadow-sm)
+    md: var(--shadow-md)
+    lg: var(--shadow-lg)
+  density:
+    compact:
+      section_gap: 16
+      panel_padding: 16
+      item_gap: 8
+      control_min_height: 32
+      note: 适合 workbench、配置页、列表操作页
+    balanced:
+      section_gap: 24
+      panel_padding: 16
+      item_gap: 12
+      control_min_height: 36
+      note: 默认档，适合 chat、memory、常规内容页
+    relaxed:
+      section_gap: 24
+      panel_padding: 24
+      item_gap: 12
+      control_min_height: 36
+      note: 适合 memory 详情、内容阅读页
+
+semantic_layout:
+  page_types:
+    chat:
+      default_density: balanced
+      shell_radius: none
+      primary_surface: transparent-flow
+      emphasis_surface: soft-card
+    workbench:
+      default_density: compact
+      shell_radius: xl
+      primary_surface: workbench-panel
+      emphasis_surface: elevated-panel
+    memory:
+      default_density: relaxed
+      shell_radius: lg
+      primary_surface: quiet-panel
+      emphasis_surface: subtle-card
+
+theme_diff_guidance:
+  light:
+    - 默认表现，柔和背景 + 轻暖环境渐变
+    - 边框使用 --color-border / --color-border-light
+    - 阴影使用标准 shadow token
+  dark:
+    - 背景更深，优先通过边界对比建立层级
+    - 不依赖 glow / 霓虹效果
+    - 边框对比度可略高于 light，但不做发光边框
+
+extension_rules:
+  - 新 theme 只能在现有语义槽位上补值，不能重新发明一套 page type 逻辑
+  - 新 token 优先补充 semantic token，不直接新增业务色
+  - 允许新增 theme，但必须继续兼容 chat/workbench/memory 三类页面的默认密度映射

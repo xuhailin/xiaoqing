@@ -3,6 +3,16 @@
   "collection": "@nestjs/schematics",
   "sourceRoot": "src",
   "compilerOptions": {
-    "deleteOutDir": true
+    "deleteOutDir": true,
+    "assets": [
+      {
+        "include": "design-agent/knowledge/**/*.md",
+        "outDir": "dist"
+      },
+      {
+        "include": "design-agent/knowledge/**/*.yaml",
+        "outDir": "dist"
+      }
+    ]
   }
 }

@@ -1,7 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../infra/prisma.service';
 import { SharedExperienceService } from '../shared-experience/shared-experience.service';
-import type { RelationshipOverviewDto, RhythmPreferenceDto, MilestoneDto } from './relationship-overview.types';
+import type {
+  MilestoneDto,
+  RelationshipMomentPreviewDto,
+  RelationshipOverviewDto,
+  RelationshipReflectionDto,
+  RhythmPreferenceDto,
+} from './relationship-overview.types';
 
 /** rr.* claim key → human-readable label */
 const RR_KEY_LABELS: Record<string, string> = {
@@ -22,22 +28,42 @@ export class RelationshipOverviewService {
   ) {}
 
   async getOverview(): Promise<RelationshipOverviewDto> {
-    const [relationshipState, rhythmClaims, milestones] = await Promise.all([
+    const [
+      relationshipState,
+      rhythmClaims,
+      milestones,
+      recentReflections,
+      recentSharedMoments,
+    ] = await Promise.all([
       this.getActiveRelationshipState(),
       this.getRhythmClaims(),
       this.getMilestones(),
+      this.getRecentReflections(),
+      this.getRecentSharedMoments(),
     ]);
 
     const stage = (relationshipState?.stage ?? 'early') as RelationshipOverviewDto['stage'];
     const trustScore = relationshipState?.trustScore ?? 0.5;
     const closenessScore = relationshipState?.closenessScore ?? 0.5;
+    const rhythmObservations = this.uniqueLines(
+      recentReflections.map((item) => item.rhythmNote ?? ''),
+      3,
+    );
+    const lastMeaningfulMomentAt = this.resolveLastMeaningfulMomentAt(
+      recentReflections,
+      recentSharedMoments,
+    );
 
     return {
       stage,
       trustScore,
       closenessScore,
       rhythmPreferences: rhythmClaims,
+      rhythmObservations,
       milestones,
+      recentReflections,
+      recentSharedMoments,
+      lastMeaningfulMomentAt,
       summary: this.buildSummary(stage, trustScore, closenessScore, rhythmClaims),
     };
   }
@@ -135,6 +161,71 @@ export class RelationshipOverviewService {
     return milestones.sort((a, b) => a.date.localeCompare(b.date));
   }
 
+  private async getRecentReflections(): Promise<RelationshipReflectionDto[]> {
+    const rows = await this.prisma.sessionReflection.findMany({
+      where: {
+        OR: [
+          { relationImpact: { not: 'neutral' } },
+          { sharedMoment: true },
+          { rhythmNote: { not: null } },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 4,
+      select: {
+        id: true,
+        summary: true,
+        relationImpact: true,
+        rhythmNote: true,
+        trustDelta: true,
+        closenessDelta: true,
+        sharedMoment: true,
+        momentHint: true,
+        createdAt: true,
+      },
+    });
+
+    return rows.map((row) => ({
+      id: row.id,
+      title: this.reflectionTitle(row.relationImpact),
+      summary: row.summary,
+      impact: row.relationImpact as RelationshipReflectionDto['impact'],
+      rhythmNote: row.rhythmNote,
+      trustDelta: row.trustDelta,
+      closenessDelta: row.closenessDelta,
+      sharedMoment: row.sharedMoment,
+      momentHint: row.momentHint,
+      happenedAt: row.createdAt.toISOString(),
+    }));
+  }
+
+  private async getRecentSharedMoments(): Promise<RelationshipMomentPreviewDto[]> {
+    const rows = await this.prisma.sharedExperience.findMany({
+      where: { significance: { gte: 0.6 } },
+      orderBy: [{ happenedAt: 'desc' }, { significance: 'desc' }],
+      take: 3,
+      select: {
+        id: true,
+        title: true,
+        summary: true,
+        category: true,
+        emotionalTone: true,
+        significance: true,
+        happenedAt: true,
+      },
+    });
+
+    return rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      summary: row.summary,
+      category: row.category,
+      emotionalTone: row.emotionalTone,
+      significance: row.significance,
+      happenedAt: row.happenedAt.toISOString(),
+    }));
+  }
+
   private stageLabel(stage: string): string {
     const labels: Record<string, string> = {
       early: '初识阶段',
@@ -162,5 +253,47 @@ export class RelationshipOverviewService {
     }
 
     return summary;
+  }
+
+  private reflectionTitle(
+    impact: string,
+  ): RelationshipReflectionDto['title'] {
+    const labels: Record<string, RelationshipReflectionDto['title']> = {
+      deepened: '关系更近了一点',
+      strained: '关系有点紧了',
+      repaired: '关系被慢慢修复',
+      neutral: '关系保持稳定',
+    };
+    return labels[impact] ?? '关系有了新的变化';
+  }
+
+  private resolveLastMeaningfulMomentAt(
+    reflections: RelationshipReflectionDto[],
+    moments: RelationshipMomentPreviewDto[],
+  ): string | null {
+    const candidates = [
+      ...reflections.map((item) => item.happenedAt),
+      ...moments.map((item) => item.happenedAt),
+    ].filter(Boolean);
+
+    if (candidates.length === 0) return null;
+    return candidates.sort((a, b) => b.localeCompare(a))[0] ?? null;
+  }
+
+  private uniqueLines(items: string[], limit: number): string[] {
+    const result: string[] = [];
+    const seen = new Set<string>();
+
+    for (const raw of items) {
+      const item = raw?.trim();
+      if (!item) continue;
+      const key = item.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push(item);
+      if (result.length >= limit) break;
+    }
+
+    return result;
   }
 }
