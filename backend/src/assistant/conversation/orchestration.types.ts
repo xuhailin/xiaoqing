@@ -130,6 +130,8 @@ export interface TurnContext {
     identityAnchors: AnchorDto[];
     anchorText: string | null;
     anchorCity?: string;
+    /** 用户的首选昵称（来自 ip.nickname.primary claim） */
+    preferredNickname?: string | null;
   };
   world: {
     storedWorldState: WorldState | null;

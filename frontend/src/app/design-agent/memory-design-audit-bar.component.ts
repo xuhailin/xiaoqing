@@ -88,7 +88,7 @@ export class MemoryDesignAuditBarComponent {
     this.rawJson.set(JSON.stringify(res, null, 2));
 
     if (!res.success) {
-      this.errorMessage.set(res.error ?? '审查失败');
+      this.errorMessage.set(this.resolveDesignAgentError(res.error ?? '审查失败'));
       return;
     }
 
@@ -116,9 +116,19 @@ export class MemoryDesignAuditBarComponent {
           : Array.isArray(body?.message)
             ? body.message.join('; ')
             : err.message;
-      this.errorMessage.set(msg || `HTTP ${err.status}`);
+      this.errorMessage.set(this.resolveDesignAgentError(msg || `HTTP ${err.status}`));
       return;
     }
     this.errorMessage.set(String(err));
+  }
+
+  private resolveDesignAgentError(message: string): string {
+    if (
+      message.includes('Failed to load design knowledge') ||
+      message.includes('page-type-patterns.md')
+    ) {
+      return 'Design Agent 知识库规则文件缺失（后端可能未部署或构建产物未拷贝到 dist）。你仍可以继续查看界面；如需完整审查，请联系管理员或重启/重新部署后端。';
+    }
+    return message;
   }
 }

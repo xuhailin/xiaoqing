@@ -43,4 +43,35 @@ export class DesignAgentController {
       workspaceRoot: body.workspaceRoot,
     });
   }
+
+  /**
+   * POST /design-agent/audits/run
+   *
+   * MVP：通过 devAgent 执行一次设计审查任务（agent 模式），前端轮询获取最终 audit_result JSON。
+   *
+   * - mode=visual/full：当前 MVP 不保证截图能力；后端会按 promptBuilder 的代码审查方式执行。
+   */
+  @Post('audits/run')
+  async runAuditViaDevAgent(@Body() body: DesignAuditRequest) {
+    if (!body.pageName?.trim()) {
+      throw new BadRequestException('pageName is required');
+    }
+    if (!body.pageType || !VALID_PAGE_TYPES.includes(body.pageType)) {
+      throw new BadRequestException(`pageType must be one of: ${VALID_PAGE_TYPES.join(', ')}`);
+    }
+    if (body.mode && !VALID_MODES.includes(body.mode)) {
+      throw new BadRequestException(`mode must be one of: ${VALID_MODES.join(', ')}`);
+    }
+
+    return this.designAgent.startAuditRun({
+      pageName: body.pageName.trim(),
+      pageType: body.pageType,
+      preset: body.preset,
+      mode: body.mode,
+      pageUrl: body.pageUrl,
+      targetFiles: body.targetFiles,
+      notes: body.notes,
+      workspaceRoot: body.workspaceRoot,
+    });
+  }
 }

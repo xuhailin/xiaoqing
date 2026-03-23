@@ -14,6 +14,7 @@ export interface CapabilityInfo {
   name: string;
   description?: string;
   taskIntent?: string[];
+  channels?: string[];
   surface?: string;
   scope?: string;
   visibility?: string;

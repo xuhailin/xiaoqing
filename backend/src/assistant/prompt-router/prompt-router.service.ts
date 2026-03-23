@@ -87,8 +87,6 @@ export interface ChatContext {
   actionDecision?: ActionDecision;
   /** 由 DecisionSummaryBuilder 生成的决策摘要文本（优先于 actionDecision 内联构建） */
   decisionSummaryText?: string;
-  /** 表达提示：来自推理层的语气/风格建议 */
-  expressionHintsText?: string;
   /** 协作上下文：当前是 agent 间委托，而非直接前台聊天 */
   collaborationContext?: CollaborationTurnContext | null;
 }
@@ -134,7 +132,7 @@ export class PromptRouterService {
     let memoryPart = '';
     if (ctx.memories?.length) {
       const lines = ctx.memories.map((m) => `- ${m.content}`);
-      memoryPart = `你记得的事：\n${lines.join('\n')}`;
+      memoryPart = `[内部记忆参考]\n${lines.join('\n')}`;
     }
 
     let userProfilePart = '';
@@ -145,8 +143,6 @@ export class PromptRouterService {
     // —— 表达策略（一段话，无方括号）——
     const expressionPart = this.buildExpressionPolicy(ctx.expressionFields, ctx.intentState);
     const metaPart = this.buildMetaFilterPolicy(ctx.metaFilterPolicy);
-    const personaPresencePart = this.buildPersonaPresenceAnchor(ctx.expressionFields);
-
     // —— 背景信号（保留结构化格式，模型需要精确读取）——
 
     let worldStatePart = '';
@@ -191,8 +187,6 @@ export class PromptRouterService {
       decisionContextPart = lines.join('\n');
     }
 
-    const expressionHintsPart = ctx.expressionHintsText ?? '';
-
     let actionHintPart = '';
     if (ctx.handoffDevHint) {
       actionHintPart = '[行动提示] 用户本轮可能是开发/编程类任务。若适合交给开发代理，可在回复中自然建议对方使用 /dev 前缀重新发送。';
@@ -226,12 +220,25 @@ export class PromptRouterService {
     let systemSelfPart = '';
     if (ctx.systemSelf) {
       const visibleCaps = ctx.systemSelf.capabilities.filter(c => c.visibility !== 'hidden');
+      const activeAgents = ctx.systemSelf.agents.filter((agent) => agent.active);
+      const collaborationAgents = activeAgents.filter((agent) => agent.name !== 'assistant');
+      const collaborationAgentLines = collaborationAgents.map((agent) => `- ${agent.name}（${agent.channel}）`);
+      const capabilitySection = visibleCaps.length > 0
+        ? [
+            '[系统可用能力]',
+            ...visibleCaps.map((c) => `- ${c.name}：${c.description || c.name}`),
+          ].join('\n')
+        : '[系统可用能力]\n- 当前无可执行外部能力（仅对话建议）';
+      const agentSection = collaborationAgentLines.length > 0
+        ? ['[可协作代理]', ...collaborationAgentLines].join('\n')
+        : '';
       if (visibleCaps.length > 0) {
-        const capLines = visibleCaps.map(c => `- ${c.name}：${c.description || c.name}`);
         const hasReminder = visibleCaps.some(c => c.name === 'reminder');
         systemSelfPart = hasReminder
-          ? `你当前可用的能力：\n${capLines.join('\n')}\n注：reminder 能力可以设置真实的定时提醒（一次性、每天、每周），会在指定时间实际触发通知。`
-          : `你当前可用的能力：\n${capLines.join('\n')}`;
+          ? [capabilitySection, '注：reminder 能力可以设置真实的定时提醒（一次性、每天、每周），会在指定时间实际触发通知。', agentSection].filter(Boolean).join('\n')
+          : [capabilitySection, agentSection].filter(Boolean).join('\n');
+      } else {
+        systemSelfPart = [capabilitySection, agentSection].filter(Boolean).join('\n');
       }
     }
 
@@ -259,11 +266,9 @@ export class PromptRouterService {
       reflectionPart,
       taskPlanPart,
       decisionContextPart,
-      expressionHintsPart,
       actionHintPart,
       metaPart,
       expressionPart,
-      personaPresencePart,
     ].filter(Boolean);
 
     const system: OpenAI.Chat.ChatCompletionMessageParam = {
@@ -279,37 +284,28 @@ export class PromptRouterService {
   buildCognitivePolicy(state?: CognitiveTurnState): string {
     if (!state) return '';
 
-    // 闲聊场景精简注入，减少 token 消耗和注意力稀释
-    if (state.situation.kind === 'casual_chat') {
-      const lines = [
-        '[当前认知决策]',
-        `- situation: ${state.situation.kind} (${state.situation.summary})`,
-        `- emotion: ${state.userState.emotion}, fragility: ${state.userState.fragility}`,
-        `- strategy: ${state.responseStrategy.primaryMode}, depth=${state.responseStrategy.depth}, initiative=${state.responseStrategy.initiative}`,
-        `- rhythm: pacing=${state.rhythm.pacing}, askFollowup=${state.rhythm.shouldAskFollowup}`,
-        `- affinity: mode=${state.affinity.mode}, allowLightTease=${state.affinity.allowLightTease}`,
-      ];
-      return lines.join('\n');
-    }
-
     const safetyLine = state.safety.notes.length
       ? `- safety: ${state.safety.notes.join('; ')}`
-      : '- safety: keep capability and truth boundaries';
+      : '';
 
     const lines = [
       '[当前认知决策]',
       `- situation: ${state.situation.kind} (${state.situation.summary})`,
-      `- userState: emotion=${state.userState.emotion}, need=${state.userState.needMode}, load=${state.userState.cognitiveLoad}, fragility=${state.userState.fragility}`,
-      `- responseStrategy: primary=${state.responseStrategy.primaryMode}, secondary=${state.responseStrategy.secondaryMode}, goal=${state.responseStrategy.goal}, depth=${state.responseStrategy.depth}, initiative=${state.responseStrategy.initiative}`,
-      `- judgement: style=${state.judgement.style}, challengeContradiction=${state.judgement.shouldChallengeContradiction}`,
-      `- values: ${state.value.priorities.join(' > ')}`,
-      `- emotionRule: ${state.emotionRule.rule} (${state.emotionRule.responseOrder.join(' -> ')})`,
-      `- affinity: mode=${state.affinity.mode}, allowLightTease=${state.affinity.allowLightTease}`,
+      `- emotion: ${state.userState.emotion}, fragility: ${state.userState.fragility}`,
+      `- strategy: ${state.responseStrategy.primaryMode}, depth=${state.responseStrategy.depth}, initiative=${state.responseStrategy.initiative}`,
       `- rhythm: pacing=${state.rhythm.pacing}, askFollowup=${state.rhythm.shouldAskFollowup}, initiative=${state.rhythm.initiative}`,
-      `- relationship: stage=${state.relationship.stage}, confidence=${state.relationship.confidence}`,
+      `- affinity: mode=${state.affinity.mode}, allowLightTease=${state.affinity.allowLightTease}`,
       safetyLine,
-      '- 执行要求: 先遵守回应策略，再生成文字；不要跳过情绪优先级，不要伪造能力。',
-    ];
+    ].filter(Boolean);
+
+    // 情绪场景 / 高脆弱度：硬降级，确保模型不会进入分析/追问/推进模式
+    if (
+      state.situation.kind === 'emotional_expression'
+      || state.situation.kind === 'relationship_distress'
+      || state.userState.fragility === 'high'
+    ) {
+      lines.push('- 硬约束: 不分析、不追问、不推进。先接住，再等她。');
+    }
 
     return lines.join('\n');
   }
@@ -359,7 +355,6 @@ export class PromptRouterService {
     for (const item of items.slice(0, 2)) {
       lines.push(`- ${item.title}: ${item.summary}`);
     }
-    lines.push('如果当前话题自然相关，可以轻轻提及；不相关就不要硬提。');
     return lines.join('\n');
   }
 
@@ -369,7 +364,6 @@ export class PromptRouterService {
     return [
       '[最近节奏观察]',
       ...notes.slice(0, 3).map((note) => `- ${note}`),
-      '这些只用于微调表达节奏，不要机械复述给用户。',
     ].join('\n');
   }
 
@@ -379,7 +373,6 @@ export class PromptRouterService {
     return [
       '[社会洞察]',
       ...insights.slice(0, 2).map((item) => `- ${item.content}`),
-      '这些是对用户社会世界的背景理解；只在当前话题自然相关时再用。',
     ].join('\n');
   }
 
@@ -389,7 +382,6 @@ export class PromptRouterService {
     return [
       '[相关人物认知]',
       ...items.slice(0, 3).map((item) => `- ${item.name}: ${item.description}`),
-      '这些是对相关人物的稳定背景理解；只在当前自然相关时轻轻使用，不要像档案播报。',
     ].join('\n');
   }
 
@@ -403,22 +395,12 @@ export class PromptRouterService {
         const note = normalizedNote ? ` | note=${normalizedNote}` : '';
         return `- ${item.entityName} | trend=${item.trend} | quality=${item.quality.toFixed(2)}${note}`;
       }),
-      '这些只用于帮助理解关系语境；先承接，再判断是否适合轻问一句，不要替用户站队或下结论。',
     ].join('\n');
   }
 
-  buildPersonaPresenceAnchor(fields?: ExpressionFields): string {
-    if (!fields) return '';
-
-    const rules = this.extractRuleLines(
-      [fields.voiceStyle, fields.adaptiveRules, fields.silencePermission]
-        .filter((item): item is string => !!item?.trim())
-        .join('\n'),
-      4,
-    );
-    if (rules.length === 0) return '';
-
-    return ['[人格表现锚点]', ...rules.map((line) => `- ${line}`)].join('\n');
+  /** @deprecated personaPresenceAnchor 已移除：与 expressionPolicy 内容重复，见 prompt-pipeline-audit */
+  buildPersonaPresenceAnchor(_fields?: ExpressionFields): string {
+    return '';
   }
 
   buildBoundaryPolicy(boundary?: BoundaryPromptContext | null): string {
@@ -437,47 +419,15 @@ export class PromptRouterService {
    */
   buildExpressionPolicy(
     fields?: ExpressionFields,
-    intentState?: DialogueIntentState,
+    _intentState?: DialogueIntentState,
   ): string {
-    if (!fields) return '';
+    if (!fields?.expressionRules) return '';
 
-    // voiceStyle + adaptiveRules + silencePermission 合并
-    const parts: string[] = [];
-    if (fields.voiceStyle) parts.push(fields.voiceStyle);
-    if (fields.adaptiveRules) parts.push(fields.adaptiveRules);
-    if (fields.silencePermission) parts.push(fields.silencePermission);
-    if (parts.length === 0) return '';
-    let text = '你的表达方式：\n' + parts.join('\n');
-
-    // 动态 hint 来自意图状态
-    if (intentState) {
-      const hint = this.getAdaptiveHint(intentState);
-      if (hint) {
-        text += '\n' + hint;
-      }
-    }
-
-    text += '\n当结构化表达更清晰时，可使用标准 Markdown（标题、列表、引用、代码块、链接、粗斜体）；普通闲聊保持自然文本，不要为了格式而格式化。';
-
-    return text;
-  }
-
-  private getAdaptiveHint(intent: DialogueIntentState): string {
-    const { seriousness, expectation, mode } = intent;
-
-    if (seriousness === 'casual' && expectation === '陪聊') {
-      return '当前状态：轻松闲聊。优先一句话回应，轻但不空，抓住一个细节即可；默认不主动追问，除非用户明确在求建议或求解。';
-    }
-    if (seriousness === 'focused' && expectation === '直接给结果') {
-      return '当前状态：用户需要明确结果。允许多段分析、可结构化输出，但仍保持人格一致。';
-    }
-    if (mode === 'thinking' && expectation === '一起想') {
-      return '当前状态：共同思考。可以展开推理过程，但不替用户做结论。';
-    }
-    if (seriousness === 'semi') {
-      return '当前状态：中等投入。可以展开一两段，但不需要面面俱到。';
-    }
-    return '';
+    return [
+      '你的表达纪律：',
+      fields.expressionRules,
+      '当结构化表达更清晰时，可使用标准 Markdown（标题、列表、引用、代码块、链接、粗斜体）；普通闲聊保持自然文本，不要为了格式而格式化。',
+    ].join('\n');
   }
 
   private uniqueLines(items: string[], limit: number): string[] {
@@ -497,16 +447,6 @@ export class PromptRouterService {
     return result;
   }
 
-  private extractRuleLines(text: string, limit: number): string[] {
-    const lines = text
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0)
-      .map((line) => line.replace(/^[-*•]\s*/, '').trim())
-      .filter((line) => line.length > 0);
-
-    return this.uniqueLines(lines, limit);
-  }
 
   /**
    * LLM 精排：对预筛后的候选记忆按相关性排序。

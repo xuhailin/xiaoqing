@@ -8,9 +8,7 @@ export interface PersonaDto {
   personality: string;
   valueBoundary: string;
   behaviorForbidden: string;
-  voiceStyle: string;
-  adaptiveRules: string;
-  silencePermission: string;
+  expressionRules: string;
   metaFilterPolicy: string;
   evolutionAllowed: string;
   evolutionForbidden: string;
@@ -26,9 +24,7 @@ export type PersonaField =
   | 'personality'
   | 'valueBoundary'
   | 'behaviorForbidden'
-  | 'voiceStyle'
-  | 'adaptiveRules'
-  | 'silencePermission';
+  | 'expressionRules';
 
 export type UserProfileField =
   | 'preferredVoiceStyle'
@@ -36,17 +32,17 @@ export type UserProfileField =
   | 'responseRhythm';
 
 export interface EvolutionChange {
-  field: PersonaField;
+  field: PersonaField | string;
   content: string;
   reason: string;
   layer?: 'persona-core' | 'persona-boundary' | 'expression' | 'user-preference';
   risk?: 'high' | 'medium' | 'low';
-  reroutedFrom?: PersonaField;
-  targetField?: PersonaField | UserProfileField;
+  reroutedFrom?: PersonaField | string;
+  targetField?: PersonaField | UserProfileField | string;
 }
 
 export interface EvolutionPreviewField {
-  field: PersonaField | UserProfileField;
+  field: PersonaField | UserProfileField | string;
   before: string;
   after: string;
   added: string[];

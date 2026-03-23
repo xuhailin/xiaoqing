@@ -46,55 +46,70 @@
       }
 
       @if (sessionReflection(); as reflection) {
-        <div class="session-reflection-card">
-          <div class="session-reflection-card__header">
-            <div>
-              <div class="session-reflection-card__title">本次关系回顾</div>
-              <div class="session-reflection-card__time">
-                {{ formatDateTime(reflection.createdAt) || formatMessageTime(reflection.createdAt) }}
+        @if (!isSessionReflectionCollapsed(reflection.id)) {
+          <div class="session-reflection-card">
+            <div class="session-reflection-card__header">
+              <div>
+                <div class="session-reflection-card__title">本次关系回顾</div>
+                <div class="session-reflection-card__time">
+                  {{ formatDateTime(reflection.createdAt) || formatMessageTime(reflection.createdAt) }}
+                </div>
+              </div>
+
+              <div class="session-reflection-card__badges">
+                <app-badge [tone]="relationImpactTone(reflection.relationImpact)" appearance="outline">
+                  {{ relationImpactLabel(reflection.relationImpact) }}
+                </app-badge>
+                @if (reflection.sharedMoment) {
+                  <app-badge tone="warning" appearance="outline">共同经历</app-badge>
+                }
+                <app-button type="button" variant="ghost" size="xs" class="session-reflection-card__dismiss-btn"
+                  (click)="collapseSessionReflection()">
+                  收起
+                </app-button>
               </div>
             </div>
 
-            <div class="session-reflection-card__badges">
-              <app-badge [tone]="relationImpactTone(reflection.relationImpact)" appearance="outline">
-                {{ relationImpactLabel(reflection.relationImpact) }}
-              </app-badge>
-              @if (reflection.sharedMoment) {
-                <app-badge tone="warning" appearance="outline">共同经历</app-badge>
-              }
+            <div class="session-reflection-card__summary">{{ reflection.summary }}</div>
+
+            <div class="session-reflection-card__metrics">
+              <div class="session-reflection-card__metric">
+                <span class="session-reflection-card__metric-label">信任变化</span>
+                <span class="session-reflection-card__metric-value">{{ relationDeltaLabel(reflection.trustDelta) }}</span>
+              </div>
+              <div class="session-reflection-card__metric">
+                <span class="session-reflection-card__metric-label">亲密变化</span>
+                <span class="session-reflection-card__metric-value">{{ relationDeltaLabel(reflection.closenessDelta) }}</span>
+              </div>
             </div>
+
+            @if (reflection.rhythmNote || reflection.momentHint) {
+              <div class="session-reflection-card__notes">
+                @if (reflection.rhythmNote) {
+                  <div class="session-reflection-card__note">
+                    <span class="session-reflection-card__note-label">节奏观察</span>
+                    <span>{{ reflection.rhythmNote }}</span>
+                  </div>
+                }
+                @if (reflection.momentHint) {
+                  <div class="session-reflection-card__note">
+                    <span class="session-reflection-card__note-label">共同经历</span>
+                    <span>{{ reflection.momentHint }}</span>
+                  </div>
+                }
+              </div>
+            }
           </div>
-
-          <div class="session-reflection-card__summary">{{ reflection.summary }}</div>
-
-          <div class="session-reflection-card__metrics">
-            <div class="session-reflection-card__metric">
-              <span class="session-reflection-card__metric-label">信任变化</span>
-              <span class="session-reflection-card__metric-value">{{ relationDeltaLabel(reflection.trustDelta) }}</span>
-            </div>
-            <div class="session-reflection-card__metric">
-              <span class="session-reflection-card__metric-label">亲密变化</span>
-              <span class="session-reflection-card__metric-value">{{ relationDeltaLabel(reflection.closenessDelta) }}</span>
-            </div>
+        } @else {
+          <div class="session-reflection-mini">
+            <app-button type="button" variant="ghost" size="xs" class="session-reflection-mini__trigger"
+              (click)="expandSessionReflection()">
+              <app-icon name="info" size="0.85rem" />
+              <span>本次关系回顾</span>
+              <span class="session-reflection-mini__hint">点击展开</span>
+            </app-button>
           </div>
-
-          @if (reflection.rhythmNote || reflection.momentHint) {
-            <div class="session-reflection-card__notes">
-              @if (reflection.rhythmNote) {
-                <div class="session-reflection-card__note">
-                  <span class="session-reflection-card__note-label">节奏观察</span>
-                  <span>{{ reflection.rhythmNote }}</span>
-                </div>
-              }
-              @if (reflection.momentHint) {
-                <div class="session-reflection-card__note">
-                  <span class="session-reflection-card__note-label">共同经历</span>
-                  <span>{{ reflection.momentHint }}</span>
-                </div>
-              }
-            </div>
-          }
-        </div>
+        }
       }
 
       @if (evolveSuggestion(); as changes) {

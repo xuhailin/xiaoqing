@@ -75,7 +75,7 @@
 interface TraceStep {
   /** 步骤序号 */
   seq: number;
-  /** 步骤标签：intent | policy-decision | world-state | memory-recall | skill-attempt | openclaw | prompt-build | llm-generate | missing-params | auto-summarize | auto-evolution */
+  /** 步骤标签：pipeline-cognition | pipeline-decision | pipeline-expression | intent | cognitive-pipeline | meta-layer | boundary-governance | policy-decision | world-state | memory-recall | skill-attempt | openclaw | prompt-build | llm-generate | missing-params | auto-summarize | auto-evolution | identity-update */
   label: string;
   /** 步骤中文名 */
   title: string;
@@ -119,6 +119,7 @@ interface TurnTraceEvent {
 - 主链继续产出 `TraceStep[]`（旧协议稳定）。
 - 通过 adapter 将 `TraceStep` 映射为 `TurnTraceEvent[]`（新协议并行可读）。
 - 在 UI/调用方全部切换前，不移除 `trace` 字段。
+- 目前部分 TraceStep label（如 `auto-summarize` / `auto-evolution` / `identity-update`）在主链未直接通过 `trace.add` 产出；若对应阶段在 `TurnTraceEvent` 中出现，表示适配层已预留映射路径。
 
 ### 3.2 各步骤的 detail 定义
 
@@ -285,7 +286,7 @@ class TraceCollector {
 }
 ```
 
-**采集点**（在 conversation.service.ts 中插桩）：
+**采集点**（在 `assistant/conversation/chat-completion.engine.ts` 中插桩）：
 
 | 位置 | label | 触发条件 |
 |---|---|---|
@@ -300,7 +301,7 @@ class TraceCollector {
 
 **Feature Flag 控制**：
 
-复用 `FEATURE_DEBUG_META=true`，当此 flag 开启时同时返回 `trace`。或者新增独立 flag `FEATURE_DEBUG_TRACE=true`。
+当 `FEATURE_DEBUG_META=true` 时启用 `TraceCollector` 并在响应中返回 `trace`（当前实现未另外引入 `FEATURE_DEBUG_TRACE`）。
 
 **promptVersion 一致性**：`prompt-build` 步骤中的 `promptVersion` 字段应直接从 `PromptRouterService.CHAT_PROMPT_VERSION` 等常量注入，避免与 system 中实际注入的版本标记（如 `[chat_v6]`）不一致。
 

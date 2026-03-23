@@ -122,6 +122,7 @@ export class ActionReasonerService {
         reason: '意图为非工具请求，走聊天路径',
         confidence: intentState.confidence,
         source: 'rule',
+        targetKind: 'chat',
       };
     }
 
@@ -190,6 +191,7 @@ export class ActionReasonerService {
         reason: `工具意图置信度 ${intentState.confidence} < 阈值 ${threshold}`,
         confidence: intentState.confidence,
         source: 'rule',
+        targetKind: 'chat',
       };
     }
 
@@ -235,6 +237,7 @@ export class ActionReasonerService {
         reason: `${intentState.taskIntent} 意图已识别，但本地能力未配置且 OpenClaw 已关闭，回退聊天`,
         confidence: intentState.confidence,
         source: 'rule',
+        targetKind: 'chat',
       };
     }
 

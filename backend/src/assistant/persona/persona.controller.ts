@@ -62,9 +62,7 @@ export class PersonaController {
       personality?: string;
       valueBoundary?: string;
       behaviorForbidden?: string;
-      voiceStyle?: string;
-      adaptiveRules?: string;
-      silencePermission?: string;
+      expressionRules?: string;
       metaFilterPolicy?: string;
       evolutionAllowed?: string;
       evolutionForbidden?: string;

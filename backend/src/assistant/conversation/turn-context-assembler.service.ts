@@ -89,6 +89,7 @@ export class TurnContextAssembler {
       ? { ...(storedWorldState ?? {}), city: anchorCity }
       : storedWorldState;
 
+    const preferredNickname = await this.readPreferredNickname();
     const memoryCtx = await this.recallMemories(recentMessages, personaDto, profile);
     const intentCtx = await this.resolveIntent({
       conversationId: input.conversationId,
@@ -149,6 +150,7 @@ export class TurnContextAssembler {
         identityAnchors: anchors,
         anchorText,
         ...(anchorCity ? { anchorCity } : {}),
+        preferredNickname,
       },
       world: { storedWorldState, defaultWorldState, fullWorldState },
       memory: memoryCtx,

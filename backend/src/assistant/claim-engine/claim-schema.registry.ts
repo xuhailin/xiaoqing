@@ -59,6 +59,7 @@ export const CLAIM_KEYS = {
   IP_REPLY_LENGTH: key('ip.reply.length'),
   IP_REPLY_PACE: key('ip.reply.pace'),
   IP_REPLY_ENERGY_MATCH: key('ip.reply.energy_match'),
+  IP_NICKNAME_PRIMARY: key('ip.nickname.primary'),
 
   // ── Emotional tendencies (et.*) ────────────────────────
   ET_FRUSTRATION_QUIT_RISK: key('et.frustration_quit_risk'),
@@ -78,6 +79,10 @@ export type DraftClaimKey = `draft.${'ip' | 'jp' | 'vp' | 'rr' | 'et'}.${string}
 const LevelValue = z.object({ level: ClaimValueLevel });
 const PriorityValue = z.object({ priority: ClaimValuePriority });
 const EnabledValue = z.object({ enabled: z.boolean() });
+const NicknameValue = z.object({
+  name: z.string().trim().min(1).max(20),
+  source: z.enum(['user_stated', 'ai_proposed']).optional(),
+});
 
 export const ClaimSchemaRegistry = {
   allowedPrefixes: ['jp.', 'vp.', 'rr.', 'ip.', 'et.', 'bn.', 'draft.jp.', 'draft.vp.', 'draft.rr.', 'draft.ip.', 'draft.et.'] as const,
@@ -122,6 +127,7 @@ export const ClaimSchemaRegistry = {
     [CLAIM_KEYS.IP_REPLY_LENGTH]: z.object({ target: ClaimReplyLengthTarget }),
     [CLAIM_KEYS.IP_REPLY_PACE]: z.object({ target: ClaimReplyPaceTarget }),
     [CLAIM_KEYS.IP_REPLY_ENERGY_MATCH]: EnabledValue,
+    [CLAIM_KEYS.IP_NICKNAME_PRIMARY]: NicknameValue,
 
     // et.* (level)
     [CLAIM_KEYS.ET_FRUSTRATION_QUIT_RISK]: LevelValue,

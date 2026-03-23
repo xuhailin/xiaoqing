@@ -333,9 +333,10 @@ model Persona {
   behaviorForbidden String   @default("") @db.Text // 行为禁止项（替代 constraintKeys）
 
   // ── 表达调度层（常驻但独立，允许更频繁微调） ──
-  voiceStyle        String   @default("") @db.Text // 语言风格基线
-  adaptiveRules     String   @default("") @db.Text // 自适应展开/收缩条件
-  silencePermission String   @default("") @db.Text // 留白与少说许可
+  expressionRules   String   @default("") @db.Text // 表达纪律（合并自 voiceStyle/adaptiveRules/silencePermission）
+  voiceStyle        String   @default("") @db.Text // @deprecated 旧字段，迁移后由 expressionRules 承载
+  adaptiveRules     String   @default("") @db.Text // @deprecated 旧字段，迁移后由 expressionRules 承载
+  silencePermission String   @default("") @db.Text // @deprecated 旧字段，迁移后由 expressionRules 承载
   metaFilterPolicy  String   @default("") @db.Text // 元过滤规则：禁止暴露内部策略/逻辑
 
   // ── 进化约束 ──

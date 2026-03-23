@@ -83,22 +83,38 @@ const AUDIT_TEMPLATES: readonly AuditTemplate[] = [
         <app-panel variant="subtle" padding="lg">
           <div class="design-agent-page__section-head">
             <div>
-              <h2>发起审查</h2>
-              <p>先选一个模板，或手动填写页面信息。</p>
+              <h2>一句话触发审查</h2>
+              <p>输入你想检查的页面与关注点。</p>
             </div>
-            <app-badge tone="info" appearance="outline">POST /design-agent/audits</app-badge>
+            <app-badge tone="info" appearance="outline">POST /design-agent/audits/run</app-badge>
           </div>
 
-          <div class="design-agent-page__templates">
-            @for (template of templates; track template.label) {
-              <app-button variant="ghost" size="sm" (click)="applyTemplate(template)">
-                <app-icon name="sparkles" size="0.8rem" />
-                <span>{{ template.label }}</span>
-              </app-button>
-            }
-          </div>
+          <label class="field design-agent-page__field--wide">
+            <span>审查目标（一句话）</span>
+            <textarea
+              class="ui-textarea"
+              rows="4"
+              [ngModel]="userSentence()"
+              (ngModelChange)="userSentence.set($event)"
+              placeholder="例如：审查 memory 页面 /memory/understanding，看看这个页面 UI 有没有问题"
+            ></textarea>
+            <p class="design-agent-page__field-help">
+              MVP：目前可识别 memory + understanding（或直接包含 /memory/understanding）。
+            </p>
+          </label>
 
-          <div class="design-agent-page__form">
+          <details class="design-agent-page__advanced">
+            <summary>Advanced / Debug（保留原表单）</summary>
+            <div class="design-agent-page__templates">
+              @for (template of templates; track template.label) {
+                <app-button variant="ghost" size="sm" (click)="applyTemplate(template)">
+                  <app-icon name="sparkles" size="0.8rem" />
+                  <span>{{ template.label }}</span>
+                </app-button>
+              }
+            </div>
+
+            <div class="design-agent-page__form">
             <label class="field">
               <span>页面类型</span>
               <select
@@ -132,10 +148,13 @@ const AUDIT_TEMPLATES: readonly AuditTemplate[] = [
                 [ngModel]="mode()"
                 (ngModelChange)="mode.set($event)"
               >
-                <option value="full">full</option>
-                <option value="code">code</option>
-                <option value="visual">visual</option>
+                <option value="full">完整（代码 + 视觉）</option>
+                <option value="code">代码结构（更偏实现）</option>
+                <option value="visual">视觉一致性（更偏观感）</option>
               </select>
+              <p class="design-agent-page__field-help">
+                这只影响 Design Agent 的检查范围，不是切换到 DevAgent 执行。
+              </p>
             </label>
 
             <label class="field design-agent-page__field--wide">
@@ -179,14 +198,22 @@ const AUDIT_TEMPLATES: readonly AuditTemplate[] = [
                 placeholder="补充本次最关注的视觉问题、布局问题或不想改动的区域"
               ></textarea>
             </label>
-          </div>
+            </div>
+
+            <div class="design-agent-page__actions">
+              <app-button variant="primary" [disabled]="loading()" (click)="runAudit()">
+                {{ loading() ? '审查中...' : '运行设计审查' }}
+              </app-button>
+              <app-button variant="ghost" [disabled]="loading()" (click)="resetForm()">
+                重置
+              </app-button>
+            </div>
+
+          </details>
 
           <div class="design-agent-page__actions">
-            <app-button variant="primary" [disabled]="loading()" (click)="runAudit()">
+            <app-button variant="primary" [disabled]="loading() || !userSentence().trim()" (click)="runFromSentence()">
               {{ loading() ? '审查中...' : '运行设计审查' }}
-            </app-button>
-            <app-button variant="ghost" [disabled]="loading()" (click)="resetForm()">
-              重置
             </app-button>
           </div>
 
@@ -201,7 +228,8 @@ const AUDIT_TEMPLATES: readonly AuditTemplate[] = [
           <div class="design-agent-page__section-head">
             <div>
               <h2>审查结果</h2>
-              <p>这里展示当前运行的摘要、发现项和原始 JSON。</p>
+              <p>这里展示当前运行的摘要、发现项和建议操作（如果有）。</p>
+              <p class="design-agent-page__field-help">目标：{{ pageUrl() }}</p>
             </div>
             @if (result(); as res) {
               <app-badge
@@ -220,13 +248,18 @@ const AUDIT_TEMPLATES: readonly AuditTemplate[] = [
             </div>
           } @else if (result(); as res) {
             <div class="design-agent-page__summary">
+              @if (!res.success && errorMessage()) {
+                <div class="design-agent-page__notice design-agent-page__notice--error" role="alert">
+                  {{ errorMessage() }}
+                </div>
+              }
               <div class="design-agent-page__summary-card">
                 <span class="design-agent-page__summary-label">状态</span>
                 <strong>{{ res.auditResult?.summary?.status || 'unknown' }}</strong>
               </div>
               <div class="design-agent-page__summary-card">
                 <span class="design-agent-page__summary-label">模式</span>
-                <strong>{{ res.actualMode }}</strong>
+                <strong>{{ modeLabel(res.actualMode) }}</strong>
               </div>
               <div class="design-agent-page__summary-card">
                 <span class="design-agent-page__summary-label">耗时</span>
@@ -242,6 +275,40 @@ const AUDIT_TEMPLATES: readonly AuditTemplate[] = [
               <div class="design-agent-page__assessment">
                 {{ res.auditResult?.summary?.overallAssessment }}
               </div>
+            }
+
+            <div class="design-agent-page__actions design-agent-page__actions--results">
+              <app-button
+                variant="ghost"
+                [disabled]="loading()"
+                (click)="rerunAudit()"
+              >
+                重新审查
+              </app-button>
+              <app-button
+                variant="ghost"
+                [disabled]="loading()"
+                (click)="deepAudit()"
+              >
+                深度审查
+              </app-button>
+              <app-button
+                variant="ghost"
+                [disabled]="loading()"
+                (click)="generateModificationPlan()"
+              >
+                生成修改方案
+              </app-button>
+              <app-button
+                variant="ghost"
+                [disabled]="loading()"
+                (click)="handoffToDevAgent()"
+              >
+                交给 devAgent 修改
+              </app-button>
+            </div>
+            @if (actionHint()) {
+              <p class="design-agent-page__field-help">{{ actionHint() }}</p>
             }
 
             @if (res.auditResult?.findings?.length) {
@@ -274,6 +341,26 @@ const AUDIT_TEMPLATES: readonly AuditTemplate[] = [
               </div>
             }
 
+            @if (res.auditResult?.minimalFixPlan?.length) {
+              <div class="design-agent-page__assessment" id="design-agent-fix-plan">
+                建议操作（minimalFixPlan）：
+              </div>
+              <div class="design-agent-page__findings">
+                @for (fix of res.auditResult?.minimalFixPlan; track fix.target) {
+                  <article class="design-agent-page__finding">
+                    <div class="design-agent-page__finding-head">
+                      <strong>{{ fix.type }}</strong>
+                      <div class="design-agent-page__finding-meta">
+                        <app-badge tone="neutral" appearance="outline">fix</app-badge>
+                      </div>
+                    </div>
+                    <p>{{ fix.action }}</p>
+                    <div class="design-agent-page__finding-location">{{ fix.target }}</div>
+                  </article>
+                }
+              </div>
+            }
+
             <details class="design-agent-page__raw">
               <summary>查看完整 JSON</summary>
               <pre>{{ rawJson() }}</pre>
@@ -281,7 +368,7 @@ const AUDIT_TEMPLATES: readonly AuditTemplate[] = [
           } @else {
             <div class="design-agent-page__placeholder">
               <app-icon name="tool" size="1rem" />
-              <span>还没有运行审查。选一个模板后就可以开始。</span>
+              <span>还没有运行审查。输入一句话后就可以开始。</span>
             </div>
           }
         </app-panel>
@@ -290,16 +377,35 @@ const AUDIT_TEMPLATES: readonly AuditTemplate[] = [
   `,
   styles: [`
     :host {
-      display: block;
-      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      height: 100%;
+      min-height: 0;
     }
 
     .design-agent-page {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
       display: flex;
       flex-direction: column;
       gap: var(--space-4);
-      min-height: 100%;
       padding: var(--space-4);
+      height: 100%;
+    }
+
+    .design-agent-page::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .design-agent-page::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .design-agent-page::-webkit-scrollbar-thumb {
+      background: var(--color-border-light);
+      border-radius: var(--radius-pill);
     }
 
     .design-agent-page__grid {
@@ -358,6 +464,13 @@ const AUDIT_TEMPLATES: readonly AuditTemplate[] = [
       color: var(--color-text-secondary);
     }
 
+    .design-agent-page__field-help {
+      margin: var(--space-1) 0 0;
+      font-size: var(--font-size-xs);
+      color: var(--color-text-muted);
+      line-height: 1.5;
+    }
+
     .design-agent-page__actions {
       display: flex;
       gap: var(--space-2);
@@ -373,9 +486,9 @@ const AUDIT_TEMPLATES: readonly AuditTemplate[] = [
     }
 
     .design-agent-page__notice--error {
-      background: color-mix(in srgb, var(--color-danger) 10%, transparent);
-      color: var(--color-danger);
-      border: 1px solid color-mix(in srgb, var(--color-danger) 18%, transparent);
+      background: var(--color-error-bg);
+      color: var(--color-error);
+      border: 1px solid var(--color-error-border);
     }
 
     .design-agent-page__placeholder,
@@ -385,7 +498,8 @@ const AUDIT_TEMPLATES: readonly AuditTemplate[] = [
       gap: var(--space-2);
       padding: var(--space-3);
       border-radius: var(--radius-xl);
-      background: color-mix(in srgb, var(--color-surface-elevated) 86%, transparent);
+      background: color-mix(in srgb, var(--color-surface) 84%, transparent);
+      border: 1px solid var(--color-border-light);
       color: var(--color-text-secondary);
     }
 
@@ -408,7 +522,8 @@ const AUDIT_TEMPLATES: readonly AuditTemplate[] = [
       gap: var(--space-1);
       padding: var(--space-3);
       border-radius: var(--radius-xl);
-      background: color-mix(in srgb, var(--color-surface-elevated) 92%, transparent);
+      background: color-mix(in srgb, var(--color-surface) 88%, transparent);
+      border: 1px solid var(--color-border-light);
     }
 
     .design-agent-page__summary-label {
@@ -427,9 +542,9 @@ const AUDIT_TEMPLATES: readonly AuditTemplate[] = [
 
     .design-agent-page__finding {
       padding: var(--space-3);
-      border: 1px solid var(--color-border-soft);
+      border: 1px solid var(--color-border-light);
       border-radius: var(--radius-xl);
-      background: color-mix(in srgb, var(--color-surface-elevated) 88%, transparent);
+      background: color-mix(in srgb, var(--color-surface) 86%, transparent);
     }
 
     .design-agent-page__finding-head,
@@ -452,9 +567,10 @@ const AUDIT_TEMPLATES: readonly AuditTemplate[] = [
 
     .design-agent-page__finding-location {
       margin-top: var(--space-2);
-      font-family: var(--font-family-mono);
       font-size: var(--font-size-xs);
       color: var(--color-text-muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+        'Courier New', monospace;
     }
 
     .design-agent-page__raw {
@@ -470,7 +586,8 @@ const AUDIT_TEMPLATES: readonly AuditTemplate[] = [
       margin: var(--space-2) 0 0;
       padding: var(--space-3);
       border-radius: var(--radius-xl);
-      background: var(--color-surface-elevated);
+      background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+      border: 1px solid var(--color-border-light);
       overflow: auto;
       white-space: pre-wrap;
       word-break: break-word;
@@ -510,6 +627,9 @@ export class DesignAgentPageComponent {
   protected readonly result = signal<RunDesignAuditResultDto | null>(null);
   protected readonly rawJson = signal<string>('');
   protected readonly errorMessage = signal<string | null>(null);
+  protected readonly actionHint = signal<string | null>(null);
+
+  protected readonly userSentence = signal('审查 memory 页面 /memory/understanding，看看这个页面 UI 有没有问题');
 
   protected readonly pageType = signal<DesignPageType>('memory');
   protected readonly preset = signal<DesignPreset>('quiet-personal');
@@ -538,12 +658,56 @@ export class DesignAgentPageComponent {
     this.result.set(null);
     this.rawJson.set('');
     this.errorMessage.set(null);
+    this.actionHint.set(null);
+    this.userSentence.set('审查 memory 页面 /memory/understanding，看看这个页面 UI 有没有问题');
     this.applyTemplate(AUDIT_TEMPLATES[2]);
     this.targetFilesText.set('');
   }
 
+  /**
+   * MVP：一句话解析 -> 映射到固定的设计审查 task（当前仅 memory-understanding）
+   */
+  protected runFromSentence(): void {
+    this.errorMessage.set(null);
+    this.actionHint.set(null);
+    this.result.set(null);
+    this.rawJson.set('');
+    this.targetFilesText.set('');
+
+    const sentence = this.userSentence().trim();
+    if (!sentence) {
+      this.errorMessage.set('请输入审查目标。');
+      return;
+    }
+
+    const normalized = sentence.toLowerCase();
+    let route: string | null = null;
+    if (normalized.includes('/memory/understanding')) {
+      route = '/memory/understanding';
+    } else if (normalized.includes('memory') && normalized.includes('understanding')) {
+      route = '/memory/understanding';
+    } else if (normalized.includes('memory') && (normalized.includes('理解') || normalized.includes('understand'))) {
+      route = '/memory/understanding';
+    }
+
+    if (!route) {
+      this.errorMessage.set('MVP：当前仅支持 memory + understanding（或 /memory/understanding）。');
+      return;
+    }
+
+    this.pageType.set('memory');
+    this.preset.set(DEFAULT_PRESET_BY_TYPE['memory']);
+    this.mode.set('full');
+    this.pageName.set('memory-understanding');
+    this.pageUrl.set(route);
+    // 保持 notes 使用默认值；如需从句子提取更多约束，后续再扩展解析器。
+
+    this.runAudit();
+  }
+
   protected runAudit(): void {
     this.errorMessage.set(null);
+    this.actionHint.set(null);
     this.loading.set(true);
 
     const trimmedPageName = this.pageName().trim();
@@ -570,7 +734,7 @@ export class DesignAgentPageComponent {
           this.result.set(res);
           this.rawJson.set(JSON.stringify(res, null, 2));
           if (!res.success) {
-            this.errorMessage.set(res.error || '设计审查失败');
+            this.errorMessage.set(this.resolveDesignAgentError(res.error || '设计审查失败'));
           }
         },
         error: (err: unknown) => {
@@ -580,6 +744,36 @@ export class DesignAgentPageComponent {
           this.errorMessage.set(this.resolveHttpError(err));
         },
       });
+  }
+
+  protected rerunAudit(): void {
+    this.runAudit();
+  }
+
+  protected deepAudit(): void {
+    const original = this.notes();
+    const deepNotes = `${original}\n\n深度审查要求：请更严格地验证设计系统一致性，补充更具体的证据，并给出更小粒度的“minimalFixPlan”。`;
+    this.notes.set(deepNotes);
+    this.runAudit();
+    this.notes.set(original);
+  }
+
+  protected generateModificationPlan(): void {
+    this.actionHint.set('修改方案已由 minimalFixPlan 生成；可在下方“建议操作”区域查看。');
+    this.scrollToFixPlan();
+  }
+
+  protected handoffToDevAgent(): void {
+    this.actionHint.set('MVP：当前仅生成审查与 minimalFixPlan，暂不自动触发代码修改。后续会接入 devAgent 修改链路。');
+  }
+
+  private scrollToFixPlan(): void {
+    setTimeout(() => {
+      document.getElementById('design-agent-fix-plan')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    }, 0);
   }
 
   protected severityTone(
@@ -608,14 +802,37 @@ export class DesignAgentPageComponent {
     return `$${costUsd.toFixed(4)}`;
   }
 
+  protected modeLabel(mode: DesignAuditMode | string | null | undefined): string {
+    if (mode === 'full') return '完整（代码 + 视觉）';
+    if (mode === 'code') return '代码结构（更偏实现）';
+    if (mode === 'visual') return '视觉一致性（更偏观感）';
+    return String(mode ?? 'unknown');
+  }
+
+  private resolveDesignAgentError(message: string): string {
+    // 后端知识库缺失通常会抛出“Failed to load design knowledge”，
+    // 同时可能附带某个 dist 路径（例如 page-type-patterns.md）。
+    if (
+      message.includes('Failed to load design knowledge') ||
+      message.includes('page-type-patterns.md')
+    ) {
+      return 'Design Agent 知识库规则文件缺失（后端可能未部署或构建产物未拷贝到 dist）。你仍可以继续查看界面；如需完整审查，请联系管理员或重启/重新部署后端。';
+    }
+    return message;
+  }
+
   private resolveHttpError(err: unknown): string {
     if (err instanceof HttpErrorResponse) {
       const body = err.error;
+      const rawMessage = body?.message;
+      const messageString =
+        typeof rawMessage === 'string' ? rawMessage : Array.isArray(rawMessage) ? rawMessage.join('; ') : '';
+
       if (typeof body?.message === 'string' && body.message.trim()) {
-        return body.message;
+        return this.resolveDesignAgentError(body.message);
       }
       if (Array.isArray(body?.message) && body.message.length) {
-        return body.message.join('; ');
+        return this.resolveDesignAgentError(body.message.join('; '));
       }
       return err.message || `HTTP ${err.status}`;
     }

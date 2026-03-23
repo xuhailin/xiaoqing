@@ -1336,6 +1336,12 @@ export class ChatCompletionEngine {
       };
     });
     const claimCtx = context.claims;
+    const systemSelfInjectedCapabilitiesCount = context.system.systemSelf.capabilities
+      .filter((capability) => capability.visibility !== 'hidden')
+      .length;
+    const systemSelfInjectedAgentsCount = context.system.systemSelf.agents
+      .filter((agent) => agent.active)
+      .length;
 
     trace.add('cognitive-pipeline', '认知管道', 'success', {
       phase1: composition.cognitiveState.phasePlan.phase1,
@@ -1375,6 +1381,8 @@ export class ChatCompletionEngine {
       systemPromptPreview: this.previewText(String(composition.promptMessages[0]?.content ?? ''), 480),
       impressionCoreInjected: this.featureImpressionCore && !!userProfile.impressionCore,
       impressionDetailInjected: this.featureImpressionDetail && needDetail && !!userProfile.impressionDetail,
+      systemSelfInjectedCapabilitiesCount,
+      systemSelfInjectedAgentsCount,
       decisionContextInjected: !!actionDecision,
       actionDecisionSummary: actionDecision ? {
         action: actionDecision.action,
@@ -1465,6 +1473,8 @@ export class ChatCompletionEngine {
         version: CHAT_PROMPT_VERSION,
         systemPromptTokens: estimateTokens(composition.promptMessages[0]?.content as string ?? ''),
         systemPromptPreview: this.previewText(String(composition.promptMessages[0]?.content ?? ''), 1400),
+        systemSelfInjectedCapabilitiesCount,
+        systemSelfInjectedAgentsCount,
         messagePreview: composition.promptMessages.slice(0, 6).map((m) => ({
           role: String(m.role),
           content: this.previewText(String(m.content ?? ''), 240),

@@ -126,6 +126,7 @@ export class ChatComponent implements OnInit, OnDestroy {
   injectedMemories = signal<Array<{ id: string; type: string; content: string }>>([]);
   worldState = signal<WorldState | null>(null);
   sessionReflection = signal<SessionReflectionRecord | null>(null);
+  collapsedSessionReflectionId = signal<string | null>(null);
   messageDebugState = signal<Record<string, MessageDebugEntry>>({});
   expandedTraceMessageId = signal<string | null>(null);
   activeDebugMessageId = signal<string | null>(null);
@@ -148,6 +149,16 @@ export class ChatComponent implements OnInit, OnDestroy {
       || worldState?.timezone
       || worldState?.language,
     );
+  }
+
+  protected visibleSessionReflection(): SessionReflectionRecord | null {
+    const reflection = this.sessionReflection();
+    if (!reflection) return null;
+    return this.collapsedSessionReflectionId() === reflection.id ? null : reflection;
+  }
+
+  protected isSessionReflectionCollapsed(reflectionId: string): boolean {
+    return this.collapsedSessionReflectionId() === reflectionId;
   }
 
   protected showEmptyState(): boolean {
@@ -214,6 +225,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.injectedMemories.set([]);
     this.worldState.set(null);
     this.sessionReflection.set(null);
+    this.collapsedSessionReflectionId.set(null);
     this.activityNotice.set(null);
     this.workItems.set([]);
     this.receiptLiveStatus.set({});
@@ -278,10 +290,24 @@ export class ChatComponent implements OnInit, OnDestroy {
         conversationId: cid,
         limit: 1,
       }).toPromise();
-      this.sessionReflection.set(rows?.[0] ?? null);
+      const latest = rows?.[0] ?? null;
+      this.sessionReflection.set(latest);
+      if (!latest) {
+        this.collapsedSessionReflectionId.set(null);
+      }
     } catch {
       this.sessionReflection.set(null);
+      this.collapsedSessionReflectionId.set(null);
     }
+  }
+
+  collapseSessionReflection() {
+    const reflection = this.sessionReflection();
+    this.collapsedSessionReflectionId.set(reflection?.id ?? null);
+  }
+
+  expandSessionReflection() {
+    this.collapsedSessionReflectionId.set(null);
   }
 
   private async loadWorkItems(cid: string) {

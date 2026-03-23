@@ -70,6 +70,8 @@ interface AnchorExtractionOutput {
     action: 'create' | 'update';
     existingId?: string;
   }>;
+  /** 用户希望被称呼的名字/昵称（仅当用户明确表达时提取） */
+  preferredNickname?: string | null;
 }
 
 @Injectable()
@@ -405,7 +407,8 @@ export class SummarizerService {
     }
 
     // ── B2: 总结后自动提取身份锚定 ──────────────────────────
-    if (this.featureAutoAnchor && created.length > 0) {
+    // 不以 created.length 为门槛——身份锚点由 LLM 在 extractAndUpdateAnchor 内判断
+    if (this.featureAutoAnchor) {
       this.extractAndUpdateAnchor(messages).catch((err: Error) =>
         this.logger.warn(`Auto-anchor failed: ${err.message}`),
       );
@@ -583,13 +586,16 @@ label 类型：
 - 每条 content ≤ 30字，简洁概括
 - 如果没有值得提取的身份信息，返回 shouldUpdate: false
 
+额外：如果用户明确说了希望被怎么称呼（如"叫我XX""我叫XX""称呼我XX"），在 preferredNickname 字段返回该称呼（≤10字）。仅当用户主动表达称呼偏好时才提取，不要从姓名推断昵称。
+
 输出严格 JSON：
 {
   "shouldUpdate": boolean,
   "anchors": [
     { "label": "location", "content": "住在上海浦东新区", "action": "create" },
     { "label": "basic", "content": "更新后的内容", "action": "update", "existingId": "xxx" }
-  ]
+  ],
+  "preferredNickname": "string or null"
 }`,
       },
       { role: 'user' as const, content: dialogue },
@@ -619,6 +625,32 @@ label 类型：
         } else {
           this.logger.warn(`Anchor write failed: ${msg}`);
         }
+      }
+    }
+
+    // 写入昵称偏好 Claim
+    const nickname = (parsed.preferredNickname || '').trim().slice(0, 20);
+    if (nickname) {
+      try {
+        await this.claimUpdater.upsertFromDraft({
+          type: 'INTERACTION_PREFERENCE',
+          key: 'ip.nickname.primary',
+          value: { name: nickname, source: 'user_stated' },
+          confidence: 0.9,
+          sourceModel: this.llm.getModelInfo({ scenario: 'summary' }).modelName,
+          contextTags: ['auto-anchor', 'nickname'],
+          evidence: {
+            messageId: messages[messages.length - 1]?.id,
+            sessionId: 'auto-anchor',
+            snippet: nickname,
+            polarity: 'SUPPORT',
+            weight: 1,
+          },
+        });
+        this.logger.log(`Nickname claim written: ${nickname}`);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`Nickname claim write failed: ${msg}`);
       }
     }
   }

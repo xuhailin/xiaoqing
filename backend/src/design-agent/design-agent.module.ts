@@ -7,9 +7,10 @@ import { DesignAuditPromptBuilder } from './design-audit-prompt.builder';
 import { PageScreenshotService } from './screenshot/page-screenshot.service';
 import { VisualAuditService } from './visual-audit.service';
 import { ClaudeCodeStreamService } from '../dev-agent/executors/claude-code-stream.service';
+import { DevAgentModule } from '../dev-agent/dev-agent.module';
 
 @Module({
-  imports: [LlmModule],
+  imports: [LlmModule, DevAgentModule],
   controllers: [DesignAgentController],
   providers: [
     DesignAgentService,

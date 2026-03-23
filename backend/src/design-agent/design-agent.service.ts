@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { resolve } from 'path';
+import { DevAgentService } from '../dev-agent/dev-agent.service';
 import { ClaudeCodeStreamService } from '../dev-agent/executors/claude-code-stream.service';
 import { DesignKnowledgeLoader } from './knowledge/design-knowledge-loader';
 import { DesignAuditPromptBuilder } from './design-audit-prompt.builder';
@@ -28,10 +29,12 @@ interface PhaseResult {
 export class DesignAgentService {
   private readonly logger = new Logger(DesignAgentService.name);
   private readonly workspaceRoot: string;
+  private readonly designConversationId = 'design-agent-default';
 
   constructor(
     private readonly knowledgeLoader: DesignKnowledgeLoader,
     private readonly promptBuilder: DesignAuditPromptBuilder,
+    private readonly devAgent: DevAgentService,
     private readonly stream: ClaudeCodeStreamService,
     private readonly screenshot: PageScreenshotService,
     private readonly visualAudit: VisualAuditService,
@@ -98,6 +101,30 @@ export class DesignAgentService {
     }
 
     return this.mergeResults(codeResult, visualResult, request, preset, durationMs, costUsd);
+  }
+
+  /**
+   * 通过 devAgent 启动一次设计审查 run（agent 模式）。
+   * 前端将轮询 run 直到终态，并从 run.result.finalReply 解析 audit_result JSON。
+   */
+  async startAuditRun(request: DesignAuditRequest): Promise<{ sessionId: string; runId: string }> {
+    const preset = request.preset ?? defaultPresetForPageType(request.pageType);
+
+    const knowledge = await this.knowledgeLoader.getKnowledge(preset as any);
+    const prompt = this.promptBuilder.build({ ...request, preset: preset as any }, knowledge);
+
+    const workspaceRoot = request.workspaceRoot?.trim() || this.workspaceRoot;
+    const initial = await this.devAgent.handleTask(
+      this.designConversationId,
+      prompt,
+      { workspaceRoot },
+      { mode: 'agent' },
+    );
+
+    return {
+      sessionId: initial.session.id,
+      runId: initial.run.id,
+    };
   }
 
   private async runCodeAudit(request: DesignAuditRequest, preset: string): Promise<PhaseResult> {

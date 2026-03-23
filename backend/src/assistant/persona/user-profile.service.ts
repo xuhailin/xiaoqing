@@ -57,6 +57,7 @@ const CANONICAL_PREFERENCE_KEY_ORDER = [
   'rr.dislike_too_pushy',
   'rr.prefer_companion_mode_when_tired',
   'rr.allow_playful_tease_low',
+  'ip.nickname.primary',
 ] as const;
 
 @Injectable()

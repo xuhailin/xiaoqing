@@ -10,76 +10,46 @@ export interface DecisionSummaryInput {
 export interface DecisionSummary {
   /** 简洁的决策摘要（注入到 system prompt） */
   text: string;
-  /** 表达提示：影响语气和回复风格 */
-  expressionHints: ExpressionHints;
-}
-
-export interface ExpressionHints {
-  /** 建议语气 */
-  tone?: 'casual' | 'focused' | 'supportive' | 'professional';
-  /** 回复重点 */
-  emphasis?: string;
-  /** 附加上下文 */
-  context?: string;
 }
 
 @Injectable()
 export class DecisionSummaryBuilder {
   build(input: DecisionSummaryInput): DecisionSummary {
     const parts: string[] = [];
-    let tone: ExpressionHints['tone'];
-    let emphasis: string | undefined;
-    let context: string | undefined;
 
     const intent = input.intentState;
     const action = input.actionDecision;
 
-    // 1. 意图摘要
+    // 1. 意图摘要（纯事实描述，不含语气/风格指导）
     if (intent) {
       if (intent.taskIntent !== 'none' && intent.requiresTool) {
         parts.push(`用户意图：${this.translateTaskIntent(intent.taskIntent)}（置信度 ${intent.confidence.toFixed(2)}）`);
-        tone = 'focused';
         if (intent.taskIntent === 'device_screenshot') {
-          emphasis = '明确说明当前不能直接替用户截设备屏幕，可引导对方手动截图或把图片发来';
-          context = '这是设备侧执行请求，不要假装已经完成截图';
+          parts.push('这是设备侧执行请求，当前无法直接替用户截屏，需说明限制并引导');
         }
-      } else if (intent.mode === 'thinking') {
-        parts.push('用户在思考或讨论，不需要执行工具');
-        tone = 'supportive';
-      } else if (intent.seriousness === 'focused') {
-        parts.push('用户语气专注认真，需要认真对待');
-        tone = 'professional';
-      } else {
-        tone = 'casual';
       }
     }
 
-    // 2. 行动决策摘要
+    // 2. 行动决策摘要（纯决策描述，不指导表达方式）
     if (action) {
       if (action.targetKind === 'idea') {
         parts.push('本轮内容更适合收纳为想法记录');
-        emphasis = '如果系统已记下，回复里用自然方式确认“先帮你记一下”';
       } else if (action.targetKind === 'todo') {
-        parts.push('本轮内容更适合收纳为用户待办');
-        emphasis = action.planIntent?.type === 'notify'
-          ? '如果系统已记下并安排提醒，回复里自然确认已记成待办并会按时提醒'
-          : '如果系统已记下，回复里自然确认已记成待办';
+        parts.push(action.planIntent?.type === 'notify'
+          ? '本轮内容已记为待办并安排了提醒'
+          : '本轮内容已记为待办');
       }
       switch (action.action) {
         case 'run_capability':
           parts.push(`将执行能力：${action.capability ?? '未指定'}`);
-          emphasis = `围绕 ${action.capability ?? '能力执行'} 的结果组织回复`;
           break;
         case 'handoff_dev':
           parts.push('识别为开发任务，建议引导用户使用开发模式');
-          emphasis = '自然地建议使用 /dev 前缀';
           break;
         case 'suggest_reminder':
           parts.push('用户提到将来要做的事，可以建议设置提醒');
-          emphasis = '自然地询问是否需要设置提醒';
           break;
         case 'direct_reply':
-          // 直接回复不需要额外提示
           break;
       }
       if (action.reason) {
@@ -91,14 +61,7 @@ export class DecisionSummaryBuilder {
       ? `[决策上下文]\n${parts.map(p => `- ${p}`).join('\n')}\n请基于此决策上下文生成回复，保持一致性，但不要向用户暴露内部系统机制。`
       : '';
 
-    return {
-      text,
-      expressionHints: {
-        tone,
-        emphasis,
-        context,
-      },
-    };
+    return { text };
   }
 
   private translateTaskIntent(taskIntent: string): string {

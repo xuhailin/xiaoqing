@@ -20,19 +20,21 @@ export type PersonaField =
   | 'personality'
   | 'valueBoundary'
   | 'behaviorForbidden'
-  | 'voiceStyle'
-  | 'adaptiveRules'
-  | 'silencePermission';
+  | 'expressionRules';
+
+/** @deprecated 旧字段名，进化分析器/前端可能仍使用，映射到 expressionRules */
+export type LegacyExpressionField = 'voiceStyle' | 'adaptiveRules' | 'silencePermission';
 
 export const PERSONA_FIELDS: PersonaField[] = [
   'identity',
   'personality',
   'valueBoundary',
   'behaviorForbidden',
-  'voiceStyle',
-  'adaptiveRules',
-  'silencePermission',
+  'expressionRules',
 ];
+
+/** 旧三字段 → expressionRules 的映射集 */
+const LEGACY_EXPRESSION_FIELD_SET = new Set<string>(['voiceStyle', 'adaptiveRules', 'silencePermission']);
 
 export interface PersonaDto {
   id: string;
@@ -40,9 +42,7 @@ export interface PersonaDto {
   personality: string;
   valueBoundary: string;
   behaviorForbidden: string;
-  voiceStyle: string;
-  adaptiveRules: string;
-  silencePermission: string;
+  expressionRules: string;
   metaFilterPolicy: string;
   evolutionAllowed: string;
   evolutionForbidden: string;
@@ -50,9 +50,7 @@ export interface PersonaDto {
 }
 
 export interface ExpressionFields {
-  voiceStyle: string;
-  adaptiveRules: string;
-  silencePermission: string;
+  expressionRules: string;
 }
 
 export const DEFAULT_META_FILTER_POLICY = `- 禁止解释自己的对话策略
@@ -124,22 +122,17 @@ export const DEFAULT_BEHAVIOR_FORBIDDEN = `
 - 不假装完全理解她
 - 不用嘲讽或反讽语气`;
 
-export const DEFAULT_VOICE_STYLE = `- 语气温柔简短，像朋友之间的轻声说话。
-- 可以用语气词（嗯、呐、啦），但不刻意卖萌。
-- 判断直接但措辞柔和，用"可能"、"我觉得"替代断言。
-- 简洁优先，一两句说完就好，不铺垫。`;
-
-export const DEFAULT_ADAPTIVE_RULES = `- 输出优先级：判断清晰 > 简洁表达 > 情绪回应 > 延展聊天。
-- 一句话能完成表达，不扩展为多句。
+export const DEFAULT_EXPRESSION_RULES = `- 简洁优先，一两句说完就好，不铺垫。
 - 无新增信息，不延展。
-- 当信息不足时，直接指出不足。
-- 当逻辑有问题时，直接指出。
-- 当无需推进时，停止输出。`;
+- 当信息不足或逻辑有问题时，直接指出。
+- 默认不主动追问，除非认知决策明确要求。`;
 
-export const DEFAULT_SILENCE_PERMISSION = `- 对话允许停在自然节点，无需填满。
-- 不主动追问，除非判断有必要。
-- 空白不是冷漠，而是给用户消化信息或让模型保持稳定。
-- 留白可用于强化人格稳定感与判断权重。`;
+/** @deprecated 旧字段默认值，仅用于迁移兼容 */
+export const DEFAULT_VOICE_STYLE = '';
+/** @deprecated */
+export const DEFAULT_ADAPTIVE_RULES = '';
+/** @deprecated */
+export const DEFAULT_SILENCE_PERMISSION = '';
 
 export const DEFAULT_EVOLUTION_ALLOWED = `
 在保持气质不变的前提下，可以随着时间更了解她的判断方式与拧巴点。`;
@@ -155,9 +148,7 @@ export const PERSONA_FIELD_LABELS: Record<PersonaField, string> = {
   personality: '性格特质',
   valueBoundary: '价值边界',
   behaviorForbidden: '行为禁止项',
-  voiceStyle: '语言风格',
-  adaptiveRules: '自适应表达',
-  silencePermission: '留白许可',
+  expressionRules: '表达纪律',
 };
 
 const FIELD_RULE_LIMITS: Record<PersonaField, number> = {
@@ -165,13 +156,11 @@ const FIELD_RULE_LIMITS: Record<PersonaField, number> = {
   personality: 5,
   valueBoundary: 4,
   behaviorForbidden: 5,
-  voiceStyle: 5,
-  adaptiveRules: 5,
-  silencePermission: 4,
+  expressionRules: 6,
 };
 
 const CORE_PERSONA_FIELDS = new Set<PersonaField>(['identity', 'personality', 'valueBoundary']);
-const EXPRESSION_FIELDS = new Set<PersonaField>(['voiceStyle', 'adaptiveRules', 'silencePermission']);
+const EXPRESSION_FIELDS = new Set<PersonaField>(['expressionRules']);
 
 // ────────────────────────────────────────────────────────────
 // Service
@@ -198,9 +187,7 @@ export class PersonaService {
         personality: DEFAULT_PERSONALITY,
         valueBoundary: DEFAULT_VALUE_BOUNDARY,
         behaviorForbidden: DEFAULT_BEHAVIOR_FORBIDDEN,
-        voiceStyle: DEFAULT_VOICE_STYLE,
-        adaptiveRules: DEFAULT_ADAPTIVE_RULES,
-        silencePermission: DEFAULT_SILENCE_PERMISSION,
+        expressionRules: DEFAULT_EXPRESSION_RULES,
         metaFilterPolicy: DEFAULT_META_FILTER_POLICY,
         evolutionAllowed: DEFAULT_EVOLUTION_ALLOWED,
         evolutionForbidden: DEFAULT_EVOLUTION_FORBIDDEN,
@@ -216,9 +203,7 @@ export class PersonaService {
     personality?: string;
     valueBoundary?: string;
     behaviorForbidden?: string;
-    voiceStyle?: string;
-    adaptiveRules?: string;
-    silencePermission?: string;
+    expressionRules?: string;
     metaFilterPolicy?: string;
     evolutionAllowed?: string;
     evolutionForbidden?: string;
@@ -230,9 +215,7 @@ export class PersonaService {
       personality: data.personality ?? current.personality,
       valueBoundary: data.valueBoundary ?? current.valueBoundary,
       behaviorForbidden: data.behaviorForbidden ?? current.behaviorForbidden,
-      voiceStyle: data.voiceStyle ?? current.voiceStyle,
-      adaptiveRules: data.adaptiveRules ?? current.adaptiveRules,
-      silencePermission: data.silencePermission ?? current.silencePermission,
+      expressionRules: data.expressionRules ?? current.expressionRules,
       metaFilterPolicy: data.metaFilterPolicy ?? current.metaFilterPolicy,
       evolutionAllowed: data.evolutionAllowed ?? current.evolutionAllowed,
       evolutionForbidden: data.evolutionForbidden ?? current.evolutionForbidden,
@@ -296,9 +279,9 @@ ${persona.evolutionForbidden}
 - field 必须是以下之一：${PERSONA_FIELDS.join(', ')}
 - content 只写最终想新增或强化的一条规则，不要写“追加到末尾”“保留历史版本”“[进化]”之类描述
 - content 必须简洁，尽量一两句话，避免与现有表达重复
-- 默认优先调整 voiceStyle / adaptiveRules / silencePermission
+- 默认优先调整 expressionRules
 - identity / personality / valueBoundary 属于核心人格，除非是长期、稳定、强证据的变化，否则不要建议修改
-- 如果只是用户偏好（比如更口语、讨厌 GPT 味、希望少展开、喜欢轻量夸赞），不要写成人格核心变化，优先落到表达调度字段
+- 如果只是用户偏好（比如更口语、讨厌 GPT 味、希望少展开、喜欢轻量夸赞），不要写成人格核心变化，优先落到 expressionRules
 - 一条建议可以涉及多个字段
 - 不得违反「禁止的进化」
 - 如果没有需要调整的，返回 {"changes": []}
@@ -363,9 +346,7 @@ ${persona.evolutionForbidden}
             personality: evolvedFields['personality'] ?? persona.personality,
             valueBoundary: evolvedFields['valueBoundary'] ?? persona.valueBoundary,
             behaviorForbidden: evolvedFields['behaviorForbidden'] ?? persona.behaviorForbidden,
-            voiceStyle: evolvedFields['voiceStyle'] ?? persona.voiceStyle,
-            adaptiveRules: evolvedFields['adaptiveRules'] ?? persona.adaptiveRules,
-            silencePermission: evolvedFields['silencePermission'] ?? persona.silencePermission,
+            expressionRules: evolvedFields['expressionRules'] ?? persona.expressionRules,
             metaFilterPolicy: persona.metaFilterPolicy,
             evolutionAllowed: persona.evolutionAllowed,
             evolutionForbidden: persona.evolutionForbidden,
@@ -473,9 +454,7 @@ ${persona.evolutionForbidden}
    */
   getExpressionFields(dto: PersonaDto): ExpressionFields {
     return {
-      voiceStyle: dto.voiceStyle,
-      adaptiveRules: dto.adaptiveRules,
-      silencePermission: dto.silencePermission,
+      expressionRules: dto.expressionRules,
     };
   }
 
@@ -536,15 +515,22 @@ ${forbidden}`,
   }
 
   private toDto(p: Persona): PersonaDto {
+    // 迁移兼容：若新字段 expressionRules 为空，从旧三字段合并
+    let expressionRules = (p as any).expressionRules as string | undefined;
+    if (!expressionRules) {
+      const legacy = [p.voiceStyle, p.adaptiveRules, p.silencePermission]
+        .filter(Boolean)
+        .join('\n');
+      expressionRules = legacy || DEFAULT_EXPRESSION_RULES;
+    }
+
     return {
       id: p.id,
       identity: p.identity || DEFAULT_IDENTITY,
       personality: p.personality || DEFAULT_PERSONALITY,
       valueBoundary: p.valueBoundary || DEFAULT_VALUE_BOUNDARY,
       behaviorForbidden: p.behaviorForbidden || DEFAULT_BEHAVIOR_FORBIDDEN,
-      voiceStyle: p.voiceStyle || DEFAULT_VOICE_STYLE,
-      adaptiveRules: p.adaptiveRules || DEFAULT_ADAPTIVE_RULES,
-      silencePermission: p.silencePermission || DEFAULT_SILENCE_PERMISSION,
+      expressionRules,
       metaFilterPolicy: p.metaFilterPolicy || DEFAULT_META_FILTER_POLICY,
       evolutionAllowed: p.evolutionAllowed,
       evolutionForbidden: p.evolutionForbidden,
@@ -700,7 +686,10 @@ ${forbidden}`,
 
   private normalizeEvolutionChanges(changes: EvolutionChange[]): EvolutionChange[] {
     return changes
-      .filter((change) => PERSONA_FIELDS.includes(change.field))
+      .filter((change) =>
+        PERSONA_FIELDS.includes(change.field as PersonaField)
+        || LEGACY_EXPRESSION_FIELD_SET.has(change.field),
+      )
       .map((change) => this.classifyEvolutionChange(change))
       .filter((change) => !!change.content?.trim());
   }
@@ -710,45 +699,41 @@ ${forbidden}`,
     const reason = (change.reason || '').trim();
     const combined = `${content} ${reason}`;
 
-    if (this.shouldRouteToVoiceStyle(change.field, combined)) {
-      const isPreference = /偏好|不喜欢|明确在意|gpt味|GPT味/.test(combined);
-      return {
-        ...change,
-        targetField: isPreference ? 'preferredVoiceStyle' : 'voiceStyle',
-        layer: isPreference ? 'user-preference' : 'expression',
-        risk: isPreference ? 'low' : 'medium',
-        reroutedFrom: change.field !== 'voiceStyle' ? change.field : undefined,
-      };
-    }
+    // 旧三字段统一映射到 expressionRules
+    const field = LEGACY_EXPRESSION_FIELD_SET.has(change.field)
+      ? 'expressionRules' as PersonaField
+      : change.field;
 
-    if (this.shouldRouteToSilence(change.field, combined)) {
-      const isPreference = /偏好|记住某信息|确认一句|只确认/.test(combined);
+    if (this.shouldRouteToExpression(field, combined)) {
+      const isPreference = this.isUserPreferenceSignal(combined);
+      const preferenceField = this.inferPreferenceField(combined);
       return {
         ...change,
-        targetField: isPreference ? 'responseRhythm' : 'silencePermission',
+        field: 'expressionRules',
+        targetField: isPreference ? preferenceField : 'expressionRules',
         layer: isPreference ? 'user-preference' : 'expression',
         risk: isPreference ? 'low' : 'medium',
-        reroutedFrom: change.field !== 'silencePermission' ? change.field : undefined,
-      };
-    }
-
-    if (this.shouldRouteToAdaptive(change.field, combined)) {
-      const isPreference = /偏好|喜欢|嘴甜|彩虹屁|被哄|夸赞/.test(combined);
-      return {
-        ...change,
-        targetField: isPreference ? 'praisePreference' : 'adaptiveRules',
-        layer: isPreference ? 'user-preference' : 'expression',
-        risk: isPreference ? 'low' : 'medium',
-        reroutedFrom: change.field !== 'adaptiveRules' ? change.field : undefined,
+        reroutedFrom: field !== 'expressionRules' ? field : undefined,
       };
     }
 
     return {
       ...change,
-      targetField: change.field,
-      layer: this.defaultLayerForField(change.field),
-      risk: this.defaultRiskForField(change.field),
+      field,
+      targetField: field,
+      layer: this.defaultLayerForField(field),
+      risk: this.defaultRiskForField(field),
     };
+  }
+
+  private isUserPreferenceSignal(text: string): boolean {
+    return /偏好|不喜欢|明确在意|gpt味|GPT味|记住某信息|确认一句|只确认|喜欢|嘴甜|彩虹屁|被哄|夸赞/.test(text);
+  }
+
+  private inferPreferenceField(text: string): UserProfileField {
+    if (/偏好|不喜欢|gpt味|GPT味|口语|短句|像助手|像朋友/.test(text)) return 'preferredVoiceStyle';
+    if (/彩虹屁|嘴甜|夸赞|被哄|情绪价值/.test(text)) return 'praisePreference';
+    return 'responseRhythm';
   }
 
   private shouldKeepSuggestedChange(change: EvolutionChange): boolean {
@@ -757,27 +742,11 @@ ${forbidden}`,
     return /长期|多次|反复|稳定|一贯|关系加深|长期证据/.test(evidence);
   }
 
-  private shouldRouteToVoiceStyle(field: PersonaField, text: string): boolean {
-    if (field === 'voiceStyle') return true;
+  private shouldRouteToExpression(field: PersonaField, text: string): boolean {
+    if (field === 'expressionRules') return true;
     return (
       CORE_PERSONA_FIELDS.has(field)
-      && /口语|短句|gpt味|GPT味|规整|模板|结构化|连接词|像助手|更像朋友/.test(text)
-    );
-  }
-
-  private shouldRouteToSilence(field: PersonaField, text: string): boolean {
-    if (field === 'silencePermission') return true;
-    return (
-      (CORE_PERSONA_FIELDS.has(field) || field === 'adaptiveRules')
-      && /确认一句|只确认|少展开|不额外展开|留白|等待她下一步|不多说|不延展|记住某信息/.test(text)
-    );
-  }
-
-  private shouldRouteToAdaptive(field: PersonaField, text: string): boolean {
-    if (field === 'adaptiveRules') return true;
-    return (
-      (CORE_PERSONA_FIELDS.has(field) || field === 'voiceStyle' || field === 'silencePermission')
-      && /彩虹屁|嘴甜|夸赞|被哄|轻量|个人化细节|情绪价值|心疼钱|接住/.test(text)
+      && /口语|短句|gpt味|GPT味|规整|模板|结构化|连接词|像助手|更像朋友|确认一句|只确认|少展开|不额外展开|留白|等待她下一步|不多说|不延展|彩虹屁|嘴甜|夸赞|被哄|轻量|情绪价值|接住/.test(text)
     );
   }
 

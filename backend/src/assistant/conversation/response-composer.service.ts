@@ -164,7 +164,6 @@ export class ResponseComposer {
       taskPlan: actionDecision?.taskPlan,
       actionDecision: actionDecision ?? undefined,
       decisionSummaryText: decisionSummary.text || undefined,
-      expressionHintsText: this.buildExpressionHintsText(decisionSummary),
       collaborationContext: context.runtime.collaborationContext ?? undefined,
     });
 
@@ -378,16 +377,4 @@ export class ResponseComposer {
     return this.metaLayer.filter(content, policy).content;
   }
 
-  private buildExpressionHintsText(decisionSummary: DecisionSummary): string | undefined {
-    const expressionHints = decisionSummary.expressionHints;
-    if (!expressionHints.tone && !expressionHints.emphasis && !expressionHints.context) {
-      return undefined;
-    }
-
-    const lines = ['[表达提示]'];
-    if (expressionHints.tone) lines.push(`- 建议语气：${expressionHints.tone}`);
-    if (expressionHints.emphasis) lines.push(`- 回复重点：${expressionHints.emphasis}`);
-    if (expressionHints.context) lines.push(`- 补充背景：${expressionHints.context}`);
-    return lines.join('\n');
-  }
 }

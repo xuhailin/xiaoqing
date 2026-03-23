@@ -359,6 +359,8 @@ POST /conversations/:id/messages  { content, mode?: 'chat'|'dev' }
 |------|------|
 | `chat_v6` | 主对话（人格 + 锚定 + 印象 + 记忆 + 意图 + 世界状态 + 认知管道 + 表达策略） |
 | `summary_v2` | 总结（含人格联动 `[persona]` 行） |
+| `evolve_v3` | 人格进化（进化建议输出/校验输入） |
+| `impression_v1` | 印象提取/更新 |
 | `memory_analysis_v1` | 记忆语义相似度检查 |
 | `reading_v1` | 读物提炼/人格化解读 |
 | `tool_wrap_v1` | 工具结果包装 |
@@ -379,9 +381,15 @@ POST /conversations/:id/messages  { content, mode?: 'chat'|'dev' }
 | `CONVERSATION_LAST_N_ROUNDS` | 8 | 上下文保留轮数 |
 | `MEMORY_INJECT_MID_K` | 5 | 注入 mid 记忆条数 |
 | `MAX_CONTEXT_TOKENS` | 3000 | Token 截断阈值 |
-| `FEATURE_DEBUG_META` | true | 返回 trace/debugMeta |
+| `FEATURE_DEBUG_META` | false | 返回 trace/debugMeta 调试信息（TraceCollector） |
 | `FEATURE_AUTO_SUMMARIZE` | true | 自动总结开关 |
 | `AUTO_SUMMARIZE_THRESHOLD` | 15 | 自动总结消息阈值 |
+| `FEATURE_INSTANT_SUMMARIZE` | true | 关键词命中时即时触发总结 |
+| `FEATURE_AUTO_IMPRESSION` | true | 总结后自动提取印象变化 |
+| `FEATURE_IMPRESSION_REQUIRE_CONFIRM` | false | 印象更新是否需要人工确认（false=自动写入） |
+| `FEATURE_AUTO_ANCHOR` | true | 总结后自动提取身份锚定（仅基于用户明确陈述） |
+| `FEATURE_EVOLUTION_SCHEDULER` | true | 记忆密度触发人格进化建议 |
+| `EVOLUTION_DENSITY_THRESHOLD` | 5 | 触发阈值：某认知分类活跃 long 记忆 >= N |
 | `DEV_AGENT_DATA_DIR` | backend/data/dev-runs | DevAgent 产物目录 |
 | `MAX_PLAN_ROUNDS` | 3 | DevAgent 最大规划轮数 |
 

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CapabilityRegistry } from '../action/capability-registry.service';
 import type { CapabilityMeta } from '../action/capability.types';
+import type { MessageChannel } from '../gateway/message-router.types';
 import { isFeatureEnabled } from '../config/feature-flags';
 import { OpenClawRegistryService } from '../openclaw/openclaw-registry.service';
 import {
@@ -70,10 +71,15 @@ export class SystemSelfService {
   private filterByChannel(systemSelf: SystemSelf, channel?: string): SystemSelf {
     if (!channel) return systemSelf;
 
+    const expectedSurface = this.toSurface(channel);
+    if (!expectedSurface) return systemSelf;
+
     return {
       ...systemSelf,
       capabilities: systemSelf.capabilities.filter(
-        (c) => !c.scope || c.scope === channel || c.scope === 'both',
+        (c) =>
+          c.surface === expectedSurface
+          && (!c.channels || c.channels.includes(channel)),
       ),
     };
   }
@@ -87,14 +93,18 @@ export class SystemSelfService {
   }
 
   private getAgentInfo(): AgentInfo[] {
+    const xiaoqinAgentId = this.config.get<string>('XIAOQIN_OPENCLAW_AGENT_ID') || 'xiaoqin';
+    const hasXiaoqin = !!this.openClawRegistry.getAgent(xiaoqinAgentId);
     return [
       { name: 'assistant', channel: 'chat', active: true },
       { name: 'dev-agent', channel: 'dev', active: true },
+      { name: 'design-agent', channel: 'design', active: true },
+      { name: 'xiaoqin', channel: 'collaboration', active: hasXiaoqin },
     ];
   }
 
-  private async getCapabilityInfo(): Promise<CapabilityInfo[]> {
-    const caps = this.capabilityRegistry.listAll();
+  private async getCapabilityInfo(channel?: MessageChannel): Promise<CapabilityInfo[]> {
+    const caps = this.getChannelScopedCapabilities(channel);
     return caps.map((c: CapabilityMeta) => ({
       name: c.name,
       description: c.description,
@@ -102,6 +112,7 @@ export class SystemSelfService {
       surface: c.surface,
       scope: c.scope,
       visibility: c.visibility,
+      channels: c.channels,
     }));
   }
 
@@ -118,8 +129,62 @@ export class SystemSelfService {
   }
 
   private async getExecutorInfo(): Promise<ExecutorInfo[]> {
-    const capabilities = await this.getCapabilityInfo();
+    const capabilities = await this.getCapabilityInfo('dev');
     return capabilities.filter((c) => c.surface === 'dev') as ExecutorInfo[];
+  }
+
+  private getChannelScopedCapabilities(channel?: MessageChannel): CapabilityMeta[] {
+    if (!channel) {
+      const assistantCaps = this.capabilityRegistry.listExposed('chat', {
+        surface: 'assistant',
+        includeOptional: true,
+      });
+      const devCaps = this.capabilityRegistry.listExposed('dev', {
+        surface: 'dev',
+        includeOptional: true,
+      });
+      const merged = [...assistantCaps, ...devCaps];
+      const uniq = new Map<string, CapabilityMeta>();
+      for (const cap of merged) {
+        uniq.set(cap.name, {
+          name: cap.name,
+          taskIntent: cap.taskIntent,
+          channels: cap.channels,
+          description: cap.description,
+          surface: cap.surface,
+          scope: cap.scope,
+          portability: cap.portability,
+          requiresAuth: cap.requiresAuth,
+          requiresUserContext: cap.requiresUserContext,
+          visibility: cap.visibility,
+        });
+      }
+      return [...uniq.values()];
+    }
+
+    const surface = this.toSurface(channel);
+    if (!surface) return [];
+    return this.capabilityRegistry.listExposed(channel, {
+      surface,
+      includeOptional: true,
+    }).map((cap) => ({
+      name: cap.name,
+      taskIntent: cap.taskIntent,
+      channels: cap.channels,
+      description: cap.description,
+      surface: cap.surface,
+      scope: cap.scope,
+      portability: cap.portability,
+      requiresAuth: cap.requiresAuth,
+      requiresUserContext: cap.requiresUserContext,
+      visibility: cap.visibility,
+    }));
+  }
+
+  private toSurface(channel: string): 'assistant' | 'dev' | null {
+    if (channel === 'chat') return 'assistant';
+    if (channel === 'dev') return 'dev';
+    return null;
   }
 
   private getTokenPolicy(): TokenPolicyInfo {
