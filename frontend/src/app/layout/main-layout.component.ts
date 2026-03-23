@@ -7,7 +7,7 @@ import { ThemeService } from '../core/services/theme.service';
 import { MemoryDesignAuditBarComponent } from '../design-agent/memory-design-audit-bar.component';
 
 type ChatSubNavItem = {
-  value: 'chat' | 'dev-agent' | 'xiaoqin';
+  value: 'chat' | 'design-agent' | 'dev-agent' | 'xiaoqin';
   label: string;
   description: string;
   icon: AppIconName;
@@ -524,6 +524,12 @@ export class MainLayoutComponent {
       description: '小晴陪你聊天、记事、提醒，也能自然衔接执行。',
     },
     {
+      value: 'design-agent',
+      label: 'designAgent',
+      icon: 'sparkles',
+      description: 'DesignAgent 面板统一发起页面设计审查，查看风险摘要、findings 和原始结果。',
+    },
+    {
       value: 'dev-agent',
       label: 'devAgent',
       icon: 'claude',
@@ -596,6 +602,7 @@ export class MainLayoutComponent {
   ];
   currentPrimary(): 'chat' | 'workspace' | 'memory' {
     const url = this.router.url;
+    if (url.startsWith('/design-agent')) return 'chat';
     if (url.startsWith('/workspace/dev-agent')) return 'chat';
     if (url.startsWith('/workspace')) return 'workspace';
     if (url.startsWith('/memory')) return 'memory';
@@ -619,8 +626,11 @@ export class MainLayoutComponent {
     return primary === 'chat' || primary === 'workspace' || primary === 'memory';
   }
 
-  currentChatSubnav(): 'chat' | 'dev-agent' | 'xiaoqin' {
+  currentChatSubnav(): 'chat' | 'design-agent' | 'dev-agent' | 'xiaoqin' {
     const url = this.router.url;
+    if (url.startsWith('/design-agent')) {
+      return 'design-agent';
+    }
     if (url.startsWith('/workspace/dev-agent')) {
       return 'dev-agent';
     }
@@ -630,7 +640,11 @@ export class MainLayoutComponent {
     return 'chat';
   }
 
-  selectChatSubnav(value: 'chat' | 'dev-agent' | 'xiaoqin') {
+  selectChatSubnav(value: 'chat' | 'design-agent' | 'dev-agent' | 'xiaoqin') {
+    if (value === 'design-agent') {
+      this.router.navigate(['/design-agent']);
+      return;
+    }
     if (value === 'dev-agent') {
       this.router.navigate(['/workspace/dev-agent']);
       return;

@@ -36,6 +36,13 @@ export const routes: Routes = [
         ],
       },
       {
+        path: 'design-agent',
+        loadComponent: () =>
+          import('./design-agent/design-agent-page.component').then(
+            (m) => m.DesignAgentPageComponent,
+          ),
+      },
+      {
         path: 'workspace',
         component: WorkspaceShellComponent,
         children: [
