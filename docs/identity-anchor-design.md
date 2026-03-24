@@ -33,7 +33,7 @@
 
 ## 2. 当前实现 — 独立 IdentityAnchor 表
 
-身份锚定已迁出 Memory 表，使用独立表 `IdentityAnchor` + `IdentityAnchorHistory`，支持多条目、变更历史与结构化字段。实现见 `backend/src/identity-anchor/`，对话时由 `IdentityAnchorService.getActiveAnchors()` / `buildAnchorText()` 注入。
+身份锚定已迁出 Memory 表，使用独立表 `IdentityAnchor` + `IdentityAnchorHistory`，支持多条目、变更历史与结构化字段。实现见 `backend/src/assistant/identity-anchor/`，对话时由 `IdentityAnchorService.getActiveAnchors()` / `buildAnchorText()` 注入。
 
 ### 2.1 数据模型
 

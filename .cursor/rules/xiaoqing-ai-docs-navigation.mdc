@@ -1,0 +1,32 @@
+---
+description: AI 协作文档导航 — 先读 project-index 与 skills，区分长期架构与阶段计划
+alwaysApply: true
+---
+
+# 小晴 — AI 文档导航（Cursor / Claude / Codex）
+
+## 必读入口
+
+1. 开始任务前优先打开 **`docs/ai/project-index.md`**，按「需求类型 → 推荐阅读路径」定位文档与代码。
+2. 按主题阅读 **`docs/skills/*-skill.md`**（chat-flow、memory-system、agent-bus、workspace-task、persona-expression），**不要**默认通读 `docs/plans/**`、`docs/requirements/**` 或全部 design 文档。
+
+## 协作方式
+
+- **优先复用**现有模块边界、状态流、服务入口（见各 skill 第 3 节）；避免为局部需求新造平行子域或全盘重构。
+- **复杂变更**：先给出分步计划或方案，再改代码；尊重 **Chat / Dev / Tool** 硬边界（`docs/context-boundary.md`）与 **五能力管线**（`docs/assistant-architecture-principles.md`）。
+- **问题归类**：先判断属于 **chat 主链、memory·认知、persona·表达、agent·协作、workspace·dev、UI、集成** 中的哪一类，再深入。
+
+## 文档性质
+
+- **长期架构与已落地设计**（`assistant-architecture-principles`、`context-boundary`、`PROJECT-SUMMARY`、`dev-agent-architecture` 等）优先当作事实来源。
+- **`docs/plans/**`、`docs/archive/**`、未验收的 `*-implementation-plan.md`**：视为历史或阶段性方案，**不得**直接当作当前系统真相；与代码冲突时以代码为准。
+
+## 文档维护
+
+- **局部更新**：哪个模块边界或入口变了，更新对应 **skill** 与 `project-index` 中的地图/链接；避免每次全量重写文档。
+- **`CLAUDE.md` 与本规则**：低频修改，保持条款稳定。
+- 小样式、内部小重构、不改变对外职责的改动，**不强制**同步所有文档。
+
+## 高语义模块
+
+对 **chat、memory、persona、agent-bus、workspace/dev** 的修改须特别谨慎：先读对应 skill 与 `context-boundary.md`，避免跨轨污染上下文或把计划文档当已实现能力。

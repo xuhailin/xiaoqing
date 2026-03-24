@@ -203,6 +203,8 @@ export class TurnContextAssembler {
       ? { ...(storedWorldState ?? {}), city: anchorCity }
       : storedWorldState;
 
+    const preferredNickname = await this.readPreferredNickname();
+
     return {
       request: { ...input },
       conversation: { recentMessages },
@@ -211,7 +213,13 @@ export class TurnContextAssembler {
         expressionFields: this.persona.getExpressionFields(personaDto),
         metaFilterPolicy: personaDto.metaFilterPolicy ?? null,
       },
-      user: { userProfile: profile, identityAnchors: anchors, anchorText, ...(anchorCity ? { anchorCity } : {}) },
+      user: {
+        userProfile: profile,
+        identityAnchors: anchors,
+        anchorText,
+        ...(anchorCity ? { anchorCity } : {}),
+        preferredNickname,
+      },
       world: { storedWorldState, defaultWorldState, fullWorldState: storedWorldState },
       memory: { injectedMemories: [], candidatesCount: 0, needDetail: false, memoryBudgetTokens: 0 },
       growth: { growthContext },
@@ -230,6 +238,33 @@ export class TurnContextAssembler {
         collaborationContext: input.collaborationContext ?? null,
       },
     };
+  }
+
+  /**
+   * 读取用户“首选昵称”并放宽 Claim 状态过滤，确保首次写入（CANDIDATE）也能立即注入。
+   */
+  private async readPreferredNickname(): Promise<string | null> {
+    try {
+      const claim = await this.prisma.userClaim.findFirst({
+        where: {
+          userKey: 'default-user',
+          type: 'INTERACTION_PREFERENCE',
+          key: 'ip.nickname.primary',
+          confidence: { gte: 0.7 },
+          status: { not: 'DEPRECATED' },
+        },
+        orderBy: { updatedAt: 'desc' },
+      });
+
+      if (!claim) return null;
+
+      const val = claim.valueJson as { name?: string } | null;
+      const name = typeof val?.name === 'string' ? val.name.trim() : '';
+      return name || null;
+    } catch (err: unknown) {
+      this.logger.warn(`readPreferredNickname failed: ${String(err)}`);
+      return null;
+    }
   }
 
   private async resolveIntent(input: {

@@ -38,6 +38,6 @@
 
 ## 排查提示
 
-- 若 `taskIntent` 经常漂移，先调 `backend/src/prompts/intent.ts` 的 few-shot 规则和字段约束。
-- 若 `policyDecision` 不符合预期，先看 `backend/src/conversation/conversation.service.ts` 的 `decideToolPolicy()`。
+- 若 `taskIntent` 经常漂移，先调 `backend/src/assistant/prompts/intent.ts` 的 few-shot 规则和字段约束。
+- 若 `policyDecision` 不符合预期，先看 `backend/src/assistant/conversation/conversation.service.ts` 的 `decideToolPolicy()`。
 - 若 weather 结果异常，检查 `QWEATHER_API_KEY` 与 `WeatherSkillService.execute()` 的结构化入参。

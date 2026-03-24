@@ -36,7 +36,7 @@
 为便于开发者在代码中快速对齐上述边界，以下类型/模块显式引用本文件：
 
 - **Chat 链路（可读 memory/claim/messages）**  
-  - `ChatContext`：`backend/src/xiaoqing/prompt-router/prompt-router.service.ts`
+  - `ChatContext`：`backend/src/assistant/prompt-router/prompt-router.service.ts`
 - **DevAgent 链路（不得读 chat history/memory）**  
   - `DevTaskContext`：`backend/src/dev-agent/dev-task-context.ts`  
   - 架构说明：`docs/dev-agent-architecture.md`（9.3 隔离边界）
@@ -55,5 +55,5 @@
 
 - 为 DevAgent 增加 token 级预算（planner/evaluator/report 的 `maxTokens`），并对 LLM messages 使用统一的 `truncateToTokenBudget`。  
 - 拆分 `CapabilityRequest` 为更窄的只读版本（不包含 `conversationId`），用于某些单纯执行类能力。  
-- 在 CI 或自定义 lint 中增加依赖图检查，例如禁止 `backend/src/action/**` 直接 import `xiaoqing/conversation/*` / `memory/*` / `claim-engine/*`。
+- 在 CI 或自定义 lint 中增加依赖图检查，例如禁止 `backend/src/action/**` 直接 import `assistant/conversation/*` / `memory/*` / `claim-engine/*`。
 

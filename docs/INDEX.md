@@ -4,6 +4,13 @@
 
 ---
 
+## AI 协作者入口（Cursor / Claude Code / Codex）
+
+- **[docs/ai/project-index.md](ai/project-index.md)** — **首选**：分层阅读顺序、模块地图、长期文档 vs 阶段计划、skill 映射。
+- **Skill 收敛层**：`docs/skills/chat-flow-skill.md`、`memory-system-skill.md`、`agent-bus-skill.md`、`workspace-task-skill.md`、`persona-expression-skill.md`（架构向归纳；具体技能配置仍见 `docs/skills/` 下其他文件）。
+
+---
+
 ## 系统总览
 
 | 文档 | 说明 |

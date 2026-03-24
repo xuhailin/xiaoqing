@@ -46,6 +46,8 @@ export interface ChatContext {
   memories?: Array<{ id: string; type: string; content: string }>;
   /** 身份锚定文本，始终注入在 persona 之后、记忆之前 */
   identityAnchor?: string | null;
+  /** 用户认可的首选昵称（来自 ip.nickname.primary claim），用于“固定称呼”指引注入 */
+  preferredNickname?: string | null;
   intentState?: DialogueIntentState;
   /** 默认世界状态（地点/时区/语言等），用于「几点了」「适合出门吗」等推理前提，不写入记忆 */
   worldState?: WorldState | null;
@@ -107,6 +109,8 @@ export interface ToolResultContext {
   expressionText?: string;
   userProfileText?: string;
   metaFilterPolicy?: string | null;
+  /** 用户认可的首选昵称（来自 ip.nickname.primary claim） */
+  preferredNickname?: string | null;
   toolKind?: 'weather' | 'book_download' | 'general_action' | 'timesheet' | 'reminder' | 'openclaw';
   userInput: string;
   toolResult: string | null;
@@ -119,6 +123,12 @@ export interface ToolResultContext {
 export class PromptRouterService {
   constructor(private llm: LlmService) {}
 
+  buildNicknameHint(nickname?: string | null): string {
+    const name = nickname?.trim();
+    if (!name) return '';
+    return `称呼她时请用"${name}"——这是她认可的昵称。如果场景不适合用昵称（如严肃讨论），可以不用，但日常聊天优先使用。`;
+  }
+
   buildChatMessages(ctx: ChatContext): OpenAI.Chat.ChatCompletionMessageParam[] {
     const personaPart = ctx.personaPrompt?.trim() ?? '';
 
@@ -128,6 +138,8 @@ export class PromptRouterService {
     if (ctx.identityAnchor) {
       identityAnchorPart = `关于她：\n${ctx.identityAnchor}`;
     }
+
+    const nicknamePart = this.buildNicknameHint(ctx.preferredNickname);
 
     let memoryPart = '';
     if (ctx.memories?.length) {
@@ -248,6 +260,7 @@ export class PromptRouterService {
       personaPart,
       systemSelfPart,
       identityAnchorPart,
+      nicknamePart,
       memoryPart,
       userProfilePart,
       worldStatePart,
@@ -737,6 +750,7 @@ ${schemaHints}
       this.buildCollaborationContextPrompt(ctx.collaborationContext),
       this.buildMetaFilterPolicy(ctx.metaFilterPolicy),
       ctx.expressionText ?? '',
+      this.buildNicknameHint(ctx.preferredNickname),
       ctx.userProfileText ?? '',
       '',
       '你刚才帮用户执行了一个任务（通过工具完成），下面是结果。',

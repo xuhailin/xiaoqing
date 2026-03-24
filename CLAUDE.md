@@ -14,7 +14,7 @@
   - DevAgent：在 `backend/src/dev-agent/`，负责开发类任务的规划 / 执行 / 报告
   - 桌宠：Tauri + PixiJS + Live2D（目录在 `desktop/`）—— **暂未启动开发，当前阶段请忽略此模块**
 - **高层架构**：统一入口 `Gateway → MessageRouter`，将请求路由到：
-  - Chat 通路：`backend/src/xiaoqing/**`
+  - Chat 通路：`backend/src/assistant/**`（助手域；旧文档中的 `xiaoqing` 路径已迁移至此）
   - Dev 通路：`backend/src/dev-agent/**`
   - 工具与执行器：`backend/src/action/**`、`backend/src/dev-agent/executors/**`
 
@@ -28,7 +28,7 @@
 
 小晴助手管线的长期目标是：**围绕五能力（感知、决策、执行、回复组织、回合后处理）形成清晰的认知管线**，而不是多处分散的决策与推理。
 
-你在修改或扩展 `backend/src/xiaoqing/**` 及相关对话/助手逻辑时：
+你在修改或扩展 `backend/src/assistant/**` 及相关对话/助手逻辑时：
 
 - **决策权集中**：只有「决策层」做行动决策，不把决策分散到意图、推理、Prompt 路由等。
 - **意图只描述含义**：意图识别描述用户想表达什么，最终行为由决策层决定。
@@ -54,7 +54,7 @@
      - 不凭记忆和猜测描述系统行为，**以代码与最新文档为准**。
 
 3. **保持架构与边界清晰**
-   - 不把 DevAgent 的逻辑写回聊天主链（`backend/src/xiaoqing/**`）。
+   - 不把 DevAgent 的逻辑写回聊天主链（`backend/src/assistant/**`）。
    - 不在 DevAgent 内直接调用 Memory / Summarizer / Cognitive Pipeline 等聊天能力，相关说明见 `docs/dev-agent-architecture.md` 与 `docs/context-boundary.md`。
    - 若新增能力，**优先通过清晰的 service / adapter / executor 扩展点实现**，避免在核心 service 中堆积分支逻辑。
 
@@ -159,6 +159,7 @@
 
 当你需要补文档或同步说明时：
 
+- **AI 默认入口**：先读 `docs/ai/project-index.md`，再按主题读 `docs/skills/*-skill.md`，避免每次盲扫全部 `docs/`。
 - **优先更新现有文档**，而不是新建一堆零散文档：
   - 助手管线架构：`docs/assistant-architecture-principles.md`
   - DevAgent：`docs/dev-agent-architecture.md`
@@ -190,4 +191,27 @@
 - 无视文档/架构中的既有边界，将 DevAgent 与聊天主链强耦合；
 - 任意新增或重写测试文件；
 - 在没有阅读对应模块实现的前提下改文档。
+
+---
+
+### 9. AI 协作文档分层与维护约定
+
+以下规则与 `docs/ai/project-index.md`、`.cursor/rules/xiaoqing-ai-docs-navigation.mdc` 一致，用于降低协作误判成本。
+
+1. **复杂需求**：先对照代码与 skill 审查现状 → 再设计 → 再实施；避免先写大文档再发现与实现不符。  
+2. **结构复用**：优先沿用现有服务边界与扩展点（Registry、编排器、post-turn 任务），不轻易新造平行子域。  
+3. **问题分层**：先判断属于 **chat 主链 / memory·认知 / persona·表达 / agent·协作 / workspace·dev / UI / 外部集成** 哪一类，再读对应 skill。  
+4. **阅读顺序**：非必要不全量检索仓库；默认 **`docs/ai/project-index.md` → 相关 `docs/skills/*.md` → 长期架构文档 → 代码入口**。  
+5. **文档优先级**：`assistant-architecture-principles`、`context-boundary`、`PROJECT-SUMMARY` 等与 **已标明落地的设计** 优先于 `docs/plans/**`、`docs/requirements/**`、`*-implementation-plan.md` 中未验收部分。  
+6. **MVP**：优先最小可行改动与清晰边界，避免为局部需求做全系统重构。  
+7. **文档更新方式**：**按模块局部修补**，禁止无必要的全文重写；小改动不必同步每一处提及。  
+8. **文实不一致**：**以当前代码为准**，再顺手修正误导性文档（路径、入口、边界）。  
+9. **新增稳定核心能力**：在合入主干后，补齐 `docs/ai/project-index.md` 模块地图与对应 **skill** 章节。  
+10. **阶段性计划**：`plans/`、`requirements/`、各类 plan 文档中的目标与 Phase **不等于**已上线行为；实现与验收以代码为准。
+
+**何时必须更新文档**：新增或变更稳定核心模块、职责边界、主流程入口、长期架构约束，或某文档已明显误导 AI/开发者。
+
+**何时不必全量更新文档**：纯样式/文案、内部小重构且边界不变、临时实验、不改变入口与职责归属的局部改动。
+
+**载体分工**：`CLAUDE.md` 与本节低频改动；`project-index` 在导航关系变化时更新；各 skill 仅在对应模块结构性变化时更新；原始 design/plan/requirements **保留**但**不作为 AI 默认首读层**。
 

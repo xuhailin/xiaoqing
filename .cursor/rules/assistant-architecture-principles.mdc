@@ -5,7 +5,7 @@ alwaysApply: true
 
 # 助手架构原则（全局目标）
 
-修改或扩展小晴助手/对话管线（如 `backend/src/xiaoqing/**`）时，必须遵循 `docs/assistant-architecture-principles.md`。
+修改或扩展小晴助手/对话管线（如 `backend/src/assistant/**`）时，必须遵循 `docs/assistant-architecture-principles.md`。
 
 ## 五能力管线
 
