@@ -333,6 +333,7 @@ model Persona {
   behaviorForbidden String   @default("") @db.Text // 行为禁止项（替代 constraintKeys）
 
   // ── 表达调度层（常驻但独立，允许更频繁微调） ──
+  /// @deprecated 表达纪律已迁移至 PersonaRule 表；保留列用于向后兼容与表空 fallback
   expressionRules   String   @default("") @db.Text // 表达纪律（合并自 voiceStyle/adaptiveRules/silencePermission）
   voiceStyle        String   @default("") @db.Text // @deprecated 旧字段，迁移后由 expressionRules 承载
   adaptiveRules     String   @default("") @db.Text // @deprecated 旧字段，迁移后由 expressionRules 承载
@@ -364,6 +365,47 @@ model PersonaEvolutionLog {
   createdAt DateTime @default(now())
 
   @@index([personaId])
+}
+
+enum PersonaRuleCategory {
+  BREVITY
+  TONE
+  PACING
+  BOUNDARY
+  ERROR_HANDLING
+}
+
+enum PersonaRuleStatus {
+  CANDIDATE
+  STABLE
+  CORE
+  DEPRECATED
+}
+
+enum PersonaRuleSource {
+  DEFAULT
+  EVOLVED
+  USER
+}
+
+enum PersonaRuleProtect {
+  NORMAL
+  LOCKED
+}
+
+/// 结构化表达纪律（全局单套，与 Persona 版本行解耦）
+model PersonaRule {
+  id             String              @id @default(uuid())
+  key            String              @unique
+  content        String              @db.Text
+  category       PersonaRuleCategory
+  status         PersonaRuleStatus   @default(CANDIDATE)
+  weight         Float               @default(0.5)
+  source         PersonaRuleSource   @default(DEFAULT)
+  protectLevel   PersonaRuleProtect  @default(NORMAL)
+  pendingContent String?             @db.Text
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
 }
 
 model UserProfile {

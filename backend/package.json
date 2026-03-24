@@ -30,7 +30,13 @@
     "migrate:claims": "ts-node prisma/migrate-claims-from-legacy.ts",
     "memory:dedup:dryrun": "ts-node scripts/cleanup-memory-duplicates.ts",
     "memory:dedup:apply": "ts-node scripts/cleanup-memory-duplicates.ts --apply",
-    "trace-point:backfill": "ts-node src/assistant/life-record/trace-point/trace-point-backfill.cli.ts"
+    "trace-point:backfill": "ts-node src/assistant/life-record/trace-point/trace-point-backfill.cli.ts",
+    "db:push": "prisma db push",
+    "db:generate": "prisma generate",
+    "db:seed": "ts-node prisma/seed.ts"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.74",
@@ -49,7 +55,7 @@
     "rxjs": "^7.8.1",
     "ws": "^8.19.0",
     "xml2js": "^0.6.2",
-    "zod": "^3.24.2"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

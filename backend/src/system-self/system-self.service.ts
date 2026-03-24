@@ -96,10 +96,10 @@ export class SystemSelfService {
     const xiaoqinAgentId = this.config.get<string>('XIAOQIN_OPENCLAW_AGENT_ID') || 'xiaoqin';
     const hasXiaoqin = !!this.openClawRegistry.getAgent(xiaoqinAgentId);
     return [
-      { name: 'assistant', channel: 'chat', active: true },
-      { name: 'dev-agent', channel: 'dev', active: true },
-      { name: 'design-agent', channel: 'design', active: true },
-      { name: 'xiaoqin', channel: 'collaboration', active: hasXiaoqin },
+      { name: 'assistant', channel: 'chat', active: true, description: '日常对话与陪伴' },
+      { name: 'dev-agent', channel: 'dev', active: true, description: '接受编码、文件、命令类开发任务，后台规划执行并报告进度，使用 /dev 前缀触发' },
+      { name: 'design-agent', channel: 'design', active: true, description: 'UI/UX 设计分析与提案，使用 /design 前缀触发' },
+      { name: 'xiaoqin', channel: 'collaboration', active: hasXiaoqin, description: '协作代理小勤，处理跨代理委托任务' },
     ];
   }
 

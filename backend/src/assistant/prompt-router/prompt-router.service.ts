@@ -234,7 +234,9 @@ export class PromptRouterService {
       const visibleCaps = ctx.systemSelf.capabilities.filter(c => c.visibility !== 'hidden');
       const activeAgents = ctx.systemSelf.agents.filter((agent) => agent.active);
       const collaborationAgents = activeAgents.filter((agent) => agent.name !== 'assistant');
-      const collaborationAgentLines = collaborationAgents.map((agent) => `- ${agent.name}（${agent.channel}）`);
+      const collaborationAgentLines = collaborationAgents.map((agent) =>
+        agent.description ? `- ${agent.name}（${agent.channel}）：${agent.description}` : `- ${agent.name}（${agent.channel}）`,
+      );
       const capabilitySection = visibleCaps.length > 0
         ? [
             '[系统可用能力]',
@@ -244,13 +246,14 @@ export class PromptRouterService {
       const agentSection = collaborationAgentLines.length > 0
         ? ['[可协作代理]', ...collaborationAgentLines].join('\n')
         : '';
+      const selfIntroHint = '当用户询问你能做什么、你是谁、或要你做自我介绍时，请自然地提及上述能力和代理，挑重点说，不需要完整列举。';
       if (visibleCaps.length > 0) {
         const hasReminder = visibleCaps.some(c => c.name === 'reminder');
         systemSelfPart = hasReminder
-          ? [capabilitySection, '注：reminder 能力可以设置真实的定时提醒（一次性、每天、每周），会在指定时间实际触发通知。', agentSection].filter(Boolean).join('\n')
-          : [capabilitySection, agentSection].filter(Boolean).join('\n');
+          ? [capabilitySection, '注：reminder 能力可以设置真实的定时提醒（一次性、每天、每周），会在指定时间实际触发通知。', agentSection, selfIntroHint].filter(Boolean).join('\n')
+          : [capabilitySection, agentSection, selfIntroHint].filter(Boolean).join('\n');
       } else {
-        systemSelfPart = [capabilitySection, agentSection].filter(Boolean).join('\n');
+        systemSelfPart = [capabilitySection, agentSection, selfIntroHint].filter(Boolean).join('\n');
       }
     }
 

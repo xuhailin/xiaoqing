@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../infra/prisma.service';
 import { PersonaService } from '../persona/persona.service';
+import { PersonaRuleService } from '../persona/persona-rule.service';
 import { UserProfileService } from '../persona/user-profile.service';
 import { IdentityAnchorService } from '../identity-anchor/identity-anchor.service';
 import { WorldStateService } from '../../infra/world-state/world-state.service';
@@ -39,6 +40,7 @@ export class TurnContextAssembler {
   constructor(
     private readonly prisma: PrismaService,
     private readonly persona: PersonaService,
+    private readonly personaRules: PersonaRuleService,
     private readonly userProfile: UserProfileService,
     private readonly identityAnchor: IdentityAnchorService,
     private readonly worldState: WorldStateService,
@@ -132,6 +134,12 @@ export class TurnContextAssembler {
     const resolvedIntent = intentCtx.mergedIntentState ?? intentCtx.intentState;
     const actionDecision = this.actionReasoner.decide(resolvedIntent ?? null, input.userInput);
 
+    const fromRules = await this.personaRules.buildExpressionPrompt();
+    const expressionFields =
+      fromRules != null
+        ? { expressionRules: fromRules }
+        : this.persona.getExpressionFields(personaDto);
+
     return {
       request: {
         conversationId: input.conversationId,
@@ -142,7 +150,7 @@ export class TurnContextAssembler {
       conversation: { recentMessages },
       persona: {
         personaDto,
-        expressionFields: this.persona.getExpressionFields(personaDto),
+        expressionFields,
         metaFilterPolicy: personaDto.metaFilterPolicy ?? null,
       },
       user: {
@@ -205,12 +213,18 @@ export class TurnContextAssembler {
 
     const preferredNickname = await this.readPreferredNickname();
 
+    const fromRulesFb = await this.personaRules.buildExpressionPrompt();
+    const expressionFieldsFb =
+      fromRulesFb != null
+        ? { expressionRules: fromRulesFb }
+        : this.persona.getExpressionFields(personaDto);
+
     return {
       request: { ...input },
       conversation: { recentMessages },
       persona: {
         personaDto,
-        expressionFields: this.persona.getExpressionFields(personaDto),
+        expressionFields: expressionFieldsFb,
         metaFilterPolicy: personaDto.metaFilterPolicy ?? null,
       },
       user: {

@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -9,6 +10,7 @@ import { TodoApiService, type TodoRecord, type TodoStatus } from '../core/servic
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
 import { AppIconComponent } from '../shared/ui/app-icon.component';
+import { AppPageHeaderComponent } from '../shared/ui/app-page-header.component';
 import { AppPanelComponent } from '../shared/ui/app-panel.component';
 import { AppSectionHeaderComponent } from '../shared/ui/app-section-header.component';
 import { AppStateComponent } from '../shared/ui/app-state.component';
@@ -55,9 +57,11 @@ type OverlayMode = 'schedule' | 'logs' | null;
   standalone: true,
   imports: [
     FormsModule,
+    NgTemplateOutlet,
     AppBadgeComponent,
     AppButtonComponent,
     AppIconComponent,
+    AppPageHeaderComponent,
     AppPanelComponent,
     AppSectionHeaderComponent,
     AppStateComponent,
@@ -65,13 +69,13 @@ type OverlayMode = 'schedule' | 'logs' | null;
   ],
   template: `
     <div class="wb">
-      <!-- Toolbar -->
-      <header class="wb-toolbar">
-        <div class="wb-toolbar__left">
-          <h1 class="wb-toolbar__title">工作台</h1>
-          <span class="wb-toolbar__hint">围绕事情的生命周期：灵感 &rarr; 事项 &rarr; 推进 &rarr; 完成</span>
-        </div>
-        <div class="wb-toolbar__actions">
+      <!-- warm-tech：header 更亲和、视觉权重轻于下方任务流 -->
+      <app-page-header
+        eyebrow="工作台"
+        title="把事情摊开来说"
+        description="从轻记录到交给小晴推进，灵感与事项的状态都会跟在这里——不用记路径，扫一眼就知道进行到哪了。"
+      >
+        <div actions class="wb-header-actions">
           <app-button variant="ghost" size="sm" (click)="toggleCreate('idea')">
             <app-icon name="lightbulb" size="0.85rem" />
             <span>新想法</span>
@@ -80,7 +84,7 @@ type OverlayMode = 'schedule' | 'logs' | null;
             <app-icon name="check" size="0.85rem" />
             <span>新事项</span>
           </app-button>
-          <span class="wb-toolbar__sep"></span>
+          <span class="wb-header-actions__sep" aria-hidden="true"></span>
           <app-button variant="ghost" size="sm" (click)="openOverlay('schedule')" title="查看调度规则与自动安排">
             <app-icon name="calendarCheck" size="0.85rem" />
             <span>调度</span>
@@ -90,12 +94,12 @@ type OverlayMode = 'schedule' | 'logs' | null;
             <span>日志</span>
           </app-button>
         </div>
-      </header>
+      </app-page-header>
 
       <!-- Inline create form -->
       @if (createMode()) {
         <div class="wb-create-form">
-          <app-panel variant="workbench" class="wb-create-panel">
+          <app-panel variant="subtle" padding="lg" class="wb-create-panel">
             <app-section-header
               [title]="createMode() === 'idea' ? '记录想法' : '新增事项'"
             >
@@ -174,74 +178,116 @@ type OverlayMode = 'schedule' | 'logs' | null;
         </div>
       }
 
-      <!-- Main two-column layout -->
+      <!-- Main: status filter | task list | detail -->
       <div class="wb-main">
-        <!-- Left: grouped list -->
-        <div class="wb-list">
-          <div class="wb-list__filter">
-            <select
-              class="ui-select ui-select--compact"
-              [ngModel]="stageFilter()"
-              (ngModelChange)="stageFilter.set($event)"
+        <nav class="wb-filter-nav ui-scrollbar" aria-label="按状态筛选">
+          @for (nav of stageFilterNav(); track nav.key) {
+            <button
+              type="button"
+              class="wb-filter-nav__item"
+              [class.wb-filter-nav__item--active]="stageFilter() === nav.key"
+              (click)="setStageFilter(nav.key)"
             >
-              <option value="all">全部</option>
-              <option value="spark">灵感</option>
-              <option value="active">进行中</option>
-              <option value="waiting">等待中</option>
-              <option value="done">已完成</option>
-              <option value="archived">已归档</option>
-            </select>
-            <app-badge tone="info">{{ filteredItems().length }}</app-badge>
-          </div>
-
-          @if (loading()) {
-            <app-state [compact]="true" kind="loading" title="加载中..." />
-          } @else if (!filteredItems().length) {
-            <app-state
-              [compact]="true"
-              title="当前没有可显示的内容"
-              description="点击上方按钮创建新想法或新事项。"
-            />
-          } @else {
-            @for (group of groupedItems(); track group.stage) {
-              <div class="wb-group">
-                <div class="wb-group__header">
-                  <span class="wb-group__label">{{ group.label }}</span>
-                  <app-badge tone="neutral" appearance="outline">{{ group.items.length }}</app-badge>
-                </div>
-                @for (item of group.items; track item.id) {
-                  <div
-                    class="wb-item"
-                    [class.wb-item--active]="selectedId() === item.id && selectedType() === item.type"
-                    [class.wb-item--idea]="item.type === 'idea'"
-                    (click)="selectItem(item)"
-                  >
-                    <div class="wb-item__icon">
-                      <app-icon [name]="item.type === 'idea' ? 'lightbulb' : 'check'" size="0.8rem" />
-                    </div>
-                    <div class="wb-item__body">
-                      <div class="wb-item__title">{{ item.title }}</div>
-                      <div class="wb-item__meta">
-                        <app-badge [tone]="item.statusTone" size="sm">{{ item.statusLabel }}</app-badge>
-                        @if (item.aiWork) {
-                          <app-badge [tone]="item.aiWork.tone" appearance="outline" size="sm">{{ item.aiWork.label }}</app-badge>
-                        }
-                        @if (item.dueAt) {
-                          <span class="wb-item__due">{{ formatDate(item.dueAt) }}</span>
-                        }
-                      </div>
-                    </div>
-                  </div>
-                }
-              </div>
-            }
+              <span class="wb-filter-nav__label">{{ nav.label }}</span>
+              <span class="wb-filter-nav__badge">{{ nav.count }}</span>
+            </button>
           }
+        </nav>
+
+        <div class="wb-list-column">
+          @if (showListLayoutToggle()) {
+            <div class="wb-list__toolbar" role="group" aria-label="列表展示方式">
+              <button
+                type="button"
+                class="wb-list__layout-btn"
+                [class.wb-list__layout-btn--active]="listLayoutMode() === 'grouped'"
+                (click)="listLayoutMode.set('grouped')"
+              >
+                按状态分组
+              </button>
+              <button
+                type="button"
+                class="wb-list__layout-btn"
+                [class.wb-list__layout-btn--active]="listLayoutMode() === 'flat'"
+                (click)="listLayoutMode.set('flat')"
+              >
+                单一列表
+              </button>
+            </div>
+          }
+
+          <div
+            class="wb-list ui-scrollbar"
+            [class.wb-list--with-toolbar]="showListLayoutToggle()"
+          >
+            @if (loading()) {
+              <div class="wb-warm-placeholder wb-warm-placeholder--compact">
+                <app-icon name="sparkles" size="0.9rem" />
+                <span>正在把你的事情流对齐，稍等片刻。</span>
+              </div>
+            } @else if (!filteredItems().length) {
+              <div class="wb-warm-placeholder">
+                <app-icon name="lightbulb" size="1rem" />
+                <div class="wb-warm-placeholder__copy">
+                  <p class="wb-warm-placeholder__title">{{ listEmptyTitle() }}</p>
+                  <p class="wb-warm-placeholder__desc">{{ listEmptyDescription() }}</p>
+                </div>
+              </div>
+            } @else if (displayGroups(); as groups) {
+              @for (group of groups; track group.stage) {
+                <div class="wb-group">
+                  <div class="wb-group__header">
+                    <span class="wb-group__label">{{ group.label }}</span>
+                    <span class="wb-group__count">{{ group.items.length }}</span>
+                  </div>
+                  @for (item of group.items; track item.id + '-' + item.type) {
+                    <ng-container
+                      [ngTemplateOutlet]="taskRow"
+                      [ngTemplateOutletContext]="{ $implicit: item }"
+                    />
+                  }
+                </div>
+              }
+            } @else {
+              @for (item of displayFlatItems(); track item.id + '-' + item.type) {
+                <ng-container
+                  [ngTemplateOutlet]="taskRow"
+                  [ngTemplateOutletContext]="{ $implicit: item }"
+                />
+              }
+            }
+          </div>
         </div>
 
+        <ng-template #taskRow let-item>
+          <button
+            type="button"
+            class="wb-item"
+            [class.wb-item--active]="selectedId() === item.id && selectedType() === item.type"
+            [class.wb-item--idea]="item.type === 'idea'"
+            (click)="selectItem(item)"
+          >
+            <span class="wb-item__icon" aria-hidden="true">
+              <app-icon [name]="item.type === 'idea' ? 'lightbulb' : 'check'" size="0.8rem" />
+            </span>
+            <span class="wb-item__body">
+              <span class="wb-item__title">{{ item.title }}</span>
+              <span class="wb-item__meta">
+                @if (item.aiWork) {
+                  <app-badge [tone]="item.aiWork.tone" appearance="outline" size="sm">{{ item.aiWork.label }}</app-badge>
+                }
+                @if (item.dueAt) {
+                  <span class="wb-item__due">{{ formatDate(item.dueAt) }}</span>
+                }
+              </span>
+            </span>
+          </button>
+        </ng-template>
+
         <!-- Right: detail panel -->
-        <div class="wb-detail">
+        <div class="wb-detail ui-scrollbar">
           @if (selectedIdea(); as idea) {
-            <app-panel variant="workbench" class="wb-detail-panel">
+            <app-panel variant="workbench" padding="lg" class="wb-detail-panel">
               <div class="wb-detail__hero">
                 <div class="wb-detail__type">
                   <app-icon name="lightbulb" size="0.85rem" />
@@ -284,7 +330,7 @@ type OverlayMode = 'schedule' | 'logs' | null;
               </div>
             </app-panel>
           } @else if (selectedTodoRecord(); as todo) {
-            <app-panel variant="workbench" class="wb-detail-panel">
+            <app-panel variant="workbench" padding="lg" class="wb-detail-panel">
               <div class="wb-detail__hero">
                 <div class="wb-detail__type">
                   <app-icon name="check" size="0.85rem" />
@@ -450,10 +496,15 @@ type OverlayMode = 'schedule' | 'logs' | null;
             </app-panel>
           } @else {
             <div class="wb-detail-empty">
-              <app-state
-                title="选择一条内容"
-                description="左侧选择想法或事项，这里会显示完整详情、执行状态和最近结果。"
-              />
+              <div class="wb-warm-placeholder wb-warm-placeholder--center">
+                <app-icon name="sparkles" size="1rem" />
+                <div class="wb-warm-placeholder__copy">
+                  <p class="wb-warm-placeholder__title">先选一件事吧</p>
+                  <p class="wb-warm-placeholder__desc">
+                    在列表里点一条想法或事项，我可以帮你推进、看执行结果，或者一起收口。
+                  </p>
+                </div>
+              </div>
             </div>
           }
         </div>
@@ -508,6 +559,7 @@ type OverlayMode = 'schedule' | 'logs' | null;
         min-height: 0;
       }
 
+      /* warm-tech：壳层一次轻暖渐变；列表项/行内不加渐变 */
       .wb {
         display: flex;
         flex-direction: column;
@@ -515,48 +567,77 @@ type OverlayMode = 'schedule' | 'logs' | null;
         min-height: 0;
         padding: var(--workbench-shell-padding);
         gap: var(--workbench-stack-gap);
-        background: var(--bg-page, var(--color-bg));
+        background: linear-gradient(
+          168deg,
+          color-mix(in srgb, var(--color-primary-light) 55%, var(--color-bg)) 0%,
+          var(--color-bg) 38%,
+          var(--color-bg) 100%
+        );
       }
 
-      /* ── Toolbar ── */
-      .wb-toolbar {
+      .wb-header-actions {
         display: flex;
-        align-items: center;
-        justify-content: space-between;
         flex-wrap: wrap;
-        gap: var(--space-2);
-        padding: var(--space-2) 0;
-        flex-shrink: 0;
-      }
-
-      .wb-toolbar__left {
-        display: flex;
-        align-items: baseline;
-        gap: var(--space-3);
-      }
-
-      .wb-toolbar__title {
-        font-size: 1.05rem;
-        font-weight: 600;
-        margin: 0;
-        color: var(--color-text-primary, var(--color-text));
-      }
-
-      .wb-toolbar__hint {
-        font-size: 0.78rem;
-        color: var(--color-text-muted);
-      }
-
-      .wb-toolbar__actions {
-        display: flex;
         align-items: center;
         gap: var(--space-2);
       }
 
-      .wb-toolbar__sep {
+      .wb-header-actions__sep {
         width: 1px;
         height: 1rem;
         background: var(--color-border-light);
+      }
+
+      /* 与 design-agent 占位块一致：少量高价值状态块，同屏仅一处为主 */
+      .wb-warm-placeholder {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--space-3);
+        margin: var(--space-2) 0;
+        padding: var(--space-3) var(--space-4);
+        border-radius: var(--radius-xl);
+        background: color-mix(in srgb, var(--color-surface) 84%, transparent);
+        border: 1px solid var(--color-border-light);
+        color: var(--color-text-secondary);
+        line-height: var(--line-height-base);
+      }
+
+      .wb-warm-placeholder--compact {
+        align-items: center;
+        margin: var(--space-1) 0;
+        padding: var(--space-2) var(--space-3);
+        font-size: var(--font-size-sm);
+      }
+
+      .wb-warm-placeholder--center {
+        align-items: center;
+        text-align: center;
+        max-width: 22rem;
+        margin: 0 auto;
+      }
+
+      .wb-warm-placeholder--center .wb-warm-placeholder__copy {
+        text-align: center;
+      }
+
+      .wb-warm-placeholder .wb-warm-placeholder__copy {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .wb-warm-placeholder__title {
+        margin: 0 0 var(--space-2);
+        font-size: var(--font-size-md);
+        font-weight: var(--font-weight-semibold);
+        color: var(--color-text);
+        line-height: var(--line-height-tight);
+      }
+
+      .wb-warm-placeholder__desc {
+        margin: 0;
+        font-size: var(--font-size-sm);
+        color: var(--color-text-secondary);
+        line-height: var(--line-height-relaxed);
       }
 
       /* ── Create form ── */
@@ -568,82 +649,212 @@ type OverlayMode = 'schedule' | 'logs' | null;
         gap: var(--space-3);
       }
 
-      /* ── Main two-column layout ── */
+      /* ── Main: filter | list | detail ── */
       .wb-main {
         display: grid;
-        grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
-        gap: var(--workbench-section-gap);
+        grid-template-columns: minmax(128px, 152px) minmax(220px, 300px) minmax(0, 1fr);
+        gap: var(--space-3);
         flex: 1 1 0;
         min-height: 0;
+        align-items: stretch;
       }
 
-      /* ── Left list ── */
-      .wb-list {
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-2);
-        overflow-y: auto;
-        min-height: 0;
-        padding-right: var(--space-2);
-      }
-
-      .wb-list__filter {
-        display: flex;
-        align-items: center;
-        gap: var(--space-2);
-        flex-shrink: 0;
-        padding-bottom: var(--space-2);
-        border-bottom: 1px solid var(--color-border-light);
-      }
-
-      /* ── Group ── */
-      .wb-group {
+      /* ── Status filter (sidebar menu) ── */
+      .wb-filter-nav {
         display: flex;
         flex-direction: column;
         gap: var(--space-1);
+        padding: var(--space-1) 0;
+        border-right: 1px solid var(--color-border-light);
+        flex-shrink: 0;
+        min-height: 0;
+        overflow-y: auto;
+      }
+
+      .wb-filter-nav__item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-2);
+        width: 100%;
+        margin: 0;
+        padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+        border: none;
+        border-left: 3px solid transparent;
+        border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+        background: transparent;
+        color: var(--color-text-secondary);
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-medium);
+        text-align: left;
+        cursor: pointer;
+        transition:
+          background var(--transition-fast),
+          color var(--transition-fast),
+          border-color var(--transition-fast);
+      }
+
+      .wb-filter-nav__item:hover {
+        color: var(--color-text);
+        background: var(--color-bg);
+      }
+
+      .wb-filter-nav__item--active {
+        color: var(--color-text);
+        font-weight: var(--font-weight-semibold);
+        border-left-color: var(--color-primary);
+        background: var(--color-primary-light);
+      }
+
+      .wb-filter-nav__label {
+        min-width: 0;
+      }
+
+      .wb-filter-nav__badge {
+        flex-shrink: 0;
+        min-width: 1.25rem;
+        padding: 0 var(--space-1);
+        font-size: var(--font-size-xs);
+        font-weight: var(--font-weight-medium);
+        line-height: 1.4;
+        text-align: center;
+        color: var(--color-text-secondary);
+        background: var(--color-bg);
+        border-radius: var(--radius-pill);
+      }
+
+      .wb-filter-nav__item--active .wb-filter-nav__badge {
+        color: var(--color-primary);
+        background: var(--color-surface);
+      }
+
+      /* ── List column ── */
+      .wb-list-column {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+        border-right: 1px solid var(--color-border-light);
+        padding-right: var(--space-2);
+      }
+
+      .wb-list__toolbar {
+        display: flex;
+        gap: var(--space-1);
+        flex-shrink: 0;
+        padding-bottom: var(--space-2);
+        margin-bottom: var(--space-1);
+        border-bottom: 1px solid var(--color-border-light);
+      }
+
+      .wb-list__layout-btn {
+        border: none;
+        background: transparent;
+        color: var(--color-text-secondary);
+        font-size: var(--font-size-xs);
+        font-weight: var(--font-weight-medium);
+        padding: var(--space-1) var(--space-2);
+        border-radius: var(--radius-md);
+        cursor: pointer;
+        transition:
+          background var(--transition-fast),
+          color var(--transition-fast);
+      }
+
+      .wb-list__layout-btn:hover {
+        color: var(--color-text);
+        background: var(--color-bg);
+      }
+
+      .wb-list__layout-btn--active {
+        color: var(--color-primary);
+        background: var(--color-primary-light);
+        font-weight: var(--font-weight-semibold);
+      }
+
+      .wb-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-1);
+        overflow-y: auto;
+        min-height: 0;
+        flex: 1;
+      }
+
+      .wb-list--with-toolbar {
+        padding-top: 0;
+      }
+
+      /* ── Group (no tree indent; section label only when grouped) ── */
+      .wb-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+      }
+
+      .wb-group + .wb-group {
+        margin-top: var(--space-3);
       }
 
       .wb-group__header {
         display: flex;
         align-items: center;
         gap: var(--space-2);
-        padding: var(--space-2) var(--space-1);
+        padding: var(--space-2) var(--space-1) var(--space-1);
       }
 
       .wb-group__label {
-        font-size: 0.75rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
+        font-size: var(--font-size-xs);
+        font-weight: var(--font-weight-semibold);
         color: var(--color-text-muted);
       }
 
-      /* ── Item card ── */
+      .wb-group__count {
+        font-size: var(--font-size-xs);
+        font-weight: var(--font-weight-medium);
+        color: var(--color-text-muted);
+      }
+
+      /* ── Task row (compact menu row) ── */
       .wb-item {
         display: flex;
         align-items: flex-start;
         gap: var(--space-2);
-        padding: var(--space-2) var(--space-3);
-        border-radius: var(--radius-md, 8px);
+        width: 100%;
+        margin: 0;
+        padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+        border: none;
+        border-left: 3px solid transparent;
+        border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+        background: transparent;
+        color: inherit;
+        text-align: left;
         cursor: pointer;
-        transition: background 0.12s;
+        transition:
+          background var(--transition-fast),
+          border-color var(--transition-fast);
       }
 
       .wb-item:hover {
-        background: var(--color-surface-highlight);
+        background: var(--color-bg);
+      }
+
+      .wb-item:focus-visible {
+        outline: none;
+        border-left-color: var(--color-primary);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 22%, transparent);
       }
 
       .wb-item--active {
-        background: var(--color-surface-highlight);
-        box-shadow: var(--color-surface-highlight-shadow);
-        border: 1px solid var(--color-surface-highlight-border);
+        border-left-color: var(--color-primary);
+        background: var(--color-primary-light);
       }
 
       .wb-item__icon {
         flex-shrink: 0;
         width: 1.25rem;
         height: 1.25rem;
-        display: flex;
+        display: inline-flex;
         align-items: center;
         justify-content: center;
         margin-top: 0.1rem;
@@ -651,22 +862,27 @@ type OverlayMode = 'schedule' | 'logs' | null;
       }
 
       .wb-item--idea .wb-item__icon {
-        color: var(--color-info, var(--color-accent));
+        color: var(--color-primary);
       }
 
       .wb-item__body {
         flex: 1;
         min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+        align-items: flex-start;
       }
 
       .wb-item__title {
-        font-size: 0.85rem;
-        font-weight: 500;
-        line-height: 1.35;
-        color: var(--color-text-primary, var(--color-text));
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-medium);
+        line-height: var(--line-height-tight);
+        color: var(--color-text);
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        width: 100%;
       }
 
       .wb-item__meta {
@@ -674,11 +890,10 @@ type OverlayMode = 'schedule' | 'logs' | null;
         align-items: center;
         gap: var(--space-2);
         flex-wrap: wrap;
-        margin-top: 0.15rem;
       }
 
       .wb-item__due {
-        font-size: 0.72rem;
+        font-size: var(--font-size-xs);
         color: var(--color-text-muted);
       }
 
@@ -696,8 +911,9 @@ type OverlayMode = 'schedule' | 'logs' | null;
         display: flex;
         align-items: center;
         justify-content: center;
+        min-height: 12rem;
         height: 100%;
-        opacity: 0.7;
+        padding: var(--space-4);
       }
 
       .wb-detail__hero {
@@ -854,7 +1070,7 @@ type OverlayMode = 'schedule' | 'logs' | null;
       .wb-overlay-backdrop {
         position: fixed;
         inset: 0;
-        background: rgba(0, 0, 0, 0.3);
+        background: color-mix(in srgb, var(--color-text) 28%, transparent);
         z-index: 100;
       }
 
@@ -866,7 +1082,7 @@ type OverlayMode = 'schedule' | 'logs' | null;
         width: min(420px, 90vw);
         background: var(--color-surface, var(--color-bg));
         border-left: 1px solid var(--color-border-light);
-        box-shadow: -4px 0 24px rgba(0, 0, 0, 0.12);
+        box-shadow: var(--shadow-md);
         z-index: 101;
         display: flex;
         flex-direction: column;
@@ -936,22 +1152,37 @@ type OverlayMode = 'schedule' | 'logs' | null;
           padding: var(--workbench-shell-padding-mobile);
         }
 
-        .wb-toolbar {
-          flex-direction: column;
-          align-items: flex-start;
-        }
-
-        .wb-toolbar__hint {
-          display: none;
-        }
-
         .wb-main {
           grid-template-columns: 1fr;
-          grid-template-rows: auto minmax(0, 1fr);
+          grid-template-rows: auto auto minmax(0, 1fr);
         }
 
-        .wb-list {
-          max-height: 40vh;
+        .wb-filter-nav {
+          flex-direction: row;
+          flex-wrap: wrap;
+          border-right: none;
+          border-bottom: 1px solid var(--color-border-light);
+          padding-bottom: var(--space-2);
+          gap: var(--space-1);
+        }
+
+        .wb-filter-nav__item {
+          flex: 1 1 auto;
+          min-width: 5.5rem;
+          border-left: none;
+          border-bottom: 2px solid transparent;
+          border-radius: var(--radius-md);
+          padding: var(--space-2) var(--space-3);
+        }
+
+        .wb-filter-nav__item--active {
+          border-left-color: transparent;
+          border-bottom-color: var(--color-primary);
+        }
+
+        .wb-list-column {
+          border-right: none;
+          max-height: 38vh;
         }
       }
     `,
@@ -975,6 +1206,8 @@ export class WorkbenchPageComponent implements OnInit, OnDestroy {
 
   // Filters
   readonly stageFilter = signal<'all' | WorkbenchStage>('all');
+  /** 仅在「全部」下可选：按状态分组或单一时间序列表 */
+  readonly listLayoutMode = signal<'grouped' | 'flat'>('grouped');
 
   // Create form
   readonly createMode = signal<CreateMode>(null);
@@ -1036,23 +1269,55 @@ export class WorkbenchPageComponent implements OnInit, OnDestroy {
     return this.allItems().filter((item) => item.stage === filter);
   });
 
-  readonly groupedItems = computed(() => {
-    const items = this.filteredItems();
-    const stageOrder: WorkbenchStage[] = ['spark', 'active', 'waiting', 'done', 'archived'];
-    const labels: Record<WorkbenchStage, string> = {
-      spark: '灵感',
-      active: '进行中',
-      waiting: '等待中',
-      done: '已完成',
-      archived: '已归档',
+  readonly stageFilterNav = computed(() => {
+    const all = this.allItems();
+    const countStage = (s: WorkbenchStage) => all.filter((i) => i.stage === s).length;
+    return [
+      { key: 'all' as const, label: '全部', count: all.length },
+      { key: 'spark' as const, label: '灵感', count: countStage('spark') },
+      { key: 'active' as const, label: '进行中', count: countStage('active') },
+      { key: 'waiting' as const, label: '等待中', count: countStage('waiting') },
+      { key: 'done' as const, label: '已完成', count: countStage('done') },
+    ];
+  });
+
+  readonly showListLayoutToggle = computed(() => this.stageFilter() === 'all');
+
+  readonly displayGroups = computed(() => {
+    if (this.stageFilter() !== 'all') return null;
+    if (this.listLayoutMode() === 'flat') return null;
+    return this.buildStageGroups(this.allItems());
+  });
+
+  readonly displayFlatItems = computed(() => {
+    if (this.stageFilter() !== 'all') {
+      return this.sortItemsFlat(this.filteredItems());
+    }
+    if (this.listLayoutMode() === 'flat') {
+      return this.sortItemsFlat(this.allItems());
+    }
+    return null;
+  });
+
+  readonly listEmptyTitle = computed(() => {
+    const f = this.stageFilter();
+    if (f === 'all') return '这里还空着';
+    const titles: Partial<Record<WorkbenchStage, string>> = {
+      spark: '暂无灵感',
+      active: '暂无进行中的事',
+      waiting: '没有在等待的事',
+      done: '还没有已完成的记录',
+      archived: '暂无已归档内容',
     };
-    return stageOrder
-      .map((stage) => ({
-        stage,
-        label: labels[stage],
-        items: items.filter((item) => item.stage === stage),
-      }))
-      .filter((group) => group.items.length > 0);
+    return titles[f] ?? '暂无内容';
+  });
+
+  readonly listEmptyDescription = computed(() => {
+    const f = this.stageFilter();
+    if (f === 'all') {
+      return '我们可以从一条灵感或一件小事开始——点上面「新想法」或「新事项」，我会帮你记好并跟进的。';
+    }
+    return '可以换个状态看看，或新增一条任务；我会把它归到对应状态里。';
   });
 
   readonly selectedIdea = computed<IdeaRecord | null>(() => {
@@ -1095,6 +1360,10 @@ export class WorkbenchPageComponent implements OnInit, OnDestroy {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  setStageFilter(key: 'all' | WorkbenchStage) {
+    this.stageFilter.set(key);
   }
 
   // ── Selection ──
@@ -1401,6 +1670,30 @@ export class WorkbenchPageComponent implements OnInit, OnDestroy {
   }
 
   // ── Private ──
+  private buildStageGroups(items: WorkbenchItem[]) {
+    const stageOrder: WorkbenchStage[] = ['spark', 'active', 'waiting', 'done', 'archived'];
+    const labels: Record<WorkbenchStage, string> = {
+      spark: '灵感',
+      active: '进行中',
+      waiting: '等待中',
+      done: '已完成',
+      archived: '已归档',
+    };
+    return stageOrder
+      .map((stage) => ({
+        stage,
+        label: labels[stage],
+        items: items.filter((item) => item.stage === stage),
+      }))
+      .filter((group) => group.items.length > 0);
+  }
+
+  private sortItemsFlat(items: WorkbenchItem[]): WorkbenchItem[] {
+    return [...items].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+  }
+
   private ideaStage(idea: IdeaRecord): WorkbenchStage {
     if (idea.status === 'open') return 'spark';
     if (idea.status === 'archived') return 'archived';

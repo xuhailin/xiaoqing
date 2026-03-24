@@ -8,6 +8,7 @@ export interface AgentInfo {
   name: string;
   channel: string;
   active: boolean;
+  description?: string;
 }
 
 export interface CapabilityInfo {

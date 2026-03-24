@@ -7,8 +7,13 @@ import {
   UserProfileService,
   type UserProfileField,
 } from './user-profile.service';
+import { PersonaRuleService } from './persona-rule.service';
+import type {
+  PersonaRuleCategory,
+  PersonaRuleMergeDraft,
+} from './persona-rule.types';
 
-export const EVOLVE_PROMPT_VERSION = 'evolve_v3';
+export const EVOLVE_PROMPT_VERSION = 'evolve_v4';
 export const IMPRESSION_PROMPT_VERSION = 'impression_v1';
 
 // ────────────────────────────────────────────────────────────
@@ -65,6 +70,8 @@ export interface EvolutionChange {
   risk?: EvolutionRisk;
   reroutedFrom?: PersonaField;
   targetField?: EvolutionStorageField;
+  /** 仅 field/target 为 expressionRules 时：结构化规则合并草案 */
+  ruleDrafts?: PersonaRuleMergeDraft[];
 }
 
 export type EvolutionLayer = 'persona-core' | 'persona-boundary' | 'expression' | 'user-preference';
@@ -84,6 +91,8 @@ export interface EvolutionPreviewField {
 export interface EvolutionPreview {
   changes: EvolutionChange[];
   fields: EvolutionPreviewField[];
+  /** 表达纪律结构化进化建议（不经过 Persona.expressionRules 文本合并） */
+  expressionRuleDrafts?: PersonaRuleMergeDraft[];
 }
 
 interface NormalizedRule {
@@ -122,10 +131,13 @@ export const DEFAULT_BEHAVIOR_FORBIDDEN = `
 - 不假装完全理解她
 - 不用嘲讽或反讽语气`;
 
+/** 与 PersonaRule 种子一致；表为空时作 fallback */
 export const DEFAULT_EXPRESSION_RULES = `- 简洁优先，一两句说完就好，不铺垫。
 - 无新增信息，不延展。
-- 当信息不足或逻辑有问题时，直接指出。
-- 默认不主动追问，除非认知决策明确要求。`;
+- 可以用语气词（嗯、呐、啦），但不刻意卖萌。
+- 判断直接但措辞柔和，用「可能」「我觉得」替代断言。
+- 不主动追问，不在回复末尾抛出「你想要哪种方式」「你更偏向 X 还是 Y」类的选项。
+- 对话允许停在自然节点，无需填满；沉默不是冷漠。`;
 
 /** @deprecated 旧字段默认值，仅用于迁移兼容 */
 export const DEFAULT_VOICE_STYLE = '';
@@ -162,6 +174,14 @@ const FIELD_RULE_LIMITS: Record<PersonaField, number> = {
 const CORE_PERSONA_FIELDS = new Set<PersonaField>(['identity', 'personality', 'valueBoundary']);
 const EXPRESSION_FIELDS = new Set<PersonaField>(['expressionRules']);
 
+const PERSONA_RULE_CATEGORIES = new Set<string>([
+  'BREVITY',
+  'TONE',
+  'PACING',
+  'BOUNDARY',
+  'ERROR_HANDLING',
+]);
+
 // ────────────────────────────────────────────────────────────
 // Service
 // ────────────────────────────────────────────────────────────
@@ -172,6 +192,7 @@ export class PersonaService {
     private prisma: PrismaService,
     private llm: LlmService,
     private userProfile: UserProfileService,
+    private readonly personaRules: PersonaRuleService,
   ) {}
 
   async getOrCreate(): Promise<PersonaDto> {
@@ -271,12 +292,21 @@ ${persona.evolutionForbidden}
 输出 JSON：
 {
   "changes": [
-    { "field": "字段名", "content": "一条待合并的简洁规则", "reason": "变更理由" }
+    { "field": "字段名", "content": "一条待合并的简洁规则", "reason": "变更理由" },
+    {
+      "field": "expressionRules",
+      "reason": "总体理由",
+      "rules": [
+        { "key": "no_followup_prompt", "content": "单条规则全文", "category": "PACING", "reason": "本条理由" }
+      ]
+    }
   ]
 }
 
 规则：
 - field 必须是以下之一：${PERSONA_FIELDS.join(', ')}
+- 当建议调整表达纪律时，优先使用第二种形式：field 为 expressionRules，并提供 rules 数组；每条含 key（小写下划线英文）、content、category（BREVITY|TONE|PACING|BOUNDARY|ERROR_HANDLING）、reason；key 尽量复用常见键如 brevity_first、no_extension、no_followup_prompt、allow_silence 等
+- 若无法结构化，仍可使用单条 content 形式（与旧版兼容）
 - content 只写最终想新增或强化的一条规则，不要写“追加到末尾”“保留历史版本”“[进化]”之类描述
 - content 必须简洁，尽量一两句话，避免与现有表达重复
 - 默认优先调整 expressionRules
@@ -299,9 +329,7 @@ ${persona.evolutionForbidden}
       const parsed = JSON.parse(jsonStr) as { changes?: unknown[] };
       if (!Array.isArray(parsed.changes)) return { changes: [] };
 
-      const validChanges = (parsed.changes as EvolutionChange[]).filter(
-        (c) => PERSONA_FIELDS.includes(c.field) && typeof c.content === 'string' && c.content.trim(),
-      );
+      const validChanges = this.parseRawLlmEvolutionChanges(parsed.changes);
       return {
         changes: this.normalizeEvolutionChanges(validChanges)
           .filter((change) => this.shouldKeepSuggestedChange(change)),
@@ -331,14 +359,32 @@ ${persona.evolutionForbidden}
       return { accepted: false, reason: valid.reason };
     }
 
+    const allRuleDrafts = normalizedChanges
+      .filter((c) => this.isStructuredExpressionEvolution(c))
+      .flatMap((c) => c.ruleDrafts!);
+
+    let ruleMergeResult: {
+      skipped: string[];
+      merged: string[];
+      staged: string[];
+      conflicted: string[];
+    } | null = null;
+    if (allRuleDrafts.length > 0) {
+      ruleMergeResult = await this.personaRules.applyEvolutionDraft(allRuleDrafts);
+    }
+
     const evolvedFields = this.buildEvolvedFields(persona, normalizedChanges);
     const preferenceUpdates = this.buildEvolvedUserPreferences(normalizedChanges);
-    const hasPersonaChanges = Object.keys(evolvedFields).length > 0;
+    const hasCorePersonaRowUpdate = Object.keys(evolvedFields).length > 0;
 
     let finalPersona = persona;
 
-    if (hasPersonaChanges) {
+    if (hasCorePersonaRowUpdate) {
       const newVersion = persona.version + 1;
+      const expressionRulesColumn =
+        allRuleDrafts.length > 0
+          ? persona.expressionRules
+          : (evolvedFields['expressionRules'] ?? persona.expressionRules);
       const [created] = await this.prisma.$transaction([
         this.prisma.persona.create({
           data: {
@@ -346,7 +392,7 @@ ${persona.evolutionForbidden}
             personality: evolvedFields['personality'] ?? persona.personality,
             valueBoundary: evolvedFields['valueBoundary'] ?? persona.valueBoundary,
             behaviorForbidden: evolvedFields['behaviorForbidden'] ?? persona.behaviorForbidden,
-            expressionRules: evolvedFields['expressionRules'] ?? persona.expressionRules,
+            expressionRules: expressionRulesColumn,
             metaFilterPolicy: persona.metaFilterPolicy,
             evolutionAllowed: persona.evolutionAllowed,
             evolutionForbidden: persona.evolutionForbidden,
@@ -364,6 +410,7 @@ ${persona.evolutionForbidden}
       await Promise.all(
         normalizedChanges
           .filter((c) => this.isPersonaTargetField(c.targetField ?? c.field))
+          .filter((c) => !this.isStructuredExpressionEvolution(c))
           .map((c) =>
             this.prisma.personaEvolutionLog.create({
               data: {
@@ -376,6 +423,22 @@ ${persona.evolutionForbidden}
             }),
           ),
       );
+    }
+
+    if (allRuleDrafts.length > 0 && ruleMergeResult) {
+      const reasonText = normalizedChanges
+        .filter((c) => this.isStructuredExpressionEvolution(c))
+        .map((c) => c.reason)
+        .join(' | ');
+      await this.prisma.personaEvolutionLog.create({
+        data: {
+          personaId: finalPersona.id,
+          field: 'expressionRules',
+          content: JSON.stringify(ruleMergeResult),
+          reason: reasonText || 'PersonaRule merge',
+          version: finalPersona.version,
+        },
+      });
     }
 
     if (Object.keys(preferenceUpdates).length > 0) {
@@ -405,7 +468,14 @@ ${persona.evolutionForbidden}
     const preferencePreview = this.buildUserPreferencePreview(preferenceCurrent, normalizedChanges);
     const previewFields: EvolutionPreviewField[] = [];
 
+    const expressionRuleDrafts = normalizedChanges
+      .filter((c) => this.isStructuredExpressionEvolution(c))
+      .flatMap((c) => c.ruleDrafts!);
+
     for (const field of PERSONA_FIELDS) {
+      if (field === 'expressionRules' && expressionRuleDrafts.length > 0) {
+        continue;
+      }
       const after = evolvedFields[field];
       if (!after || after === persona[field]) continue;
 
@@ -432,6 +502,7 @@ ${persona.evolutionForbidden}
       preview: {
         changes: normalizedChanges,
         fields: previewFields,
+        ...(expressionRuleDrafts.length ? { expressionRuleDrafts } : {}),
       },
     };
   }
@@ -591,6 +662,7 @@ ${forbidden}`,
   ): Partial<Record<PersonaField, string>> {
     const groupedChanges = new Map<PersonaField, string[]>();
     for (const change of changes) {
+      if (this.isStructuredExpressionEvolution(change)) continue;
       const target = change.targetField ?? change.field;
       if (!this.isPersonaTargetField(target)) continue;
       const content = typeof change.content === 'string' ? change.content.trim() : '';
@@ -684,6 +756,58 @@ ${forbidden}`,
       .filter(Boolean);
   }
 
+  private parseRawLlmEvolutionChanges(raw: unknown[]): EvolutionChange[] {
+    const out: EvolutionChange[] = [];
+    for (const item of raw) {
+      if (!item || typeof item !== 'object') continue;
+      const rec = item as Record<string, unknown>;
+      const field = rec.field;
+      if (typeof field !== 'string') continue;
+      if (!PERSONA_FIELDS.includes(field as PersonaField) && !LEGACY_EXPRESSION_FIELD_SET.has(field)) {
+        continue;
+      }
+
+      if (field === 'expressionRules' && Array.isArray(rec.rules) && rec.rules.length > 0) {
+        const drafts: PersonaRuleMergeDraft[] = [];
+        for (const r of rec.rules) {
+          if (!r || typeof r !== 'object') continue;
+          const row = r as Record<string, unknown>;
+          const key = typeof row.key === 'string' ? row.key.trim() : '';
+          const content = typeof row.content === 'string' ? row.content.trim() : '';
+          if (!key || !content) continue;
+          const catRaw = typeof row.category === 'string' ? row.category.toUpperCase() : 'BREVITY';
+          const category = PERSONA_RULE_CATEGORIES.has(catRaw)
+            ? (catRaw as PersonaRuleCategory)
+            : ('BREVITY' as PersonaRuleCategory);
+          const reason = typeof row.reason === 'string' ? row.reason.trim() : '';
+          const weight = typeof row.weight === 'number' ? row.weight : undefined;
+          drafts.push({ key, content, category, reason, ...(weight !== undefined ? { weight } : {}) });
+        }
+        if (!drafts.length) continue;
+        const topReason = typeof rec.reason === 'string' ? rec.reason.trim() : '';
+        const content = drafts.map((d) => d.content).join('\n');
+        const reason = topReason || drafts.map((d) => d.reason).filter(Boolean).join('；') || 'expression rules';
+        out.push({
+          field: 'expressionRules',
+          content,
+          reason,
+          ruleDrafts: drafts,
+        });
+        continue;
+      }
+
+      const content = typeof rec.content === 'string' ? rec.content.trim() : '';
+      if (!content) continue;
+      const reason = typeof rec.reason === 'string' ? rec.reason.trim() : '';
+      out.push({
+        field: field as PersonaField,
+        content,
+        reason,
+      });
+    }
+    return out;
+  }
+
   private normalizeEvolutionChanges(changes: EvolutionChange[]): EvolutionChange[] {
     return changes
       .filter((change) =>
@@ -691,10 +815,34 @@ ${forbidden}`,
         || LEGACY_EXPRESSION_FIELD_SET.has(change.field),
       )
       .map((change) => this.classifyEvolutionChange(change))
-      .filter((change) => !!change.content?.trim());
+      .filter(
+        (change) =>
+          !!change.content?.trim() || (change.ruleDrafts !== undefined && change.ruleDrafts.length > 0),
+      );
+  }
+
+  private isStructuredExpressionEvolution(change: EvolutionChange): boolean {
+    return (change.targetField ?? change.field) === 'expressionRules' && !!change.ruleDrafts?.length;
   }
 
   private classifyEvolutionChange(change: EvolutionChange): EvolutionChange {
+    if (change.ruleDrafts?.length && change.field === 'expressionRules') {
+      const content =
+        change.content?.trim()
+        || change.ruleDrafts.map((d) => d.content).join('\n');
+      const reason = change.reason?.trim()
+        || change.ruleDrafts.map((d) => d.reason).filter(Boolean).join('；');
+      return {
+        ...change,
+        field: 'expressionRules',
+        targetField: 'expressionRules',
+        layer: 'expression',
+        risk: 'medium',
+        content,
+        reason: reason || 'expression rules',
+      };
+    }
+
     const content = change.content.trim();
     const reason = (change.reason || '').trim();
     const combined = `${content} ${reason}`;

@@ -31,6 +31,41 @@ export type UserProfileField =
   | 'praisePreference'
   | 'responseRhythm';
 
+export type PersonaRuleCategory =
+  | 'BREVITY'
+  | 'TONE'
+  | 'PACING'
+  | 'BOUNDARY'
+  | 'ERROR_HANDLING';
+
+export type PersonaRuleStatus = 'CANDIDATE' | 'STABLE' | 'CORE' | 'DEPRECATED';
+
+export type PersonaRuleSource = 'DEFAULT' | 'EVOLVED' | 'USER';
+
+export type PersonaRuleProtect = 'NORMAL' | 'LOCKED';
+
+export interface PersonaRuleDto {
+  id: string;
+  key: string;
+  content: string;
+  category: PersonaRuleCategory;
+  status: PersonaRuleStatus;
+  weight: number;
+  source: PersonaRuleSource;
+  protectLevel: PersonaRuleProtect;
+  pendingContent?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PersonaRuleMergeDraft {
+  key: string;
+  content: string;
+  category: PersonaRuleCategory;
+  weight?: number;
+  reason: string;
+}
+
 export interface EvolutionChange {
   field: PersonaField | string;
   content: string;
@@ -39,6 +74,7 @@ export interface EvolutionChange {
   risk?: 'high' | 'medium' | 'low';
   reroutedFrom?: PersonaField | string;
   targetField?: PersonaField | UserProfileField | string;
+  ruleDrafts?: PersonaRuleMergeDraft[];
 }
 
 export interface EvolutionPreviewField {
@@ -54,11 +90,13 @@ export interface EvolutionPreviewField {
 export interface EvolutionPreview {
   changes: EvolutionChange[];
   fields: EvolutionPreviewField[];
+  expressionRuleDrafts?: PersonaRuleMergeDraft[];
 }
 
 @Injectable({ providedIn: 'root' })
 export class PersonaService {
   private base = `${environment.apiUrl}/persona`;
+  private rulesBase = `${environment.apiUrl}/persona/rules`;
 
   constructor(private http: HttpClient) {}
 
@@ -111,4 +149,33 @@ export class PersonaService {
     return this.http.delete<{ ok: boolean }>(`${this.base}/evolve/pending`);
   }
 
+  getRules() {
+    return this.http.get<PersonaRuleDto[]>(this.rulesBase);
+  }
+
+  updateRule(
+    key: string,
+    patch: Partial<{
+      content: string;
+      weight: number;
+      status: PersonaRuleStatus;
+      protectLevel: PersonaRuleProtect;
+      pendingContent: string | null;
+      category: PersonaRuleCategory;
+      source: PersonaRuleSource;
+    }>,
+  ) {
+    return this.http.patch<PersonaRuleDto>(`${this.rulesBase}/${encodeURIComponent(key)}`, patch);
+  }
+
+  promoteRule(key: string) {
+    return this.http.post<PersonaRuleDto>(
+      `${this.rulesBase}/${encodeURIComponent(key)}/promote`,
+      {},
+    );
+  }
+
+  deprecateRule(key: string) {
+    return this.http.delete<void>(`${this.rulesBase}/${encodeURIComponent(key)}`);
+  }
 }

@@ -15,7 +15,7 @@ type ChatSubNavItem = {
 };
 
 type WorkspaceSubNavItem = {
-  value: '' | 'ideas' | 'reminder' | 'plan' | 'todos' | 'execution';
+  value: '' | 'ideas' | 'reminder' | 'plan' | 'todos' | 'execution' | 'regression';
   label: string;
   description: string;
   icon: AppIconName;
@@ -350,6 +350,7 @@ type MemorySubNavItem = {
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
         flex-shrink: 0;
+        min-width: 0;
       }
 
       .app-subnav {
@@ -361,6 +362,11 @@ type MemorySubNavItem = {
         border: 1px solid var(--layout-subnav-border);
         background: var(--layout-subnav-bg);
         box-shadow: var(--layout-subnav-shadow);
+        max-width: 100%;
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
       }
 
       .app-subnav__item {
@@ -567,6 +573,12 @@ export class MainLayoutComponent {
       icon: 'route',
       description: '查看全局执行流水和触发记录。',
     },
+    {
+      value: 'regression',
+      label: '回归日志',
+      icon: 'check',
+      description: '查看固定回归与真实回放的最新报告、运行台与逐轮执行日志。',
+    },
   ];
   protected readonly memorySubNavItems: readonly MemorySubNavItem[] = [
     {
@@ -656,24 +668,24 @@ export class MainLayoutComponent {
     this.router.navigate(['/chat'], { queryParams: {} });
   }
 
-  currentWorkspaceSubnav(): '' | 'ideas' | 'reminder' | 'plan' | 'todos' | 'execution' {
+  currentWorkspaceSubnav(): '' | 'ideas' | 'reminder' | 'plan' | 'todos' | 'execution' | 'regression' {
     const url = this.router.url;
     if (url.startsWith('/workspace/ideas')) return 'ideas';
     if (url.startsWith('/workspace/reminder')) return 'reminder';
     if (url.startsWith('/workspace/plan')) return 'plan';
     if (url.startsWith('/workspace/todos')) return 'todos';
+    if (url.startsWith('/workspace/regression')) return 'regression';
     if (
       url.startsWith('/workspace/execution') ||
       url.startsWith('/workspace/task-records') ||
-      url.startsWith('/workspace/dev-agent') ||
-      url.startsWith('/workspace/regression')
+      url.startsWith('/workspace/dev-agent')
     )
       return 'execution';
     return '';
   }
 
 
-  selectWorkspaceSubnav(value: '' | 'ideas' | 'reminder' | 'plan' | 'todos' | 'execution') {
+  selectWorkspaceSubnav(value: '' | 'ideas' | 'reminder' | 'plan' | 'todos' | 'execution' | 'regression') {
     if (value === '') {
       this.router.navigate(['/workspace']);
     } else {

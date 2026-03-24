@@ -10,6 +10,7 @@ import { Subscription } from 'rxjs';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
 import { AppPanelComponent } from '../shared/ui/app-panel.component';
 import { AppSectionHeaderComponent } from '../shared/ui/app-section-header.component';
+import { PersonaRuleListComponent } from './persona-rule-list.component';
 
 interface FieldEntry {
   key: string;
@@ -24,7 +25,6 @@ const FIELD_LAYOUT: FieldEntry[] = [
   { key: 'personality', label: '性格特质', hint: '描述稳定的性格基调，而不是某次对话里的短期情绪。', group: 'persona', rows: 6 },
   { key: 'valueBoundary', label: '价值边界', hint: '写下始终坚持的判断标准、偏向和底线。', group: 'persona', rows: 8 },
   { key: 'behaviorForbidden', label: '行为禁止项', hint: '明确哪些表达和行为不应该出现在小晴身上。', group: 'persona', rows: 5 },
-  { key: 'expressionRules', label: '表达纪律', hint: '定义输出简洁度、追问策略和延展约束，不含语气风格（语气由人格层承载）。', group: 'expression', rows: 5 },
   { key: 'metaFilterPolicy', label: 'Meta 过滤规则', hint: '放系统级的表达过滤，不承载具体人格内容。', group: 'meta', rows: 3 },
   { key: 'evolutionAllowed', label: '允许的进化方向', hint: '只写可以被长期证据推动的变化方向。', group: 'evolution', rows: 3 },
   { key: 'evolutionForbidden', label: '禁止的进化', hint: '明确哪些变化即使有短期信号也不应发生。', group: 'evolution', rows: 3 },
@@ -33,7 +33,7 @@ const FIELD_LAYOUT: FieldEntry[] = [
 @Component({
   selector: 'app-persona-config',
   standalone: true,
-  imports: [AppButtonComponent, AppPanelComponent, AppSectionHeaderComponent],
+  imports: [AppButtonComponent, AppPanelComponent, AppSectionHeaderComponent, PersonaRuleListComponent],
   template: `
     <div class="persona-config">
       @if (persona(); as p) {
@@ -116,22 +116,7 @@ const FIELD_LAYOUT: FieldEntry[] = [
                   title="表达调度层"
                   description="决定小晴怎么说、如何适应当下对话，以及什么时候保留留白。"
                 />
-                <div class="field-stack">
-                  @for (f of expressionFields; track f.key) {
-                    <label class="field-card">
-                      <span class="field-card__header">
-                        <span class="group-label">{{ f.label }}</span>
-                        <span class="field-hint">{{ f.hint }}</span>
-                      </span>
-                      <textarea
-                        [rows]="f.rows"
-                        [value]="fieldValues()[f.key]"
-                        (input)="setField(f.key, $any($event.target).value)"
-                        [placeholder]="f.label"
-                      ></textarea>
-                    </label>
-                  }
-                </div>
+                <app-persona-rule-list />
               </app-panel>
             </section>
 
@@ -197,6 +182,19 @@ const FIELD_LAYOUT: FieldEntry[] = [
                   />
                   @if (evolutionPreview(); as preview) {
                     <div class="pending-hint">以下是合并后的预览。确认后才会真正写入人格。</div>
+                    @if (preview.expressionRuleDrafts?.length) {
+                      <div class="pending-card">
+                        <div class="pending-field">表达纪律（结构化草案）</div>
+                        <div class="pending-reason">将经 PersonaRule 合并：LOCKED 规则不会被覆盖</div>
+                        @for (d of preview.expressionRuleDrafts; track d.key) {
+                          <div class="rule-draft-row">
+                            <div class="rule-draft-key">{{ d.key }} · {{ d.category }}</div>
+                            <pre class="pending-preview">{{ d.content }}</pre>
+                            <div class="pending-reason">{{ d.reason }}</div>
+                          </div>
+                        }
+                      </div>
+                    }
                     @for (field of preview.fields; track field.field) {
                       <div class="pending-card">
                         <div class="pending-field">{{ getFieldLabel(field.field) }}</div>
@@ -605,6 +603,19 @@ const FIELD_LAYOUT: FieldEntry[] = [
       font-size: var(--font-size-xs);
     }
 
+    .rule-draft-row {
+      margin-top: var(--space-2);
+      padding-top: var(--space-2);
+      border-top: 1px solid var(--color-border-light);
+    }
+
+    .rule-draft-key {
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-weight-semibold);
+      color: var(--color-text-secondary);
+      margin-bottom: var(--space-1);
+    }
+
     @media (max-width: 1120px) {
       .editor-shell {
         grid-template-columns: 1fr;
@@ -632,7 +643,6 @@ export class PersonaConfigComponent implements OnInit, OnDestroy {
   evolving = signal(false);
 
   personaFields = FIELD_LAYOUT.filter((f) => f.group === 'persona');
-  expressionFields = FIELD_LAYOUT.filter((f) => f.group === 'expression');
   metaFields = FIELD_LAYOUT.filter((f) => f.group === 'meta');
   evolutionFields = FIELD_LAYOUT.filter((f) => f.group === 'evolution');
 
@@ -645,7 +655,6 @@ export class PersonaConfigComponent implements OnInit, OnDestroy {
         personality: p.personality,
         valueBoundary: p.valueBoundary,
         behaviorForbidden: p.behaviorForbidden,
-        expressionRules: p.expressionRules,
         metaFilterPolicy: p.metaFilterPolicy,
         evolutionAllowed: p.evolutionAllowed,
         evolutionForbidden: p.evolutionForbidden,
@@ -676,7 +685,6 @@ export class PersonaConfigComponent implements OnInit, OnDestroy {
           personality: vals['personality'],
           valueBoundary: vals['valueBoundary'],
           behaviorForbidden: vals['behaviorForbidden'],
-          expressionRules: vals['expressionRules'],
           metaFilterPolicy: vals['metaFilterPolicy'],
           evolutionAllowed: vals['evolutionAllowed'],
           evolutionForbidden: vals['evolutionForbidden'],

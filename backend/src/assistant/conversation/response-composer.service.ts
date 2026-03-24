@@ -137,7 +137,7 @@ export class ResponseComposer {
     let messages = this.router.buildChatMessages({
       messages: recentMessages as Array<{ role: 'user' | 'assistant'; content: string }>,
       personaPrompt,
-      expressionFields: this.persona.getExpressionFields(personaDto),
+      expressionFields: context.persona.expressionFields,
       userProfileText,
       memories: context.memory.injectedMemories,
       identityAnchor: context.user.anchorText,
@@ -245,7 +245,7 @@ export class ResponseComposer {
     const wrapMessages = this.router.buildToolResultMessages({
       personaText: this.persona.buildPersonaPrompt(personaDto),
       expressionText: this.router.buildExpressionPolicy(
-        this.persona.getExpressionFields(personaDto),
+        context.persona.expressionFields,
         input.intentState ?? undefined,
       ),
       userProfileText: this.buildInjectedUserProfileText(
@@ -298,7 +298,7 @@ export class ResponseComposer {
       this.router.buildCollaborationContextPrompt(input.context.runtime.collaborationContext),
       '',
       this.router.buildExpressionPolicy(
-        this.persona.getExpressionFields(input.personaDto),
+        input.context.persona.expressionFields,
         input.intentState ?? undefined,
       ),
       this.router.buildNicknameHint(input.context.user.preferredNickname),
