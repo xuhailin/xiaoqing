@@ -1,11 +1,9 @@
 <section class="home-timeline ui-workbench-surface ui-workbench-surface--soft">
-  <header class="home-timeline__header">
-    <div class="home-timeline__copy">
-      <span class="home-timeline__eyebrow">Life Trace</span>
-      <h2 class="home-timeline__title">生活轨迹</h2>
-      <p class="home-timeline__description">
-        把对话里出现的事件、情绪、人物和计划串成一条可浏览的生活轨迹。
-        这条线只描述“用户这边发生了什么”，不混入小晴自己的认知变化。
+  <header class=”home-timeline__header”>
+    <div class=”home-timeline__copy”>
+      <h2 class=”home-timeline__title”>生活轨迹</h2>
+      <p class=”home-timeline__description”>
+        从我们的对话里提炼出来的事件和日常片段，串成一条可浏览的生活轨迹。
       </p>
     </div>
 
@@ -38,14 +36,14 @@
     <app-state
       class="home-timeline__state"
       kind="loading"
-      title="LifeTrace 数据加载中..."
+      title="生活轨迹加载中..."
       description="正在从 trace-points 和 daily-summaries 接口拉取最近记录。"
     />
   } @else if (errorMessage()) {
     <app-state
       class="home-timeline__state"
       kind="error"
-      title="LifeTrace 暂时不可用"
+      title="生活轨迹暂时不可用"
       [description]="errorMessage()"
     >
       <div class="home-timeline__state-actions">

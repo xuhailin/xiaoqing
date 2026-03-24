@@ -7,12 +7,7 @@ import {
   type RunDesignAuditResultDto,
 } from '../core/services/design-agent.service';
 
-export type MemoryDesignAuditTab =
-  | 'understanding'
-  | 'life-record'
-  | 'cognitive-trace'
-  | 'relations'
-  | 'persona';
+export type MemoryDesignAuditTab = 'understanding' | 'relations' | 'persona';
 
 @Component({
   selector: 'app-memory-design-audit-bar',

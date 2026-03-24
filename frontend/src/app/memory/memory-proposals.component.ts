@@ -22,12 +22,12 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
   ],
   template: `
     <app-panel variant="subtle" class="proposals-panel">
-      <app-section-header class="proposals-header" title="待审核记忆提案">
+      <app-section-header class="proposals-header" title="等你确认的新发现">
         <app-badge actions tone="warning">{{ pending().length }}</app-badge>
       </app-section-header>
 
       <p class="proposals-desc">
-        小勤等执行 Agent 在完成任务后提交的记忆写入建议。审核通过后才会正式写入记忆库。
+        完成任务后可能会冒出新的记忆建议，你点头后我才会正式记下来。
       </p>
 
       @if (loading()) {
@@ -44,7 +44,6 @@ import { AppStateComponent } from '../shared/ui/app-state.component';
                 <div class="proposal-card__badges">
                   <app-badge [tone]="kindTone(item.kind)" size="sm">{{ kindLabel(item.kind) }}</app-badge>
                   <app-badge tone="neutral" appearance="outline" size="sm">{{ scopeLabel(item.scope) }}</app-badge>
-                  <app-badge tone="neutral" appearance="outline" size="sm">{{ confidenceLabel(item.confidence) }}</app-badge>
                 </div>
                 <span class="proposal-card__agent">来自 {{ item.proposerAgentId }}</span>
               </div>
@@ -214,7 +213,7 @@ export class MemoryProposalsComponent implements OnInit {
       fact: '事实',
       boundary: '边界',
       correction: '纠错',
-      pattern: '模式',
+      pattern: '反复出现的倾向',
       judgment: '判断',
     };
     return map[kind] ?? kind;
@@ -235,8 +234,4 @@ export class MemoryProposalsComponent implements OnInit {
     return scope;
   }
 
-  confidenceLabel(confidence: number): string {
-    const pct = Math.round(confidence * 100);
-    return `置信 ${pct}%`;
-  }
 }

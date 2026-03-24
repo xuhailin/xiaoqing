@@ -17,19 +17,19 @@ const STAGE_META: Record<RelationshipStage, {
   tone: 'info' | 'success' | 'warning';
 }> = {
   early: {
-    label: 'Early',
+    label: '刚开始',
     title: '初识阶段',
     description: '彼此还在试探节奏与边界，关系更多靠一次次对话慢慢成形。',
     tone: 'info',
   },
   familiar: {
-    label: 'Familiar',
+    label: '越来越熟',
     title: '熟悉阶段',
     description: '互动方式渐渐稳定，小晴已经能更自然地承接你的日常与情绪。',
     tone: 'warning',
   },
   steady: {
-    label: 'Steady',
+    label: '稳定了',
     title: '稳定阶段',
     description: '这段关系已经有了连续性，小晴会把重要片段当作共同经历继续带着走。',
     tone: 'success',
@@ -79,7 +79,6 @@ const CATEGORY_LABELS: Record<string, string> = {
       } @else if (overview(); as data) {
         <div class="relationship-hero__content">
           <div class="relationship-hero__copy">
-            <div class="relationship-hero__eyebrow">Relationship</div>
             <h1 class="relationship-hero__title">你 与 小晴</h1>
             <div class="relationship-hero__meta">
               <app-badge
@@ -87,46 +86,26 @@ const CATEGORY_LABELS: Record<string, string> = {
                 [tone]="stageMeta(data.stage).tone"
                 appearance="outline"
               >
-                {{ stageMeta(data.stage).title }}
+                {{ stageMeta(data.stage).label }}
               </app-badge>
               <div class="relationship-hero__stage-note">{{ stageMeta(data.stage).description }}</div>
             </div>
-            <p class="relationship-hero__summary">
-              {{ data.summary || defaultSummary(data.stage) }}
-            </p>
-            @if (data.lastMeaningfulMomentAt) {
-              <div class="relationship-hero__last-note">
-                最近一次被记住的关系片段：
-                {{ data.lastMeaningfulMomentAt | date:'yyyy-MM-dd HH:mm' }}
+            <div class="relationship-hero__narrative">
+              <div class="relationship-hero__narrative-text">
+                {{ stageNarrative(data) }}
               </div>
-            }
-          </div>
-
-          <div class="relationship-hero__index">
-            <div class="relationship-hero__index-label">关系温度</div>
-            <div class="relationship-hero__index-value">{{ relationIndexLabel(data) }}</div>
-            <div class="relationship-hero__index-track">
-              <span class="relationship-hero__index-fill" [style.width.%]="relationIndexValue(data)"></span>
-            </div>
-            <div class="relationship-hero__metrics">
-              <div class="relationship-hero__metric">
-                <span>信任</span>
-                <strong>{{ percentValue(data.trustScore) }}</strong>
-              </div>
-              <div class="relationship-hero__metric">
-                <span>亲近</span>
-                <strong>{{ percentValue(data.closenessScore) }}</strong>
-              </div>
-            </div>
-            <div class="relationship-hero__index-note">
-              它不是打分，而是小晴对这段关系现在有多稳、多近的一次温和估计。
+              @if (data.lastMeaningfulMomentAt) {
+                <div class="relationship-hero__last-note">
+                  最近一次我记住了我们之间的事：{{ data.lastMeaningfulMomentAt | date:"M'月'd'日'" }}
+                </div>
+              }
             </div>
           </div>
         </div>
 
         <div class="relationship-hero__support-grid">
           <article class="relationship-support-card">
-            <div class="relationship-support-card__eyebrow">Recent Shifts</div>
+            <div class="relationship-support-card__eyebrow">最近的变化</div>
             <div class="relationship-support-card__title">最近关系变化</div>
             @if (data.recentReflections.length > 0) {
               <div class="relationship-support-list">
@@ -141,8 +120,6 @@ const CATEGORY_LABELS: Record<string, string> = {
                     <div class="relationship-support-item__body">{{ reflection.summary }}</div>
                     <div class="relationship-support-item__meta">
                       <span>{{ reflection.happenedAt | date:'MM-dd HH:mm' }}</span>
-                      <span>信任 {{ deltaLabel(reflection.trustDelta) }}</span>
-                      <span>亲近 {{ deltaLabel(reflection.closenessDelta) }}</span>
                     </div>
                   </div>
                 }
@@ -155,7 +132,7 @@ const CATEGORY_LABELS: Record<string, string> = {
           </article>
 
           <article class="relationship-support-card">
-            <div class="relationship-support-card__eyebrow">Rhythm</div>
+            <div class="relationship-support-card__eyebrow">相处方式</div>
             <div class="relationship-support-card__title">现在的相处方式</div>
             @if (data.rhythmPreferences.length > 0 || data.rhythmObservations.length > 0) {
               @if (data.rhythmPreferences.length > 0) {
@@ -184,7 +161,7 @@ const CATEGORY_LABELS: Record<string, string> = {
           </article>
 
           <article class="relationship-support-card">
-            <div class="relationship-support-card__eyebrow">Shared Moments</div>
+            <div class="relationship-support-card__eyebrow">一起经历的</div>
             <div class="relationship-support-card__title">最近被记住的共同经历</div>
             @if (data.recentSharedMoments.length > 0) {
               <div class="relationship-support-list">
@@ -199,7 +176,6 @@ const CATEGORY_LABELS: Record<string, string> = {
                     <div class="relationship-support-item__body">{{ moment.summary }}</div>
                     <div class="relationship-support-item__meta">
                       <span>{{ moment.happenedAt | date:'MM-dd HH:mm' }}</span>
-                      <span>显著性 {{ significanceLabel(moment.significance) }}</span>
                     </div>
                   </div>
                 }
@@ -241,10 +217,7 @@ const CATEGORY_LABELS: Record<string, string> = {
     }
 
     .relationship-hero__content {
-      display: grid;
-      grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
-      gap: var(--space-6);
-      align-items: stretch;
+      display: block;
       padding: clamp(1.4rem, 2.6vw, 2.3rem);
       border-bottom: 1px solid color-mix(in srgb, var(--color-border) 68%, white);
     }
@@ -256,11 +229,9 @@ const CATEGORY_LABELS: Record<string, string> = {
       min-width: 0;
     }
 
-    .relationship-hero__eyebrow,
     .relationship-support-card__eyebrow {
       font-size: var(--font-size-xs);
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
+      letter-spacing: 0.04em;
       color: var(--color-text-muted);
     }
 
@@ -280,83 +251,24 @@ const CATEGORY_LABELS: Record<string, string> = {
     }
 
     .relationship-hero__stage-note,
-    .relationship-hero__index-note,
     .relationship-hero__last-note {
       font-size: var(--font-size-sm);
       line-height: 1.7;
       color: var(--color-text-secondary);
     }
 
-    .relationship-hero__summary {
-      margin: 0;
+    .relationship-hero__narrative {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
       max-width: 62ch;
+    }
+
+    .relationship-hero__narrative-text {
+      margin: 0;
       font-size: clamp(1rem, 1.6vw, 1.1rem);
       line-height: 1.85;
       color: var(--color-text);
-    }
-
-    .relationship-hero__index {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      gap: var(--space-3);
-      padding: var(--space-4);
-      border-radius: var(--radius-2xl);
-      background: color-mix(in srgb, var(--color-surface) 82%, white);
-      border: 1px solid color-mix(in srgb, var(--color-border) 68%, white);
-      min-width: 0;
-    }
-
-    .relationship-hero__index-label {
-      font-size: var(--font-size-xs);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--color-text-muted);
-    }
-
-    .relationship-hero__index-value {
-      font-size: clamp(2rem, 4vw, 3rem);
-      font-weight: var(--font-weight-semibold);
-      line-height: 1;
-      color: var(--color-text);
-    }
-
-    .relationship-hero__index-track {
-      height: 10px;
-      border-radius: 999px;
-      overflow: hidden;
-      background: color-mix(in srgb, var(--color-border) 58%, white);
-    }
-
-    .relationship-hero__index-fill {
-      display: block;
-      height: 100%;
-      border-radius: inherit;
-      background: linear-gradient(90deg, var(--relation-fill-trust), var(--relation-fill-close));
-    }
-
-    .relationship-hero__metrics {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: var(--space-3);
-    }
-
-    .relationship-hero__metric {
-      display: flex;
-      flex-direction: column;
-      gap: 0.15rem;
-      padding: var(--space-2) var(--space-3);
-      border-radius: var(--radius-xl);
-      background: color-mix(in srgb, var(--color-surface-muted) 65%, white);
-      border: 1px solid color-mix(in srgb, var(--color-border) 58%, white);
-      color: var(--color-text-secondary);
-      font-size: var(--font-size-xs);
-    }
-
-    .relationship-hero__metric strong {
-      color: var(--color-text);
-      font-size: var(--font-size-sm);
-      font-weight: var(--font-weight-semibold);
     }
 
     .relationship-hero__support-grid {
@@ -476,8 +388,6 @@ const CATEGORY_LABELS: Record<string, string> = {
 
     @media (max-width: 980px) {
       .relationship-hero__content {
-        grid-template-columns: 1fr;
-        gap: var(--space-4);
         padding: var(--space-5);
       }
     }
@@ -515,35 +425,16 @@ export class RelationOverviewComponent implements OnInit {
     return IMPACT_META[impact];
   }
 
-  protected relationIndexValue(data: RelationshipOverviewDto) {
-    return Math.round(((data.trustScore + data.closenessScore) / 2) * 100);
-  }
-
-  protected relationIndexLabel(data: RelationshipOverviewDto) {
-    return `${this.relationIndexValue(data)} / 100`;
-  }
-
-  protected defaultSummary(stage: RelationshipStage) {
-    return STAGE_META[stage].description;
-  }
-
-  protected percentValue(value: number) {
-    return `${Math.max(0, Math.min(100, Math.round(value * 100)))}`;
-  }
-
-  protected deltaLabel(value: number) {
-    if (value > 0) return `+${value.toFixed(2)}`;
-    if (value < 0) return value.toFixed(2);
-    return '0.00';
+  protected stageNarrative(data: RelationshipOverviewDto): string {
+    const stageText: Record<RelationshipStage, string> = {
+      early: '我们还在慢慢了解彼此，我会耐心留意你的习惯和偏好。',
+      familiar: '我们已经越来越熟了，我开始能更自然地接住你说的话。',
+      steady: '我们之间有了一定的默契，重要的片段我都会好好带着走。',
+    };
+    return data.summary || stageText[data.stage];
   }
 
   protected categoryLabel(moment: RelationshipMomentPreviewDto) {
     return CATEGORY_LABELS[moment.category] ?? moment.category;
-  }
-
-  protected significanceLabel(value: number) {
-    if (value >= 0.82) return '很高';
-    if (value >= 0.68) return '较高';
-    return '已记录';
   }
 }

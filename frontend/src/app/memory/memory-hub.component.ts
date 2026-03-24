@@ -1,8 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { LifeTraceBoardComponent } from '../life-trace/life-trace-board.component';
-import { PersonaConfigComponent } from '../persona/persona-config.component';
-import { CognitiveTraceBoardComponent } from '../cognitive-trace/cognitive-trace-board.component';
+import { MemoryPersonaPageComponent } from './memory-persona-page.component';
 import { MemoryRelationsPageComponent } from './memory-relations-page.component';
 import { MemoryUnderstandingPageComponent } from './memory-understanding-page.component';
 
@@ -10,9 +8,7 @@ import { MemoryUnderstandingPageComponent } from './memory-understanding-page.co
   selector: 'app-memory-hub',
   standalone: true,
   imports: [
-    LifeTraceBoardComponent,
-    PersonaConfigComponent,
-    CognitiveTraceBoardComponent,
+    MemoryPersonaPageComponent,
     MemoryRelationsPageComponent,
     MemoryUnderstandingPageComponent,
   ],
@@ -22,20 +18,12 @@ import { MemoryUnderstandingPageComponent } from './memory-understanding-page.co
         <app-memory-understanding-page />
       }
 
-      @if (currentView() === 'life-record') {
-        <app-life-trace-board />
-      }
-
-      @if (currentView() === 'cognitive-trace') {
-        <app-cognitive-trace-board />
-      }
-
       @if (currentView() === 'relations') {
         <app-memory-relations-page />
       }
 
       @if (currentView() === 'persona') {
-        <app-persona-config />
+        <app-memory-persona-page />
       }
     </div>
   `,
@@ -60,8 +48,6 @@ export class MemoryHubComponent {
   protected readonly currentView = () => {
     const url = this.router.url;
     if (url.startsWith('/memory/relations')) return 'relations';
-    if (url.startsWith('/memory/life-record')) return 'life-record';
-    if (url.startsWith('/memory/cognitive-trace')) return 'cognitive-trace';
     if (url.startsWith('/memory/persona')) return 'persona';
     return 'understanding';
   };

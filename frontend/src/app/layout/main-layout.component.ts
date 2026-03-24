@@ -24,7 +24,7 @@ type WorkspaceSubNavItem = {
 
 
 type MemorySubNavItem = {
-  value: 'understanding' | 'life-record' | 'cognitive-trace' | 'relations' | 'persona';
+  value: 'understanding' | 'relations' | 'persona';
   label: string;
   description: string;
   icon: AppIconName;
@@ -583,33 +583,21 @@ export class MainLayoutComponent {
   protected readonly memorySubNavItems: readonly MemorySubNavItem[] = [
     {
       value: 'understanding',
-      label: '认识你',
+      label: '痕迹',
       icon: 'userCircle',
-      description: '小晴对你的全部理解 — 你告知的身份设定，以及从对话中积累的长期印象与偏好模式。',
-    },
-    {
-      value: 'life-record',
-      label: '生活',
-      icon: 'footprints',
-      description: '从对话中提炼的事件、情绪与每日记录，串成可浏览的生活轨迹。',
-    },
-    {
-      value: 'cognitive-trace',
-      label: '认知',
-      icon: 'brain',
-      description: '小晴在对话中积累的认知节点 — 感知、决策、成长的观测记录。',
+      description: '你跟我说过的，和我留意到的，都放在这里。',
     },
     {
       value: 'relations',
       label: '关系',
       icon: 'heartPulse',
-      description: '你身边的人，以及你与小晴之间的信任、亲密感和共同经历。',
+      description: '我们之间的相处状态和共同经历。',
     },
     {
       value: 'persona',
-      label: '人格',
-      icon: 'sparkles',
-      description: '小晴的人格设定与进化约束，以及待审核的 AI 进化建议。',
+      label: '设置',
+      icon: 'settings',
+      description: '助手的人格设定与进化方向。',
     },
   ];
   currentPrimary(): 'chat' | 'workspace' | 'memory' {
@@ -693,16 +681,14 @@ export class MainLayoutComponent {
     }
   }
 
-  currentMemorySubnav(): 'understanding' | 'life-record' | 'cognitive-trace' | 'relations' | 'persona' {
+  currentMemorySubnav(): 'understanding' | 'relations' | 'persona' {
     const url = this.router.url;
     if (url.startsWith('/memory/relations')) return 'relations';
-    if (url.startsWith('/memory/life-record')) return 'life-record';
-    if (url.startsWith('/memory/cognitive-trace')) return 'cognitive-trace';
     if (url.startsWith('/memory/persona')) return 'persona';
     return 'understanding';
   }
 
-  selectMemorySubnav(value: 'understanding' | 'life-record' | 'cognitive-trace' | 'relations' | 'persona') {
+  selectMemorySubnav(value: 'understanding' | 'relations' | 'persona') {
     this.router.navigate([`/memory/${value}`]);
   }
 

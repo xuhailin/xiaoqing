@@ -8,6 +8,7 @@ import {
 import { ConversationService } from '../core/services/conversation.service';
 import { Subscription } from 'rxjs';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
+import { AppIconComponent, type AppIconName } from '../shared/ui/app-icon.component';
 import { AppPanelComponent } from '../shared/ui/app-panel.component';
 import { AppSectionHeaderComponent } from '../shared/ui/app-section-header.component';
 import { PersonaRuleListComponent } from './persona-rule-list.component';
@@ -33,25 +34,33 @@ const FIELD_LAYOUT: FieldEntry[] = [
 @Component({
   selector: 'app-persona-config',
   standalone: true,
-  imports: [AppButtonComponent, AppPanelComponent, AppSectionHeaderComponent, PersonaRuleListComponent],
+  imports: [
+    AppButtonComponent,
+    AppIconComponent,
+    AppPanelComponent,
+    AppSectionHeaderComponent,
+    PersonaRuleListComponent,
+  ],
   template: `
     <div class="persona-config">
       @if (persona(); as p) {
         <div class="editor-shell">
           <aside class="editor-sidebar">
+            <nav class="config-sidebar" aria-label="设置分区">
+              @for (section of configSections; track section.id) {
+                <button
+                  type="button"
+                  class="sidebar-link"
+                  [class.active]="activeSectionId() === section.id"
+                  (click)="scrollToPersonaSection(section.id)"
+                >
+                  <app-icon [name]="section.icon" size="1.1rem" class="sidebar-link__icon" />
+                  <span>{{ section.label }}</span>
+                </button>
+              }
+            </nav>
+
             <app-panel variant="subtle" class="sidebar-panel" padding="md">
-              <div class="sidebar-eyebrow">编辑导航</div>
-              <a class="sidebar-link" href="#persona-core">人格层</a>
-              <a class="sidebar-link" href="#persona-expression">表达调度</a>
-              <a class="sidebar-link" href="#persona-meta">Meta 层</a>
-              <a class="sidebar-link" href="#persona-evolution">进化约束</a>
-
-              <div class="sidebar-divider"></div>
-
-              <div class="sidebar-meta">
-                <div class="sidebar-meta__label">字段总数</div>
-                <div class="sidebar-meta__value">{{ FIELD_LAYOUT.length }}</div>
-              </div>
               <div class="sidebar-meta">
                 <div class="sidebar-meta__label">保存状态</div>
                 <div class="sidebar-meta__hint">
@@ -77,7 +86,13 @@ const FIELD_LAYOUT: FieldEntry[] = [
               <app-panel variant="warning" class="sidebar-panel" padding="md">
                 <div class="sidebar-eyebrow">待确认进化</div>
                 <div class="sidebar-meta__hint">有新的进化建议等待你确认，本页底部可以查看完整预览。</div>
-                <a class="sidebar-link sidebar-link--warning" href="#persona-pending-evolution">跳转查看</a>
+                <button
+                  type="button"
+                  class="sidebar-link sidebar-link--warning"
+                  (click)="scrollToPersonaSection('persona-pending-evolution')"
+                >
+                  跳转查看
+                </button>
               </app-panel>
             }
           </aside>
@@ -289,8 +304,9 @@ const FIELD_LAYOUT: FieldEntry[] = [
 
     .editor-shell {
       display: grid;
-      grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
-      gap: var(--workbench-section-gap);
+      grid-template-columns: 220px minmax(0, 1fr);
+      gap: var(--space-6);
+      min-height: 0;
       align-items: start;
     }
 
@@ -300,6 +316,16 @@ const FIELD_LAYOUT: FieldEntry[] = [
       display: flex;
       flex-direction: column;
       gap: var(--space-3);
+    }
+
+    .config-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+      padding: var(--space-2);
+      border-radius: var(--radius-lg);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border-light);
     }
 
     .sidebar-panel,
@@ -319,23 +345,42 @@ const FIELD_LAYOUT: FieldEntry[] = [
       letter-spacing: 0.08em;
     }
 
+    button.sidebar-link {
+      font-family: inherit;
+      width: 100%;
+      text-align: left;
+    }
+
     .sidebar-link {
-      display: block;
-      padding: var(--space-2) var(--space-3);
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
       border-radius: var(--radius-md);
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-weight-medium);
       color: var(--color-text-secondary);
-      background: var(--color-surface-highlight);
-      border: 1px solid transparent;
       text-decoration: none;
-      transition:
-        border-color var(--transition-fast),
-        color var(--transition-fast),
-        background var(--transition-fast);
+      transition: all var(--transition-base);
+      border: 1px solid transparent;
+      cursor: pointer;
+      background: transparent;
     }
 
     .sidebar-link:hover {
+      background: var(--color-surface-hover);
       color: var(--color-text);
-      border-color: var(--color-surface-highlight-border);
+    }
+
+    .sidebar-link.active {
+      background: var(--color-surface-highlight);
+      color: var(--color-text);
+      border-color: var(--color-border);
+      font-weight: var(--font-weight-semibold);
+    }
+
+    .sidebar-link__icon {
+      flex-shrink: 0;
     }
 
     .sidebar-link--warning {
@@ -344,9 +389,9 @@ const FIELD_LAYOUT: FieldEntry[] = [
       border-color: var(--color-warning-soft-border);
     }
 
-    .sidebar-divider {
-      height: 1px;
-      background: var(--color-border-light);
+    .sidebar-link--warning:hover {
+      color: var(--color-warning-soft-text);
+      filter: brightness(0.97);
     }
 
     .sidebar-meta {
@@ -630,6 +675,14 @@ const FIELD_LAYOUT: FieldEntry[] = [
 })
 export class PersonaConfigComponent implements OnInit, OnDestroy {
   protected readonly FIELD_LAYOUT = FIELD_LAYOUT;
+  protected readonly configSections: readonly { id: string; label: string; icon: AppIconName }[] = [
+    { id: 'persona-core', label: '人格层', icon: 'sparkles' },
+    { id: 'persona-expression', label: '表达调度', icon: 'chatBubble' },
+    { id: 'persona-meta', label: 'Meta 层', icon: 'layers' },
+    { id: 'persona-evolution', label: '进化约束', icon: 'chartLine' },
+  ];
+  protected readonly activeSectionId = signal<string>('persona-core');
+
   private personaService = inject(PersonaService);
   private conversationService = inject(ConversationService);
   private refreshSub?: Subscription;
@@ -672,6 +725,11 @@ export class PersonaConfigComponent implements OnInit, OnDestroy {
 
   setField(key: string, value: string) {
     this.fieldValues.set({ ...this.fieldValues(), [key]: value });
+  }
+
+  scrollToPersonaSection(id: string): void {
+    this.activeSectionId.set(id);
+    globalThis.document?.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   async save() {

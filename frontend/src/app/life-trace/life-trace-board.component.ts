@@ -467,7 +467,7 @@ export class LifeTraceBoardComponent implements OnInit {
       this.dayPointCache.set({});
       this.dayDetailLoading.set(false);
       this.dayDetailError.set('');
-      this.errorMessage.set('LifeTrace 数据加载失败，请确认后端服务已启动，且相关接口可访问。');
+      this.errorMessage.set('生活轨迹数据加载失败，请确认后端服务已启动。');
     } finally {
       this.loading.set(false);
     }

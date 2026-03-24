@@ -31,7 +31,7 @@ export class MemoryListComponent implements OnInit {
   editContent = signal('');
   saving = signal(false);
   deletingMemoryId = signal<string | null>(null);
-  typeFilter = signal<'all' | 'mid' | 'long' | 'pending'>('all');
+  typeFilter = signal<'all' | 'mid' | 'long' | 'pending'>('long');
   categoryFilter = signal<'all' | 'judgment_pattern' | 'value_priority' | 'rhythm_pattern'>('all');
   contextMenuMemoryId = signal<string | null>(null);
   contextMenuPos = signal({ x: 0, y: 0 });
@@ -41,15 +41,15 @@ export class MemoryListComponent implements OnInit {
   processingId = signal<string | null>(null);
   protected readonly typeTabs: AppTabItem[] = [
     { value: 'all', label: '全部' },
-    { value: 'mid', label: '阶段' },
-    { value: 'long', label: '长期' },
+    { value: 'mid', label: '最近留意到的' },
+    { value: 'long', label: '一直记着的' },
     { value: 'pending', label: '待确认' },
   ];
   protected readonly categoryTabs: AppTabItem[] = [
-    { value: 'all', label: '全部认知' },
-    { value: 'judgment_pattern', label: '判断模式' },
-    { value: 'value_priority', label: '价值排序' },
-    { value: 'rhythm_pattern', label: '关系节奏' },
+    { value: 'all', label: '全部' },
+    { value: 'judgment_pattern', label: '你的决策习惯' },
+    { value: 'value_priority', label: '你重视的' },
+    { value: 'rhythm_pattern', label: '我们的节奏' },
   ];
 
   async ngOnInit() {
@@ -137,14 +137,25 @@ export class MemoryListComponent implements OnInit {
   }
 
   getGrowthTypeLabel(type: string) {
-    return type === 'cognitive_profile' ? '认知画像' : '关系状态';
+    return type === 'cognitive_profile' ? '关于你的新发现' : '关系变化';
   }
 
   getGrowthKindLabel(kind?: string) {
-    if (kind === 'decision_pattern') return '决策模式';
-    if (kind === 'thinking_pattern') return '思维模式';
-    if (kind === 'support_preference') return '支持偏好';
-    return kind ?? '';
+    const MAP: Record<string, string> = {
+      decision_pattern: '决策方式',
+      thinking_pattern: '思考习惯',
+      support_preference: '支持偏好',
+    };
+    return MAP[kind ?? ''] ?? '';
+  }
+
+  getGrowthStageLabel(stage: string): string {
+    const MAP: Record<string, string> = {
+      early: '刚开始',
+      familiar: '越来越熟',
+      steady: '稳定了',
+    };
+    return MAP[stage] ?? stage;
   }
 
   select(m: Memory) {
@@ -199,23 +210,25 @@ export class MemoryListComponent implements OnInit {
   }
 
   getCategoryLabel(category?: string) {
-    if (category === 'judgment_pattern') return '判断模式';
-    if (category === 'value_priority') return '价值排序';
-    if (category === 'rhythm_pattern') return '关系节奏';
-    if (category === 'shared_fact') return '共识事实';
-    if (category === 'commitment') return '约定';
-    if (category === 'correction') return '纠错';
-    if (category === 'soft_preference') return '软偏好';
-    if (category === 'identity_anchor') return '身份锚定';
-    return '一般';
+    const MAP: Record<string, string> = {
+      judgment_pattern: '决策习惯',
+      value_priority: '你重视的',
+      rhythm_pattern: '节奏',
+      shared_fact: '共识',
+      commitment: '约定',
+      correction: '纠正',
+      soft_preference: '小习惯',
+      identity_anchor: '身份',
+      general: '留意到的',
+    };
+    return MAP[category ?? ''] ?? '留意到的';
   }
 
   getTypeLabel(type: 'mid' | 'long') {
-    return type === 'mid' ? '阶段' : '长期';
+    return type === 'mid' ? '最近留意到的' : '一直记着的';
   }
 
-  getConfidencePercent(value?: number) {
-    const normalized = Math.max(0, Math.min(1, value ?? 0));
-    return `${Math.round(normalized * 100)}%`;
+  sourceDialogCount(ids?: string[]) {
+    return (ids ?? []).length;
   }
 }
