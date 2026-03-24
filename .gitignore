@@ -17,3 +17,6 @@ backend/.sessions/checkin.json
 .playwright-cli/
 /output/
 
+### Local dev data (e.g. DevAgent transcript dumps)
+data/
+
