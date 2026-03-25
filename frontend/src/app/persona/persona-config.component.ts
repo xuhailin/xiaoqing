@@ -11,7 +11,8 @@ import { AppButtonComponent } from '../shared/ui/app-button.component';
 import { AppIconComponent, type AppIconName } from '../shared/ui/app-icon.component';
 import { AppPanelComponent } from '../shared/ui/app-panel.component';
 import { AppSectionHeaderComponent } from '../shared/ui/app-section-header.component';
-import { PersonaRuleListComponent } from './persona-rule-list.component';
+import { UserProfileService, type UserProfileDto } from '../core/services/user-profile.service';
+import type { PersonaSlotDto } from '../core/services/persona.service';
 
 interface FieldEntry {
   key: string;
@@ -26,6 +27,7 @@ const FIELD_LAYOUT: FieldEntry[] = [
   { key: 'personality', label: '性格特质', hint: '描述稳定的性格基调，而不是某次对话里的短期情绪。', group: 'persona', rows: 6 },
   { key: 'valueBoundary', label: '价值边界', hint: '写下始终坚持的判断标准、偏向和底线。', group: 'persona', rows: 8 },
   { key: 'behaviorForbidden', label: '行为禁止项', hint: '明确哪些表达和行为不应该出现在小晴身上。', group: 'persona', rows: 5 },
+  { key: 'expressionRules', label: '表达纪律', hint: '直接控制表达风格（说法、节奏、留白、何时停）。', group: 'expression', rows: 7 },
   { key: 'metaFilterPolicy', label: 'Meta 过滤规则', hint: '放系统级的表达过滤，不承载具体人格内容。', group: 'meta', rows: 3 },
   { key: 'evolutionAllowed', label: '允许的进化方向', hint: '只写可以被长期证据推动的变化方向。', group: 'evolution', rows: 3 },
   { key: 'evolutionForbidden', label: '禁止的进化', hint: '明确哪些变化即使有短期信号也不应发生。', group: 'evolution', rows: 3 },
@@ -39,7 +41,6 @@ const FIELD_LAYOUT: FieldEntry[] = [
     AppIconComponent,
     AppPanelComponent,
     AppSectionHeaderComponent,
-    PersonaRuleListComponent,
   ],
   template: `
     <div class="persona-config">
@@ -75,6 +76,41 @@ const FIELD_LAYOUT: FieldEntry[] = [
               <app-button type="button" variant="primary" size="sm" [stretch]="true" (click)="save()" [disabled]="saving()">
                 {{ saving() ? '保存中...' : '保存全部' }}
               </app-button>
+            </app-panel>
+
+            <app-panel variant="subtle" class="sidebar-panel" padding="md">
+              <div class="sidebar-meta">
+                <div class="sidebar-meta__label">人格切换</div>
+                <div class="sidebar-meta__hint">决定当前“默认人格”，并影响对话注入。</div>
+              </div>
+
+              <div class="persona-switch">
+                @for (slot of personaSlots(); track slot.personaKey) {
+                  <app-button
+                    variant="ghost"
+                    size="sm"
+                    [stretch]="true"
+                    type="button"
+                    (click)="switchPersona(slot.personaKey)"
+                    [disabled]="selectedPersonaKey() === slot.personaKey"
+                  >
+                    {{ getPersonaLabel(slot) }}
+                  </app-button>
+                }
+              </div>
+
+              <div class="persona-switch__actions">
+                <app-button
+                  variant="primary"
+                  size="sm"
+                  [stretch]="true"
+                  type="button"
+                  (click)="createPersona()"
+                  [disabled]="creatingPersona()"
+                >
+                  新建人格
+                </app-button>
+              </div>
             </app-panel>
 
             <app-panel variant="soft" class="sidebar-panel sidebar-note" padding="md">
@@ -131,7 +167,25 @@ const FIELD_LAYOUT: FieldEntry[] = [
                   title="表达调度层"
                   description="决定小晴怎么说、如何适应当下对话，以及什么时候保留留白。"
                 />
-                <app-persona-rule-list />
+                <div class="field-stack">
+                  @for (f of expressionFields; track f.key) {
+                    <label class="field-card">
+                      <span class="field-card__header">
+                        <span class="group-label">{{ f.label }}</span>
+                        <span class="field-hint">{{ f.hint }}</span>
+                      </span>
+                      <textarea
+                        [rows]="f.rows"
+                        [value]="fieldValues()[f.key]"
+                        (input)="setField(f.key, $any($event.target).value)"
+                        [placeholder]="f.label"
+                      ></textarea>
+                    </label>
+                  }
+                </div>
+                <p class="expression-note">
+                  当前表达纪律以 <code>persona.expressionRules</code> 为注入来源；如果你把它置空，系统才会回退到结构化表达规则。
+                </p>
               </app-panel>
             </section>
 
@@ -648,6 +702,24 @@ const FIELD_LAYOUT: FieldEntry[] = [
       font-size: var(--font-size-xs);
     }
 
+    .expression-note {
+      margin-top: var(--space-2);
+      font-size: var(--font-size-sm);
+      color: var(--color-text-secondary);
+      line-height: var(--line-height-base);
+    }
+
+    .persona-switch {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      margin-top: var(--space-3);
+    }
+
+    .persona-switch__actions {
+      margin-top: var(--space-3);
+    }
+
     .rule-draft-row {
       margin-top: var(--space-2);
       padding-top: var(--space-2);
@@ -685,10 +757,14 @@ export class PersonaConfigComponent implements OnInit, OnDestroy {
 
   private personaService = inject(PersonaService);
   private conversationService = inject(ConversationService);
+  private userProfileService = inject(UserProfileService);
   private refreshSub?: Subscription;
 
   persona = signal<PersonaDto | null>(null);
   fieldValues = signal<Record<string, string>>({});
+  personaSlots = signal<PersonaSlotDto[]>([]);
+  selectedPersonaKey = signal<string>('default');
+  creatingPersona = signal(false);
   saving = signal(false);
   saveMsg = signal('');
   pendingEvolution = signal<{ changes: EvolutionChange[]; triggerReason: string; createdAt: string } | null>(null);
@@ -696,11 +772,18 @@ export class PersonaConfigComponent implements OnInit, OnDestroy {
   evolving = signal(false);
 
   personaFields = FIELD_LAYOUT.filter((f) => f.group === 'persona');
+  expressionFields = FIELD_LAYOUT.filter((f) => f.group === 'expression');
   metaFields = FIELD_LAYOUT.filter((f) => f.group === 'meta');
   evolutionFields = FIELD_LAYOUT.filter((f) => f.group === 'evolution');
 
   async ngOnInit() {
-    const p = await this.personaService.get().toPromise();
+    const profile = await this.userProfileService.get().toPromise();
+    this.selectedPersonaKey.set(profile?.preferredPersonaKey || 'default');
+
+    const slots = await this.personaService.getActiveSlots().toPromise();
+    this.personaSlots.set(slots ?? []);
+
+    const p = await this.personaService.get(this.selectedPersonaKey()).toPromise();
     if (p) {
       this.persona.set(p);
       this.fieldValues.set({
@@ -708,11 +791,17 @@ export class PersonaConfigComponent implements OnInit, OnDestroy {
         personality: p.personality,
         valueBoundary: p.valueBoundary,
         behaviorForbidden: p.behaviorForbidden,
+        expressionRules: p.expressionRules,
         metaFilterPolicy: p.metaFilterPolicy,
         evolutionAllowed: p.evolutionAllowed,
         evolutionForbidden: p.evolutionForbidden,
-        });
+      });
     }
+
+    // 创建新 personaKey 时列表可能落后；这里再刷新一次兜底。
+    const slots2 = await this.personaService.getActiveSlots().toPromise();
+    this.personaSlots.set(slots2 ?? []);
+
     await this.loadPendingEvolution();
     this.refreshSub = this.conversationService.refreshList$.subscribe(() => {
       this.loadPendingEvolution();
@@ -732,6 +821,67 @@ export class PersonaConfigComponent implements OnInit, OnDestroy {
     globalThis.document?.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  private async reloadPersonaForKey(personaKey: string) {
+    const p = await this.personaService.get(personaKey).toPromise();
+    if (!p) return;
+    this.persona.set(p);
+    this.fieldValues.set({
+      identity: p.identity,
+      personality: p.personality,
+      valueBoundary: p.valueBoundary,
+      behaviorForbidden: p.behaviorForbidden,
+      expressionRules: p.expressionRules,
+      metaFilterPolicy: p.metaFilterPolicy,
+      evolutionAllowed: p.evolutionAllowed,
+      evolutionForbidden: p.evolutionForbidden,
+    });
+  }
+
+  getPersonaLabel(slot: PersonaSlotDto): string {
+    const line = slot.identity
+      ?.split('\n')
+      .map((s) => s.trim())
+      .find((s) => !!s);
+    return line || slot.personaKey;
+  }
+
+  async switchPersona(personaKey: string) {
+    if (!personaKey?.trim() || this.selectedPersonaKey() === personaKey) return;
+    try {
+      await this.userProfileService.update({ preferredPersonaKey: personaKey }).toPromise();
+      this.selectedPersonaKey.set(personaKey);
+      await this.reloadPersonaForKey(personaKey);
+      await this.loadPendingEvolution();
+    } catch {
+      // 静默失败：避免打断配置页编辑；用户可稍后重试
+    }
+  }
+
+  async createPersona() {
+    if (this.creatingPersona()) return;
+    this.creatingPersona.set(true);
+    try {
+      const created = await this.personaService
+        .createPersonaSlot({ basePersonaKey: this.selectedPersonaKey() })
+        .toPromise();
+
+      if (!created?.personaKey) return;
+
+      await this.userProfileService.update({ preferredPersonaKey: created.personaKey }).toPromise();
+      this.selectedPersonaKey.set(created.personaKey);
+
+      const slots = await this.personaService.getActiveSlots().toPromise();
+      this.personaSlots.set(slots ?? []);
+
+      await this.reloadPersonaForKey(created.personaKey);
+      await this.loadPendingEvolution();
+    } catch {
+      // ignore
+    } finally {
+      this.creatingPersona.set(false);
+    }
+  }
+
   async save() {
     this.saving.set(true);
     this.saveMsg.set('');
@@ -743,10 +893,11 @@ export class PersonaConfigComponent implements OnInit, OnDestroy {
           personality: vals['personality'],
           valueBoundary: vals['valueBoundary'],
           behaviorForbidden: vals['behaviorForbidden'],
+          expressionRules: vals['expressionRules'],
           metaFilterPolicy: vals['metaFilterPolicy'],
           evolutionAllowed: vals['evolutionAllowed'],
           evolutionForbidden: vals['evolutionForbidden'],
-        })
+        }, this.selectedPersonaKey())
         .toPromise();
       if (updated) this.persona.set(updated);
       this.saveMsg.set('已保存');

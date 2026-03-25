@@ -8,6 +8,8 @@ import { GeneralActionSkillModule } from './skills/general-action/general-action
 import { TimesheetSkillModule } from './skills/timesheet/timesheet-skill.module';
 import { ReminderSkillModule } from './skills/reminder/reminder-skill.module';
 import { CheckinSkillModule } from './skills/checkin/checkin-skill.module';
+import { PageScreenshotSkillModule } from './skills/page-screenshot/page-screenshot-skill.module';
+import { PageScreenshotSkillService } from './skills/page-screenshot/page-screenshot-skill.service';
 import { WeatherSkillService } from './skills/weather/weather-skill.service';
 import { BookDownloadSkillService } from './skills/book-download/book-download-skill.service';
 import { GeneralActionSkillService } from './skills/general-action/general-action-skill.service';
@@ -44,6 +46,7 @@ import { CapabilityChainExecutor } from './capability-chain-executor.service';
     TimesheetSkillModule,
     ReminderSkillModule,
     CheckinSkillModule,
+    PageScreenshotSkillModule,
     LocalSkillModule,
     OpenClawModule,
   ],
@@ -60,6 +63,7 @@ export class ActionModule implements OnModuleInit {
     private readonly reminder: ReminderSkillService,
     private readonly checkin: CheckinSkillService,
     private readonly readonlyFileCapability: ReadonlyFileCapabilityService,
+    private readonly pageScreenshot: PageScreenshotSkillService,
   ) {}
 
   onModuleInit() {
@@ -70,5 +74,6 @@ export class ActionModule implements OnModuleInit {
     this.registry.register(this.reminder);
     this.registry.register(this.checkin);
     this.registry.register(this.readonlyFileCapability);
+    this.registry.register(this.pageScreenshot);
   }
 }

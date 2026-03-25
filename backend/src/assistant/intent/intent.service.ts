@@ -157,6 +157,7 @@ export class IntentService {
         'set_reminder',
         'checkin',
         'device_screenshot',
+        'page_screenshot',
       ]);
 
     // 兼容旧字段 toolNeed，避免模型短期内输出旧结构导致行为跳变。
@@ -268,7 +269,7 @@ export class IntentService {
 
     const validIntents: DialogueTaskIntent[] = [
       'none', 'weather_query', 'book_download', 'general_tool',
-      'timesheet', 'dev_task', 'set_reminder', 'checkin', 'device_screenshot',
+      'timesheet', 'dev_task', 'set_reminder', 'checkin', 'device_screenshot', 'page_screenshot',
     ];
 
     return raw
@@ -454,6 +455,13 @@ export class IntentService {
     if (typeof input.reminderTarget === 'string' && input.reminderTarget.trim()) {
       slots.reminderTarget = input.reminderTarget.trim();
     }
+    // 网页截图槽位
+    if (typeof input.screenshotUrl === 'string' && input.screenshotUrl.trim()) {
+      slots.screenshotUrl = input.screenshotUrl.trim();
+    }
+    if (typeof input.screenshotSelector === 'string' && input.screenshotSelector.trim()) {
+      slots.screenshotSelector = input.screenshotSelector.trim();
+    }
     // location 仅存坐标串，不把城市名写入
     const locRaw = typeof input.location === 'string' ? input.location.trim() : '';
     if (locRaw && IntentService.COORD_REGEX.test(locRaw)) {
@@ -473,6 +481,12 @@ export class IntentService {
     slots: DialogueIntentState['slots'],
   ): string[] {
     const set = new Set(missingParams.map((item) => item.trim()).filter(Boolean));
+
+    if (taskIntent === 'page_screenshot') {
+      if (!slots.screenshotUrl) {
+        set.add('screenshotUrl');
+      }
+    }
 
     if (taskIntent === 'set_reminder') {
       const action = slots.reminderAction ?? 'create';

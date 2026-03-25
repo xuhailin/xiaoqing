@@ -22,9 +22,14 @@ export class NotifyDispatchStrategy implements IPlanDispatchStrategy {
 
   async dispatch(plan: Plan, occurrence: TaskOccurrence): Promise<{ resultRef?: string; resultPayload?: Record<string, unknown> }> {
     if (!this.reminderMessageService) {
-      this.logger.warn(`ReminderMessageService not injected, skipping notify for plan=${plan.id}`);
-      return {};
+      const errMsg = `ReminderMessageService not injected, cannot dispatch notify for plan=${plan.id}`;
+      this.logger.error(errMsg);
+      throw new Error(errMsg);
     }
+
+    this.logger.log(
+      `Notify dispatch starting: planId=${plan.id}, conversationId=${plan.conversationId}, sessionId=${plan.sessionId}`,
+    );
 
     await this.reminderMessageService.deliverChatReminder({
       id: plan.id,

@@ -25,7 +25,7 @@ import {
           <p class="eyebrow">QA / Replay</p>
           <h1>回归日志</h1>
           <p class="hero-copy">
-            这里直接读取最新的固定回归和真实回放报告，方便在前端界面里看通过率、失败点和逐轮执行日志。
+            读取核心门禁（小晴基本能力）、代理门禁（DevAgent 等，更耗 token）与真实回放报告，查看通过率、失败点与逐轮日志。
           </p>
         </div>
         <button class="refresh-btn" (click)="load()">刷新报告</button>
@@ -44,7 +44,7 @@ import {
             (click)="selectedMode.set(card.mode)"
           >
             <div class="mode-head">
-              <span class="mode-title">{{ card.mode === 'gate' ? '固定回归' : '真实回放' }}</span>
+              <span class="mode-title">{{ modeCardTitle(card.mode) }}</span>
               <span class="mode-updated">
                 @if (card.updatedAt) {
                   {{ card.updatedAt | date:'MM-dd HH:mm:ss' }}
@@ -53,6 +53,9 @@ import {
                 }
               </span>
             </div>
+            @if (card.mode === 'gate-agents') {
+              <p class="mode-hint">耗时与 token 较高，建议按需手动运行。</p>
+            }
 
             <div class="mode-actions">
               @if (card.runState; as runState) {
@@ -70,7 +73,7 @@ import {
                 } @else if (isRunActive(card.runState)) {
                   运行中
                 } @else {
-                  {{ card.mode === 'gate' ? '运行固定回归' : '运行真实回放' }}
+                  {{ modeRunButtonLabel(card.mode) }}
                 }
               </button>
             </div>
@@ -92,7 +95,7 @@ import {
       <section class="console-panel">
         <div class="console-head">
           <div>
-            <p class="console-title">{{ selectedMode() === 'gate' ? '固定回归运行台' : '真实回放运行台' }}</p>
+            <p class="console-title">{{ consolePanelTitle() }}</p>
             <p class="console-subtitle">
               @if (currentRunState(); as runState) {
                 状态：{{ runStatusLabel(runState.status) }}
@@ -253,7 +256,7 @@ import {
           }
         </section>
       } @else if (!loading()) {
-        <div class="empty-state">还没有可展示的最新报告，先运行一次 qa:gate 或 qa:replay 就会出现在这里。</div>
+        <div class="empty-state">还没有可展示的最新报告，先运行 qa:gate、qa:gate-agents 或 qa:replay 即可生成。</div>
       }
     </div>
   `,
@@ -352,6 +355,13 @@ import {
 
     .mode-title {
       font-weight: 700;
+    }
+
+    .mode-hint {
+      margin: 8px 0 0;
+      font-size: var(--font-size-sm);
+      color: var(--color-text-muted);
+      line-height: 1.45;
     }
 
     .mode-actions {
@@ -831,24 +841,31 @@ export class RegressionReportsComponent implements OnDestroy {
   protected readonly actionLoading = signal<RegressionReportMode | null>(null);
   protected readonly diagnosingScenarioId = signal<string | null>(null);
   protected readonly error = signal<string | null>(null);
-  protected readonly selectedMode = signal<'gate' | 'replay'>('gate');
+  protected readonly selectedMode = signal<RegressionReportMode>('gate');
   protected readonly reports = signal<RegressionLatestReportsResponse | null>(null);
   protected readonly runStates = signal<RegressionRunStatesResponse | null>(null);
   protected readonly currentEnvelope = computed(() => {
     const reports = this.reports();
     if (!reports) return null;
-    return this.selectedMode() === 'gate' ? reports.gate : reports.replay;
+    const mode = this.selectedMode();
+    if (mode === 'gate') return reports.gate;
+    if (mode === 'gate-agents') return reports.gateAgents;
+    return reports.replay;
   });
   protected readonly currentRunState = computed(() => {
     const states = this.runStates();
     if (!states) return null;
-    return this.selectedMode() === 'gate' ? states.gate : states.replay;
+    const mode = this.selectedMode();
+    if (mode === 'gate') return states.gate;
+    if (mode === 'gate-agents') return states.gateAgents;
+    return states.replay;
   });
   protected readonly reportCards = computed(() => {
     const reports = this.reports();
     const states = this.runStates();
     return [
       buildCard('gate', reports?.gate ?? null, states?.gate ?? null),
+      buildCard('gate-agents', reports?.gateAgents ?? null, states?.gateAgents ?? null),
       buildCard('replay', reports?.replay ?? null, states?.replay ?? null),
     ];
   });
@@ -941,6 +958,39 @@ export class RegressionReportsComponent implements OnDestroy {
     return values.length > 0 ? values.join(', ') : '-';
   }
 
+  protected modeCardTitle(mode: RegressionReportMode): string {
+    switch (mode) {
+      case 'gate':
+        return '小晴基本能力';
+      case 'gate-agents':
+        return '代理能力（DevAgent）';
+      case 'replay':
+        return '真实回放';
+    }
+  }
+
+  protected modeRunButtonLabel(mode: RegressionReportMode): string {
+    switch (mode) {
+      case 'gate':
+        return '运行基本能力门禁';
+      case 'gate-agents':
+        return '运行代理能力门禁';
+      case 'replay':
+        return '运行真实回放';
+    }
+  }
+
+  protected consolePanelTitle(): string {
+    switch (this.selectedMode()) {
+      case 'gate':
+        return '基本能力门禁 · 运行台';
+      case 'gate-agents':
+        return '代理能力门禁 · 运行台';
+      case 'replay':
+        return '真实回放 · 运行台';
+    }
+  }
+
   protected runStatusLabel(status: RegressionRunState['status']) {
     switch (status) {
       case 'starting':
@@ -979,6 +1029,7 @@ export class RegressionReportsComponent implements OnDestroy {
       const current = this.runStates();
       this.runStates.set({
         gate: mode === 'gate' ? state : (current?.gate ?? createEmptyRunState('gate')),
+        gateAgents: mode === 'gate-agents' ? state : (current?.gateAgents ?? createEmptyRunState('gate-agents')),
         replay: mode === 'replay' ? state : (current?.replay ?? createEmptyRunState('replay')),
       });
       this.selectedMode.set(mode);

@@ -1,33 +1,29 @@
 import { Component, Input, signal } from '@angular/core';
 import { ToolResultMessage } from '../dev-agent.view-model';
-import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
 
 @Component({
   selector: 'app-tool-result-message',
   standalone: true,
-  imports: [AppBadgeComponent],
+  imports: [],
   template: `
-    <article class="tool-result">
-      <button type="button" class="result-head" (click)="toggleExpanded()">
-        <div>
-          <div class="label-row">
-            <span class="kind">Result</span>
-            <strong>{{ message.tool }}</strong>
-          </div>
-          <div class="summary">{{ message.summary }}</div>
-        </div>
-        <div class="head-right">
-          <app-badge [tone]="statusTone(message.status)" [caps]="true" size="sm">
-            {{ statusLabel(message.status) }}
-          </app-badge>
-          @if (hasDetail()) {
-            <span class="toggle">{{ expanded() ? '收起' : '展开' }}</span>
-          }
-        </div>
+    <article class="step-row" [class.failed]="message.status === 'failed'">
+      <button type="button" class="head" (click)="toggleExpanded()">
+        <span class="kind">Result</span>
+        <strong class="tool-name">{{ message.tool }}</strong>
+        <span class="summary">{{ message.summary }}</span>
+        @if (message.status === 'failed') {
+          <span class="status-failed">FAILED</span>
+        }
+        @if (hasDetail()) {
+          <span class="toggle">{{ expanded() ? '收起' : '展开' }}</span>
+        }
       </button>
 
       @if (expanded() && hasDetail()) {
         <div class="detail">
+          @if (message.command) {
+            <code class="command">{{ message.command }}</code>
+          }
           @if (message.meta.length) {
             <div class="meta">
               @for (item of message.meta; track item) {
@@ -46,92 +42,115 @@ import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
     </article>
   `,
   styles: [`
-    .tool-result {
-      border: 1px solid var(--color-workbench-border);
-      border-radius: var(--workbench-card-radius);
-      background: var(--dev-agent-tool-result-bg);
-      overflow: hidden;
-      box-shadow: var(--chat-panel-shadow);
-    }
-
-    .result-head {
-      width: 100%;
-      border: none;
+    .step-row {
+      border-left: 2px solid var(--color-border-light);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
       background: transparent;
-      padding: 0.625rem 0.875rem;
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: var(--space-3);
-      text-align: left;
-      cursor: pointer;
-      font-family: var(--font-family);
+      overflow: hidden;
     }
 
-    .label-row {
+    .step-row.failed {
+      border-left-color: var(--color-error-border);
+    }
+
+    .head {
+      width: 100%;
       display: flex;
       align-items: center;
       gap: var(--space-2);
-      font-size: var(--font-size-sm);
-      color: var(--color-text);
+      padding: 5px var(--space-3);
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      text-align: left;
+      font-family: var(--font-family);
+      font-size: var(--font-size-xs);
+      color: var(--color-text-muted);
+      overflow: hidden;
     }
 
     .kind {
       font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      color: var(--color-text-muted);
+      flex-shrink: 0;
+      opacity: 0.7;
+    }
+
+    .tool-name {
+      font-weight: var(--font-weight-medium);
+      color: var(--color-text-secondary);
+      flex-shrink: 0;
     }
 
     .summary {
-      margin-top: 4px;
-      font-size: var(--font-size-sm);
-      color: var(--color-text-secondary);
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
     }
 
-    .head-right {
-      display: flex;
-      align-items: center;
-      gap: var(--space-2);
+    .status-failed {
+      font-size: 10px;
+      font-weight: var(--font-weight-medium);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--color-error);
+      flex-shrink: 0;
     }
 
     .toggle {
-      font-size: var(--font-size-xs);
-      color: var(--color-text-secondary);
+      font-size: 10px;
+      color: var(--color-text-muted);
+      flex-shrink: 0;
+      text-decoration: underline;
+      text-underline-offset: 2px;
     }
 
     .detail {
+      padding: var(--space-2) var(--space-3) var(--space-3);
       border-top: 1px solid var(--color-border-light);
-      background: var(--dev-agent-tool-result-detail-bg);
-      padding: 0.75rem 0.875rem 0.875rem;
+      background: var(--color-surface-muted);
       display: flex;
       flex-direction: column;
-      gap: 0.625rem;
+      gap: var(--space-2);
+    }
+
+    .command {
+      display: block;
+      white-space: pre-wrap;
+      word-break: break-all;
+      font-size: var(--font-size-xs);
+      color: var(--color-workbench-muted);
+      background: var(--dev-agent-tool-code-bg);
+      border-radius: var(--radius-sm);
+      padding: var(--space-2) var(--space-3);
     }
 
     .meta {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: var(--space-2);
     }
 
     .meta span {
-      font-size: 11px;
+      font-size: var(--font-size-xxs);
       color: var(--color-text-secondary);
-      background: var(--dev-agent-tool-result-meta-bg);
-      border-radius: 999px;
-      padding: 4px 8px;
+      background: var(--color-surface-muted);
+      border-radius: var(--radius-pill);
+      padding: 3px var(--space-2);
       border: 1px solid var(--color-border-light);
     }
 
     pre {
       margin: 0;
-      padding: 0.75rem 0.875rem;
-      border-radius: 12px;
-      background: var(--dev-agent-tool-result-detail-bg);
+      padding: var(--space-2) var(--space-3);
+      border-radius: var(--radius-sm);
+      background: var(--color-surface-muted);
       border: 1px solid var(--color-workbench-border);
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 12px;
+      font-size: var(--font-size-xxs);
       line-height: 1.6;
       white-space: pre-wrap;
       word-break: break-word;
@@ -151,7 +170,7 @@ export class ToolResultMessageComponent {
   readonly expanded = signal(false);
 
   hasDetail(): boolean {
-    return !!this.message.body || !!this.message.error || this.message.meta.length > 0;
+    return !!this.message.command || !!this.message.body || !!this.message.error || this.message.meta.length > 0;
   }
 
   toggleExpanded() {
@@ -161,15 +180,4 @@ export class ToolResultMessageComponent {
     this.expanded.update((value) => !value);
   }
 
-  statusLabel(status: ToolResultMessage['status']): string {
-    if (status === 'running') return 'Running';
-    if (status === 'success') return 'Success';
-    return 'Failed';
-  }
-
-  statusTone(status: ToolResultMessage['status']) {
-    if (status === 'running') return 'warning';
-    if (status === 'success') return 'success';
-    return 'danger';
-  }
 }

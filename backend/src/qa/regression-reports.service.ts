@@ -3,19 +3,20 @@ import { readFile, stat } from 'fs/promises';
 import { resolve } from 'path';
 import { resolveQaRoot } from './regression.paths';
 
-export type RegressionReportMode = 'gate' | 'replay';
+export type RegressionReportMode = 'gate' | 'gate-agents' | 'replay';
 
 @Injectable()
 export class RegressionReportsService {
   private readonly latestDir = resolve(resolveQaRoot(process.cwd()), 'reports', 'latest');
 
   async readLatestReports() {
-    const [gate, replay] = await Promise.all([
+    const [gate, gateAgents, replay] = await Promise.all([
       this.readLatestReport('gate'),
+      this.readLatestReport('gate-agents'),
       this.readLatestReport('replay'),
     ]);
 
-    return { gate, replay };
+    return { gate, gateAgents, replay };
   }
 
   async readLatestReport(mode: RegressionReportMode) {

@@ -25,7 +25,7 @@ export class DevTaskPlanner {
     const response = await this.llm.generate([
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
-    ], { scenario: 'dev' });
+    ], { scenario: 'devPlanner' });
     const parsed = this.parser.parse(response, goal);
     return this.normalizer.normalize(parsed, goal);
   }

@@ -1,10 +1,26 @@
 export type DesignPageType = 'chat' | 'workbench' | 'memory';
 export type DesignPreset = 'warm-tech' | 'serious-workbench' | 'quiet-personal';
+
+/** 前端页面注册表条目（project-pages.yaml） */
+export interface ProjectPage {
+  name: string;
+  route: string;
+  pageType: DesignPageType;
+  preset: DesignPreset;
+  componentPath: string;
+  aliases: string[];
+}
 export type DesignAuditStatus = 'pass' | 'needs_refine' | 'needs_structure_change' | 'blocked';
 export type DesignFindingSeverity = 'high' | 'medium' | 'low';
 
 /** 审查模式：code=只审代码, visual=只看截图, full=两者合并 */
 export type DesignAuditMode = 'code' | 'visual' | 'full';
+
+/** 设计对话消息角色 */
+export type DesignMessageRole = 'user' | 'assistant' | 'system';
+
+/** 设计对话状态 */
+export type DesignConversationStatus = 'active' | 'completed' | 'archived';
 
 const PAGE_TYPE_PRESET_MAP: Record<DesignPageType, DesignPreset> = {
   chat: 'warm-tech',
@@ -103,4 +119,119 @@ export interface RunDesignAuditResult {
   actualMode: DesignAuditMode;
   durationMs: number;
   costUsd: number;
+}
+
+// ── 对话相关类型 ────────────────────────────────
+
+/** 图片输入 */
+export interface DesignImageInput {
+  /** base64 编码的图片数据（不含 data:image/xxx;base64, 前缀） */
+  base64: string;
+  /** 图片 MIME 类型 */
+  mimeType: 'image/png' | 'image/jpeg' | 'image/webp';
+  /** 用户标注/说明 */
+  annotation?: string;
+}
+
+/** Design Agent 编排器 / 意图分类器共用的用户意图 */
+export type DesignUserIntent =
+  | {
+      type: 'audit_page';
+      pageName: string;
+      pageType: DesignPageType;
+      pageUrl?: string | null;
+      preset?: DesignPreset;
+    }
+  | { type: 'describe_issue'; description: string }
+  | { type: 'upload_screenshot'; images: DesignImageInput[] }
+  | { type: 'confirm_changes'; changeIds?: string[]; notes?: string }
+  | { type: 'request_modification'; description: string }
+  | { type: 'ask_question'; question: string }
+  | { type: 'unknown'; raw: string };
+
+/** 设计对话消息 */
+export interface DesignConversationMessage {
+  id: string;
+  conversationId: string;
+  role: DesignMessageRole;
+  content: string;
+  metadata?: {
+    /** 用户上传的图片 */
+    images?: DesignImageInput[];
+    /** 审查结果 */
+    auditResult?: DesignAuditResult;
+    /** 修改方案 */
+    proposedChanges?: ProposedChange[];
+    /** 执行结果 */
+    executionResult?: {
+      success: boolean;
+      changedFiles: string[];
+      error?: string;
+    };
+  };
+  createdAt: Date;
+}
+
+/** 修改方案 */
+export interface ProposedChange {
+  filePath: string;
+  changeType: 'edit' | 'create' | 'delete';
+  description: string;
+  diff?: string;
+}
+
+/** 创建对话请求 */
+export interface CreateDesignConversationRequest {
+  title?: string;
+  pageName?: string;
+  pageType?: DesignPageType;
+  pageUrl?: string;
+  preset?: DesignPreset;
+  workspaceRoot?: string;
+}
+
+/** 发送消息请求 */
+export interface SendDesignMessageRequest {
+  content: string;
+  /** 用户上传的图片 */
+  images?: DesignImageInput[];
+  /** 审查参数（首次审查时使用） */
+  auditParams?: {
+    pageName: string;
+    pageType: DesignPageType;
+    mode?: DesignAuditMode;
+    targetFiles?: string[];
+  };
+}
+
+/** 对话响应 */
+export interface DesignConversationResponse {
+  id: string;
+  title?: string;
+  status: DesignConversationStatus;
+  pageName?: string;
+  pageType?: string;
+  pageUrl?: string;
+  preset?: string;
+  workspaceRoot?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  messages: DesignConversationMessage[];
+}
+
+/** 修改执行请求 */
+export interface ApplyChangesRequest {
+  conversationId: string;
+  /** 确认要应用的修改 IDs（来自 assistant 消息的 proposedChanges） */
+  changeIds?: string[];
+  /** 用户额外说明 */
+  notes?: string;
+}
+
+/** 修改执行结果 */
+export interface ApplyChangesResult {
+  success: boolean;
+  changedFiles: string[];
+  error?: string;
+  newMessageId?: string;
 }

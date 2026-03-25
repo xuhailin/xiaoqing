@@ -21,6 +21,21 @@ export class TracePointService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  /** 统计 trace points 数量（用于列表页/统计条） */
+  async count(q: TracePointQuery): Promise<number> {
+    const where: Record<string, unknown> = {};
+
+    if (q.conversationId) where.conversationId = q.conversationId;
+    if (q.kind) where.kind = q.kind;
+
+    const dateFilter: Record<string, Date> = {};
+    if (q.since) dateFilter.gte = q.since;
+    if (q.until) dateFilter.lte = q.until;
+    if (Object.keys(dateFilter).length > 0) (where as any).createdAt = dateFilter;
+
+    return this.prisma.tracePoint.count({ where: where as any });
+  }
+
   async save(
     conversationId: string,
     sourceMessageId: string,

@@ -1,10 +1,46 @@
-import { AfterViewChecked, Component, ElementRef, Input, ViewChild } from '@angular/core';
-import { DevChatMessage } from '../dev-agent.view-model';
+import { AfterViewChecked, Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core';
+import {
+  AssistantMessage,
+  DevChatMessage,
+  ToolCallMessage,
+  ToolResultMessage,
+  UserMessage,
+} from '../dev-agent.view-model';
 import { UserMessageComponent } from './user-message.component';
 import { AssistantMessageComponent } from './assistant-message.component';
-import { ToolCallMessageComponent } from './tool-call-message.component';
-import { ToolResultMessageComponent } from './tool-result-message.component';
+import { RunExecutionBlockComponent } from './run-execution-block.component';
 import { AppStateComponent } from '../../shared/ui/app-state.component';
+
+interface RunGroup {
+  id: string;
+  userMessage: UserMessage | null;
+  progressMessage: AssistantMessage | null;
+  steps: (ToolCallMessage | ToolResultMessage)[];
+  summaryMessage: AssistantMessage | null;
+}
+
+function groupRunMessages(messages: DevChatMessage[]): RunGroup[] {
+  const groups: RunGroup[] = [];
+  let current: RunGroup | null = null;
+
+  for (const msg of messages) {
+    if (msg.kind === 'user') {
+      if (current) groups.push(current);
+      current = { id: msg.id, userMessage: msg, progressMessage: null, steps: [], summaryMessage: null };
+    } else if (msg.kind === 'assistant' && msg.tone === 'progress') {
+      if (!current) current = { id: msg.id, userMessage: null, progressMessage: null, steps: [], summaryMessage: null };
+      current.progressMessage = msg;
+    } else if (msg.kind === 'tool-call' || msg.kind === 'tool-result') {
+      if (!current) current = { id: msg.id, userMessage: null, progressMessage: null, steps: [], summaryMessage: null };
+      current.steps.push(msg);
+    } else if (msg.kind === 'assistant' && msg.tone === 'summary') {
+      if (!current) current = { id: msg.id, userMessage: null, progressMessage: null, steps: [], summaryMessage: null };
+      current.summaryMessage = msg;
+    }
+  }
+  if (current) groups.push(current);
+  return groups;
+}
 
 @Component({
   selector: 'app-chat-message-list',
@@ -12,8 +48,7 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
   imports: [
     UserMessageComponent,
     AssistantMessageComponent,
-    ToolCallMessageComponent,
-    ToolResultMessageComponent,
+    RunExecutionBlockComponent,
     AppStateComponent,
   ],
   template: `
@@ -21,23 +56,26 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       @if (!messages.length) {
         <app-state
           title="新的开发 Session"
-          description="先在下方输入你的开发任务，右侧会按 User、Assistant、Tool、Result 的顺序展开执行过程。"
+          description="在下方输入你的开发任务，小晴会实时显示执行进度并在完成后给出回复。"
         />
       } @else {
-        @for (message of messages; track message.id) {
-          @switch (message.kind) {
-            @case ('user') {
-              <app-user-message [message]="message" />
-            }
-            @case ('assistant') {
-              <app-assistant-message [message]="message" />
-            }
-            @case ('tool-call') {
-              <app-tool-call-message [message]="message" />
-            }
-            @case ('tool-result') {
-              <app-tool-result-message [message]="message" />
-            }
+        @for (group of runGroups; track group.id) {
+          @if (group.userMessage) {
+            <app-user-message [message]="group.userMessage" />
+          }
+          @if (group.progressMessage || group.steps.length) {
+            <app-run-execution-block
+              [progressMessage]="group.progressMessage"
+              [steps]="group.steps"
+              [isRunning]="isGroupRunning(group)"
+            />
+          }
+          @if (group.summaryMessage) {
+            <app-assistant-message
+              [message]="group.summaryMessage"
+              [canRetry]="group.summaryMessage.id === retryMessageId"
+              (retryClick)="retry.emit()"
+            />
           }
         }
       }
@@ -63,15 +101,47 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
 })
 export class ChatMessageListComponent implements AfterViewChecked {
   @Input() messages: DevChatMessage[] = [];
+  @Input() canRetry = false;
+  @Output() retry = new EventEmitter<void>();
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef<HTMLElement>;
 
-  private lastMessageCount = 0;
+  protected get runGroups(): RunGroup[] {
+    return groupRunMessages(this.messages);
+  }
+
+  protected isGroupRunning(group: RunGroup): boolean {
+    if (group.progressMessage?.status === 'running') return true;
+    return group.steps.at(-1)?.status === 'running';
+  }
+
+  get retryMessageId(): string | null {
+    if (!this.canRetry || !this.messages.length) return null;
+    const last = this.messages[this.messages.length - 1];
+    if (last.kind !== 'assistant' || last.tone !== 'summary' || last.status !== 'failed') return null;
+    return last.id;
+  }
+
+  private lastMessagesSignature = '';
 
   ngAfterViewChecked() {
-    if (this.messages.length !== this.lastMessageCount) {
-      this.lastMessageCount = this.messages.length;
+    const currentSignature = this.messageSignature();
+    if (currentSignature !== this.lastMessagesSignature) {
+      this.lastMessagesSignature = currentSignature;
       this.scrollToBottom();
     }
+  }
+
+  private messageSignature(): string {
+    if (!this.messages.length) {
+      return 'empty';
+    }
+    const last = this.messages[this.messages.length - 1];
+    const content = 'text' in last
+      ? last.text
+      : 'summary' in last
+        ? last.summary
+        : '';
+    return `${this.messages.length}:${last.id}:${last.status ?? 'none'}:${content}`;
   }
 
   private scrollToBottom() {

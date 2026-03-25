@@ -70,19 +70,20 @@ export class TurnContextAssembler {
     recentRounds: number;
     collaborationContext?: CollaborationTurnContext | null;
   }): Promise<TurnContext> {
-    const [recentRaw, personaDto, profile, anchors, storedWorldState, growthContext, systemSelf] = await Promise.all([
+    const [recentRaw, profile, anchors, storedWorldState, growthContext, systemSelf] = await Promise.all([
       this.prisma.message.findMany({
         where: { conversationId: input.conversationId },
         orderBy: { createdAt: 'desc' },
         take: Math.max(0, input.recentRounds) * 2,
       }),
-      this.persona.getOrCreate(),
       this.userProfile.getOrCreate(),
       this.identityAnchor.getActiveAnchors(),
       this.worldState.get(input.conversationId),
       this.cognitiveGrowth.getGrowthContext(),
       this.systemSelf.getSystemSelf('chat'),
     ]);
+
+    const personaDto = await this.persona.getOrCreate(profile.preferredPersonaKey);
 
     const recentMessages = recentRaw.reverse().map((m) => ({ role: m.role, content: m.content }));
     const anchorText = this.identityAnchor.buildAnchorText(anchors);
@@ -134,11 +135,9 @@ export class TurnContextAssembler {
     const resolvedIntent = intentCtx.mergedIntentState ?? intentCtx.intentState;
     const actionDecision = this.actionReasoner.decide(resolvedIntent ?? null, input.userInput);
 
-    const fromRules = await this.personaRules.buildExpressionPrompt();
-    const expressionFields =
-      fromRules != null
-        ? { expressionRules: fromRules }
-        : this.persona.getExpressionFields(personaDto);
+    const personaExpressionFields = this.persona.getExpressionFields(personaDto);
+    const fromRules = personaExpressionFields.expressionRules.trim() ? null : await this.personaRules.buildExpressionPrompt();
+    const expressionFields = fromRules != null ? { expressionRules: fromRules } : personaExpressionFields;
 
     return {
       request: {
@@ -190,19 +189,20 @@ export class TurnContextAssembler {
     recentRounds: number;
     collaborationContext?: CollaborationTurnContext | null;
   }): Promise<TurnContext> {
-    const [recentRaw, personaDto, profile, anchors, storedWorldState, growthContext, systemSelf] = await Promise.all([
+    const [recentRaw, profile, anchors, storedWorldState, growthContext, systemSelf] = await Promise.all([
       this.prisma.message.findMany({
         where: { conversationId: input.conversationId },
         orderBy: { createdAt: 'desc' },
         take: Math.max(0, input.recentRounds) * 2,
       }),
-      this.persona.getOrCreate(),
       this.userProfile.getOrCreate(),
       this.identityAnchor.getActiveAnchors(),
       this.worldState.get(input.conversationId),
       this.cognitiveGrowth.getGrowthContext(),
       this.systemSelf.getSystemSelf('chat'),
     ]);
+
+    const personaDto = await this.persona.getOrCreate(profile.preferredPersonaKey);
 
     const recentMessages = recentRaw.reverse().map((m) => ({ role: m.role, content: m.content }));
     const anchorText = this.identityAnchor.buildAnchorText(anchors);
@@ -213,11 +213,11 @@ export class TurnContextAssembler {
 
     const preferredNickname = await this.readPreferredNickname();
 
-    const fromRulesFb = await this.personaRules.buildExpressionPrompt();
-    const expressionFieldsFb =
-      fromRulesFb != null
-        ? { expressionRules: fromRulesFb }
-        : this.persona.getExpressionFields(personaDto);
+    const personaExpressionFieldsFb = this.persona.getExpressionFields(personaDto);
+    const fromRulesFb = personaExpressionFieldsFb.expressionRules.trim()
+      ? null
+      : await this.personaRules.buildExpressionPrompt();
+    const expressionFieldsFb = fromRulesFb != null ? { expressionRules: fromRulesFb } : personaExpressionFieldsFb;
 
     return {
       request: { ...input },

@@ -1,13 +1,106 @@
-import { Body, Controller, Post, BadRequestException } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Delete, BadRequestException, NotFoundException } from '@nestjs/common';
 import { DesignAgentService } from './design-agent.service';
-import type { DesignAuditRequest, DesignPageType, DesignAuditMode } from './design-agent.types';
+import { DesignConversationService } from './design-conversation.service';
+import { DesignOrchestratorService } from './design-orchestrator.service';
+import type { DesignAuditRequest, DesignPageType, DesignAuditMode, CreateDesignConversationRequest, SendDesignMessageRequest } from './design-agent.types';
 
 const VALID_PAGE_TYPES: DesignPageType[] = ['chat', 'workbench', 'memory'];
 const VALID_MODES: DesignAuditMode[] = ['code', 'visual', 'full'];
 
 @Controller('design-agent')
 export class DesignAgentController {
-  constructor(private readonly designAgent: DesignAgentService) {}
+  constructor(
+    private readonly designAgent: DesignAgentService,
+    private readonly conversation: DesignConversationService,
+    private readonly orchestrator: DesignOrchestratorService,
+  ) {}
+
+  // ── 对话 API ────────────────────────────────────
+
+  /**
+   * POST /design-agent/conversations
+   * 创建新的设计审查对话
+   */
+  @Post('conversations')
+  async createConversation(
+    @Body() body: CreateDesignConversationRequest & { initialMessage?: string },
+  ) {
+    return this.orchestrator.startConversation(body);
+  }
+
+  /**
+   * GET /design-agent/conversations
+   * 获取对话列表
+   */
+  @Get('conversations')
+  async listConversations() {
+    return this.conversation.listConversations('default-user');
+  }
+
+  /**
+   * GET /design-agent/conversations/:id
+   * 获取对话详情
+   */
+  @Get('conversations/:id')
+  async getConversation(@Param('id') id: string) {
+    const conversation = await this.conversation.getConversation(id);
+    if (!conversation) {
+      throw new NotFoundException(`Conversation ${id} not found`);
+    }
+    return conversation;
+  }
+
+  /**
+   * POST /design-agent/conversations/:id/messages
+   * 发送消息到对话
+   */
+  @Post('conversations/:id/messages')
+  async sendMessage(
+    @Param('id') conversationId: string,
+    @Body() body: SendDesignMessageRequest,
+  ) {
+    if (!body.content?.trim() && !body.images?.length) {
+      throw new BadRequestException('content or images is required');
+    }
+
+    return this.orchestrator.sendMessage(conversationId, body);
+  }
+
+  /**
+   * POST /design-agent/conversations/:id/apply
+   * 应用修改
+   */
+  @Post('conversations/:id/apply')
+  async applyChanges(
+    @Param('id') conversationId: string,
+    @Body() body: { changeIds?: string[]; notes?: string },
+  ) {
+    return this.orchestrator.applyChanges(conversationId, body.changeIds, body.notes);
+  }
+
+  /**
+   * POST /design-agent/conversations/:id/preview
+   * 预览修改（生成 diff）
+   */
+  @Post('conversations/:id/preview')
+  async previewChanges(
+    @Param('id') conversationId: string,
+    @Body() body: { changeIds?: string[] },
+  ) {
+    return this.orchestrator.previewChanges(conversationId, body.changeIds);
+  }
+
+  /**
+   * DELETE /design-agent/conversations/:id
+   * 删除对话
+   */
+  @Delete('conversations/:id')
+  async deleteConversation(@Param('id') id: string) {
+    await this.conversation.deleteConversation(id);
+    return { success: true };
+  }
+
+  // ── 原有审查 API（保留向后兼容）────────────────────────
 
   /**
    * POST /design-agent/audits

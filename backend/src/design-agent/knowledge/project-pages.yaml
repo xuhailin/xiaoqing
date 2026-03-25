@@ -1,0 +1,242 @@
+# sync-source: frontend/src/app/app.routes.ts
+# 当前项目前端页面注册表。Design Agent 用此文件解析用户提到的页面名。
+# 路由新增/删除时同步更新此文件。
+
+pages:
+  - name: chat-main
+    route: /chat
+    pageType: chat
+    preset: warm-tech
+    componentPath: frontend/src/app/chat
+    aliases:
+      - chat
+      - 聊天
+      - 对话
+      - 主聊天
+
+  - name: design-agent-page
+    route: /design-agent
+    pageType: workbench
+    preset: serious-workbench
+    componentPath: frontend/src/app/design-agent
+    aliases:
+      - design-agent
+      - designagent
+      - 设计审查
+      - 设计agent
+      - 审查工具
+
+  - name: workspace-home
+    route: /workspace
+    pageType: workbench
+    preset: serious-workbench
+    componentPath: frontend/src/app/workspace/workbench-page.component.ts
+    aliases:
+      - workspace
+      - 工作台
+      - workbench
+      - 工作区
+
+  - name: workspace-dev-agent
+    route: /workspace/dev-agent
+    pageType: workbench
+    preset: serious-workbench
+    componentPath: frontend/src/app/dev-agent
+    aliases:
+      - dev-agent
+      - devagent
+      - 开发助手
+      - 开发agent
+      - dev
+
+  - name: workspace-reminder
+    route: /workspace/reminder
+    pageType: workbench
+    preset: serious-workbench
+    componentPath: frontend/src/app/workspace/workspace-reminder.component.ts
+    aliases:
+      - reminder
+      - 提醒
+      - 日程
+      - 提醒页
+
+  - name: workspace-plan
+    route: /workspace/plan
+    pageType: workbench
+    preset: serious-workbench
+    componentPath: frontend/src/app/workspace/workspace-plan.component.ts
+    aliases:
+      - plan
+      - 计划
+      - 规划
+      - 计划页
+
+  - name: workspace-ideas
+    route: /workspace/ideas
+    pageType: workbench
+    preset: serious-workbench
+    componentPath: frontend/src/app/workspace/workspace-idea.component.ts
+    aliases:
+      - ideas
+      - idea
+      - 想法
+      - 创意
+      - 灵感
+
+  - name: workspace-todos
+    route: /workspace/todos
+    pageType: workbench
+    preset: serious-workbench
+    componentPath: frontend/src/app/workspace/workspace-todo.component.ts
+    aliases:
+      - todos
+      - todo
+      - 待办
+      - 任务
+
+  - name: workspace-execution
+    route: /workspace/execution
+    pageType: workbench
+    preset: serious-workbench
+    componentPath: frontend/src/app/workspace/workspace-task-records.component.ts
+    aliases:
+      - execution
+      - task-records
+      - 执行记录
+      - 任务记录
+
+  - name: workspace-regression
+    route: /workspace/regression
+    pageType: workbench
+    preset: serious-workbench
+    componentPath: frontend/src/app/regression
+    aliases:
+      - regression
+      - 回归
+      - 回归测试
+
+  - name: memory-shell
+    route: /memory
+    pageType: memory
+    preset: quiet-personal
+    componentPath: frontend/src/app/memory
+    aliases:
+      - memory
+      - 记忆
+      - memory-hub
+      - 记忆中枢
+
+  - name: memory-identity
+    route: /memory/identity
+    pageType: memory
+    preset: quiet-personal
+    componentPath: frontend/src/app/memory/pages/identity-anchor-page.component.ts
+    aliases:
+      - identity
+      - 身份
+      - 身份锚定
+      - understanding
+      - 记忆理解
+      - profile
+      - persona
+      - 人格
+      - 人设
+
+  - name: memory-preference
+    route: /memory/preference
+    pageType: memory
+    preset: quiet-personal
+    componentPath: frontend/src/app/memory/pages/user-preference-page.component.ts
+    aliases:
+      - preference
+      - 偏好
+      - 用户偏好
+
+  - name: memory-soft-preference
+    route: /memory/soft-preference
+    pageType: memory
+    preset: quiet-personal
+    componentPath: frontend/src/app/memory/pages/soft-preference-page.component.ts
+    aliases:
+      - soft-preference
+      - 软偏好
+
+  - name: memory-cognitive
+    route: /memory/cognitive
+    pageType: memory
+    preset: quiet-personal
+    componentPath: frontend/src/app/memory/pages/cognitive-profile-page.component.ts
+    aliases:
+      - cognitive
+      - 长期认知
+      - cognitive-trace
+
+  - name: memory-shared-fact
+    route: /memory/shared-fact
+    pageType: memory
+    preset: quiet-personal
+    componentPath: frontend/src/app/memory/pages/shared-fact-page.component.ts
+    aliases:
+      - shared-fact
+      - 共识事实
+      - fact
+
+  - name: memory-commitment
+    route: /memory/commitment
+    pageType: memory
+    preset: quiet-personal
+    componentPath: frontend/src/app/memory/pages/commitment-page.component.ts
+    aliases:
+      - commitment
+      - 承诺
+      - 承诺感知
+
+  - name: memory-world-state
+    route: /memory/world-state
+    pageType: memory
+    preset: quiet-personal
+    componentPath: frontend/src/app/memory/pages/world-state-page.component.ts
+    aliases:
+      - world-state
+      - 世界状态
+
+  - name: memory-pending
+    route: /memory/pending
+    pageType: memory
+    preset: quiet-personal
+    componentPath: frontend/src/app/memory/pages/pending-confirm-page.component.ts
+    aliases:
+      - pending
+      - 待确认
+
+  - name: memory-life-trace
+    route: /memory/life-trace
+    pageType: memory
+    preset: quiet-personal
+    componentPath: frontend/src/app/memory/pages/life-trace-page.component.ts
+    aliases:
+      - life-trace
+      - 生活轨迹
+      - life-record
+
+  - name: memory-social
+    route: /memory/social
+    pageType: memory
+    preset: quiet-personal
+    componentPath: frontend/src/app/memory/pages/social-relation-page.component.ts
+    aliases:
+      - social
+      - relations
+      - 关系
+      - 关系图谱
+      - 人际
+      - 社会关系
+
+  - name: settings
+    route: /settings
+    pageType: workbench
+    preset: serious-workbench
+    componentPath: frontend/src/app/settings/settings.component.ts
+    aliases:
+      - settings
+      - 设置

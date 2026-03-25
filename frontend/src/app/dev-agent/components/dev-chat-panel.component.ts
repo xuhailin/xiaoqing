@@ -1,27 +1,24 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
-import { ChatInputComponent } from './chat-input.component';
+import { AppMessageComposerComponent } from '../../shared/ui/app-message-composer.component';
 import { ChatMessageListComponent } from './chat-message-list.component';
 import { DevChatMessage, DevChatRunState } from '../dev-agent.view-model';
 import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
 import { AppButtonComponent } from '../../shared/ui/app-button.component';
 import { AppIconComponent } from '../../shared/ui/app-icon.component';
-import { AppPanelComponent } from '../../shared/ui/app-panel.component';
 
 @Component({
   selector: 'app-dev-chat-panel',
   standalone: true,
   imports: [
     ChatMessageListComponent,
-    ChatInputComponent,
+    AppMessageComposerComponent,
     AppBadgeComponent,
     AppButtonComponent,
     AppIconComponent,
-    AppPanelComponent,
   ],
   template: `
-    <app-panel variant="workbench" padding="none" class="dev-chat-panel">
-      <div class="dev-chat-panel__body">
-        <header class="chat-header">
+    <div class="dev-chat-panel">
+      <header class="chat-header">
           <div class="header-left">
             <app-button variant="ghost" size="sm" class="back-btn" (click)="back.emit()">
               <app-icon name="arrowLeft" size="0.9rem" />
@@ -50,6 +47,7 @@ import { AppPanelComponent } from '../../shared/ui/app-panel.component';
             @if (runState) {
               <app-badge
                 class="status-badge"
+                [class.status-badge--running]="runState.status === 'running'"
                 [tone]="statusTone(runState.status)"
                 [caps]="true"
               >
@@ -70,16 +68,15 @@ import { AppPanelComponent } from '../../shared/ui/app-panel.component';
           </div>
         </header>
 
-        <app-chat-message-list [messages]="messages" />
+        <app-chat-message-list [messages]="messages" [canRetry]="canRerun" (retry)="rerun.emit()" />
 
-        <app-chat-input
+        <app-message-composer
           [taskInput]="taskInput"
           [sending]="sending"
           (taskInputChange)="taskInputChange.emit($event)"
           (submit)="submit.emit()"
         />
-      </div>
-    </app-panel>
+    </div>
   `,
   styles: [`
     :host {
@@ -89,14 +86,6 @@ import { AppPanelComponent } from '../../shared/ui/app-panel.component';
     }
 
     .dev-chat-panel {
-      height: 100%;
-      min-height: 0;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-
-    .dev-chat-panel__body {
       height: 100%;
       min-height: 0;
       display: flex;
@@ -170,6 +159,20 @@ import { AppPanelComponent } from '../../shared/ui/app-panel.component';
       align-items: center;
       gap: var(--space-2);
       flex-shrink: 0;
+    }
+
+    .status-badge--running {
+      animation: status-pulse 1.2s ease-in-out infinite;
+    }
+
+    @keyframes status-pulse {
+      0%, 100% {
+        transform: translateZ(0);
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.72;
+      }
     }
 
     @media (max-width: 900px) {

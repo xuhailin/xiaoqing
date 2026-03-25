@@ -26,6 +26,23 @@ export class TracePointController {
     });
   }
 
+  /** 统计 trace points 数量（跨会话） */
+  @Get('count')
+  async count(
+    @Query('since') since?: string,
+    @Query('until') until?: string,
+    @Query('kind') kind?: string,
+    @Query('conversationId') conversationId?: string,
+  ) {
+    const total = await this.tracePointService.count({
+      conversationId,
+      since: since ? new Date(since) : undefined,
+      until: until ? new Date(until) : undefined,
+      kind: kind as TracePointKind | undefined,
+    });
+    return { total };
+  }
+
   /** 按会话查询 */
   @Get('conversation/:conversationId')
   async queryByConversation(

@@ -4,7 +4,7 @@ import { AppButtonComponent } from '../shared/ui/app-button.component';
 import { AppIconComponent, type AppIconName } from '../shared/ui/app-icon.component';
 import { XiaoqingAvatarComponent } from '../shared/ui/xiaoqing-avatar.component';
 import { ThemeService } from '../core/services/theme.service';
-import { MemoryDesignAuditBarComponent } from '../design-agent/memory-design-audit-bar.component';
+import { PageActionsService } from '../core/services/page-actions.service';
 
 type ChatSubNavItem = {
   value: 'chat' | 'design-agent' | 'dev-agent' | 'xiaoqin';
@@ -24,7 +24,7 @@ type WorkspaceSubNavItem = {
 
 
 type MemorySubNavItem = {
-  value: 'understanding' | 'relations' | 'persona';
+  value: 'understanding' | 'relations' | 'settings';
   label: string;
   description: string;
   icon: AppIconName;
@@ -39,7 +39,6 @@ type MemorySubNavItem = {
     AppButtonComponent,
     AppIconComponent,
     XiaoqingAvatarComponent,
-    MemoryDesignAuditBarComponent,
   ],
   template: `
     <div class="app-shell">
@@ -160,12 +159,32 @@ type MemorySubNavItem = {
               }
 
               <div class="app-subnav__meta">
-                @if (currentPrimary() === 'memory') {
-                  <app-memory-design-audit-bar [memoryTab]="currentMemorySubnav()" />
-                }
                 @if (currentPageHeader(); as header) {
-                  <div class="app-subnav__title">{{ header.title }}</div>
-                  <div class="app-subnav__description">{{ header.description }}</div>
+                  <div class="app-subnav__header">
+                    <span class="app-subnav__title">{{ header.title }}</span>
+                    <span class="app-subnav__description">{{ header.description }}</span>
+                  </div>
+                }
+                @if (pageActions.actions().length > 0) {
+                  <div class="app-subnav__actions">
+                    @for (action of pageActions.actions(); track action.id) {
+                      @if (action.separatorBefore) {
+                        <span class="app-subnav__sep" aria-hidden="true"></span>
+                      }
+                      <app-button
+                        [variant]="action.variant ?? 'ghost'"
+                        size="sm"
+                        [disabled]="typeof action.disabled === 'function' ? action.disabled() : (action.disabled ?? false)"
+                        [title]="action.title ?? ''"
+                        (click)="action.onClick()"
+                      >
+                        @if (action.icon) {
+                          <app-icon [name]="action.icon" size="0.85rem" />
+                        }
+                        <span>{{ action.label }}</span>
+                      </app-button>
+                    }
+                  </div>
                 }
               </div>
             </div>
@@ -413,9 +432,16 @@ type MemorySubNavItem = {
 
       .app-subnav__meta {
         margin-left: auto;
-        flex: 0 1 32rem;
+        flex: 0 1 auto;
         min-width: 0;
         text-align: right;
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+        align-items: flex-end;
+      }
+
+      .app-subnav__header {
         display: flex;
         flex-direction: column;
         gap: 0.2rem;
@@ -433,6 +459,20 @@ type MemorySubNavItem = {
         color: var(--color-text-secondary);
         line-height: 1.5;
         white-space: normal;
+      }
+
+      .app-subnav__actions {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        margin-top: var(--space-1);
+      }
+
+      .app-subnav__sep {
+        width: 1px;
+        height: 1rem;
+        background: var(--color-border-light);
+        margin: 0 var(--space-1);
       }
 
       .app-main__content {
@@ -509,6 +549,11 @@ type MemorySubNavItem = {
           margin-left: 0;
           flex: 1 1 auto;
           text-align: left;
+          align-items: flex-start;
+        }
+
+        .app-subnav__actions {
+          flex-wrap: wrap;
         }
       }
     `,
@@ -517,6 +562,7 @@ type MemorySubNavItem = {
 export class MainLayoutComponent {
   private readonly router = inject(Router);
   protected readonly themeService = inject(ThemeService);
+  protected readonly pageActions = inject(PageActionsService);
   protected readonly mainNavItems = [
     { value: 'chat', label: '对话', hint: '会话与陪伴', icon: 'message' as const },
     { value: 'workspace', label: '工作台', hint: '收纳与执行', icon: 'layoutTemplate' as const },
@@ -594,10 +640,10 @@ export class MainLayoutComponent {
       description: '我们之间的相处状态和共同经历。',
     },
     {
-      value: 'persona',
+      value: 'settings',
       label: '设置',
       icon: 'settings',
-      description: '助手的人格设定与进化方向。',
+      description: '身份锚定、用户偏好与长期认知设置。',
     },
   ];
   currentPrimary(): 'chat' | 'workspace' | 'memory' {
@@ -681,15 +727,23 @@ export class MainLayoutComponent {
     }
   }
 
-  currentMemorySubnav(): 'understanding' | 'relations' | 'persona' {
+  currentMemorySubnav(): 'understanding' | 'relations' | 'settings' {
     const url = this.router.url;
     if (url.startsWith('/memory/relations')) return 'relations';
-    if (url.startsWith('/memory/persona')) return 'persona';
+    if (url.startsWith('/memory/settings')) return 'settings';
     return 'understanding';
   }
 
-  selectMemorySubnav(value: 'understanding' | 'relations' | 'persona') {
-    this.router.navigate([`/memory/${value}`]);
+  selectMemorySubnav(value: 'understanding' | 'relations' | 'settings') {
+    if (value === 'understanding') {
+      this.router.navigate(['/memory/trace']);
+      return;
+    }
+    if (value === 'relations') {
+      this.router.navigate(['/memory/relations']);
+      return;
+    }
+    this.router.navigate(['/memory/settings']);
   }
 
   currentPageHeader(): { title: string; description: string } {

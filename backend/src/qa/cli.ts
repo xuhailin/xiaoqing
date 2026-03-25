@@ -19,7 +19,7 @@ import type {
 } from './regression.types';
 
 interface CliOptions {
-  mode: 'gate' | 'replay' | 'all';
+  mode: 'gate' | 'gate-agents' | 'replay' | 'all';
   scenarioIds: string[];
   cleanup: boolean;
   skipSoftJudge: boolean;
@@ -146,7 +146,7 @@ function parseArgs(argv: string[]): CliOptions {
   for (const arg of argv) {
     if (arg.startsWith('--mode=')) {
       const value = arg.slice('--mode='.length);
-      if (value === 'gate' || value === 'replay' || value === 'all') {
+      if (value === 'gate' || value === 'gate-agents' || value === 'replay' || value === 'all') {
         options.mode = value;
       }
       continue;

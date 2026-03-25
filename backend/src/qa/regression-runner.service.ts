@@ -34,11 +34,12 @@ export class RegressionRunService {
   constructor(private readonly reports: RegressionReportsService) {}
 
   async getAllStatuses() {
-    const [gate, replay] = await Promise.all([
+    const [gate, gateAgents, replay] = await Promise.all([
       this.getStatus('gate'),
+      this.getStatus('gate-agents'),
       this.getStatus('replay'),
     ]);
-    return { gate, replay };
+    return { gate, gateAgents, replay };
   }
 
   async getStatus(mode: RegressionReportMode) {
@@ -62,7 +63,9 @@ export class RegressionRunService {
 
     const command = mode === 'gate'
       ? ['npm', 'run', 'qa:gate']
-      : ['npm', 'run', 'qa:replay'];
+      : mode === 'gate-agents'
+        ? ['npm', 'run', 'qa:gate-agents']
+        : ['npm', 'run', 'qa:replay'];
     const state: RegressionRunState = {
       mode,
       status: 'starting',
@@ -148,10 +151,15 @@ export class RegressionRunService {
   }
 
   private createIdleState(mode: RegressionReportMode): RegressionRunState {
+    const command = mode === 'gate'
+      ? ['npm', 'run', 'qa:gate']
+      : mode === 'gate-agents'
+        ? ['npm', 'run', 'qa:gate-agents']
+        : ['npm', 'run', 'qa:replay'];
     return {
       mode,
       status: 'idle',
-      command: mode === 'gate' ? ['npm', 'run', 'qa:gate'] : ['npm', 'run', 'qa:replay'],
+      command,
       pid: null,
       startedAt: null,
       finishedAt: null,

@@ -1,19 +1,15 @@
-import { NgTemplateOutlet } from '@angular/common';
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
-import { IdeaApiService, type IdeaRecord, type IdeaStatus } from '../core/services/idea.service';
+import { IdeaApiService, type IdeaRecord } from '../core/services/idea.service';
 import { PlanApiService, type TaskOccurrenceRecord } from '../core/services/plan.service';
 import { SystemOverviewService } from '../core/services/system-overview.service';
 import { TodoApiService, type TodoRecord, type TodoStatus } from '../core/services/todo.service';
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
 import { AppIconComponent } from '../shared/ui/app-icon.component';
-import { AppPageHeaderComponent } from '../shared/ui/app-page-header.component';
 import { AppPanelComponent } from '../shared/ui/app-panel.component';
-import { AppSectionHeaderComponent } from '../shared/ui/app-section-header.component';
-import { AppStateComponent } from '../shared/ui/app-state.component';
 import {
   WorkspaceRelationSummaryComponent,
   type WorkspaceRelationSummaryItem,
@@ -57,25 +53,17 @@ type OverlayMode = 'schedule' | 'logs' | null;
   standalone: true,
   imports: [
     FormsModule,
-    NgTemplateOutlet,
     AppBadgeComponent,
     AppButtonComponent,
     AppIconComponent,
-    AppPageHeaderComponent,
     AppPanelComponent,
-    AppSectionHeaderComponent,
-    AppStateComponent,
     WorkspaceRelationSummaryComponent,
   ],
   template: `
-    <div class="wb">
-      <!-- warm-tech：header 更亲和、视觉权重轻于下方任务流 -->
-      <app-page-header
-        eyebrow="工作台"
-        title="把事情摊开来说"
-        description="从轻记录到交给小晴推进，灵感与事项的状态都会跟在这里——不用记路径，扫一眼就知道进行到哪了。"
-      >
-        <div actions class="wb-header-actions">
+    <div class="ui-page-shell wb">
+      <!-- 顶部操作栏：简洁、聚焦 -->
+      <header class="wb-topbar">
+        <div class="wb-topbar__actions">
           <app-button variant="ghost" size="sm" (click)="toggleCreate('idea')">
             <app-icon name="lightbulb" size="0.85rem" />
             <span>新想法</span>
@@ -84,430 +72,445 @@ type OverlayMode = 'schedule' | 'logs' | null;
             <app-icon name="check" size="0.85rem" />
             <span>新事项</span>
           </app-button>
-          <span class="wb-header-actions__sep" aria-hidden="true"></span>
-          <app-button variant="ghost" size="sm" (click)="openOverlay('schedule')" title="查看调度规则与自动安排">
+          <span class="wb-topbar__sep" aria-hidden="true"></span>
+          <app-button variant="ghost" size="sm" (click)="openOverlay('schedule')" title="调度规则">
             <app-icon name="calendarCheck" size="0.85rem" />
-            <span>调度</span>
           </app-button>
-          <app-button variant="ghost" size="sm" (click)="openOverlay('logs')" title="查看全局执行流水">
+          <app-button variant="ghost" size="sm" (click)="openOverlay('logs')" title="执行日志">
             <app-icon name="route" size="0.85rem" />
-            <span>日志</span>
           </app-button>
         </div>
-      </app-page-header>
+      </header>
 
-      <!-- Inline create form -->
+      <!-- 快速创建表单 -->
       @if (createMode()) {
-        <div class="wb-create-form">
-          <app-panel variant="subtle" padding="lg" class="wb-create-panel">
-            <app-section-header
-              [title]="createMode() === 'idea' ? '记录想法' : '新增事项'"
-            >
-              <app-button actions variant="ghost" size="sm" (click)="toggleCreate(null)">收起</app-button>
-            </app-section-header>
-
+        <div class="wb-quick-create">
+          <app-panel variant="subtle" padding="md">
+            <div class="wb-quick-create__header">
+              <span class="wb-quick-create__title">{{ createMode() === 'idea' ? '记录想法' : '新增事项' }}</span>
+              <app-button variant="ghost" size="sm" (click)="toggleCreate(null)">收起</app-button>
+            </div>
             @if (createMode() === 'idea') {
-              <label class="field">
-                <span>标题</span>
+              <div class="wb-quick-create__fields">
                 <input
                   class="ui-input"
                   [ngModel]="ideaTitle()"
                   (ngModelChange)="ideaTitle.set($event)"
-                  placeholder="例如：以后可以做个关系地图"
+                  placeholder="标题（可选）"
                 />
-              </label>
-              <label class="field">
-                <span>内容</span>
                 <textarea
                   class="ui-textarea"
-                  rows="4"
+                  rows="2"
                   [ngModel]="ideaContent()"
                   (ngModelChange)="ideaContent.set($event)"
-                  placeholder="把想法、灵感或暂时不执行的计划先记下来"
+                  placeholder="把想法、灵感先记下来..."
                 ></textarea>
-              </label>
-              <div class="form-actions">
-                <app-button variant="primary" size="sm" [disabled]="saving()" (click)="createIdea()">
-                  {{ saving() ? '记录中...' : '记下来' }}
-                </app-button>
-                @if (createNotice()) {
-                  <span class="notice">{{ createNotice() }}</span>
-                }
+                <div class="wb-quick-create__actions">
+                  <app-button variant="primary" size="sm" [disabled]="saving()" (click)="createIdea()">
+                    {{ saving() ? '记录中...' : '记下来' }}
+                  </app-button>
+                  @if (createNotice()) {
+                    <span class="notice">{{ createNotice() }}</span>
+                  }
+                </div>
               </div>
             }
-
             @if (createMode() === 'todo') {
-              <label class="field">
-                <span>标题</span>
+              <div class="wb-quick-create__fields">
                 <input
                   class="ui-input"
                   [ngModel]="todoTitle()"
                   (ngModelChange)="todoTitle.set($event)"
-                  placeholder="例如：周五前整理回归测试问题"
+                  placeholder="事项标题"
                 />
-              </label>
-              <label class="field">
-                <span>说明</span>
                 <textarea
                   class="ui-textarea"
-                  rows="3"
+                  rows="2"
                   [ngModel]="todoDescription()"
                   (ngModelChange)="todoDescription.set($event)"
-                  placeholder="补充背景或执行边界"
+                  placeholder="说明（可选）"
                 ></textarea>
-              </label>
-              <label class="field">
-                <span>截止时间（可选）</span>
-                <input
-                  class="ui-input"
-                  type="datetime-local"
-                  [ngModel]="todoDueAt()"
-                  (ngModelChange)="todoDueAt.set($event)"
-                />
-              </label>
-              <div class="form-actions">
-                <app-button variant="primary" size="sm" [disabled]="saving()" (click)="createTodo()">
-                  {{ saving() ? '创建中...' : '创建事项' }}
-                </app-button>
-                @if (createNotice()) {
-                  <span class="notice">{{ createNotice() }}</span>
-                }
+                <div class="wb-quick-create__row">
+                  <input
+                    class="ui-input ui-input--sm"
+                    type="datetime-local"
+                    [ngModel]="todoDueAt()"
+                    (ngModelChange)="todoDueAt.set($event)"
+                  />
+                </div>
+                <div class="wb-quick-create__actions">
+                  <app-button variant="primary" size="sm" [disabled]="saving()" (click)="createTodo()">
+                    {{ saving() ? '创建中...' : '创建事项' }}
+                  </app-button>
+                  @if (createNotice()) {
+                    <span class="notice">{{ createNotice() }}</span>
+                  }
+                </div>
               </div>
             }
           </app-panel>
         </div>
       }
 
-      <!-- Main: status filter | task list | detail -->
-      <div class="wb-main">
-        <nav class="wb-filter-nav ui-scrollbar" aria-label="按状态筛选">
-          @for (nav of stageFilterNav(); track nav.key) {
-            <button
-              type="button"
-              class="wb-filter-nav__item"
-              [class.wb-filter-nav__item--active]="stageFilter() === nav.key"
-              (click)="setStageFilter(nav.key)"
-            >
-              <span class="wb-filter-nav__label">{{ nav.label }}</span>
-              <span class="wb-filter-nav__badge">{{ nav.count }}</span>
-            </button>
-          }
-        </nav>
-
-        <div class="wb-list-column">
-          @if (showListLayoutToggle()) {
-            <div class="wb-list__toolbar" role="group" aria-label="列表展示方式">
+      <!-- 主体：三栏布局 -->
+      <div class="wb-body">
+        <!-- 左侧：筛选 + 列表 -->
+        <aside class="wb-sidebar ui-scrollbar">
+          <!-- 状态筛选 -->
+          <nav class="wb-filter-tabs" aria-label="按状态筛选">
+            @for (nav of stageFilterNav(); track nav.key) {
               <button
                 type="button"
-                class="wb-list__layout-btn"
-                [class.wb-list__layout-btn--active]="listLayoutMode() === 'grouped'"
-                (click)="listLayoutMode.set('grouped')"
+                class="wb-filter-tab"
+                [class.wb-filter-tab--active]="stageFilter() === nav.key"
+                (click)="setStageFilter(nav.key)"
               >
-                按状态分组
+                <span class="wb-filter-tab__label">{{ nav.label }}</span>
+                <span class="wb-filter-tab__count">{{ nav.count }}</span>
               </button>
-              <button
-                type="button"
-                class="wb-list__layout-btn"
-                [class.wb-list__layout-btn--active]="listLayoutMode() === 'flat'"
-                (click)="listLayoutMode.set('flat')"
-              >
-                单一列表
-              </button>
-            </div>
-          }
+            }
+          </nav>
 
-          <div
-            class="wb-list ui-scrollbar"
-            [class.wb-list--with-toolbar]="showListLayoutToggle()"
-          >
+          <!-- 列表 -->
+          <div class="wb-list-area">
             @if (loading()) {
-              <div class="wb-warm-placeholder wb-warm-placeholder--compact">
+              <div class="wb-list-loading">
                 <app-icon name="sparkles" size="0.9rem" />
-                <span>正在把你的事情流对齐，稍等片刻。</span>
+                <span>对齐中...</span>
               </div>
             } @else if (!filteredItems().length) {
-              <div class="wb-warm-placeholder">
-                <app-icon name="lightbulb" size="1rem" />
-                <div class="wb-warm-placeholder__copy">
-                  <p class="wb-warm-placeholder__title">{{ listEmptyTitle() }}</p>
-                  <p class="wb-warm-placeholder__desc">{{ listEmptyDescription() }}</p>
-                </div>
+              <div class="wb-list-empty">
+                <p>{{ listEmptyTitle() }}</p>
+                <span>{{ listEmptyDescription() }}</span>
               </div>
             } @else if (displayGroups(); as groups) {
               @for (group of groups; track group.stage) {
-                <div class="wb-group">
-                  <div class="wb-group__header">
-                    <span class="wb-group__label">{{ group.label }}</span>
-                    <span class="wb-group__count">{{ group.items.length }}</span>
-                  </div>
+                <div class="wb-list-group">
+                  <div class="wb-list-group__label">{{ group.label }}</div>
                   @for (item of group.items; track item.id + '-' + item.type) {
-                    <ng-container
-                      [ngTemplateOutlet]="taskRow"
-                      [ngTemplateOutletContext]="{ $implicit: item }"
-                    />
+                    <button
+                      type="button"
+                      class="wb-list-item"
+                      [class.wb-list-item--active]="selectedId() === item.id && selectedType() === item.type"
+                      [class.wb-list-item--idea]="item.type === 'idea'"
+                      (click)="selectItem(item)"
+                    >
+                      <app-icon
+                        class="wb-list-item__icon"
+                        [name]="item.type === 'idea' ? 'lightbulb' : 'check'"
+                        size="0.75rem"
+                      />
+                      <span class="wb-list-item__title">{{ item.title }}</span>
+                      @if (item.aiWork) {
+                        <app-badge [tone]="item.aiWork.tone" size="sm">{{ item.aiWork.label }}</app-badge>
+                      }
+                    </button>
                   }
                 </div>
               }
             } @else {
               @for (item of displayFlatItems(); track item.id + '-' + item.type) {
-                <ng-container
-                  [ngTemplateOutlet]="taskRow"
-                  [ngTemplateOutletContext]="{ $implicit: item }"
-                />
+                <button
+                  type="button"
+                  class="wb-list-item"
+                  [class.wb-list-item--active]="selectedId() === item.id && selectedType() === item.type"
+                  [class.wb-list-item--idea]="item.type === 'idea'"
+                  (click)="selectItem(item)"
+                >
+                  <app-icon
+                    class="wb-list-item__icon"
+                    [name]="item.type === 'idea' ? 'lightbulb' : 'check'"
+                    size="0.75rem"
+                  />
+                  <span class="wb-list-item__title">{{ item.title }}</span>
+                  @if (item.aiWork) {
+                    <app-badge [tone]="item.aiWork.tone" size="sm">{{ item.aiWork.label }}</app-badge>
+                  }
+                </button>
               }
             }
           </div>
-        </div>
+        </aside>
 
-        <ng-template #taskRow let-item>
-          <button
-            type="button"
-            class="wb-item"
-            [class.wb-item--active]="selectedId() === item.id && selectedType() === item.type"
-            [class.wb-item--idea]="item.type === 'idea'"
-            (click)="selectItem(item)"
-          >
-            <span class="wb-item__icon" aria-hidden="true">
-              <app-icon [name]="item.type === 'idea' ? 'lightbulb' : 'check'" size="0.8rem" />
-            </span>
-            <span class="wb-item__body">
-              <span class="wb-item__title">{{ item.title }}</span>
-              <span class="wb-item__meta">
-                @if (item.aiWork) {
-                  <app-badge [tone]="item.aiWork.tone" appearance="outline" size="sm">{{ item.aiWork.label }}</app-badge>
-                }
-                @if (item.dueAt) {
-                  <span class="wb-item__due">{{ formatDate(item.dueAt) }}</span>
-                }
-              </span>
-            </span>
-          </button>
-        </ng-template>
-
-        <!-- Right: detail panel -->
-        <div class="wb-detail ui-scrollbar">
+        <!-- 中间：主工作区（视觉焦点） -->
+        <main class="wb-main">
           @if (selectedIdea(); as idea) {
-            <app-panel variant="workbench" padding="lg" class="wb-detail-panel">
-              <div class="wb-detail__hero">
-                <div class="wb-detail__type">
-                  <app-icon name="lightbulb" size="0.85rem" />
+            <!-- 想法详情 -->
+            <div class="wb-focus-panel">
+              <header class="wb-focus-header">
+                <div class="wb-focus-type">
+                  <app-icon name="lightbulb" size="0.9rem" />
                   <span>想法</span>
                 </div>
-                <h2 class="wb-detail__title">{{ idea.title || '未命名想法' }}</h2>
-                <div class="wb-detail__status-row">
+                <h2 class="wb-focus-title">{{ idea.title || '未命名想法' }}</h2>
+                <div class="wb-focus-meta">
                   <app-badge [tone]="ideaTone(idea.status)">{{ ideaLabel(idea.status) }}</app-badge>
-                  <span class="wb-detail__time">{{ formatDateTime(idea.createdAt) }}</span>
+                  <span class="wb-focus-time">{{ formatDateTime(idea.createdAt) }}</span>
                 </div>
+              </header>
+
+              <div class="wb-focus-body">
+                <section class="wb-focus-section">
+                  <div class="wb-focus-content">{{ idea.content }}</div>
+                </section>
+
+                @if (idea.promotedTodo) {
+                  <section class="wb-focus-section">
+                    <h3 class="wb-focus-section-title">关联事项</h3>
+                    <app-workspace-relation-summary
+                      [items]="ideaRelationItems(idea)"
+                      (action)="handleIdeaRelationAction($event, idea)"
+                    />
+                  </section>
+                }
               </div>
 
-              <div class="wb-detail__section">
-                <div class="wb-detail__content-text">{{ idea.content }}</div>
-              </div>
-
-              @if (idea.promotedTodo) {
-                <div class="wb-detail__section">
-                  <div class="wb-detail__section-title">关联事项</div>
-                  <app-workspace-relation-summary
-                    [items]="ideaRelationItems(idea)"
-                    (action)="handleIdeaRelationAction($event, idea)"
-                  />
-                </div>
-              }
-
-              <div class="wb-detail__actions">
+              <footer class="wb-focus-actions">
                 @if (idea.status === 'open') {
-                  <app-button variant="primary" size="sm" [disabled]="saving()" (click)="promoteIdea(idea)">
-                    {{ saving() ? '转换中...' : '转为事项' }}
+                  <app-button variant="primary" size="md" [disabled]="saving()" (click)="promoteIdea(idea)">
+                    <app-icon name="chevronRight" size="0.85rem" />
+                    <span>{{ saving() ? '转换中...' : '转为事项' }}</span>
                   </app-button>
-                  <app-button variant="ghost" size="sm" (click)="archiveIdea(idea)">归档</app-button>
+                  <app-button variant="ghost" size="md" (click)="archiveIdea(idea)">归档</app-button>
                 }
                 @if (idea.status === 'archived') {
-                  <app-button variant="ghost" size="sm" (click)="reopenIdea(idea)">恢复</app-button>
+                  <app-button variant="ghost" size="md" (click)="reopenIdea(idea)">恢复</app-button>
                 }
                 @if (detailNotice()) {
                   <span class="notice">{{ detailNotice() }}</span>
                 }
-              </div>
-            </app-panel>
+              </footer>
+            </div>
           } @else if (selectedTodoRecord(); as todo) {
-            <app-panel variant="workbench" padding="lg" class="wb-detail-panel">
-              <div class="wb-detail__hero">
-                <div class="wb-detail__type">
-                  <app-icon name="check" size="0.85rem" />
+            <!-- 事项详情 -->
+            <div class="wb-focus-panel">
+              <header class="wb-focus-header">
+                <div class="wb-focus-type">
+                  <app-icon name="check" size="0.9rem" />
                   <span>事项</span>
                 </div>
-                <h2 class="wb-detail__title">{{ todo.title || todo.description || '未命名事项' }}</h2>
-                <div class="wb-detail__status-row">
+                <h2 class="wb-focus-title">{{ todo.title || todo.description || '未命名事项' }}</h2>
+                <div class="wb-focus-meta">
                   <app-badge [tone]="todoTone(todo.status)">{{ todoLabel(todo.status) }}</app-badge>
                   @if (selectedAiWork(); as ai) {
                     <app-badge [tone]="ai.tone" appearance="outline">{{ ai.label }}</app-badge>
                   }
                   @if (todo.dueAt) {
-                    <span class="wb-detail__time">截止：{{ formatDateTime(todo.dueAt) }}</span>
+                    <span class="wb-focus-time">截止：{{ formatDateTime(todo.dueAt) }}</span>
                   }
                 </div>
                 @if (todo.description && todo.title) {
-                  <p class="wb-detail__desc">{{ todo.description }}</p>
+                  <p class="wb-focus-desc">{{ todo.description }}</p>
                 }
                 @if (todo.blockReason) {
-                  <div class="wb-detail__block-reason">卡点：{{ todo.blockReason }}</div>
+                  <div class="wb-focus-block">卡点：{{ todo.blockReason }}</div>
                 }
-              </div>
+              </header>
 
-              <!-- Relations -->
-              @if (todoRelations(todo).length) {
-                <div class="wb-detail__section">
-                  <div class="wb-detail__section-title">关联</div>
-                  <app-workspace-relation-summary
-                    [items]="todoRelations(todo)"
-                    (action)="handleTodoRelationAction($event, todo)"
-                  />
-                </div>
-              }
+              <div class="wb-focus-body">
+                <!-- 关联 -->
+                @if (todoRelations(todo).length) {
+                  <section class="wb-focus-section">
+                    <h3 class="wb-focus-section-title">关联</h3>
+                    <app-workspace-relation-summary
+                      [items]="todoRelations(todo)"
+                      (action)="handleTodoRelationAction($event, todo)"
+                    />
+                  </section>
+                }
 
-              <!-- AI progress -->
-              @if (selectedAiWork(); as ai) {
-                <div class="wb-detail__section">
-                  <div class="wb-detail__section-title">小晴推进</div>
-                  <div class="wb-detail__ai-summary">
-                    <div class="wb-detail__ai-row">
-                      <app-badge [tone]="ai.tone">{{ ai.label }}</app-badge>
+                <!-- AI 推进状态 -->
+                @if (selectedAiWork(); as ai) {
+                  <section class="wb-focus-section wb-focus-section--highlight">
+                    <h3 class="wb-focus-section-title">
+                      <app-icon name="sparkles" size="0.8rem" />
+                      <span>小晴推进</span>
+                    </h3>
+                    <div class="wb-ai-status">
+                      <app-badge [tone]="ai.tone" size="md">{{ ai.label }}</app-badge>
                       @if (ai.actionLabel) {
-                        <span>{{ ai.actionLabel }}</span>
+                        <span class="wb-ai-status__action">{{ ai.actionLabel }}</span>
                       }
                       @if (ai.nextRunAt) {
-                        <span>下次推进：{{ formatDateTime(ai.nextRunAt) }}</span>
+                        <span class="wb-ai-status__next">下次：{{ formatDateTime(ai.nextRunAt) }}</span>
                       }
                     </div>
-                  </div>
-                </div>
-              }
+                  </section>
+                }
 
-              <!-- Execute entry -->
-              @if (todo.status === 'open' || todo.status === 'blocked') {
-                <div class="wb-detail__section">
-                  <div class="wb-detail__section-title">交给小晴</div>
-                  <div class="field-row">
-                    <label class="field">
-                      <span>能力</span>
-                      <select
-                        class="ui-select"
-                        [ngModel]="capability()"
-                        (ngModelChange)="capability.set($event)"
-                      >
-                        <option value="">请选择能力</option>
-                        @for (cap of capabilityOptions(); track cap) {
-                          <option [value]="cap">{{ cap }}</option>
-                        }
-                      </select>
-                    </label>
-                  </div>
-                  <label class="field">
-                    <span>参数 JSON（可选）</span>
-                    <textarea
-                      class="ui-textarea"
-                      rows="3"
-                      [ngModel]="paramsJson()"
-                      (ngModelChange)="paramsJson.set($event)"
-                      placeholder='例如：{"city":"Shanghai"}'
-                    ></textarea>
-                  </label>
-                  <div class="form-actions">
-                    <app-button
-                      variant="primary"
-                      size="sm"
-                      [disabled]="taskSaving()"
-                      (click)="submitTask(todo)"
-                    >
-                      {{ taskSaving() ? '提交中...' : '交给小晴' }}
-                    </app-button>
-                    @if (todo.latestTask?.action) {
-                      <app-button
-                        variant="ghost"
-                        size="sm"
-                        [disabled]="taskSaving()"
-                        (click)="retryTask(todo)"
-                      >
-                        {{ taskSaving() ? '重试中...' : '再次执行' }}
-                      </app-button>
-                    }
-                    @if (taskNotice()) {
-                      <span class="notice">{{ taskNotice() }}</span>
-                    }
-                  </div>
-                </div>
-              }
-
-              <!-- Latest results -->
-              <div class="wb-detail__section">
-                <div class="wb-detail__section-title">最近结果</div>
-                @if (occurrencesLoading()) {
-                  <app-state [compact]="true" kind="loading" title="结果加载中..." />
-                } @else if (occurrences().length) {
-                  <div class="wb-result-list">
-                    @for (occ of occurrences(); track occ.id) {
-                      <div class="wb-result-card">
-                        <div class="wb-result-card__meta">
-                          <app-badge [tone]="occTone(occ)" appearance="outline">{{ occLabel(occ) }}</app-badge>
-                          @if (occ.action) {
-                            <span>{{ occ.action }}</span>
+                <!-- 交给小晴 -->
+                @if (todo.status === 'open' || todo.status === 'blocked') {
+                  <section class="wb-focus-section">
+                    <h3 class="wb-focus-section-title">交给小晴</h3>
+                    <div class="wb-delegate-form">
+                      <div class="wb-delegate-row">
+                        <select
+                          class="ui-select"
+                          [ngModel]="capability()"
+                          (ngModelChange)="capability.set($event)"
+                        >
+                          <option value="">选择能力</option>
+                          @for (cap of capabilityOptions(); track cap) {
+                            <option [value]="cap">{{ cap }}</option>
                           }
-                          <span>{{ formatDateTime(occ.scheduledAt) }}</span>
-                        </div>
-                        @if (occSummary(occ); as summary) {
-                          <div class="wb-result-card__summary">{{ summary }}</div>
+                        </select>
+                      </div>
+                      <textarea
+                        class="ui-textarea ui-textarea--compact"
+                        rows="2"
+                        [ngModel]="paramsJson()"
+                        (ngModelChange)="paramsJson.set($event)"
+                        placeholder='参数 JSON（可选）'
+                      ></textarea>
+                      <div class="wb-delegate-actions">
+                        <app-button
+                          variant="primary"
+                          size="md"
+                          [disabled]="taskSaving()"
+                          (click)="submitTask(todo)"
+                        >
+                          <app-icon name="sparkles" size="0.85rem" />
+                          <span>{{ taskSaving() ? '提交中...' : '交给小晴' }}</span>
+                        </app-button>
+                        @if (todo.latestTask?.action) {
+                          <app-button
+                            variant="ghost"
+                            size="md"
+                            [disabled]="taskSaving()"
+                            (click)="retryTask(todo)"
+                          >
+                            再次执行
+                          </app-button>
                         }
-                        @if (occ.resultPayload) {
-                          <details class="wb-result-card__payload">
-                            <summary>原始结果</summary>
-                            <pre>{{ formatJson(occ.resultPayload) }}</pre>
-                          </details>
+                        @if (taskNotice()) {
+                          <span class="notice">{{ taskNotice() }}</span>
                         }
                       </div>
-                    }
-                  </div>
-                } @else {
-                  <app-state
-                    [compact]="true"
-                    title="还没有执行结果"
-                    description="把事项交给小晴后，结果会显示在这里。"
-                  />
+                    </div>
+                  </section>
                 }
               </div>
 
-              <!-- Status actions -->
-              <div class="wb-detail__actions">
+              <footer class="wb-focus-actions">
                 @if (todo.status === 'open' || todo.status === 'blocked') {
-                  <app-button variant="success" size="sm" (click)="setTodoStatus(todo.id, 'done')">完成</app-button>
-                  <app-button variant="ghost" size="sm" (click)="setTodoStatus(todo.id, 'dropped')">放弃</app-button>
+                  <app-button variant="success" size="md" (click)="setTodoStatus(todo.id, 'done')">
+                    完成
+                  </app-button>
+                  <app-button variant="ghost" size="md" (click)="setTodoStatus(todo.id, 'dropped')">
+                    放弃
+                  </app-button>
                   @if (todo.status === 'blocked') {
-                    <app-button variant="ghost" size="sm" (click)="setTodoStatus(todo.id, 'open')">继续处理</app-button>
+                    <app-button variant="ghost" size="md" (click)="setTodoStatus(todo.id, 'open')">
+                      继续处理
+                    </app-button>
                   }
                 } @else {
-                  <app-button variant="ghost" size="sm" (click)="setTodoStatus(todo.id, 'open')">恢复</app-button>
+                  <app-button variant="ghost" size="md" (click)="setTodoStatus(todo.id, 'open')">
+                    恢复
+                  </app-button>
                 }
                 @if (todo.latestExecutionPlan) {
-                  <app-button variant="ghost" size="sm" (click)="openExecutionPage(todo)">执行流水</app-button>
+                  <app-button variant="ghost" size="md" (click)="openExecutionPage(todo)">
+                    执行流水
+                  </app-button>
                 }
                 @if (detailNotice()) {
                   <span class="notice">{{ detailNotice() }}</span>
                 }
-              </div>
-            </app-panel>
+              </footer>
+            </div>
           } @else {
-            <div class="wb-detail-empty">
-              <div class="wb-warm-placeholder wb-warm-placeholder--center">
-                <app-icon name="sparkles" size="1rem" />
-                <div class="wb-warm-placeholder__copy">
-                  <p class="wb-warm-placeholder__title">先选一件事吧</p>
-                  <p class="wb-warm-placeholder__desc">
-                    在列表里点一条想法或事项，我可以帮你推进、看执行结果，或者一起收口。
-                  </p>
-                </div>
+            <!-- 空态：有引导感的主区域 -->
+            <div class="wb-focus-empty">
+              <div class="wb-focus-empty__illustration">
+                <app-icon name="sparkles" size="2.5rem" />
+              </div>
+              <h2 class="wb-focus-empty__title">选一件事来推进</h2>
+              <p class="wb-focus-empty__desc">
+                左侧是你所有的事情——灵感、进行中的任务、等待中的、已完成的。<br/>
+                点一条，我会帮你梳理状态、推进下一步，或者一起收口。
+              </p>
+              <div class="wb-focus-empty__hint">
+                <app-icon name="lightbulb" size="0.85rem" />
+                <span>没有想做的事？点上方「新想法」先记下来</span>
               </div>
             </div>
           }
-        </div>
+        </main>
+
+        <!-- 右侧：辅助信息区 -->
+        <aside class="wb-aux">
+          @if (selectedTodoRecord(); as todo) {
+            <div class="wb-aux-section">
+              <h3 class="wb-aux-title">最近结果</h3>
+              <div class="wb-aux-content ui-scrollbar">
+                @if (occurrencesLoading()) {
+                  <div class="wb-aux-loading">加载中...</div>
+                } @else if (occurrences().length) {
+                  <div class="wb-result-timeline">
+                    @for (occ of occurrences(); track occ.id) {
+                      <div class="wb-result-item">
+                        <div class="wb-result-item__marker wb-result-item__marker--{{ occTone(occ) }"></div>
+                        <div class="wb-result-item__body">
+                          <div class="wb-result-item__head">
+                            <span class="wb-result-item__action">{{ occ.action || '执行' }}</span>
+                            <span class="wb-result-item__time">{{ formatDateTime(occ.scheduledAt) }}</span>
+                          </div>
+                          <div class="wb-result-item__status">
+                            <app-badge [tone]="occTone(occ)" appearance="outline" size="sm">
+                              {{ occLabel(occ) }}
+                            </app-badge>
+                          </div>
+                          @if (occSummary(occ); as summary) {
+                            <p class="wb-result-item__summary">{{ summary }}</p>
+                          }
+                          @if (occ.resultPayload) {
+                            <details class="wb-result-item__payload">
+                              <summary>详情</summary>
+                              <pre>{{ formatJson(occ.resultPayload) }}</pre>
+                            </details>
+                          }
+                        </div>
+                      </div>
+                    }
+                  </div>
+                } @else {
+                  <div class="wb-aux-empty">
+                    <p>还没有执行结果</p>
+                    <span>把事项交给小晴后，结果会出现在这里</span>
+                  </div>
+                }
+              </div>
+            </div>
+          } @else if (selectedIdea(); as idea) {
+            <div class="wb-aux-section">
+              <h3 class="wb-aux-title">关于这个想法</h3>
+              <div class="wb-aux-content">
+                @if (idea.promotedTodo) {
+                  <div class="wb-aux-card">
+                    <div class="wb-aux-card__label">已转为事项</div>
+                    <div class="wb-aux-card__value">{{ idea.promotedTodo.title || idea.promotedTodo.id }}</div>
+                    <app-badge [tone]="todoTone(idea.promotedTodo.status)" size="sm">
+                      {{ todoLabel(idea.promotedTodo.status) }}
+                    </app-badge>
+                  </div>
+                } @else {
+                  <div class="wb-aux-empty">
+                    <p>还是一条原始想法</p>
+                    <span>觉得可以推进了？点「转为事项」开始执行</span>
+                  </div>
+                }
+              </div>
+            </div>
+          } @else {
+            <div class="wb-aux-section wb-aux-section--placeholder">
+              <div class="wb-aux-placeholder">
+                <app-icon name="info" size="1rem" />
+                <p>选中事项后，这里会显示执行结果和相关信息</p>
+              </div>
+            </div>
+          }
+        </aside>
       </div>
 
       <!-- Overlay: Schedule Management -->
@@ -520,7 +523,7 @@ type OverlayMode = 'schedule' | 'logs' | null;
           </div>
           <div class="wb-overlay__body">
             <p class="wb-overlay__hint">
-              完整的调度规则管理已迁移到独立面板。点击下方按钮前往。
+              完整的调度规则管理已迁移到独立面板。
             </p>
             <app-button variant="primary" size="sm" (click)="navigateTo('/workspace/plan')">
               打开调度管理
@@ -559,514 +562,642 @@ type OverlayMode = 'schedule' | 'logs' | null;
         min-height: 0;
       }
 
-      /* warm-tech：壳层一次轻暖渐变；列表项/行内不加渐变 */
-      .wb {
+      /* ═══════════════════════════════════════════════════════════════
+         顶部栏
+      ═══════════════════════════════════════════════════════════════ */
+      .wb-topbar {
         display: flex;
-        flex-direction: column;
-        height: 100%;
-        min-height: 0;
-        padding: var(--workbench-shell-padding);
-        gap: var(--workbench-stack-gap);
-        background: linear-gradient(
-          168deg,
-          color-mix(in srgb, var(--color-primary-light) 55%, var(--color-bg)) 0%,
-          var(--color-bg) 38%,
-          var(--color-bg) 100%
-        );
+        align-items: center;
+        justify-content: flex-end;
+        flex-shrink: 0;
+        padding-bottom: var(--space-2);
+        border-bottom: 1px solid var(--color-border-light);
       }
 
-      .wb-header-actions {
+      .wb-topbar__actions {
         display: flex;
-        flex-wrap: wrap;
         align-items: center;
         gap: var(--space-2);
       }
 
-      .wb-header-actions__sep {
+      .wb-topbar__sep {
         width: 1px;
         height: 1rem;
         background: var(--color-border-light);
+        margin: 0 var(--space-1);
       }
 
-      /* 与 design-agent 占位块一致：少量高价值状态块，同屏仅一处为主 */
-      .wb-warm-placeholder {
-        display: flex;
-        align-items: flex-start;
-        gap: var(--space-3);
-        margin: var(--space-2) 0;
-        padding: var(--space-3) var(--space-4);
-        border-radius: var(--radius-xl);
-        background: color-mix(in srgb, var(--color-surface) 84%, transparent);
-        border: 1px solid var(--color-border-light);
-        color: var(--color-text-secondary);
-        line-height: var(--line-height-base);
-      }
-
-      .wb-warm-placeholder--compact {
-        align-items: center;
-        margin: var(--space-1) 0;
-        padding: var(--space-2) var(--space-3);
-        font-size: var(--font-size-sm);
-      }
-
-      .wb-warm-placeholder--center {
-        align-items: center;
-        text-align: center;
-        max-width: 22rem;
-        margin: 0 auto;
-      }
-
-      .wb-warm-placeholder--center .wb-warm-placeholder__copy {
-        text-align: center;
-      }
-
-      .wb-warm-placeholder .wb-warm-placeholder__copy {
-        flex: 1;
-        min-width: 0;
-      }
-
-      .wb-warm-placeholder__title {
-        margin: 0 0 var(--space-2);
-        font-size: var(--font-size-md);
-        font-weight: var(--font-weight-semibold);
-        color: var(--color-text);
-        line-height: var(--line-height-tight);
-      }
-
-      .wb-warm-placeholder__desc {
-        margin: 0;
-        font-size: var(--font-size-sm);
-        color: var(--color-text-secondary);
-        line-height: var(--line-height-relaxed);
-      }
-
-      /* ── Create form ── */
-      .wb-create-form {
+      /* ═══════════════════════════════════════════════════════════════
+         快速创建
+      ═══════════════════════════════════════════════════════════════ */
+      .wb-quick-create {
         flex-shrink: 0;
       }
 
-      .wb-create-panel {
-        gap: var(--space-3);
+      .wb-quick-create__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: var(--space-2);
       }
 
-      /* ── Main: filter | list | detail ── */
-      .wb-main {
+      .wb-quick-create__title {
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-semibold);
+        color: var(--color-text);
+      }
+
+      .wb-quick-create__fields {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+      }
+
+      .wb-quick-create__row {
+        display: flex;
+        gap: var(--space-2);
+      }
+
+      .wb-quick-create__actions {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+      }
+
+      /* ═══════════════════════════════════════════════════════════════
+         主体布局
+      ═══════════════════════════════════════════════════════════════ */
+      .wb-body {
         display: grid;
-        grid-template-columns: minmax(128px, 152px) minmax(220px, 300px) minmax(0, 1fr);
+        grid-template-columns: 200px minmax(0, 1fr) 260px;
         gap: var(--space-3);
         flex: 1 1 0;
         min-height: 0;
         align-items: stretch;
       }
 
-      /* ── Status filter (sidebar menu) ── */
-      .wb-filter-nav {
+      /* ═══════════════════════════════════════════════════════════════
+         左侧栏：筛选 + 列表
+      ═══════════════════════════════════════════════════════════════ */
+      .wb-sidebar {
         display: flex;
         flex-direction: column;
-        gap: var(--space-1);
-        padding: var(--space-1) 0;
-        border-right: 1px solid var(--color-border-light);
-        flex-shrink: 0;
         min-height: 0;
         overflow-y: auto;
+        background: var(--color-workbench-panel);
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--color-workbench-border);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
       }
 
-      .wb-filter-nav__item {
+      /* 筛选标签 */
+      .wb-filter-tabs {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        padding: var(--space-2);
+        border-bottom: 1px solid var(--color-border-light);
+        flex-shrink: 0;
+      }
+
+      .wb-filter-tab {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: var(--space-2);
         width: 100%;
         margin: 0;
-        padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+        padding: var(--space-2);
         border: none;
-        border-left: 3px solid transparent;
-        border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+        border-radius: var(--radius-md);
         background: transparent;
         color: var(--color-text-secondary);
         font-size: var(--font-size-sm);
         font-weight: var(--font-weight-medium);
         text-align: left;
         cursor: pointer;
-        transition:
-          background var(--transition-fast),
-          color var(--transition-fast),
-          border-color var(--transition-fast);
+        transition: background var(--transition-fast), color var(--transition-fast);
       }
 
-      .wb-filter-nav__item:hover {
-        color: var(--color-text);
+      .wb-filter-tab:hover {
         background: var(--color-bg);
-      }
-
-      .wb-filter-nav__item--active {
         color: var(--color-text);
-        font-weight: var(--font-weight-semibold);
-        border-left-color: var(--color-primary);
+      }
+
+      .wb-filter-tab--active {
         background: var(--color-primary-light);
+        color: var(--color-primary);
+        font-weight: var(--font-weight-semibold);
       }
 
-      .wb-filter-nav__label {
-        min-width: 0;
-      }
-
-      .wb-filter-nav__badge {
-        flex-shrink: 0;
-        min-width: 1.25rem;
-        padding: 0 var(--space-1);
+      .wb-filter-tab__count {
         font-size: var(--font-size-xs);
-        font-weight: var(--font-weight-medium);
-        line-height: 1.4;
-        text-align: center;
-        color: var(--color-text-secondary);
+        padding: 0.1rem 0.35rem;
         background: var(--color-bg);
         border-radius: var(--radius-pill);
+        color: var(--color-text-muted);
       }
 
-      .wb-filter-nav__item--active .wb-filter-nav__badge {
-        color: var(--color-primary);
+      .wb-filter-tab--active .wb-filter-tab__count {
         background: var(--color-surface);
-      }
-
-      /* ── List column ── */
-      .wb-list-column {
-        display: flex;
-        flex-direction: column;
-        min-width: 0;
-        min-height: 0;
-        border-right: 1px solid var(--color-border-light);
-        padding-right: var(--space-2);
-      }
-
-      .wb-list__toolbar {
-        display: flex;
-        gap: var(--space-1);
-        flex-shrink: 0;
-        padding-bottom: var(--space-2);
-        margin-bottom: var(--space-1);
-        border-bottom: 1px solid var(--color-border-light);
-      }
-
-      .wb-list__layout-btn {
-        border: none;
-        background: transparent;
-        color: var(--color-text-secondary);
-        font-size: var(--font-size-xs);
-        font-weight: var(--font-weight-medium);
-        padding: var(--space-1) var(--space-2);
-        border-radius: var(--radius-md);
-        cursor: pointer;
-        transition:
-          background var(--transition-fast),
-          color var(--transition-fast);
-      }
-
-      .wb-list__layout-btn:hover {
-        color: var(--color-text);
-        background: var(--color-bg);
-      }
-
-      .wb-list__layout-btn--active {
         color: var(--color-primary);
-        background: var(--color-primary-light);
-        font-weight: var(--font-weight-semibold);
       }
 
-      .wb-list {
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-1);
-        overflow-y: auto;
-        min-height: 0;
+      /* 列表区域 */
+      .wb-list-area {
         flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding: var(--space-2);
       }
 
-      .wb-list--with-toolbar {
-        padding-top: 0;
-      }
-
-      /* ── Group (no tree indent; section label only when grouped) ── */
-      .wb-group {
-        display: flex;
-        flex-direction: column;
-        gap: 0;
-      }
-
-      .wb-group + .wb-group {
-        margin-top: var(--space-3);
-      }
-
-      .wb-group__header {
+      .wb-list-loading {
         display: flex;
         align-items: center;
         gap: var(--space-2);
-        padding: var(--space-2) var(--space-1) var(--space-1);
+        padding: var(--space-3);
+        color: var(--color-text-secondary);
+        font-size: var(--font-size-sm);
       }
 
-      .wb-group__label {
+      .wb-list-empty {
+        padding: var(--space-4);
+        text-align: center;
+      }
+
+      .wb-list-empty p {
+        margin: 0 0 var(--space-1);
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-medium);
+        color: var(--color-text);
+      }
+
+      .wb-list-empty span {
+        font-size: var(--font-size-xs);
+        color: var(--color-text-muted);
+      }
+
+      /* 列表分组 */
+      .wb-list-group {
+        margin-bottom: var(--space-3);
+      }
+
+      .wb-list-group__label {
         font-size: var(--font-size-xs);
         font-weight: var(--font-weight-semibold);
         color: var(--color-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: var(--space-1) var(--space-2);
+        margin-bottom: var(--space-1);
       }
 
-      .wb-group__count {
-        font-size: var(--font-size-xs);
-        font-weight: var(--font-weight-medium);
-        color: var(--color-text-muted);
-      }
-
-      /* ── Task row (compact menu row) ── */
-      .wb-item {
+      /* 列表项 */
+      .wb-list-item {
         display: flex;
-        align-items: flex-start;
+        align-items: center;
         gap: var(--space-2);
         width: 100%;
         margin: 0;
-        padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+        padding: var(--space-2);
         border: none;
-        border-left: 3px solid transparent;
-        border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+        border-radius: var(--radius-md);
         background: transparent;
-        color: inherit;
+        color: var(--color-text);
+        font-size: var(--font-size-sm);
         text-align: left;
         cursor: pointer;
-        transition:
-          background var(--transition-fast),
-          border-color var(--transition-fast);
+        transition: background var(--transition-fast);
       }
 
-      .wb-item:hover {
+      .wb-list-item:hover {
         background: var(--color-bg);
       }
 
-      .wb-item:focus-visible {
-        outline: none;
-        border-left-color: var(--color-primary);
-        box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 22%, transparent);
-      }
-
-      .wb-item--active {
-        border-left-color: var(--color-primary);
+      .wb-list-item--active {
         background: var(--color-primary-light);
       }
 
-      .wb-item__icon {
+      .wb-list-item__icon {
         flex-shrink: 0;
-        width: 1.25rem;
-        height: 1.25rem;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        margin-top: 0.1rem;
         color: var(--color-text-muted);
       }
 
-      .wb-item--idea .wb-item__icon {
+      .wb-list-item--idea .wb-list-item__icon {
         color: var(--color-primary);
       }
 
-      .wb-item__body {
+      .wb-list-item__title {
         flex: 1;
         min-width: 0;
-        display: flex;
-        flex-direction: column;
-        gap: 0.15rem;
-        align-items: flex-start;
-      }
-
-      .wb-item__title {
-        font-size: var(--font-size-sm);
-        font-weight: var(--font-weight-medium);
-        line-height: var(--line-height-tight);
-        color: var(--color-text);
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        width: 100%;
+        font-weight: var(--font-weight-medium);
       }
 
-      .wb-item__meta {
+      /* ═══════════════════════════════════════════════════════════════
+         中间：主工作区（视觉焦点）
+      ═══════════════════════════════════════════════════════════════ */
+      .wb-main {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        background: var(--color-workbench-panel);
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--color-workbench-border);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        overflow: hidden;
+      }
+
+      /* 焦点面板（已选中） */
+      .wb-focus-panel {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        overflow: hidden;
+      }
+
+      .wb-focus-header {
+        padding: var(--space-4);
+        border-bottom: 1px solid var(--color-border-light);
+        flex-shrink: 0;
+      }
+
+      .wb-focus-type {
+        display: flex;
+        align-items: center;
+        gap: var(--space-1);
+        font-size: var(--font-size-xxs);
+        font-weight: var(--font-weight-semibold);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--color-text-muted);
+        margin-bottom: var(--space-2);
+      }
+
+      .wb-focus-title {
+        margin: 0 0 var(--space-2);
+        font-size: var(--font-size-xl);
+        font-weight: var(--font-weight-semibold);
+        color: var(--color-text);
+        line-height: var(--line-height-tight);
+      }
+
+      .wb-focus-meta {
         display: flex;
         align-items: center;
         gap: var(--space-2);
         flex-wrap: wrap;
       }
 
-      .wb-item__due {
+      .wb-focus-time {
         font-size: var(--font-size-xs);
         color: var(--color-text-muted);
       }
 
-      /* ── Right detail ── */
-      .wb-detail {
-        overflow-y: auto;
+      .wb-focus-desc {
+        margin: var(--space-2) 0 0;
+        font-size: var(--font-size-sm);
+        color: var(--color-text-secondary);
+        line-height: var(--line-height-relaxed);
+      }
+
+      .wb-focus-block {
+        margin-top: var(--space-2);
+        padding: var(--space-2) var(--space-3);
+        font-size: var(--font-size-sm);
+        color: var(--color-warning-soft-text);
+        background: var(--color-warning-soft-bg);
+        border-radius: var(--radius-md);
+      }
+
+      .wb-focus-body {
+        flex: 1;
         min-height: 0;
-      }
-
-      .wb-detail-panel {
-        gap: var(--space-4);
-      }
-
-      .wb-detail-empty {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 12rem;
-        height: 100%;
+        overflow-y: auto;
         padding: var(--space-4);
       }
 
-      .wb-detail__hero {
+      .wb-focus-section {
+        margin-bottom: var(--space-4);
+      }
+
+      .wb-focus-section:last-child {
+        margin-bottom: 0;
+      }
+
+      .wb-focus-section-title {
         display: flex;
-        flex-direction: column;
+        align-items: center;
         gap: var(--space-2);
-        padding-bottom: var(--space-3);
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-semibold);
+        color: var(--color-text-muted);
+        margin-bottom: var(--space-2);
+        padding-bottom: var(--space-1);
         border-bottom: 1px solid var(--color-border-light);
       }
 
-      .wb-detail__type {
-        display: flex;
-        align-items: center;
-        gap: var(--space-1);
-        font-size: 0.72rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: var(--color-text-muted);
-      }
-
-      .wb-detail__title {
-        font-size: 1.1rem;
-        font-weight: 600;
-        margin: 0;
-        color: var(--color-text-primary, var(--color-text));
-      }
-
-      .wb-detail__status-row {
-        display: flex;
-        align-items: center;
-        gap: var(--space-2);
-        flex-wrap: wrap;
-      }
-
-      .wb-detail__time {
-        font-size: 0.75rem;
-        color: var(--color-text-muted);
-      }
-
-      .wb-detail__desc {
-        font-size: 0.82rem;
-        color: var(--color-text-secondary);
-        margin: 0;
-        line-height: 1.5;
-      }
-
-      .wb-detail__block-reason {
-        font-size: 0.8rem;
-        color: var(--color-warning, #d97706);
-        padding: var(--space-2) var(--space-3);
-        background: var(--color-warning-bg, rgba(217, 119, 6, 0.06));
-        border-radius: var(--radius-sm, 6px);
-      }
-
-      .wb-detail__content-text {
-        font-size: 0.85rem;
-        line-height: 1.6;
+      .wb-focus-content {
+        font-size: var(--font-size-sm);
+        line-height: var(--line-height-relaxed);
         color: var(--color-text-secondary);
         white-space: pre-wrap;
         word-break: break-word;
       }
 
-      /* ── Detail sections ── */
-      .wb-detail__section {
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-2);
+      /* 高亮区块 */
+      .wb-focus-section--highlight {
+        padding: var(--space-3);
+        background: color-mix(in srgb, var(--color-primary-light) 50%, transparent);
+        border-radius: var(--radius-md);
+        border: 1px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
       }
 
-      .wb-detail__section-title {
-        font-size: 0.78rem;
-        font-weight: 600;
-        color: var(--color-text-muted);
-        padding-bottom: var(--space-1);
-        border-bottom: 1px solid var(--color-border-light);
-      }
-
-      .wb-detail__ai-summary {
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-1);
-      }
-
-      .wb-detail__ai-row {
+      /* AI 状态 */
+      .wb-ai-status {
         display: flex;
         align-items: center;
         gap: var(--space-2);
         flex-wrap: wrap;
-        font-size: 0.8rem;
+      }
+
+      .wb-ai-status__action {
+        font-size: var(--font-size-sm);
         color: var(--color-text-secondary);
       }
 
-      .wb-detail__actions {
+      .wb-ai-status__next {
+        font-size: var(--font-size-xs);
+        color: var(--color-text-muted);
+      }
+
+      /* 委托表单 */
+      .wb-delegate-form {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+      }
+
+      .wb-delegate-row {
+        display: flex;
+        gap: var(--space-2);
+      }
+
+      .wb-delegate-actions {
         display: flex;
         align-items: center;
         gap: var(--space-2);
         flex-wrap: wrap;
-        padding-top: var(--space-2);
+      }
+
+      /* 底部操作栏 */
+      .wb-focus-actions {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        flex-wrap: wrap;
+        padding: var(--space-3) var(--space-4);
         border-top: 1px solid var(--color-border-light);
+        flex-shrink: 0;
       }
 
-      /* ── Result list ── */
-      .wb-result-list {
+      /* 空态 */
+      .wb-focus-empty {
         display: flex;
         flex-direction: column;
-        gap: var(--space-2);
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        padding: var(--space-8);
+        text-align: center;
       }
 
-      .wb-result-card {
-        padding: var(--space-2) var(--space-3);
-        border-radius: var(--radius-sm, 6px);
-        border: 1px solid var(--color-border-light);
+      .wb-focus-empty__illustration {
+        width: 5rem;
+        height: 5rem;
         display: flex;
-        flex-direction: column;
-        gap: var(--space-1);
+        align-items: center;
+        justify-content: center;
+        margin-bottom: var(--space-4);
+        background: var(--color-primary-light);
+        border-radius: 50%;
+        color: var(--color-primary);
       }
 
-      .wb-result-card__meta {
+      .wb-focus-empty__title {
+        margin: 0 0 var(--space-2);
+        font-size: var(--font-size-lg);
+        font-weight: var(--font-weight-semibold);
+        color: var(--color-text);
+      }
+
+      .wb-focus-empty__desc {
+        margin: 0 0 var(--space-4);
+        font-size: var(--font-size-sm);
+        color: var(--color-text-secondary);
+        line-height: var(--line-height-relaxed);
+        max-width: 28rem;
+      }
+
+      .wb-focus-empty__hint {
         display: flex;
         align-items: center;
         gap: var(--space-2);
-        flex-wrap: wrap;
-        font-size: 0.75rem;
+        padding: var(--space-2) var(--space-3);
+        background: var(--color-bg);
+        border-radius: var(--radius-md);
+        font-size: var(--font-size-xs);
         color: var(--color-text-muted);
       }
 
-      .wb-result-card__summary {
-        font-size: 0.8rem;
+      /* ═══════════════════════════════════════════════════════════════
+         右侧：辅助信息区
+      ═══════════════════════════════════════════════════════════════ */
+      .wb-aux {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        background: var(--color-workbench-panel);
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--color-workbench-border);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        overflow: hidden;
+      }
+
+      .wb-aux-section {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
+      }
+
+      .wb-aux-title {
+        margin: 0;
+        padding: var(--space-3) var(--space-3);
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-semibold);
+        color: var(--color-text-muted);
+        border-bottom: 1px solid var(--color-border-light);
+        flex-shrink: 0;
+      }
+
+      .wb-aux-content {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding: var(--space-3);
+      }
+
+      .wb-aux-loading {
+        padding: var(--space-3);
+        font-size: var(--font-size-sm);
+        color: var(--color-text-muted);
+        text-align: center;
+      }
+
+      .wb-aux-empty {
+        padding: var(--space-4);
+        text-align: center;
+      }
+
+      .wb-aux-empty p {
+        margin: 0 0 var(--space-1);
+        font-size: var(--font-size-sm);
+        color: var(--color-text);
+      }
+
+      .wb-aux-empty span {
+        font-size: var(--font-size-xs);
+        color: var(--color-text-muted);
+      }
+
+      .wb-aux-section--placeholder {
+        justify-content: center;
+        align-items: center;
+      }
+
+      .wb-aux-placeholder {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--space-2);
+        padding: var(--space-4);
+        text-align: center;
+        color: var(--color-text-muted);
+        font-size: var(--font-size-sm);
+      }
+
+      .wb-aux-card {
+        padding: var(--space-3);
+        background: var(--color-bg);
+        border-radius: var(--radius-md);
+      }
+
+      .wb-aux-card__label {
+        font-size: var(--font-size-xs);
+        color: var(--color-text-muted);
+        margin-bottom: var(--space-1);
+      }
+
+      .wb-aux-card__value {
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-medium);
+        color: var(--color-text);
+        margin-bottom: var(--space-2);
+      }
+
+      /* 结果时间线 */
+      .wb-result-timeline {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-3);
+      }
+
+      .wb-result-item {
+        display: flex;
+        gap: var(--space-2);
+      }
+
+      .wb-result-item__marker {
+        flex-shrink: 0;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-top: 0.4rem;
+        background: var(--color-border);
+      }
+
+      .wb-result-item__marker--success { background: var(--color-success); }
+      .wb-result-item__marker--warning { background: var(--color-warning); }
+      .wb-result-item__marker--danger { background: var(--color-error); }
+      .wb-result-item__marker--info { background: var(--color-primary); }
+      .wb-result-item__marker--neutral { background: var(--color-text-muted); }
+
+      .wb-result-item__body {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .wb-result-item__head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-2);
+        margin-bottom: var(--space-1);
+      }
+
+      .wb-result-item__action {
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-medium);
+        color: var(--color-text);
+      }
+
+      .wb-result-item__time {
+        font-size: var(--font-size-xs);
+        color: var(--color-text-muted);
+      }
+
+      .wb-result-item__status {
+        margin-bottom: var(--space-1);
+      }
+
+      .wb-result-item__summary {
+        margin: 0;
+        font-size: var(--font-size-xs);
         color: var(--color-text-secondary);
+        line-height: var(--line-height-base);
       }
 
-      .wb-result-card__payload {
-        font-size: 0.72rem;
+      .wb-result-item__payload {
+        margin-top: var(--space-2);
+        font-size: var(--font-size-xxs);
       }
 
-      .wb-result-card__payload summary {
+      .wb-result-item__payload summary {
         cursor: pointer;
         color: var(--color-text-muted);
       }
 
-      .wb-result-card__payload pre {
+      .wb-result-item__payload pre {
         margin: var(--space-1) 0 0;
         padding: var(--space-2);
-        background: var(--color-surface-sunken, var(--color-bg));
-        border-radius: var(--radius-sm, 4px);
-        font-size: 0.7rem;
+        background: var(--color-bg);
+        border-radius: var(--radius-sm);
+        font-size: var(--font-size-xxs);
         overflow-x: auto;
         white-space: pre-wrap;
         word-break: break-all;
+        max-height: 8rem;
       }
 
-      /* ── Overlay ── */
+      /* ═══════════════════════════════════════════════════════════════
+         Overlay
+      ═══════════════════════════════════════════════════════════════ */
       .wb-overlay-backdrop {
         position: fixed;
         inset: 0;
@@ -1079,10 +1210,10 @@ type OverlayMode = 'schedule' | 'logs' | null;
         top: 0;
         right: 0;
         bottom: 0;
-        width: min(420px, 90vw);
-        background: var(--color-surface, var(--color-bg));
+        width: min(380px, 90vw);
+        background: var(--color-surface);
         border-left: 1px solid var(--color-border-light);
-        box-shadow: var(--shadow-md);
+        box-shadow: var(--shadow-lg);
         z-index: 101;
         display: flex;
         flex-direction: column;
@@ -1098,8 +1229,8 @@ type OverlayMode = 'schedule' | 'logs' | null;
 
       .wb-overlay__header h2 {
         margin: 0;
-        font-size: 1rem;
-        font-weight: 600;
+        font-size: var(--font-size-md);
+        font-weight: var(--font-weight-semibold);
       }
 
       .wb-overlay__body {
@@ -1110,79 +1241,84 @@ type OverlayMode = 'schedule' | 'logs' | null;
       }
 
       .wb-overlay__hint {
-        font-size: 0.82rem;
+        font-size: var(--font-size-sm);
         color: var(--color-text-secondary);
         margin: 0;
       }
 
-      /* ── Shared ── */
-      .field {
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-1);
-      }
-
-      .field > span {
-        font-size: 0.78rem;
-        font-weight: 500;
-        color: var(--color-text-secondary);
-      }
-
-      .field-row {
-        display: flex;
-        gap: var(--space-3);
-        align-items: flex-end;
-      }
-
-      .form-actions {
-        display: flex;
-        align-items: center;
-        gap: var(--space-3);
-        flex-wrap: wrap;
-      }
-
+      /* ═══════════════════════════════════════════════════════════════
+         通用
+      ═══════════════════════════════════════════════════════════════ */
       .notice {
-        font-size: 0.78rem;
+        font-size: var(--font-size-xs);
         color: var(--color-text-muted);
       }
 
-      /* ── Responsive ── */
-      @media (max-width: 980px) {
+      .ui-textarea--compact {
+        font-size: var(--font-size-sm);
+      }
+
+      .ui-input--sm {
+        font-size: var(--font-size-sm);
+        padding: var(--space-1) var(--space-2);
+      }
+
+      /* ═══════════════════════════════════════════════════════════════
+         响应式
+      ═══════════════════════════════════════════════════════════════ */
+      @media (max-width: 1100px) {
+        .wb-body {
+          grid-template-columns: 180px minmax(0, 1fr) 220px;
+        }
+      }
+
+      @media (max-width: 960px) {
         .wb {
-          padding: var(--workbench-shell-padding-mobile);
-        }
-
-        .wb-main {
-          grid-template-columns: 1fr;
-          grid-template-rows: auto auto minmax(0, 1fr);
-        }
-
-        .wb-filter-nav {
-          flex-direction: row;
-          flex-wrap: wrap;
-          border-right: none;
-          border-bottom: 1px solid var(--color-border-light);
-          padding-bottom: var(--space-2);
-          gap: var(--space-1);
-        }
-
-        .wb-filter-nav__item {
-          flex: 1 1 auto;
-          min-width: 5.5rem;
-          border-left: none;
-          border-bottom: 2px solid transparent;
-          border-radius: var(--radius-md);
           padding: var(--space-2) var(--space-3);
         }
 
-        .wb-filter-nav__item--active {
-          border-left-color: transparent;
-          border-bottom-color: var(--color-primary);
+        .wb-body {
+          grid-template-columns: minmax(0, 1fr);
+          grid-template-rows: minmax(200px, 35vh) minmax(0, 1fr) minmax(150px, 25vh);
         }
 
-        .wb-list-column {
-          border-right: none;
-          max-height: 38vh;
+        .wb-sidebar {
+          max-height: 35vh;
+        }
+
+        .wb-filter-tabs {
+          flex-direction: row;
+          flex-wrap: wrap;
+          gap: var(--space-1);
+        }
+
+        .wb-filter-tab {
+          padding: var(--space-1) var(--space-2);
+        }
+
+        .wb-aux {
+          max-height: 25vh;
+        }
+
+        .wb-topbar__subtitle {
+          display: none;
+        }
+      }
+
+      @media (max-width: 600px) {
+        .wb-topbar {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: var(--space-2);
+        }
+
+        .wb-topbar__actions {
+          width: 100%;
+          justify-content: flex-end;
+        }
+
+        .wb-focus-empty__desc {
+          display: none;
         }
       }
     `,

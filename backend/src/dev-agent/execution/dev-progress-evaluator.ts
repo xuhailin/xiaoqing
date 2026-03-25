@@ -38,7 +38,7 @@ export class DevProgressEvaluator {
           role: 'user',
           content: `目标：${safeGoal}\n最近步骤：${JSON.stringify(recent, null, 2)}`,
         },
-      ], { scenario: 'reasoning' });
+      ], { scenario: 'devPlanner' });
 
       const jsonMatch = response.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, response];
       const cleaned = (jsonMatch[1] ?? response).trim();

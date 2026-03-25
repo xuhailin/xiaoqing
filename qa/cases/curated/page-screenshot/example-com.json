@@ -1,0 +1,38 @@
+{
+  "$schema": "../../../schemas/regression-scenario.schema.json",
+  "id": "curated.page-screenshot.example-com",
+  "name": "工具能力：网页截图 example.com",
+  "sourceType": "curated",
+  "category": "page-screenshot",
+  "tags": ["tool", "screenshot", "action"],
+  "severity": "high",
+  "releaseGate": true,
+  "transcript": [
+    {
+      "role": "user",
+      "content": "帮我把 https://example.com 截个图"
+    }
+  ],
+  "expectations": {
+    "mustHappen": [
+      { "type": "reply_exists" },
+      { "type": "route_is", "params": { "route": "chat" } },
+      { "type": "capability_is", "params": { "capability": "page-screenshot" }, "description": "应触发网页截图能力" }
+    ],
+    "mustNotHappen": [
+      { "type": "dev_route_not_triggered", "description": "不应误入 dev 路由" }
+    ],
+    "qualityDimensions": [
+      { "dimension": "action_correctness", "minScore": 2, "weight": 1 },
+      { "dimension": "answer_relevance", "minScore": 2, "weight": 1 },
+      { "dimension": "helpfulness", "minScore": 2, "weight": 1 }
+    ],
+    "expectedExecution": {
+      "route": "chat",
+      "capability": "page-screenshot"
+    }
+  },
+  "reference": {
+    "notes": "验证 page_screenshot 意图与 page-screenshot 技能执行；不固定截图文件内容。"
+  }
+}

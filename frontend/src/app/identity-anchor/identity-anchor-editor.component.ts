@@ -641,6 +641,7 @@ export class IdentityAnchorEditorComponent implements OnInit {
   // User profile
   userProfile = signal<UserProfileDto>({
     userKey: 'default-user',
+    preferredPersonaKey: 'default',
     preferredVoiceStyle: '',
     praisePreference: '',
     responseRhythm: '',

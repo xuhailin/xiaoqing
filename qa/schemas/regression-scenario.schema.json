@@ -47,6 +47,10 @@
     "releaseGate": {
       "type": "boolean"
     },
+    "gateSuite": {
+      "type": "string",
+      "enum": ["core", "agents"]
+    },
     "transcript": {
       "type": "array",
       "minItems": 1,

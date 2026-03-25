@@ -31,6 +31,14 @@ export class PlanService {
 
     const scope = input.scope ?? ReminderScope.chat;
     const dispatchType = input.dispatchType ?? PlanDispatchType.notify;
+    const sessionId = input.sessionId?.trim() || null;
+    const conversationId = input.conversationId?.trim() || null;
+
+    if (dispatchType === PlanDispatchType.notify && !conversationId && !sessionId) {
+      throw new BadRequestException(
+        'notify dispatch type requires conversationId or sessionId to deliver the reminder',
+      );
+    }
 
     const now = new Date();
     const nextRunAt = this.computeNextRunAt({ recurrence, cronExpr, runAt, timezone: input.timezone }, now);
@@ -51,8 +59,8 @@ export class PlanService {
         timezone: input.timezone?.trim() || null,
         status: PlanStatus.active,
         nextRunAt,
-        sessionId: input.sessionId?.trim() || null,
-        conversationId: input.conversationId?.trim() || null,
+        sessionId,
+        conversationId,
         sourceTodoId: input.sourceTodoId?.trim() || null,
         actionPayload: (input.actionPayload as Prisma.InputJsonValue) ?? undefined,
         taskTemplates: (input.taskTemplates as unknown as Prisma.InputJsonValue) ?? undefined,

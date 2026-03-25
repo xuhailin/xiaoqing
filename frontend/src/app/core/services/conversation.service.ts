@@ -121,6 +121,27 @@ export type ConversationWorkHealthState =
   | 'waiting_user'
   | 'timed_out';
 
+export type DevRunStreamKind = 'progress' | 'final_reply';
+
+export type DevRunStreamPhase = 'plan' | 'execute' | 'evaluate' | 'replan' | 'report';
+
+export interface DevRunStreamProgress {
+  kind: 'progress';
+  phase: DevRunStreamPhase;
+  meta?: Record<string, unknown>;
+  at?: string;
+}
+
+export interface DevRunStreamFinalReply {
+  kind: 'final_reply';
+  text: string;
+  chunk?: string;
+  done: boolean;
+  at?: string;
+}
+
+export type DevRunStream = DevRunStreamProgress | DevRunStreamFinalReply;
+
 export interface ConversationWorkItem {
   id: string;
   conversationId: string;
@@ -149,6 +170,11 @@ export interface ConversationWorkItem {
   healthSummary: string | null;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Optional in-memory DevAgent SSE payload.
+   * Only relevant for DevAgent runs when consuming `/conversations/:id/work-items/stream`.
+   */
+  devRunStream?: DevRunStream | null;
 }
 
 export type AgentDelegationStatus =

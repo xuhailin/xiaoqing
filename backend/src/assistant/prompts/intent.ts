@@ -1,4 +1,4 @@
-export const INTENT_PROMPT_VERSION = 'intent_v18';
+export const INTENT_PROMPT_VERSION = 'intent_v19';
 
 // 意图推导 prompt：单独管理，便于后续直接改文案与字段定义。
 export const INTENT_SYSTEM_PROMPT = `
@@ -53,6 +53,7 @@ export const INTENT_SYSTEM_PROMPT = `
 - set_reminder：设置/查看/取消提醒（用户说「提醒我xxx」「每天xx点提醒我」「帮我设个闹钟」「取消吃饭的提醒」「我有哪些提醒」等）。也包括**确认式请求**：如果上轮小晴提议了设提醒（如「要不要我帮你记一下」），用户本轮回复「好」「可以」「帮我提醒」「设吧」等确认性回复，应判为 set_reminder 并从上文补全 reminderReason 等槽位
 - checkin：打卡（用户说「帮我打卡」「打个卡」「上班打卡」「下班打卡」等考勤打卡请求）
 - device_screenshot：要求小晴直接替用户截当前设备/电脑/手机/窗口/页面的屏幕截图（如「屏幕截个图」「帮我截个屏」「把我现在这个页面截一下」等）。这是用户设备侧操作请求，不要误判成 checkin，也不要因为当前没有专用执行能力就降成 none
+- page_screenshot：要求截取**指定网页**的截图（用户给出了 URL 或可推断的 URL，如「帮我截一下 github.com」「截一下这个链接的页面」「帮我截 https://... 的完整页面」）。区别：device_screenshot 是截用户自己的屏幕，page_screenshot 是截指定网页内容
 - general_tool：其他工具型请求（搜索、邮件、日历、外部查询等）
 
 7. 建议工具（suggestedTool，可选）
@@ -119,11 +120,15 @@ export const INTENT_SYSTEM_PROMPT = `
     - 「半小时后提醒我站起来走走」→ reminderAction="create"、reminderReason="站起来走走"、reminderSchedule="once"、reminderRunAt="2026-03-19T14:52:00+08:00"
     - 「取消吃饭那个提醒」→ reminderAction="cancel"、reminderTarget="吃饭"
     - 「我有哪些提醒」→ reminderAction="list"
+- 网页截图时（taskIntent 为 page_screenshot）：
+  · screenshotUrl：目标网页 URL（必填，从用户输入中提取完整 URL；若用户只说了域名如「github.com」，补全为 https://github.com）
+  · screenshotSelector：CSS selector（可选，用户指定要截某个区域/元素时填写，如「帮我截文章正文」可能对应 article 或 .content 等，若无法确定留空）
+  · 示例：「帮我截一下 https://github.com 首页」→ screenshotUrl="https://github.com"；「截 example.com 页面上的 .main-content」→ screenshotUrl="https://example.com"、screenshotSelector=".main-content"
 - 示例：用户说「今天上海浦东新区的天气」→ city="上海"、district="浦东新区"、dateLabel="今天」。用户说「116.41,39.92 那儿现在天气」→ location="116.41,39.92"。用户说「下载群魔」→ taskIntent="book_download"、slots.bookName="群魔"。上轮 assistant 列出了群魔的多条候选，用户说「1」→ taskIntent="book_download"、slots.bookName="群魔"、slots.bookChoiceIndex=1。
 
 9. 缺失参数（missingParams）
 - 若是工具型任务但关键参数不足，列出缺失参数名（英文小写）。
-- 查天气时，若既无 location（坐标）也无 city（城市名），则缺地点，填 ["city"]。电子书下载时若无书名则填 ["bookName"]。
+- 查天气时，若既无 location（坐标）也无 city（城市名），则缺地点，填 ["city"]。电子书下载时若无书名则填 ["bookName"]。网页截图（page_screenshot）时若无 URL 则填 ["screenshotUrl"]。
 - 工时上报（timesheet）默认不要求缺失参数：preview/confirm/submit 未给日期可默认今天，query_missing 未给月份可默认当月；通常应输出 []。
 - 提醒设置（set_reminder）时：
   · create 且未给提醒内容 → 填 ["reminderReason"]
@@ -236,7 +241,7 @@ export const INTENT_SYSTEM_PROMPT = `
   "taskIntents": []
 }
 
-taskIntent 说明：必须是 "none" | "weather_query" | "book_download" | "timesheet" | "dev_task" | "set_reminder" | "checkin" | "device_screenshot" | "general_tool" 之一。
+taskIntent 说明：必须是 "none" | "weather_query" | "book_download" | "timesheet" | "dev_task" | "set_reminder" | "checkin" | "device_screenshot" | "page_screenshot" | "general_tool" 之一。
 
 suggestedTool 说明：查天气时填 "weather"，电子书下载时填 "book_download"，工时上报时填 "timesheet"，设置提醒时填 "reminder"，否则不输出或空字符串。
 

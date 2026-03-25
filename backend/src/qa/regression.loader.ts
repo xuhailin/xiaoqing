@@ -3,6 +3,13 @@ import { resolve } from 'path';
 import { parseRegressionScenario } from './regression.schema';
 import type { RegressionDatasetFilters, RegressionScenario } from './regression.types';
 
+function effectiveGateSuite(scenario: RegressionScenario): 'core' | 'agents' {
+  if (scenario.gateSuite === 'core' || scenario.gateSuite === 'agents') {
+    return scenario.gateSuite;
+  }
+  return scenario.category === 'devagent' ? 'agents' : 'core';
+}
+
 const SCENARIO_DIRS = [
   ['cases', 'curated'],
   ['cases', 'promoted'],
@@ -33,8 +40,17 @@ export class RegressionDatasetLoader {
     scenario: RegressionScenario,
     filters: RegressionDatasetFilters,
   ): boolean {
-    if (filters.mode === 'gate' && !scenario.releaseGate) {
-      return false;
+    if (filters.mode === 'gate' || filters.mode === 'gate-agents') {
+      if (!scenario.releaseGate) {
+        return false;
+      }
+      const suite = effectiveGateSuite(scenario);
+      if (filters.mode === 'gate' && suite !== 'core') {
+        return false;
+      }
+      if (filters.mode === 'gate-agents' && suite !== 'agents') {
+        return false;
+      }
     }
 
     if (filters.mode === 'replay' && scenario.sourceType !== 'replay') {

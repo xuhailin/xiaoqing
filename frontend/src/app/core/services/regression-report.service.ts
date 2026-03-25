@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
 
-export type RegressionReportMode = 'gate' | 'replay';
+export type RegressionReportMode = 'gate' | 'gate-agents' | 'replay';
 export type RegressionScenarioStatus = 'passed' | 'failed' | 'error';
 export type RegressionRunStatus = 'idle' | 'starting' | 'running' | 'succeeded' | 'failed';
 
@@ -87,7 +87,7 @@ export interface RegressionScenarioResult {
 
 export interface RegressionReport {
   runId: string;
-  mode: RegressionReportMode;
+  mode: 'gate' | 'gate-agents' | 'replay' | 'all';
   generatedAt: string;
   summary: RegressionSummary;
   results: RegressionScenarioResult[];
@@ -102,6 +102,7 @@ export interface RegressionReportEnvelope {
 
 export interface RegressionLatestReportsResponse {
   gate: RegressionReportEnvelope;
+  gateAgents: RegressionReportEnvelope;
   replay: RegressionReportEnvelope;
 }
 
@@ -123,6 +124,7 @@ export interface RegressionRunState {
 
 export interface RegressionRunStatesResponse {
   gate: RegressionRunState;
+  gateAgents: RegressionRunState;
   replay: RegressionRunState;
 }
 

@@ -9,7 +9,8 @@ export type CanonicalCapability =
   | 'timesheet'
   | 'reminder'
   | 'openclaw'
-  | 'local-skill';
+  | 'local-skill'
+  | 'page-screenshot';
 
 export interface ScenarioTurn {
   role: 'user';
@@ -66,6 +67,8 @@ export interface RegressionScenario {
   tags?: string[];
   severity: RegressionSeverity;
   releaseGate: boolean;
+  /** 显式指定时覆盖按 category 的推断（如 devagent → agents） */
+  gateSuite?: 'core' | 'agents';
   transcript: ScenarioTurn[];
   expectations: ScenarioExpectations;
   reference?: ScenarioReference;
@@ -74,7 +77,7 @@ export interface RegressionScenario {
 }
 
 export interface RegressionDatasetFilters {
-  mode: 'gate' | 'replay' | 'all';
+  mode: 'gate' | 'gate-agents' | 'replay' | 'all';
   scenarioIds?: string[];
   sourceTypes?: RegressionSourceType[];
 }
@@ -168,7 +171,7 @@ export interface RegressionRunSummary {
 
 export interface RegressionReport {
   runId: string;
-  mode: 'gate' | 'replay' | 'all';
+  mode: 'gate' | 'gate-agents' | 'replay' | 'all';
   generatedAt: string;
   summary: RegressionRunSummary;
   results: ScenarioRunResult[];

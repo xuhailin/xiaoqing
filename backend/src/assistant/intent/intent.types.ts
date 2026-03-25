@@ -5,7 +5,7 @@ export type DialogueSeriousness = 'casual' | 'semi' | 'focused';
 export type DialogueExpectation = '陪聊' | '一起想' | '直接给结果';
 export type DialogueAgency = '朋友' | '并肩思考者' | '顾问' | '执行器';
 export type DialogueEscalation = '不推进' | '可记录' | '应转任务';
-export type DialogueTaskIntent = 'none' | 'weather_query' | 'book_download' | 'general_tool' | 'timesheet' | 'dev_task' | 'set_reminder' | 'checkin' | 'device_screenshot';
+export type DialogueTaskIntent = 'none' | 'weather_query' | 'book_download' | 'general_tool' | 'timesheet' | 'dev_task' | 'set_reminder' | 'checkin' | 'device_screenshot' | 'page_screenshot';
 /** LLM 给出的建议工具；最终是否调用由策略层决定 */
 export type DialogueSuggestedTool = 'weather' | 'book_download' | 'timesheet' | 'reminder';
 export type DialogueTargetKind = 'chat' | 'idea' | 'todo' | 'task';
@@ -53,6 +53,10 @@ export interface DialogueIntentSlots {
   reminderWeekday?: number;
   /** 提醒：取消时的提醒 ID 或关键词 */
   reminderTarget?: string;
+  /** 网页截图：目标 URL */
+  screenshotUrl?: string;
+  /** 网页截图：CSS selector（可选，不传则全页截图） */
+  screenshotSelector?: string;
   [key: string]: unknown;
 }
 

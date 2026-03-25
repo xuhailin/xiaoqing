@@ -23,6 +23,7 @@ import { DevTranscriptWriter } from './reporting/dev-transcript.writer';
 import { DevFinalReportGenerator } from './reporting/dev-final-report.generator';
 import { DevAgentExecutorResolver } from './execution/dev-agent-executor-resolver';
 import { WorkspaceManager } from './workspace/workspace-manager.service';
+import { ConversationWorkService } from '../conversation-work/conversation-work.service';
 import type { DevWorkspaceMeta } from './workspace/workspace-meta';
 import { withWorkspaceMeta } from './workspace/workspace-meta';
 
@@ -68,6 +69,7 @@ export class DevAgentOrchestrator {
     private readonly agentExecutorResolver: DevAgentExecutorResolver,
     private readonly workspaceManager: WorkspaceManager,
     private readonly costService: DevCostService,
+    private readonly conversationWork: ConversationWorkService,
   ) {}
 
   async executeRun(input: DevRunExecutionInput): Promise<DevTaskResult> {
@@ -151,6 +153,13 @@ export class DevAgentOrchestrator {
           ) as any,
         });
 
+        void this.conversationWork.emitDevRunProgress(input.run.id, {
+          phase: 'plan',
+          meta: {
+            round,
+          },
+        }).catch((err) => this.logger.debug(`emit dev plan progress failed: ${String(err)}`));
+
         await this.transcriptWriter.write(runDir, {
           phase: 'plan',
           taskId: taskContext.taskId,
@@ -204,6 +213,17 @@ export class DevAgentOrchestrator {
             ) as any,
           });
 
+          void this.conversationWork.emitDevRunProgress(input.run.id, {
+            phase: 'execute',
+            meta: {
+              round,
+              stepId,
+              success: result.success,
+              strategy: result.strategy,
+              executor: result.resolvedExecutor,
+            },
+          }).catch((err) => this.logger.debug(`emit dev execute progress failed: ${String(err)}`));
+
           if (!result.success) {
             const errorType = result.errorType ?? 'UNKNOWN';
             taskContext.consecutiveFailures += 1;
@@ -237,6 +257,17 @@ export class DevAgentOrchestrator {
                   taskContext.workspace,
                 ) as any,
               });
+
+              void this.conversationWork.emitDevRunProgress(input.run.id, {
+                phase: 'replan',
+                meta: {
+                  round,
+                  stepId,
+                  errorType,
+                  replanCount: taskContext.replanCount,
+                  reason: pendingReplanReason,
+                },
+              }).catch((err) => this.logger.debug(`emit dev replan progress failed: ${String(err)}`));
               continue roundLoop;
             }
 
@@ -255,6 +286,16 @@ export class DevAgentOrchestrator {
               hasRemainingRoundSteps: i < roundSteps.length - 1,
             },
           );
+
+          void this.conversationWork.emitDevRunProgress(input.run.id, {
+            phase: 'evaluate',
+            meta: {
+              round,
+              stepId,
+              done: evaluation.done,
+              reason: evaluation.reason,
+            },
+          }).catch((err) => this.logger.debug(`emit dev evaluate progress failed: ${String(err)}`));
           await this.transcriptWriter.write(runDir, {
             phase: 'step_eval',
             taskId: taskContext.taskId,
@@ -315,14 +356,44 @@ export class DevAgentOrchestrator {
       });
 
       await this.throwIfCancelled(input.run.id);
-      const reply = await this.finalReportGenerator.generateReport(input.run.userInput, {
-        taskId: taskContext.taskId,
-        allSuccess,
-        stopReason,
-        completedSteps: resultSummary.completedSteps,
-        totalSteps: resultSummary.totalSteps,
-        suggestion: resultSummary.suggestion,
-      });
+
+      // orchestrated 模式：finalReply 优先回显执行器的“最后一步输出”。
+      // - success：优先最后一个成功 step 的 output
+      // - failed：优先最后一个（按时间倒序）有输出的 step output
+      const lastSuccessfulStep = [...taskContext.stepResults]
+        .reverse()
+        .find((s) => s.success && typeof s.output === 'string' && s.output.trim().length > 0);
+      const lastAnyStepWithOutput = [...taskContext.stepResults]
+        .reverse()
+        .find((s) => typeof s.output === 'string' && s.output.trim().length > 0);
+
+      const overrideFinalText = allSuccess
+        ? (lastSuccessfulStep?.output ?? null)
+        : (lastAnyStepWithOutput?.output ?? null);
+
+      const reply = await this.finalReportGenerator.generateReport(
+        input.run.userInput,
+        {
+          taskId: taskContext.taskId,
+          allSuccess,
+          stopReason,
+          completedSteps: resultSummary.completedSteps,
+          totalSteps: resultSummary.totalSteps,
+          suggestion: resultSummary.suggestion,
+        },
+        {
+          chunkIntervalMs: 15,
+          overrideFinalText,
+          onFinalReplyChunk: (chunk, fullSoFar) => this.conversationWork.emitDevRunFinalReplyChunk(
+            input.run.id,
+            { text: fullSoFar, chunk, done: false },
+          ),
+          onFinalReplyDone: (fullText) => this.conversationWork.emitDevRunFinalReplyChunk(
+            input.run.id,
+            { text: fullText, done: true },
+          ),
+        },
+      );
 
       const finalStatus = allSuccess ? DevRunStatus.success : DevRunStatus.failed;
       const executors = [...new Set(taskContext.stepResults.map((s) => s.executor))].join(',');

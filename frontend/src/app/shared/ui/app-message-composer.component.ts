@@ -1,36 +1,42 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { AppButtonComponent } from '../../shared/ui/app-button.component';
+import { AppButtonComponent } from './app-button.component';
 
 @Component({
-  selector: 'app-chat-input',
+  selector: 'app-message-composer',
   standalone: true,
   imports: [FormsModule, AppButtonComponent],
   template: `
-    <section class="chat-input">
-      <textarea
-        class="ui-textarea"
-        [ngModel]="taskInput"
-        (ngModelChange)="taskInputChange.emit($event)"
-        (keydown.enter)="handleEnter($event)"
-        [disabled]="sending"
-        [placeholder]="placeholder"
-      ></textarea>
+    <section class="message-composer">
+      <ng-content select="[composerTop]"></ng-content>
 
-      <div class="input-actions">
+      <div class="composer-main">
+        <ng-content select="[composerPrefix]"></ng-content>
+        <textarea
+          class="ui-textarea"
+          [ngModel]="taskInput"
+          (ngModelChange)="taskInputChange.emit($event)"
+          (keydown.enter)="handleEnter($event)"
+          [disabled]="sending"
+          [placeholder]="placeholder"
+        ></textarea>
+        <ng-content select="[composerSuffix]"></ng-content>
+      </div>
+
+      <div class="composer-actions">
         <div class="hint">{{ hint }}</div>
         <app-button
           variant="primary"
-          [disabled]="sending || !taskInput.trim()"
+          [disabled]="sending || submitDisabled || !taskInput.trim()"
           (click)="submit.emit()"
         >
-          {{ sending ? 'Running...' : submitLabel }}
+          {{ sending ? sendingLabel : submitLabel }}
         </app-button>
       </div>
     </section>
   `,
   styles: [`
-    .chat-input {
+    .message-composer {
       border-top: 1px solid var(--color-border-light);
       background: var(--workbench-surface-gradient-soft);
       padding: var(--workbench-panel-padding);
@@ -46,11 +52,22 @@ import { AppButtonComponent } from '../../shared/ui/app-button.component';
       line-height: 1.7;
     }
 
-    .input-actions {
+    .composer-actions {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: var(--space-3);
+    }
+
+    .composer-main {
+      display: flex;
+      align-items: flex-end;
+      gap: var(--space-2);
+    }
+
+    .composer-main textarea {
+      flex: 1;
+      min-width: 0;
     }
 
     .hint {
@@ -59,11 +76,11 @@ import { AppButtonComponent } from '../../shared/ui/app-button.component';
     }
 
     @media (max-width: 900px) {
-      .chat-input {
+      .message-composer {
         padding: var(--space-3);
       }
 
-      .input-actions {
+      .composer-actions {
         align-items: stretch;
         flex-direction: column;
       }
@@ -74,18 +91,21 @@ import { AppButtonComponent } from '../../shared/ui/app-button.component';
     }
   `],
 })
-export class ChatInputComponent {
+export class AppMessageComposerComponent {
   @Input() taskInput = '';
   @Input() sending = false;
-  @Input() placeholder = '输入开发任务';
-  @Input() hint = '例如：检查 dev-agent executor / 修复 typescript error';
-  @Input() submitLabel = '发送任务';
+  @Input() placeholder = '输入内容';
+  @Input() hint = '';
+  @Input() submitLabel = '发送';
+  @Input() sendingLabel = 'Running...';
+  @Input() submitDisabled = false;
 
   @Output() taskInputChange = new EventEmitter<string>();
   @Output() submit = new EventEmitter<void>();
 
   handleEnter(event: Event) {
     const keyboard = event as KeyboardEvent;
+    if (keyboard.isComposing || (keyboard as { keyCode?: number }).keyCode === 229) return;
     if (keyboard.shiftKey) return;
     keyboard.preventDefault();
     this.submit.emit();

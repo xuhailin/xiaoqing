@@ -1,11 +1,13 @@
-export type ModelScenario = 'chat' | 'dev' | 'python' | 'reasoning' | 'summary';
+export type ModelScenario = 'chat' | 'dev' | 'devPlanner' | 'python' | 'reasoning' | 'summary' | 'fast';
 
 export type ModelRoutingKey =
   | 'chatModel'
   | 'devModel'
+  | 'devPlannerModel'
   | 'pythonModel'
   | 'reasoningModel'
-  | 'summaryModel';
+  | 'summaryModel'
+  | 'fastModel';
 
 export interface ModelDefinition {
   id: string;

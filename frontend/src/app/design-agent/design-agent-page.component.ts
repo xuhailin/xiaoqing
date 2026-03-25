@@ -1,841 +1,936 @@
-import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, signal } from '@angular/core';
+import { NgClass } from '@angular/common';
+import { Component, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { AppBadgeComponent } from '../shared/ui/app-badge.component';
+import { marked } from 'marked';
+import { AgentChatComponent } from '../shared/components/agent-chat/agent-chat.component';
+import type { AgentSession } from '../shared/components/agent-chat/agent-session.types';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
 import { AppIconComponent } from '../shared/ui/app-icon.component';
-import { AppPageHeaderComponent } from '../shared/ui/app-page-header.component';
-import { AppPanelComponent } from '../shared/ui/app-panel.component';
+import { AppMessageComposerComponent } from '../shared/ui/app-message-composer.component';
+import { AppStateComponent } from '../shared/ui/app-state.component';
 import {
   DesignAgentService,
-  type DesignAuditMode,
-  type DesignPageType,
-  type DesignPreset,
-  type RunDesignAuditResultDto,
+  type DesignConversationDto,
+  type DesignImageInput,
 } from '../core/services/design-agent.service';
-
-type AuditTemplate = {
-  label: string;
-  pageType: DesignPageType;
-  pageName: string;
-  pageUrl: string;
-  mode: DesignAuditMode;
-  preset: DesignPreset;
-  notes: string;
-};
-
-const DEFAULT_PRESET_BY_TYPE: Record<DesignPageType, DesignPreset> = {
-  chat: 'warm-tech',
-  workbench: 'serious-workbench',
-  memory: 'quiet-personal',
-};
-
-const AUDIT_TEMPLATES: readonly AuditTemplate[] = [
-  {
-    label: '聊天主界面',
-    pageType: 'chat',
-    pageName: 'chat-main',
-    pageUrl: '/chat',
-    mode: 'full',
-    preset: 'warm-tech',
-    notes: '重点看聊天主舞台、空状态、输入区和左右密度是否协调。',
-  },
-  {
-    label: '工作台首页',
-    pageType: 'workbench',
-    pageName: 'workspace-home',
-    pageUrl: '/workspace',
-    mode: 'full',
-    preset: 'serious-workbench',
-    notes: '重点看工作流信息层级、操作优先级和面板间距。',
-  },
-  {
-    label: '记忆-认识你',
-    pageType: 'memory',
-    pageName: 'memory-understanding',
-    pageUrl: '/memory/understanding',
-    mode: 'full',
-    preset: 'quiet-personal',
-    notes: '重点看卡片节奏、说明文案层级和信息拥挤度。',
-  },
-];
 
 @Component({
   selector: 'app-design-agent-page',
   standalone: true,
   imports: [
     FormsModule,
-    AppBadgeComponent,
+    NgClass,
+    AgentChatComponent,
     AppButtonComponent,
     AppIconComponent,
-    AppPageHeaderComponent,
-    AppPanelComponent,
+    AppMessageComposerComponent,
+    AppStateComponent,
   ],
   template: `
-    <div class="design-agent-page">
-      <app-page-header
-        eyebrow="Design Agent"
-        title="设计审查台"
-        description="统一发起页面设计审查，适合检查聊天、工作台和记忆页的代码结构与视觉一致性。"
-      />
+    <app-agent-chat
+      [sessions]="agentSessions()"
+      [activeSession]="activeAgentSession()"
+      (selectSession)="selectConversation($event.id)"
+      (newSession)="createNewConversation()"
+    >
+      @if (currentConversation()) {
 
-      <div class="design-agent-page__grid">
-        <app-panel variant="subtle" padding="lg">
-          <div class="design-agent-page__section-head">
-            <div>
-              <h2>一句话触发审查</h2>
-              <p>输入你想检查的页面与关注点。</p>
-            </div>
-            <app-badge tone="info" appearance="outline">POST /design-agent/audits/run</app-badge>
-          </div>
+        <!-- 消息列表 -->
+        <div class="message-list ui-scrollbar" #messagesContainer>
 
-          <label class="field design-agent-page__field--wide">
-            <span>审查目标（一句话）</span>
-            <textarea
-              class="ui-textarea"
-              rows="4"
-              [ngModel]="userSentence()"
-              (ngModelChange)="userSentence.set($event)"
-              placeholder="例如：审查 memory 页面 /memory/understanding，看看这个页面 UI 有没有问题"
-            ></textarea>
-            <p class="design-agent-page__field-help">
-              MVP：目前可识别 memory + understanding（或直接包含 /memory/understanding）。
-            </p>
-          </label>
+          @for (msg of messages(); track msg.id) {
 
-          <details class="design-agent-page__advanced">
-            <summary>Advanced / Debug（保留原表单）</summary>
-            <div class="design-agent-page__templates">
-              @for (template of templates; track template.label) {
-                <app-button variant="ghost" size="sm" (click)="applyTemplate(template)">
-                  <app-icon name="sparkles" size="0.8rem" />
-                  <span>{{ template.label }}</span>
-                </app-button>
-              }
-            </div>
+            @if (msg.role === 'user') {
+              <!-- ── User 消息（右侧气泡）────────────────── -->
+              <article class="msg-row msg-row--user">
+                <div class="msg-label">你</div>
+                @if (msg.metadata?.images?.length) {
+                  <div class="msg-images">
+                    @for (img of msg.metadata!.images!; track $index) {
+                      <img
+                        class="msg-image"
+                        [src]="'data:' + img.mimeType + ';base64,' + img.base64"
+                        alt="上传的截图"
+                      />
+                    }
+                  </div>
+                }
+                <div class="bubble bubble--user">{{ msg.content }}</div>
+                <div class="msg-time">{{ formatTime(msg.createdAt) }}</div>
+              </article>
 
-            <div class="design-agent-page__form">
-            <label class="field">
-              <span>页面类型</span>
-              <select
-                class="ui-select"
-                [ngModel]="pageType()"
-                (ngModelChange)="setPageType($event)"
-              >
-                <option value="chat">chat</option>
-                <option value="workbench">workbench</option>
-                <option value="memory">memory</option>
-              </select>
-            </label>
+            } @else if (msg.role === 'assistant') {
+              <!-- ── Assistant 消息（左侧气泡）────────────── -->
+              <article class="msg-row msg-row--assistant">
+                <div class="msg-label">Design Agent</div>
 
-            <label class="field">
-              <span>Preset</span>
-              <select
-                class="ui-select"
-                [ngModel]="preset()"
-                (ngModelChange)="preset.set($event)"
-              >
-                <option value="warm-tech">warm-tech</option>
-                <option value="serious-workbench">serious-workbench</option>
-                <option value="quiet-personal">quiet-personal</option>
-              </select>
-            </label>
+                <!-- 审查详情折叠块 -->
+                @if (msg.metadata?.auditResult?.findings?.length) {
+                  <div class="audit-block" [class.is-expanded]="isAuditExpanded(msg.id)">
+                    <button
+                      type="button"
+                      class="audit-header"
+                      (click)="toggleAudit(msg.id)"
+                    >
+                      <span class="audit-icon" aria-hidden="true">🔍</span>
+                      <span class="audit-label">
+                        查看审查详情 · {{ msg.metadata!.auditResult!.findings.length }} 个问题
+                        @if (highFindingCount(msg) > 0) {
+                          <span class="audit-high-badge">{{ highFindingCount(msg) }} 高危</span>
+                        }
+                      </span>
+                      <span class="audit-toggle">{{ isAuditExpanded(msg.id) ? '↑' : '↓' }}</span>
+                    </button>
 
-            <label class="field">
-              <span>审查模式</span>
-              <select
-                class="ui-select"
-                [ngModel]="mode()"
-                (ngModelChange)="mode.set($event)"
-              >
-                <option value="full">完整（代码 + 视觉）</option>
-                <option value="code">代码结构（更偏实现）</option>
-                <option value="visual">视觉一致性（更偏观感）</option>
-              </select>
-              <p class="design-agent-page__field-help">
-                这只影响 Design Agent 的检查范围，不是切换到 DevAgent 执行。
-              </p>
-            </label>
-
-            <label class="field design-agent-page__field--wide">
-              <span>页面名称</span>
-              <input
-                class="ui-input"
-                [ngModel]="pageName()"
-                (ngModelChange)="pageName.set($event)"
-                placeholder="例如：memory-understanding"
-              />
-            </label>
-
-            <label class="field design-agent-page__field--wide">
-              <span>页面 URL</span>
-              <input
-                class="ui-input"
-                [ngModel]="pageUrl()"
-                (ngModelChange)="pageUrl.set($event)"
-                placeholder="/memory/understanding"
-              />
-            </label>
-
-            <label class="field design-agent-page__field--wide">
-              <span>目标文件（每行一个，可选）</span>
-              <textarea
-                class="ui-textarea"
-                rows="5"
-                [ngModel]="targetFilesText()"
-                (ngModelChange)="targetFilesText.set($event)"
-                placeholder="frontend/src/app/memory/memory-hub.component.ts"
-              ></textarea>
-            </label>
-
-            <label class="field design-agent-page__field--wide">
-              <span>补充说明（可选）</span>
-              <textarea
-                class="ui-textarea"
-                rows="4"
-                [ngModel]="notes()"
-                (ngModelChange)="notes.set($event)"
-                placeholder="补充本次最关注的视觉问题、布局问题或不想改动的区域"
-              ></textarea>
-            </label>
-            </div>
-
-            <div class="design-agent-page__actions">
-              <app-button variant="primary" [disabled]="loading()" (click)="runAudit()">
-                {{ loading() ? '审查中...' : '运行设计审查' }}
-              </app-button>
-              <app-button variant="ghost" [disabled]="loading()" (click)="resetForm()">
-                重置
-              </app-button>
-            </div>
-
-          </details>
-
-          <div class="design-agent-page__actions">
-            <app-button variant="primary" [disabled]="loading() || !userSentence().trim()" (click)="runFromSentence()">
-              {{ loading() ? '审查中...' : '运行设计审查' }}
-            </app-button>
-          </div>
-
-          @if (errorMessage()) {
-            <div class="design-agent-page__notice design-agent-page__notice--error" role="alert">
-              {{ errorMessage() }}
-            </div>
-          }
-        </app-panel>
-
-        <app-panel variant="workbench" padding="lg">
-          <div class="design-agent-page__section-head">
-            <div>
-              <h2>审查结果</h2>
-              <p>这里展示当前运行的摘要、发现项和建议操作（如果有）。</p>
-              <p class="design-agent-page__field-help">目标：{{ pageUrl() }}</p>
-            </div>
-            @if (result(); as res) {
-              <app-badge
-                [tone]="summaryTone(res.auditResult?.summary?.riskLevel)"
-                appearance="outline"
-              >
-                {{ res.auditResult?.summary?.riskLevel || 'unknown' }}
-              </app-badge>
-            }
-          </div>
-
-          @if (loading()) {
-            <div class="design-agent-page__placeholder">
-              <app-icon name="sparkles" size="1rem" />
-              <span>Design Agent 正在审查页面，通常需要几十秒。</span>
-            </div>
-          } @else if (result(); as res) {
-            <div class="design-agent-page__summary">
-              @if (!res.success && errorMessage()) {
-                <div class="design-agent-page__notice design-agent-page__notice--error" role="alert">
-                  {{ errorMessage() }}
-                </div>
-              }
-              <div class="design-agent-page__summary-card">
-                <span class="design-agent-page__summary-label">状态</span>
-                <strong>{{ res.auditResult?.summary?.status || 'unknown' }}</strong>
-              </div>
-              <div class="design-agent-page__summary-card">
-                <span class="design-agent-page__summary-label">模式</span>
-                <strong>{{ modeLabel(res.actualMode) }}</strong>
-              </div>
-              <div class="design-agent-page__summary-card">
-                <span class="design-agent-page__summary-label">耗时</span>
-                <strong>{{ formatDuration(res.durationMs) }}</strong>
-              </div>
-              <div class="design-agent-page__summary-card">
-                <span class="design-agent-page__summary-label">费用</span>
-                <strong>{{ formatCost(res.costUsd) }}</strong>
-              </div>
-            </div>
-
-            @if (res.auditResult?.summary?.overallAssessment) {
-              <div class="design-agent-page__assessment">
-                {{ res.auditResult?.summary?.overallAssessment }}
-              </div>
-            }
-
-            <div class="design-agent-page__actions design-agent-page__actions--results">
-              <app-button
-                variant="ghost"
-                [disabled]="loading()"
-                (click)="rerunAudit()"
-              >
-                重新审查
-              </app-button>
-              <app-button
-                variant="ghost"
-                [disabled]="loading()"
-                (click)="deepAudit()"
-              >
-                深度审查
-              </app-button>
-              <app-button
-                variant="ghost"
-                [disabled]="loading()"
-                (click)="generateModificationPlan()"
-              >
-                生成修改方案
-              </app-button>
-              <app-button
-                variant="ghost"
-                [disabled]="loading()"
-                (click)="handoffToDevAgent()"
-              >
-                交给 devAgent 修改
-              </app-button>
-            </div>
-            @if (actionHint()) {
-              <p class="design-agent-page__field-help">{{ actionHint() }}</p>
-            }
-
-            @if (res.auditResult?.findings?.length) {
-              <div class="design-agent-page__findings">
-                @for (finding of res.auditResult?.findings; track finding.id) {
-                  <article class="design-agent-page__finding">
-                    <div class="design-agent-page__finding-head">
-                      <strong>{{ finding.rule }}</strong>
-                      <div class="design-agent-page__finding-meta">
-                        <app-badge [tone]="severityTone(finding.severity)" appearance="outline">
-                          {{ finding.severity }}
-                        </app-badge>
-                        @if (finding.source) {
-                          <app-badge tone="neutral" appearance="outline">
-                            {{ finding.source }}
-                          </app-badge>
+                    @if (isAuditExpanded(msg.id)) {
+                      <div class="audit-findings">
+                        @for (finding of msg.metadata!.auditResult!.findings; track finding.id) {
+                          <div
+                            class="finding"
+                            [ngClass]="'finding--' + findingSeverity(finding.severity)"
+                          >
+                            <div class="finding-head">
+                              <span class="finding-severity-tag finding-severity-tag--{{ findingSeverity(finding.severity) }}">
+                                {{ finding.severity }}
+                              </span>
+                              <span class="finding-rule">{{ finding.rule }}</span>
+                              @if (finding.location) {
+                                <code class="finding-location">{{ finding.location }}</code>
+                              }
+                            </div>
+                            <p class="finding-problem">{{ finding.problem }}</p>
+                            @if (finding.impact) {
+                              <p class="finding-impact">影响：{{ finding.impact }}</p>
+                            }
+                          </div>
                         }
                       </div>
-                    </div>
-                    <p>{{ finding.problem }}</p>
-                    <p class="design-agent-page__finding-impact">影响：{{ finding.impact }}</p>
-                    <div class="design-agent-page__finding-location">{{ finding.location }}</div>
-                  </article>
+                    }
+                  </div>
                 }
-              </div>
-            } @else {
-              <div class="design-agent-page__placeholder">
-                <app-icon name="check" size="1rem" />
-                <span>这次没有返回具体 finding。</span>
-              </div>
-            }
 
-            @if (res.auditResult?.minimalFixPlan?.length) {
-              <div class="design-agent-page__assessment" id="design-agent-fix-plan">
-                建议操作（minimalFixPlan）：
-              </div>
-              <div class="design-agent-page__findings">
-                @for (fix of res.auditResult?.minimalFixPlan; track fix.target) {
-                  <article class="design-agent-page__finding">
-                    <div class="design-agent-page__finding-head">
-                      <strong>{{ fix.type }}</strong>
-                      <div class="design-agent-page__finding-meta">
-                        <app-badge tone="neutral" appearance="outline">fix</app-badge>
+                <!-- 回复气泡 -->
+                @if (msg.content.trim()) {
+                  <div
+                    class="bubble bubble--assistant"
+                    [innerHTML]="renderMarkdown(msg.content)"
+                  ></div>
+                }
+
+                <!-- 建议修改方案 -->
+                @if (msg.metadata?.proposedChanges?.length) {
+                  <div class="proposed-changes">
+                    <div class="proposed-changes__header">建议修改</div>
+                    @for (change of msg.metadata!.proposedChanges!; track change.filePath) {
+                      <div class="change-item">
+                        <code class="change-path">{{ change.filePath }}</code>
+                        <p class="change-desc">{{ change.description }}</p>
                       </div>
-                    </div>
-                    <p>{{ fix.action }}</p>
-                    <div class="design-agent-page__finding-location">{{ fix.target }}</div>
-                  </article>
+                    }
+                    @if (!applyingChanges()) {
+                      <app-button
+                        variant="primary"
+                        size="sm"
+                        (click)="applyChanges(currentConversation()!.id)"
+                      >
+                        确认修改
+                      </app-button>
+                    } @else {
+                      <span class="applying-hint">应用中...</span>
+                    }
+                  </div>
                 }
-              </div>
+
+                <!-- 执行结果 -->
+                @if (msg.metadata?.executionResult) {
+                  <div
+                    class="exec-result"
+                    [class.exec-result--success]="msg.metadata!.executionResult!.success"
+                    [class.exec-result--error]="!msg.metadata!.executionResult!.success"
+                  >
+                    @if (msg.metadata!.executionResult!.success) {
+                      已修改 {{ msg.metadata!.executionResult!.changedFiles.length }} 个文件
+                    } @else {
+                      修改失败：{{ msg.metadata!.executionResult!.error }}
+                    }
+                  </div>
+                }
+
+                <div class="msg-time">{{ formatTime(msg.createdAt) }}</div>
+              </article>
             }
 
-            <details class="design-agent-page__raw">
-              <summary>查看完整 JSON</summary>
-              <pre>{{ rawJson() }}</pre>
-            </details>
-          } @else {
-            <div class="design-agent-page__placeholder">
-              <app-icon name="tool" size="1rem" />
-              <span>还没有运行审查。输入一句话后就可以开始。</span>
+          } @empty {
+            <app-state
+              title="开始设计审查"
+              description="描述想审查的页面，或上传截图指出 UI 问题。"
+            />
+          }
+
+          @if (loading()) {
+            <div class="typing-indicator">
+              <span class="typing-spinner" aria-hidden="true"></span>
+              <span>正在思考...</span>
             </div>
           }
-        </app-panel>
-      </div>
-    </div>
+
+          @if (sendError()) {
+            <div class="send-error">
+              <span>{{ sendError() }}</span>
+            </div>
+          }
+
+        </div>
+
+        <!-- 输入区 -->
+        <app-message-composer
+          [taskInput]="inputText()"
+          [sending]="loading()"
+          placeholder="描述页面问题或上传截图..."
+          hint="支持上传截图 · 确认修改后自动应用"
+          submitLabel="发送"
+          [submitDisabled]="!inputText().trim() && !pendingImages().length"
+          (taskInputChange)="inputText.set($event)"
+          (submit)="sendMessage()"
+        >
+          @if (pendingImages().length) {
+            <div class="image-preview" composerTop>
+              @for (img of pendingImages(); track $index) {
+                <div class="preview-item">
+                  <img [src]="img.previewUrl" alt="待上传" />
+                  <button
+                    type="button"
+                    class="preview-remove"
+                    (click)="removePendingImage($index)"
+                  >×</button>
+                </div>
+              }
+            </div>
+          }
+
+          <label class="upload-btn" composerPrefix>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              multiple
+              (change)="handleImageUpload($event)"
+            />
+            <app-icon name="image" size="1.1rem" />
+          </label>
+        </app-message-composer>
+
+      } @else {
+
+        <!-- 未选择对话 -->
+        <div class="empty-main">
+          <app-state
+            title="选择或创建对话"
+            description="从左侧选择一个已有对话，或新建一个开始审查。"
+          >
+            <app-button variant="primary" size="sm" (click)="createNewConversation()">
+              开始新对话
+            </app-button>
+          </app-state>
+        </div>
+
+      }
+    </app-agent-chat>
   `,
   styles: [`
     :host {
-      display: flex;
-      flex-direction: column;
+      display: block;
       flex: 1;
       height: 100%;
       min-height: 0;
+      padding: var(--workbench-shell-padding);
+      --agent-chat-sidebar-width: 240px;
     }
 
-    .design-agent-page {
-      flex: 1;
-      min-height: 0;
-      overflow: auto;
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-4);
-      padding: var(--space-4);
+    app-agent-chat {
+      display: block;
       height: 100%;
     }
 
-    .design-agent-page::-webkit-scrollbar {
-      width: 4px;
-    }
+    // ── 消息列表 ────────────────────────────────
 
-    .design-agent-page::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    .design-agent-page::-webkit-scrollbar-thumb {
-      background: var(--color-border-light);
-      border-radius: var(--radius-pill);
-    }
-
-    .design-agent-page__grid {
-      display: grid;
-      grid-template-columns: minmax(320px, 440px) minmax(0, 1fr);
-      gap: var(--space-4);
+    .message-list {
+      flex: 1 1 auto;
       min-height: 0;
-    }
-
-    .design-agent-page__section-head {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: var(--space-3);
-      margin-bottom: var(--space-4);
-    }
-
-    .design-agent-page__section-head h2 {
-      margin: 0;
-      font-size: var(--font-size-lg);
-    }
-
-    .design-agent-page__section-head p {
-      margin: var(--space-1) 0 0;
-      color: var(--color-text-secondary);
-      line-height: var(--line-height-base);
-    }
-
-    .design-agent-page__templates {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-2);
-      margin-bottom: var(--space-4);
-    }
-
-    .design-agent-page__form {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: var(--space-3);
-    }
-
-    .design-agent-page__field--wide {
-      grid-column: 1 / -1;
-    }
-
-    .field {
+      overflow-y: auto;
+      padding: var(--workbench-chat-padding);
       display: flex;
       flex-direction: column;
-      gap: var(--space-2);
-      min-width: 0;
+      gap: var(--workbench-chat-gap);
     }
 
-    .field > span {
-      font-size: var(--font-size-sm);
-      font-weight: var(--font-weight-medium);
-      color: var(--color-text-secondary);
-    }
-
-    .design-agent-page__field-help {
-      margin: var(--space-1) 0 0;
-      font-size: var(--font-size-xs);
-      color: var(--color-text-muted);
-      line-height: 1.5;
-    }
-
-    .design-agent-page__actions {
-      display: flex;
-      gap: var(--space-2);
-      margin-top: var(--space-4);
-    }
-
-    .design-agent-page__notice {
-      margin-top: var(--space-3);
-      padding: var(--space-3);
-      border-radius: var(--radius-lg);
-      font-size: var(--font-size-sm);
-      line-height: var(--line-height-base);
-    }
-
-    .design-agent-page__notice--error {
-      background: var(--color-error-bg);
-      color: var(--color-error);
-      border: 1px solid var(--color-error-border);
-    }
-
-    .design-agent-page__placeholder,
-    .design-agent-page__assessment {
+    .empty-main {
+      flex: 1 1 auto;
       display: flex;
       align-items: center;
-      gap: var(--space-2);
-      padding: var(--space-3);
-      border-radius: var(--radius-xl);
-      background: color-mix(in srgb, var(--color-surface) 84%, transparent);
-      border: 1px solid var(--color-border-light);
-      color: var(--color-text-secondary);
+      justify-content: center;
     }
 
-    .design-agent-page__assessment {
-      align-items: flex-start;
-      color: var(--color-text);
-      line-height: var(--line-height-base);
-      margin-top: var(--space-3);
-    }
+    // ── 消息行 ────────────────────────────────
 
-    .design-agent-page__summary {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: var(--space-3);
-    }
-
-    .design-agent-page__summary-card {
+    .msg-row {
       display: flex;
       flex-direction: column;
       gap: var(--space-1);
-      padding: var(--space-3);
-      border-radius: var(--radius-xl);
-      background: color-mix(in srgb, var(--color-surface) 88%, transparent);
-      border: 1px solid var(--color-border-light);
+      max-width: min(var(--workbench-message-measure, 640px), 88%);
     }
 
-    .design-agent-page__summary-label {
-      color: var(--color-text-muted);
+    .msg-row--user {
+      align-items: flex-end;
+      margin-left: auto;
+    }
+
+    .msg-row--assistant {
+      align-items: flex-start;
+    }
+
+    .msg-label {
       font-size: var(--font-size-xs);
+      color: var(--color-text-secondary);
       text-transform: uppercase;
       letter-spacing: 0.06em;
     }
 
-    .design-agent-page__findings {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-3);
-      margin-top: var(--space-4);
+    .msg-time {
+      font-size: var(--font-size-xs);
+      color: var(--color-text-muted);
     }
 
-    .design-agent-page__finding {
-      padding: var(--space-3);
+    // ── 气泡 ────────────────────────────────
+
+    .bubble {
+      padding: var(--workbench-message-padding, var(--space-3) var(--space-4));
+      border-radius: var(--workbench-card-radius, var(--radius-lg));
+      font-size: var(--font-size-sm);
+      line-height: 1.65;
+      word-break: break-word;
+      box-shadow: var(--chat-bubble-shadow);
+    }
+
+    .bubble--user {
+      background: var(--color-user-bubble);
+      border: 1px solid var(--dev-agent-user-border);
+      color: var(--color-text);
+      white-space: pre-wrap;
+    }
+
+    .bubble--assistant {
+      background: var(--color-surface);
       border: 1px solid var(--color-border-light);
-      border-radius: var(--radius-xl);
-      background: color-mix(in srgb, var(--color-surface) 86%, transparent);
+      color: var(--color-text);
+
+      ::ng-deep {
+        p { margin: var(--space-1) 0; }
+        p:first-child { margin-top: 0; }
+        p:last-child { margin-bottom: 0; }
+        h1, h2, h3, h4 {
+          margin: var(--space-3) 0 var(--space-1);
+          font-size: var(--font-size-sm);
+          font-weight: var(--font-weight-semibold);
+        }
+        code {
+          padding: 0.1em 0.35em;
+          background: color-mix(in srgb, var(--color-primary) 7%, transparent);
+          border-radius: var(--radius-sm);
+          font-size: 0.9em;
+        }
+        ul, ol { margin: var(--space-1) 0; padding-left: var(--space-5); }
+        li { margin: var(--space-1) 0; }
+        pre {
+          margin: var(--space-2) 0;
+          padding: var(--space-2) var(--space-3);
+          background: var(--color-surface-muted, color-mix(in srgb, var(--color-border) 20%, transparent));
+          border-radius: var(--radius-md);
+          overflow-x: auto;
+          font-size: var(--font-size-xs);
+        }
+      }
     }
 
-    .design-agent-page__finding-head,
-    .design-agent-page__finding-meta {
+    // ── 上传图片 ────────────────────────────────
+
+    .msg-images {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+      justify-content: flex-end;
+    }
+
+    .msg-image {
+      max-width: 200px;
+      max-height: 150px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--color-border-light);
+    }
+
+    // ── 审查详情折叠块 ────────────────────────────────
+
+    .audit-block {
+      border: 1px solid var(--color-border-light);
+      border-radius: var(--radius-md);
+      background: var(--chat-work-card-bg, color-mix(in srgb, var(--color-surface) 80%, var(--color-bg)));
+      overflow: hidden;
+    }
+
+    .audit-block.is-expanded {
+      border-color: color-mix(in srgb, var(--color-primary) 20%, var(--color-border-light));
+    }
+
+    .audit-header {
+      width: 100%;
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-family: var(--font-family);
+      font-size: var(--font-size-xs);
+      color: var(--color-text-secondary);
+      text-align: left;
+    }
+
+    .audit-icon {
+      flex-shrink: 0;
+      font-size: 12px;
+      line-height: 1;
+    }
+
+    .audit-label {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .audit-high-badge {
+      font-size: 10px;
+      font-weight: var(--font-weight-medium);
+      color: var(--color-error);
+      background: color-mix(in srgb, var(--color-error) 10%, transparent);
+      border: 1px solid color-mix(in srgb, var(--color-error) 25%, transparent);
+      border-radius: var(--radius-pill);
+      padding: 1px var(--space-2);
+    }
+
+    .audit-toggle {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      flex-shrink: 0;
+    }
+
+    // ── Findings ────────────────────────────────
+
+    .audit-findings {
+      border-top: 1px solid var(--color-border-light);
+      padding: var(--space-2) var(--space-3);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    .finding {
+      padding: var(--space-2) var(--space-3);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      border-left: 2px solid var(--color-border);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .finding--high {
+      border-left-color: var(--color-error);
+      background: color-mix(in srgb, var(--color-error) 5%, transparent);
+    }
+
+    .finding--medium {
+      border-left-color: var(--color-warning);
+      background: color-mix(in srgb, var(--color-warning) 5%, transparent);
+    }
+
+    .finding--low {
+      border-left-color: var(--color-border);
+      background: transparent;
+    }
+
+    .finding-head {
+      display: flex;
+      align-items: center;
       gap: var(--space-2);
       flex-wrap: wrap;
     }
 
-    .design-agent-page__finding p {
-      margin: var(--space-2) 0 0;
-      line-height: var(--line-height-base);
+    .finding-severity-tag {
+      font-size: 10px;
+      font-weight: var(--font-weight-medium);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 1px var(--space-2);
+      border-radius: var(--radius-pill);
+      flex-shrink: 0;
     }
 
-    .design-agent-page__finding-impact {
-      color: var(--color-text-secondary);
+    .finding-severity-tag--high {
+      color: var(--color-error);
+      background: color-mix(in srgb, var(--color-error) 12%, transparent);
     }
 
-    .design-agent-page__finding-location {
-      margin-top: var(--space-2);
-      font-size: var(--font-size-xs);
+    .finding-severity-tag--medium {
+      color: var(--color-warning);
+      background: color-mix(in srgb, var(--color-warning) 12%, transparent);
+    }
+
+    .finding-severity-tag--low {
       color: var(--color-text-muted);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-        'Courier New', monospace;
+      background: var(--color-badge-neutral-bg);
     }
 
-    .design-agent-page__raw {
-      margin-top: var(--space-4);
-    }
-
-    .design-agent-page__raw summary {
-      cursor: pointer;
+    .finding-rule {
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-weight-medium);
       color: var(--color-text-secondary);
+      min-width: 0;
     }
 
-    .design-agent-page__raw pre {
-      margin: var(--space-2) 0 0;
+    .finding-location {
+      font-size: var(--font-size-xxs);
+      color: var(--color-text-muted);
+      background: var(--color-surface-muted, color-mix(in srgb, var(--color-border) 20%, transparent));
+      padding: 1px var(--space-2);
+      border-radius: var(--radius-sm);
+    }
+
+    .finding-problem {
+      margin: 0;
+      font-size: var(--font-size-xs);
+      color: var(--color-text);
+      line-height: 1.5;
+    }
+
+    .finding-impact {
+      margin: 0;
+      font-size: var(--font-size-xxs);
+      color: var(--color-text-secondary);
+      line-height: 1.5;
+    }
+
+    // ── 建议修改方案 ────────────────────────────────
+
+    .proposed-changes {
+      border: 1px solid var(--color-border-light);
+      border-radius: var(--radius-md);
+      background: color-mix(in srgb, var(--color-surface) 85%, transparent);
       padding: var(--space-3);
-      border-radius: var(--radius-xl);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    .proposed-changes__header {
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-weight-medium);
+      color: var(--color-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .change-item {
+      padding: var(--space-2) var(--space-3);
+      border-radius: var(--radius-sm);
       background: color-mix(in srgb, var(--color-surface) 92%, transparent);
       border: 1px solid var(--color-border-light);
-      overflow: auto;
-      white-space: pre-wrap;
-      word-break: break-word;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+
+    .change-path {
+      display: block;
       font-size: var(--font-size-xs);
-      line-height: var(--line-height-base);
+      color: var(--color-text-secondary);
     }
 
-    @media (max-width: 1180px) {
-      .design-agent-page__grid {
-        grid-template-columns: 1fr;
-      }
+    .change-desc {
+      margin: 0;
+      font-size: var(--font-size-sm);
+      color: var(--color-text);
     }
 
-    @media (max-width: 780px) {
-      .design-agent-page {
-        padding: var(--space-3);
-      }
+    .applying-hint {
+      font-size: var(--font-size-xs);
+      color: var(--color-text-muted);
+    }
 
-      .design-agent-page__form,
-      .design-agent-page__summary {
-        grid-template-columns: 1fr;
-      }
+    // ── 执行结果 ────────────────────────────────
 
-      .design-agent-page__section-head,
-      .design-agent-page__actions {
-        flex-direction: column;
-        align-items: stretch;
+    .exec-result {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      border-radius: var(--radius-md);
+      font-size: var(--font-size-xs);
+    }
+
+    .exec-result--success {
+      background: color-mix(in srgb, var(--color-success) 8%, transparent);
+      color: var(--color-success);
+      border: 1px solid color-mix(in srgb, var(--color-success) 20%, transparent);
+    }
+
+    .exec-result--error {
+      background: color-mix(in srgb, var(--color-error) 8%, transparent);
+      color: var(--color-error);
+      border: 1px solid color-mix(in srgb, var(--color-error) 20%, transparent);
+    }
+
+    // ── 加载/错误 ────────────────────────────────
+
+    .typing-indicator {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) 0;
+      font-size: var(--font-size-xs);
+      color: var(--color-text-secondary);
+    }
+
+    .typing-spinner {
+      width: 0.6rem;
+      height: 0.6rem;
+      border-radius: var(--radius-pill);
+      border: 1.5px solid color-mix(in srgb, var(--color-primary) 28%, transparent);
+      border-top-color: var(--color-primary);
+      animation: spin 0.9s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .send-error {
+      padding: var(--space-2) var(--space-3);
+      border-radius: var(--radius-md);
+      background: var(--color-badge-danger-bg);
+      border: 1px solid var(--color-badge-danger-border);
+      color: var(--color-error);
+      font-size: var(--font-size-xs);
+    }
+
+    // ── 图片上传 ────────────────────────────────
+
+    .image-preview {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+    }
+
+    .preview-item {
+      position: relative;
+    }
+
+    .preview-item img {
+      width: 80px;
+      height: 60px;
+      object-fit: cover;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--color-border-light);
+    }
+
+    .preview-remove {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      width: 18px;
+      height: 18px;
+      border: none;
+      border-radius: 50%;
+      background: var(--color-error);
+      color: #fff;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+
+    .upload-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      color: var(--color-text-secondary);
+      transition: background 0.15s;
+      flex-shrink: 0;
+    }
+
+    .upload-btn:hover {
+      background: color-mix(in srgb, var(--color-surface) 80%, transparent);
+      color: var(--color-text);
+    }
+
+    .upload-btn input {
+      display: none;
+    }
+
+    // ── 响应式 ────────────────────────────────
+
+    @media (max-width: 900px) {
+      :host {
+        --agent-chat-sidebar-width: 100%;
       }
     }
   `],
 })
 export class DesignAgentPageComponent {
-  private readonly designAgent = inject(DesignAgentService);
+  private readonly service = inject(DesignAgentService);
 
-  protected readonly templates = AUDIT_TEMPLATES;
+  // ── UI 状态 ────────────────────────────────
   protected readonly loading = signal(false);
-  protected readonly result = signal<RunDesignAuditResultDto | null>(null);
-  protected readonly rawJson = signal<string>('');
-  protected readonly errorMessage = signal<string | null>(null);
-  protected readonly actionHint = signal<string | null>(null);
+  protected readonly applyingChanges = signal(false);
+  protected readonly inputText = signal('');
+  protected readonly pendingImages = signal<Array<{ base64: string; mimeType: DesignImageInput['mimeType']; previewUrl: string }>>([]);
+  protected readonly sendError = signal<string | null>(null);
 
-  protected readonly userSentence = signal('审查 memory 页面 /memory/understanding，看看这个页面 UI 有没有问题');
+  // 展开的审查块（msgId set）
+  private readonly expandedAudits = signal<Set<string>>(new Set());
 
-  protected readonly pageType = signal<DesignPageType>('memory');
-  protected readonly preset = signal<DesignPreset>('quiet-personal');
-  protected readonly mode = signal<DesignAuditMode>('full');
-  protected readonly pageName = signal('memory-understanding');
-  protected readonly pageUrl = signal('/memory/understanding');
-  protected readonly targetFilesText = signal('');
-  protected readonly notes = signal('重点看信息层级、设计系统一致性和不必要的视觉装饰。');
+  // ── 对话数据 ────────────────────────────────
+  protected readonly conversations = signal<DesignConversationDto[]>([]);
+  protected readonly currentConversation = signal<DesignConversationDto | null>(null);
+  protected readonly messages = computed(() => this.currentConversation()?.messages ?? []);
 
-  protected setPageType(value: DesignPageType): void {
-    this.pageType.set(value);
-    this.preset.set(DEFAULT_PRESET_BY_TYPE[value]);
+  // 滚动容器引用
+  protected readonly messagesContainer = viewChild<ElementRef<HTMLDivElement>>('messagesContainer');
+
+  // ── AgentSession 适配 ────────────────────────────────
+
+  protected readonly agentSessions = computed(() => {
+    const currentId = this.currentConversation()?.id;
+    const isLoading = this.loading();
+    return this.conversations().map((conv) =>
+      this.toAgentSession(conv, isLoading && conv.id === currentId),
+    );
+  });
+
+  protected readonly activeAgentSession = computed(() => {
+    const conv = this.currentConversation();
+    return conv ? this.toAgentSession(conv, this.loading()) : null;
+  });
+
+  private toAgentSession(conv: DesignConversationDto, isRunning = false): AgentSession {
+    const lastUserMsg = [...conv.messages].reverse().find((m) => m.role === 'user');
+    return {
+      id: conv.id,
+      title: conv.title || conv.pageName || '新对话',
+      status: isRunning ? 'running' : 'success',
+      createdAt: conv.createdAt,
+      lastMessage: lastUserMsg?.content?.slice(0, 60) ?? null,
+    };
   }
 
-  protected applyTemplate(template: AuditTemplate): void {
-    this.pageType.set(template.pageType);
-    this.preset.set(template.preset);
-    this.mode.set(template.mode);
-    this.pageName.set(template.pageName);
-    this.pageUrl.set(template.pageUrl);
-    this.notes.set(template.notes);
-    this.errorMessage.set(null);
+  constructor() {
+    this.loadConversations();
   }
 
-  protected resetForm(): void {
-    this.result.set(null);
-    this.rawJson.set('');
-    this.errorMessage.set(null);
-    this.actionHint.set(null);
-    this.userSentence.set('审查 memory 页面 /memory/understanding，看看这个页面 UI 有没有问题');
-    this.applyTemplate(AUDIT_TEMPLATES[2]);
-    this.targetFilesText.set('');
+  // ── 对话管理 ────────────────────────────────
+
+  protected loadConversations(): void {
+    this.service.listConversations().subscribe({
+      next: (convs) => this.conversations.set(convs),
+      error: (err) => console.error('Failed to load conversations:', err),
+    });
   }
 
-  /**
-   * MVP：一句话解析 -> 映射到固定的设计审查 task（当前仅 memory-understanding）
-   */
-  protected runFromSentence(): void {
-    this.errorMessage.set(null);
-    this.actionHint.set(null);
-    this.result.set(null);
-    this.rawJson.set('');
-    this.targetFilesText.set('');
-
-    const sentence = this.userSentence().trim();
-    if (!sentence) {
-      this.errorMessage.set('请输入审查目标。');
-      return;
-    }
-
-    const normalized = sentence.toLowerCase();
-    let route: string | null = null;
-    if (normalized.includes('/memory/understanding')) {
-      route = '/memory/understanding';
-    } else if (normalized.includes('memory') && normalized.includes('understanding')) {
-      route = '/memory/understanding';
-    } else if (normalized.includes('memory') && (normalized.includes('理解') || normalized.includes('understand'))) {
-      route = '/memory/understanding';
-    }
-
-    if (!route) {
-      this.errorMessage.set('MVP：当前仅支持 memory + understanding（或 /memory/understanding）。');
-      return;
-    }
-
-    this.pageType.set('memory');
-    this.preset.set(DEFAULT_PRESET_BY_TYPE['memory']);
-    this.mode.set('full');
-    this.pageName.set('memory-understanding');
-    this.pageUrl.set(route);
-    // 保持 notes 使用默认值；如需从句子提取更多约束，后续再扩展解析器。
-
-    this.runAudit();
-  }
-
-  protected runAudit(): void {
-    this.errorMessage.set(null);
-    this.actionHint.set(null);
+  protected createNewConversation(): void {
     this.loading.set(true);
-
-    const trimmedPageName = this.pageName().trim();
-    const trimmedPageUrl = this.pageUrl().trim();
-    const trimmedNotes = this.notes().trim();
-    const targetFiles = this.targetFilesText()
-      .split('\n')
-      .map((item) => item.trim())
-      .filter(Boolean);
-
-    this.designAgent
-      .runAudit({
-        pageName: trimmedPageName,
-        pageType: this.pageType(),
-        preset: this.preset(),
-        mode: this.mode(),
-        pageUrl: trimmedPageUrl || undefined,
-        targetFiles: targetFiles.length ? targetFiles : undefined,
-        notes: trimmedNotes || undefined,
-      })
-      .subscribe({
-        next: (res) => {
-          this.loading.set(false);
-          this.result.set(res);
-          this.rawJson.set(JSON.stringify(res, null, 2));
-          if (!res.success) {
-            this.errorMessage.set(this.resolveDesignAgentError(res.error || '设计审查失败'));
-          }
-        },
-        error: (err: unknown) => {
-          this.loading.set(false);
-          this.result.set(null);
-          this.rawJson.set('');
-          this.errorMessage.set(this.resolveHttpError(err));
-        },
-      });
+    this.service.createConversation({}).subscribe({
+      next: (conv) => {
+        this.loading.set(false);
+        this.conversations.update((list) => [conv, ...list]);
+        this.currentConversation.set(conv);
+      },
+      error: (err) => {
+        this.loading.set(false);
+        console.error('Failed to create conversation:', err);
+      },
+    });
   }
 
-  protected rerunAudit(): void {
-    this.runAudit();
+  protected selectConversation(id: string): void {
+    this.service.getConversation(id).subscribe({
+      next: (conv) => {
+        this.currentConversation.set(conv);
+        this.scrollToBottom();
+      },
+      error: (err) => console.error('Failed to load conversation:', err),
+    });
   }
 
-  protected deepAudit(): void {
-    const original = this.notes();
-    const deepNotes = `${original}\n\n深度审查要求：请更严格地验证设计系统一致性，补充更具体的证据，并给出更小粒度的“minimalFixPlan”。`;
-    this.notes.set(deepNotes);
-    this.runAudit();
-    this.notes.set(original);
+  // ── 消息发送 ────────────────────────────────
+
+  protected sendMessage(): void {
+    const conv = this.currentConversation();
+    if (!conv) return;
+
+    const text = this.inputText().trim();
+    const images = this.pendingImages();
+    if (!text && !images.length) return;
+
+    this.loading.set(true);
+    this.sendError.set(null);
+    const pendingText = text;
+    const pendingImages = [...images];
+    this.inputText.set('');
+    this.pendingImages.set([]);
+
+    this.service.sendMessage(conv.id, {
+      content: pendingText,
+      images: pendingImages.map((img) => ({ base64: img.base64, mimeType: img.mimeType })),
+    }).subscribe({
+      next: (updated) => {
+        this.loading.set(false);
+        this.currentConversation.set(updated);
+        this.updateConversationInList(updated);
+        this.scrollToBottom();
+      },
+      error: (err) => {
+        this.loading.set(false);
+        this.inputText.set(pendingText);
+        this.pendingImages.set(pendingImages);
+        this.sendError.set(err?.error?.message || err?.message || '发送失败，请重试');
+      },
+    });
   }
 
-  protected generateModificationPlan(): void {
-    this.actionHint.set('修改方案已由 minimalFixPlan 生成；可在下方“建议操作”区域查看。');
-    this.scrollToFixPlan();
+  // ── 审查详情折叠 ────────────────────────────────
+
+  protected isAuditExpanded(msgId: string): boolean {
+    return this.expandedAudits().has(msgId);
   }
 
-  protected handoffToDevAgent(): void {
-    this.actionHint.set('MVP：当前仅生成审查与 minimalFixPlan，暂不自动触发代码修改。后续会接入 devAgent 修改链路。');
+  protected toggleAudit(msgId: string): void {
+    this.expandedAudits.update((s) => {
+      const next = new Set(s);
+      if (next.has(msgId)) {
+        next.delete(msgId);
+      } else {
+        next.add(msgId);
+      }
+      return next;
+    });
   }
 
-  private scrollToFixPlan(): void {
+  protected findingSeverity(severity: string): 'high' | 'medium' | 'low' {
+    const s = severity.toLowerCase();
+    if (s === 'high' || s === 'critical' || s === 'error') return 'high';
+    if (s === 'medium' || s === 'warning' || s === 'warn') return 'medium';
+    return 'low';
+  }
+
+  protected highFindingCount(msg: { metadata?: { auditResult?: { findings?: Array<{ severity: string }> } } }): number {
+    return msg.metadata?.auditResult?.findings?.filter(
+      (f) => this.findingSeverity(f.severity) === 'high',
+    ).length ?? 0;
+  }
+
+  // ── 修改应用 ────────────────────────────────
+
+  protected applyChanges(conversationId: string): void {
+    this.applyingChanges.set(true);
+    this.service.applyChanges(conversationId).subscribe({
+      next: () => {
+        this.applyingChanges.set(false);
+        this.selectConversation(conversationId);
+      },
+      error: (err) => {
+        this.applyingChanges.set(false);
+        console.error('Failed to apply changes:', err);
+      },
+    });
+  }
+
+  // ── 图片上传 ────────────────────────────────
+
+  protected handleImageUpload(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = input.files;
+    if (!files?.length) return;
+
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(',')[1];
+        const mimeType = file.type as DesignImageInput['mimeType'];
+        this.pendingImages.update((list) => [
+          ...list,
+          { base64, mimeType, previewUrl: reader.result as string },
+        ]);
+      };
+      reader.readAsDataURL(file);
+    });
+    input.value = '';
+  }
+
+  protected removePendingImage(index: number): void {
+    this.pendingImages.update((list) => list.filter((_, i) => i !== index));
+  }
+
+  // ── 工具方法 ────────────────────────────────
+
+  protected formatTime(dateStr: string): string {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    if (diffMins < 1) return '刚刚';
+    if (diffMins < 60) return `${diffMins}分钟前`;
+    if (diffHours < 24) return `${diffHours}小时前`;
+    if (diffDays < 7) return `${diffDays}天前`;
+    return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
+  }
+
+  protected renderMarkdown(text: string): string {
+    if (!text?.trim()) return '';
+    try {
+      const rendered = marked.parse(text, { gfm: true, breaks: true, async: false });
+      return typeof rendered === 'string' ? rendered : text;
+    } catch {
+      return text;
+    }
+  }
+
+  private updateConversationInList(conv: DesignConversationDto): void {
+    this.conversations.update((list) => {
+      const index = list.findIndex((c) => c.id === conv.id);
+      if (index >= 0) {
+        const updated = [...list];
+        updated[index] = conv;
+        return updated;
+      }
+      return [conv, ...list];
+    });
+  }
+
+  private scrollToBottom(): void {
     setTimeout(() => {
-      document.getElementById('design-agent-fix-plan')?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
-      });
-    }, 0);
-  }
-
-  protected severityTone(
-    severity: string | null | undefined,
-  ): 'info' | 'warning' | 'danger' | 'neutral' {
-    if (severity === 'high') return 'danger';
-    if (severity === 'medium') return 'warning';
-    if (severity === 'low') return 'info';
-    return 'neutral';
-  }
-
-  protected summaryTone(
-    riskLevel: string | null | undefined,
-  ): 'info' | 'warning' | 'danger' | 'neutral' {
-    if (riskLevel === 'high') return 'danger';
-    if (riskLevel === 'medium') return 'warning';
-    if (riskLevel === 'low') return 'info';
-    return 'neutral';
-  }
-
-  protected formatDuration(durationMs: number): string {
-    return `${(durationMs / 1000).toFixed(1)}s`;
-  }
-
-  protected formatCost(costUsd: number): string {
-    return `$${costUsd.toFixed(4)}`;
-  }
-
-  protected modeLabel(mode: DesignAuditMode | string | null | undefined): string {
-    if (mode === 'full') return '完整（代码 + 视觉）';
-    if (mode === 'code') return '代码结构（更偏实现）';
-    if (mode === 'visual') return '视觉一致性（更偏观感）';
-    return String(mode ?? 'unknown');
-  }
-
-  private resolveDesignAgentError(message: string): string {
-    // 后端知识库缺失通常会抛出“Failed to load design knowledge”，
-    // 同时可能附带某个 dist 路径（例如 page-type-patterns.md）。
-    if (
-      message.includes('Failed to load design knowledge') ||
-      message.includes('page-type-patterns.md')
-    ) {
-      return 'Design Agent 知识库规则文件缺失（后端可能未部署或构建产物未拷贝到 dist）。你仍可以继续查看界面；如需完整审查，请联系管理员或重启/重新部署后端。';
-    }
-    return message;
-  }
-
-  private resolveHttpError(err: unknown): string {
-    if (err instanceof HttpErrorResponse) {
-      const body = err.error;
-      const rawMessage = body?.message;
-      const messageString =
-        typeof rawMessage === 'string' ? rawMessage : Array.isArray(rawMessage) ? rawMessage.join('; ') : '';
-
-      if (typeof body?.message === 'string' && body.message.trim()) {
-        return this.resolveDesignAgentError(body.message);
+      const container = this.messagesContainer()?.nativeElement;
+      if (container) {
+        container.scrollTop = container.scrollHeight;
       }
-      if (Array.isArray(body?.message) && body.message.length) {
-        return this.resolveDesignAgentError(body.message.join('; '));
-      }
-      return err.message || `HTTP ${err.status}`;
-    }
-    return String(err);
+    }, 50);
   }
 }

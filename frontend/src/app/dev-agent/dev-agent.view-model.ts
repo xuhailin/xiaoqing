@@ -48,6 +48,7 @@ export interface ToolCallMessage extends DevChatMessageBase {
 export interface ToolResultMessage extends DevChatMessageBase {
   kind: 'tool-result';
   tool: string;
+  command: string;
   summary: string;
   body: string | null;
   error: string | null;
@@ -60,41 +61,6 @@ export type DevChatMessage =
   | ToolCallMessage
   | ToolResultMessage;
 
-export interface DevSessionBoardSummary {
-  total: number;
-  running: number;
-  failed: number;
-  success: number;
-}
-
-export interface DevSessionBoardCard {
-  id: string;
-  title: string;
-  status: DevMessageStatus;
-  statusLabel: string;
-  updatedAt: string | null;
-  updatedAtLabel: string | null;
-  workspaceLabel: string;
-  workspacePath: string | null;
-  latestTask: string | null;
-  runCount: number;
-  successCount: number;
-  failedCount: number;
-  runningCount: number;
-  totalCostUsd: number | null;
-}
-
-export interface DevSessionLane {
-  id: DevMessageStatus;
-  title: string;
-  description: string;
-  cards: DevSessionBoardCard[];
-}
-
-export interface DevSessionBoardModel {
-  summary: DevSessionBoardSummary;
-  lanes: DevSessionLane[];
-}
 
 interface ParsedRunData {
   lastEvent: string | null;
@@ -180,12 +146,18 @@ export function buildChatMessages(
   session: DevSession | null,
   activeResult: DevTaskResult | null,
 ): DevChatMessage[] {
-  const runs = session?.runs?.length
+  const allRuns = session?.runs?.length
     ? [...session.runs]
         .sort((left, right) => toTimestamp(left.createdAt) - toTimestamp(right.createdAt))
     : activeResult
       ? [taskResultToRun(activeResult)]
       : [];
+
+  const activeRunId = activeResult?.run.id;
+  const activeRun = activeResult ? taskResultToRun(activeResult) : null;
+  const runs = activeRunId && activeRun
+    ? allRuns.map((run) => (run.id === activeRunId ? activeRun : run))
+    : allRuns;
 
   return runs.flatMap((run) => buildRunMessages(run));
 }
@@ -200,41 +172,6 @@ export function buildWorkspaceOptions(sessions: DevSession[]): string[] {
   return Array.from(roots).sort((left, right) => left.localeCompare(right, 'zh-Hans-CN'));
 }
 
-export function buildSessionBoard(sessions: DevSession[]): DevSessionBoardModel {
-  const cards = sessions.map((session) => buildSessionBoardCard(session));
-  const running = cards.filter((card) => card.status === 'running');
-  const failed = cards.filter((card) => card.status === 'failed');
-  const success = cards.filter((card) => card.status === 'success');
-
-  return {
-    summary: {
-      total: cards.length,
-      running: running.length,
-      failed: failed.length,
-      success: success.length,
-    },
-    lanes: [
-      {
-        id: 'running',
-        title: '进行中',
-        description: '仍在执行中的会话，优先关注这里。',
-        cards: running.sort((left, right) => sortSessionCards(left, right)),
-      },
-      {
-        id: 'failed',
-        title: '失败',
-        description: '最近一次 run 失败，适合继续定位问题。',
-        cards: failed.sort((left, right) => sortSessionCards(left, right)),
-      },
-      {
-        id: 'success',
-        title: '成功',
-        description: '最近一次 run 已完成，适合复盘结果。',
-        cards: success.sort((left, right) => sortSessionCards(left, right)),
-      },
-    ],
-  };
-}
 
 export function runStatusLabel(status: string): string {
   switch (status) {
@@ -242,6 +179,8 @@ export function runStatusLabel(status: string): string {
     case 'pending':
     case 'running':
       return 'Running';
+    case 'waiting_input':
+      return 'Need Input';
     case 'success':
       return 'Success';
     default:
@@ -286,27 +225,30 @@ function buildRunMessages(run: DevRun): DevChatMessage[] {
   } else {
     // Orchestrated 模式：从 plan steps 构建消息流
     for (const step of buildStepMessageModels(run, parsed)) {
-      messages.push({
-        id: `${run.id}:tool-call:${step.id}`,
-        kind: 'tool-call',
-        status: step.callStatus,
-        timestamp,
-        tool: step.tool,
-        command: step.command,
-        summary: step.summary,
-      });
-
       if (step.resultStatus) {
+        // Step completed: only show result card (avoids duplicate with tool-call)
         messages.push({
           id: `${run.id}:tool-result:${step.id}`,
           kind: 'tool-result',
           status: step.resultStatus,
           timestamp,
           tool: step.tool,
+          command: step.command,
           summary: step.summary,
           body: step.body,
           error: step.error,
           meta: step.meta,
+        });
+      } else {
+        // Step still running: show tool-call card
+        messages.push({
+          id: `${run.id}:tool-call:${step.id}`,
+          kind: 'tool-call',
+          status: step.callStatus,
+          timestamp,
+          tool: step.tool,
+          command: step.command,
+          summary: step.summary,
         });
       }
     }
@@ -456,6 +398,9 @@ function buildRunningAssistantText(run: DevRun, parsed: ParsedRunData): string |
   if (status !== 'running') {
     return null;
   }
+  if (run.status === 'queued' || run.status === 'pending') {
+    return '任务已接收，等待执行...';
+  }
   return normalizedText(parsed.lastEvent)
     ?? (run.plan?.summary?.trim()
       ? `已生成计划：${run.plan.summary.trim()}`
@@ -463,6 +408,17 @@ function buildRunningAssistantText(run: DevRun, parsed: ParsedRunData): string |
 }
 
 function buildFinalAssistantText(run: DevRun, parsed: ParsedRunData): string | null {
+  if (run.status === 'waiting_input') {
+    return normalizedText(run.error)
+      ?? normalizedText(parsed.stopReason)
+      ?? '任务暂停：需要补充输入或修复 workspace 配置后重试。';
+  }
+
+  // SSE 逐字回放时，run.status 可能仍处在 running，但 parsed.finalReply 已开始增长。
+  if (parsed.finalReply) {
+    return normalizedText(parsed.finalReply);
+  }
+
   if (normalizeRunStatus(run.status) === 'running') {
     return null;
   }
@@ -654,77 +610,16 @@ function fallbackAssistantSummary(status: string): string {
   if (status === 'success') {
     return '任务执行成功。';
   }
+  if (status === 'waiting_input') {
+    return '任务暂停，等待补充输入。';
+  }
   if (status === 'cancelled') {
     return '任务已取消。';
   }
   return '任务执行失败。';
 }
 
-function buildSessionBoardCard(session: DevSession): DevSessionBoardCard {
-  const sortedRuns = [...(session.runs ?? [])]
-    .sort((left, right) => toTimestamp(right.createdAt) - toTimestamp(left.createdAt));
-  const latestRun = sortedRuns[0] ?? null;
-  const status = latestRun ? normalizeRunStatus(latestRun.status) : 'success';
-  const runningCount = sortedRuns.filter((run) => normalizeRunStatus(run.status) === 'running').length;
-  const failedCount = sortedRuns.filter((run) => normalizeRunStatus(run.status) === 'failed').length;
-  const successCount = sortedRuns.filter((run) => normalizeRunStatus(run.status) === 'success').length;
-  const workspace = latestRun?.workspace
-    ?? session.workspace
-    ?? (session.workspaceRoot
-      ? {
-          workspaceRoot: session.workspaceRoot,
-          projectScope: session.projectScope ?? session.workspaceRoot,
-        }
-      : null);
 
-  const totalCostUsd = typeof session.totalCostUsd === 'number' && session.totalCostUsd > 0
-    ? session.totalCostUsd
-    : null;
-
-  return {
-    id: session.id,
-    title: sessionTitle(session, latestRun),
-    status,
-    statusLabel: runStatusLabel(latestRun?.status ?? 'success'),
-    updatedAt: session.updatedAt || latestRun?.createdAt || session.createdAt,
-    updatedAtLabel: formatDateTime(session.updatedAt || latestRun?.createdAt || session.createdAt),
-    workspaceLabel: compactWorkspaceLabel(workspace),
-    workspacePath: workspace?.workspaceRoot ?? null,
-    latestTask: firstLine(latestRun?.userInput) ?? null,
-    runCount: sortedRuns.length,
-    successCount,
-    failedCount,
-    runningCount,
-    totalCostUsd,
-  };
-}
-
-function sortSessionCards(left: DevSessionBoardCard, right: DevSessionBoardCard): number {
-  return toTimestamp(right.updatedAt) - toTimestamp(left.updatedAt);
-}
-
-function sessionTitle(session: DevSession, latestRun: DevRun | null): string {
-  if (session.title?.trim()) {
-    return session.title.trim();
-  }
-  const text = normalizedText(latestRun?.userInput);
-  if (text) {
-    return text.length > 64 ? `${text.slice(0, 61)}...` : text;
-  }
-  return '新的开发会话';
-}
-
-function compactWorkspaceLabel(workspace: DevWorkspaceMeta | null): string {
-  if (!workspace?.workspaceRoot) {
-    return '未绑定 workspace';
-  }
-  const parts = workspace.workspaceRoot.split('/').filter(Boolean);
-  const rootName = parts.at(-1) ?? workspace.workspaceRoot;
-  const scope = normalizedText(workspace.projectScope);
-  return scope && scope !== workspace.workspaceRoot
-    ? `${scope} · ${rootName}`
-    : rootName;
-}
 
 function workspaceLabel(workspace: DevWorkspaceMeta | null | undefined): string {
   if (!workspace?.workspaceRoot) {

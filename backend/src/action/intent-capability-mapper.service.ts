@@ -13,6 +13,7 @@ export class IntentCapabilityMapper {
     this.register('timesheet', 'chat', 'timesheet');
     this.register('set_reminder', 'chat', 'reminder');
     this.register('checkin', 'chat', 'checkin');
+    this.register('page_screenshot', 'chat', 'page-screenshot');
     this.register('general_tool', 'chat', 'general-action');
   }
 

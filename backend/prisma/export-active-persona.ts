@@ -20,36 +20,20 @@ async function main() {
       return;
     }
 
-    const {
-      identity,
-      personality,
-      valueBoundary,
-      behaviorForbidden,
-      voiceStyle,
-      adaptiveRules,
-      silencePermission,
-      metaFilterPolicy,
-      evolutionAllowed,
-      evolutionForbidden,
-      version,
-      id,
-    } = persona;
-
     console.log(
       JSON.stringify(
         {
-          id,
-          version,
-          identity,
-          personality,
-          valueBoundary,
-          behaviorForbidden,
-          voiceStyle,
-          adaptiveRules,
-          silencePermission,
-          metaFilterPolicy,
-          evolutionAllowed,
-          evolutionForbidden,
+          id: persona.id,
+          personaKey: (persona as any).personaKey,
+          version: persona.version,
+          identity: persona.identity,
+          personality: persona.personality,
+          valueBoundary: persona.valueBoundary,
+          behaviorForbidden: persona.behaviorForbidden,
+          expressionRules: (persona as any).expressionRules,
+          metaFilterPolicy: persona.metaFilterPolicy,
+          evolutionAllowed: persona.evolutionAllowed,
+          evolutionForbidden: persona.evolutionForbidden,
         },
         null,
         2,

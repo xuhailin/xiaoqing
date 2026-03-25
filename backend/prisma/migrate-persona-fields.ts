@@ -84,9 +84,7 @@ async function main() {
           personality: DEFAULT_PERSONALITY,
           valueBoundary: DEFAULT_VALUE_BOUNDARY,
           behaviorForbidden: DEFAULT_BEHAVIOR_FORBIDDEN,
-          voiceStyle: DEFAULT_VOICE_STYLE,
-          adaptiveRules: DEFAULT_ADAPTIVE_RULES,
-          silencePermission: DEFAULT_SILENCE_PERMISSION,
+          expressionRules: [DEFAULT_VOICE_STYLE, DEFAULT_ADAPTIVE_RULES, DEFAULT_SILENCE_PERMISSION].join('\n'),
         },
       });
       migrated++;

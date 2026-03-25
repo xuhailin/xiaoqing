@@ -4,6 +4,7 @@ import { environment } from '../../../environments/environment';
 
 export interface PersonaDto {
   id: string;
+  personaKey: string;
   identity: string;
   personality: string;
   valueBoundary: string;
@@ -13,6 +14,15 @@ export interface PersonaDto {
   evolutionAllowed: string;
   evolutionForbidden: string;
   version: number;
+}
+
+export interface PersonaSlotDto {
+  id: string;
+  personaKey: string;
+  identity: string;
+  personality: string;
+  version: number;
+  updatedAt: string;
 }
 
 export interface PersonaOptions {
@@ -100,16 +110,26 @@ export class PersonaService {
 
   constructor(private http: HttpClient) {}
 
-  get() {
-    return this.http.get<PersonaDto>(this.base);
+  get(personaKey?: string) {
+    if (!personaKey?.trim()) return this.http.get<PersonaDto>(this.base);
+    return this.http.get<PersonaDto>(`${this.base}?personaKey=${encodeURIComponent(personaKey)}`);
   }
 
   getOptions() {
     return this.http.get<PersonaOptions>(`${this.base}/options`);
   }
 
-  update(data: Partial<PersonaDto>) {
-    return this.http.patch<PersonaDto>(this.base, data);
+  update(data: Partial<PersonaDto>, personaKey?: string) {
+    if (!personaKey?.trim()) return this.http.patch<PersonaDto>(this.base, data);
+    return this.http.patch<PersonaDto>(`${this.base}?personaKey=${encodeURIComponent(personaKey)}`, data);
+  }
+
+  getActiveSlots() {
+    return this.http.get<PersonaSlotDto[]>(`${this.base}/list`);
+  }
+
+  createPersonaSlot(payload: { personaKey?: string; basePersonaKey?: string }) {
+    return this.http.post<PersonaDto>(`${this.base}/create`, payload);
   }
 
   suggestEvolution(conversationId: string) {

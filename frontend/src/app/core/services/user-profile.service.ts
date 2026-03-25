@@ -4,6 +4,7 @@ import { environment } from '../../../environments/environment';
 
 export interface UserProfileDto {
   userKey: string;
+  preferredPersonaKey: string;
   preferredVoiceStyle: string;
   praisePreference: string;
   responseRhythm: string;

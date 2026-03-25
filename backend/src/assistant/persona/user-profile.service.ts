@@ -12,6 +12,7 @@ export type UserProfileField =
 
 export interface UserProfileDto {
   userKey: string;
+  preferredPersonaKey: string;
   preferredVoiceStyle: string;
   praisePreference: string;
   responseRhythm: string;
@@ -86,6 +87,7 @@ export class UserProfileService {
 
   async update(
     data: Partial<Record<UserProfileField, string>> & {
+      preferredPersonaKey?: string;
       impressionCore?: string | null;
       impressionDetail?: string | null;
       pendingImpressionCore?: string | null;
@@ -104,11 +106,16 @@ export class UserProfileService {
     }
 
     const nonPreferencePatch: {
+      preferredPersonaKey?: string;
       impressionCore?: string | null;
       impressionDetail?: string | null;
       pendingImpressionCore?: string | null;
       pendingImpressionDetail?: string | null;
     } = {};
+
+    if (Object.prototype.hasOwnProperty.call(data, 'preferredPersonaKey')) {
+      nonPreferencePatch.preferredPersonaKey = data.preferredPersonaKey ?? 'default';
+    }
     if (Object.prototype.hasOwnProperty.call(data, 'impressionCore')) {
       nonPreferencePatch.impressionCore = data.impressionCore ?? null;
     }

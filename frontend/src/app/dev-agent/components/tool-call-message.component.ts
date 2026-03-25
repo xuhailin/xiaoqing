@@ -1,51 +1,42 @@
 import { Component, Input } from '@angular/core';
 import { ToolCallMessage } from '../dev-agent.view-model';
-import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
 
 @Component({
   selector: 'app-tool-call-message',
   standalone: true,
-  imports: [AppBadgeComponent],
+  imports: [],
   template: `
-    <article class="tool-card">
-      <div class="tool-head">
-        <div class="label-row">
-          <span class="kind">Tool</span>
-          <strong>{{ message.tool }}</strong>
-        </div>
-        <app-badge [tone]="statusTone(message.status)" [caps]="true" size="sm">
-          {{ statusLabel(message.status) }}
-        </app-badge>
-      </div>
-      <code>{{ message.command }}</code>
-      <div class="summary">{{ message.summary }}</div>
+    <article class="step-row" [class.running]="message.status === 'running'">
+      <span class="kind">Tool</span>
+      <strong class="tool-name">{{ message.tool }}</strong>
+      <span class="summary">{{ message.summary }}</span>
+      @if (message.status === 'running') {
+        <span class="spinner" aria-hidden="true"></span>
+      }
     </article>
   `,
   styles: [`
-    .tool-card {
-      border: 1px solid var(--color-workbench-border);
-      border-radius: var(--workbench-card-radius);
-      background: var(--dev-agent-tool-card-bg);
-      padding: 0.625rem 0.75rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-      box-shadow: var(--chat-panel-shadow);
-    }
-
-    .tool-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-3);
-    }
-
-    .label-row {
+    .step-row {
       display: flex;
       align-items: center;
       gap: var(--space-2);
-      color: var(--color-text);
-      font-size: var(--font-size-sm);
+      padding: 5px var(--space-3);
+      border-left: 2px solid var(--color-workbench-border);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      background: transparent;
+      font-size: var(--font-size-xs);
+      color: var(--color-text-muted);
+      overflow: hidden;
+    }
+
+    .step-row.running {
+      border-left-color: var(--color-primary);
+      animation: border-pulse 1.4s ease-in-out infinite;
+    }
+
+    @keyframes border-pulse {
+      0%, 100% { border-left-color: var(--color-primary); }
+      50% { border-left-color: color-mix(in srgb, var(--color-primary) 28%, transparent); }
     }
 
     .kind {
@@ -53,36 +44,41 @@ import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
       text-transform: uppercase;
       letter-spacing: 0.08em;
       color: var(--color-text-muted);
+      flex-shrink: 0;
+      opacity: 0.7;
     }
 
-    code {
-      white-space: pre-wrap;
-      word-break: break-all;
-      font-size: var(--font-size-xs);
-      color: var(--color-workbench-muted);
-      background: var(--dev-agent-tool-code-bg);
-      border-radius: var(--radius-md);
-      padding: 0.5rem 0.75rem;
+    .tool-name {
+      font-weight: var(--font-weight-medium);
+      color: var(--color-text-secondary);
+      flex-shrink: 0;
     }
 
     .summary {
-      font-size: var(--font-size-sm);
-      color: var(--color-text-secondary);
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      color: var(--color-text-muted);
+    }
+
+    .spinner {
+      width: 0.625rem;
+      height: 0.625rem;
+      border-radius: var(--radius-pill);
+      border: 1.5px solid color-mix(in srgb, var(--color-primary) 28%, transparent);
+      border-top-color: var(--color-primary);
+      animation: spin 0.9s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
   `],
 })
 export class ToolCallMessageComponent {
   @Input({ required: true }) message!: ToolCallMessage;
 
-  statusLabel(status: ToolCallMessage['status']): string {
-    if (status === 'running') return 'Running';
-    if (status === 'success') return 'Success';
-    return 'Failed';
-  }
-
-  statusTone(status: ToolCallMessage['status']) {
-    if (status === 'running') return 'warning';
-    if (status === 'success') return 'success';
-    return 'danger';
-  }
 }

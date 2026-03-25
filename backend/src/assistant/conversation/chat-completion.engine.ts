@@ -784,7 +784,7 @@ export class ChatCompletionEngine {
   ): {
     capabilityName: string;
     params: Record<string, unknown>;
-    localSkillUsed?: 'general_action' | 'timesheet' | 'reminder';
+    localSkillUsed?: 'general_action' | 'timesheet' | 'reminder' | 'page_screenshot';
     options?: { fallbackOnReasonCode?: string };
   } | null {
     if (capability === 'general-action') {
@@ -827,6 +827,17 @@ export class ChatCompletionEngine {
       };
     }
 
+    if (capability === 'page-screenshot') {
+      return {
+        capabilityName: 'page-screenshot',
+        params: {
+          url: intentState.slots.screenshotUrl,
+          selector: intentState.slots.screenshotSelector,
+        },
+        localSkillUsed: 'page_screenshot',
+      };
+    }
+
     return null;
   }
 
@@ -842,7 +853,7 @@ export class ChatCompletionEngine {
     intentState: DialogueIntentState | null,
     opts: {
       openclawUsed?: boolean;
-      localSkillUsed?: 'weather' | 'book_download' | 'general_action' | 'timesheet' | 'reminder';
+      localSkillUsed?: 'weather' | 'book_download' | 'general_action' | 'timesheet' | 'reminder' | 'page_screenshot';
       messageKind?: ConversationMessageKind;
       messageMetadata?: ConversationMessageMetadata;
     } = {},
@@ -1000,7 +1011,7 @@ export class ChatCompletionEngine {
     trace: TraceCollector,
     pipelineState: PipelineTraceState,
     recent: Array<{ role: string; content: string }>,
-    localSkillUsed?: 'weather' | 'book_download' | 'general_action' | 'timesheet' | 'reminder',
+    localSkillUsed?: 'weather' | 'book_download' | 'general_action' | 'timesheet' | 'reminder' | 'page_screenshot',
     options?: {
       /** 条件 fallback：检查 meta.reasonCode，匹配时 fallback 到 OpenClaw */
       fallbackOnReasonCode?: string;

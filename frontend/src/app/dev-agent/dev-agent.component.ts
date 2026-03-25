@@ -2,32 +2,28 @@ import { Component, OnDestroy, OnInit, computed, effect, untracked } from '@angu
 import { ActivatedRoute, NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { Subscription, filter } from 'rxjs';
 import { DevAgentPageStore } from './dev-agent-page.store';
-import { WorkspaceFocusPanelComponent } from './components/workspace-focus-panel.component';
+import { DevSession } from '../core/services/dev-agent.service';
+import { AppStatusNoticeComponent } from '../shared/ui/app-status-notice.component';
+import { AgentChatComponent } from '../shared/components/agent-chat/agent-chat.component';
+import type { AgentSession } from '../shared/components/agent-chat/agent-session.types';
 
 @Component({
   selector: 'app-dev-agent',
   standalone: true,
-  imports: [RouterOutlet, WorkspaceFocusPanelComponent],
+  imports: [RouterOutlet, AgentChatComponent, AppStatusNoticeComponent],
   providers: [DevAgentPageStore],
   template: `
-    <div class="dev-agent-layout">
-      <app-workspace-focus-panel
-        [workspaceRoot]="store.workspaceRootInput()"
-        [workspaceOptions]="store.workspaceOptions()"
-        [sessions]="currentWorkspaceSessions()"
-        [activeSessionId]="store.selectedSessionId()"
-        (workspaceRootChange)="store.setWorkspaceRootInput($event)"
-        (createSession)="openDraftSession()"
-        (selectSession)="openSession($event)"
-      />
-
-      <div class="main-column">
+    <div class="dev-agent-wrap">
+      <app-agent-chat
+        [sessions]="agentSessions()"
+        [activeSession]="activeAgentSession()"
+        (selectSession)="openSession($event.id)"
+        (newSession)="openDraftSession()"
+      >
         <router-outlet />
-      </div>
+      </app-agent-chat>
 
-      @if (store.actionNotice()) {
-        <div class="action-notice">{{ store.actionNotice() }}</div>
-      }
+      <app-status-notice [message]="store.actionNotice()" />
     </div>
   `,
   styles: [`
@@ -35,45 +31,29 @@ import { WorkspaceFocusPanelComponent } from './components/workspace-focus-panel
       display: block;
       height: 100%;
       min-height: 0;
+      --agent-chat-sidebar-width: 300px;
     }
 
-    .dev-agent-layout {
+    .dev-agent-wrap {
       height: 100%;
       min-height: 0;
-      display: grid;
-      grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
-      gap: var(--workbench-section-gap);
       padding: var(--workbench-shell-padding) calc(var(--workbench-shell-padding) + var(--space-2));
       overflow: hidden;
       position: relative;
     }
 
-    .main-column {
-      min-height: 0;
-      overflow: auto;
-    }
-
-    .action-notice {
-      position: absolute;
-      right: var(--space-4);
-      top: var(--space-4);
-      z-index: 2;
-      font-size: var(--font-size-xs);
-      color: var(--dev-agent-notice-text);
-      border: 1px solid var(--dev-agent-notice-border);
-      background: var(--dev-agent-notice-bg);
-      border-radius: var(--radius-md);
-      padding: 0.5rem 0.75rem;
-      box-shadow: var(--chat-panel-shadow);
-      max-width: min(340px, 72vw);
-      backdrop-filter: blur(12px);
+    app-agent-chat {
+      display: block;
+      height: 100%;
     }
 
     @media (max-width: 980px) {
-      .dev-agent-layout {
+      .dev-agent-wrap {
         padding: var(--workbench-shell-padding-mobile);
-        grid-template-columns: 1fr;
-        grid-template-rows: minmax(220px, 32vh) minmax(0, 1fr);
+      }
+
+      :host {
+        --agent-chat-sidebar-width: 100%;
       }
     }
   `],
@@ -82,10 +62,20 @@ export class DevAgentComponent implements OnInit, OnDestroy {
   private workspaceSeeded = false;
   private routerSub?: Subscription;
 
-  readonly currentWorkspaceSessions = computed(() => {
+  readonly agentSessions = computed(() => {
     const root = this.store.workspaceRootInput().trim();
-    if (!root) return [];
-    return this.store.sessions().filter((session) => session.workspaceRoot === root);
+    const sessions = root
+      ? this.store.sessions().filter((s) => s.workspaceRoot === root)
+      : this.store.sessions();
+    return [...sessions]
+      .sort((a, b) => Date.parse(b.updatedAt || b.createdAt) - Date.parse(a.updatedAt || a.createdAt))
+      .map((session) => this.toAgentSession(session));
+  });
+
+  readonly activeAgentSession = computed(() => {
+    const id = this.store.selectedSessionId();
+    if (!id) return null;
+    return this.agentSessions().find((s) => s.id === id) ?? null;
   });
 
   constructor(
@@ -140,5 +130,24 @@ export class DevAgentComponent implements OnInit, OnDestroy {
   openDraftSession() {
     this.store.startDraftSession();
     this.router.navigate(['/workspace/dev-agent/sessions', 'new']);
+  }
+
+  private toAgentSession(session: DevSession): AgentSession {
+    const latestRun = [...(session.runs ?? [])]
+      .sort((a, b) => Date.parse(b.createdAt || '') - Date.parse(a.createdAt || ''))[0] ?? null;
+    const hasRunning = session.runs?.some(
+      (r) => r.status === 'queued' || r.status === 'pending' || r.status === 'running',
+    );
+    const hasFailed = !hasRunning && session.runs?.some((r) => r.status === 'failed');
+    const rawTitle = session.title?.trim() || latestRun?.userInput?.trim() || '';
+    return {
+      id: session.id,
+      title: rawTitle
+        ? rawTitle.length > 64 ? `${rawTitle.slice(0, 61)}...` : rawTitle
+        : '新的开发会话',
+      status: hasRunning ? 'running' : hasFailed ? 'failed' : 'success',
+      createdAt: session.createdAt || session.updatedAt || new Date().toISOString(),
+      lastMessage: latestRun?.userInput?.trim() || null,
+    };
   }
 }

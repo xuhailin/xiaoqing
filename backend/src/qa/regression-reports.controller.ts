@@ -12,7 +12,7 @@ export class RegressionReportsController {
 
   @Get('latest/:mode')
   async getLatestReport(@Param('mode') mode: string) {
-    if (mode !== 'gate' && mode !== 'replay') {
+    if (mode !== 'gate' && mode !== 'gate-agents' && mode !== 'replay') {
       throw new NotFoundException(`Unsupported regression mode: ${mode}`);
     }
 

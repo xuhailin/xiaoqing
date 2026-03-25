@@ -26,7 +26,7 @@ export class RegressionRunController {
 }
 
 function assertMode(mode: string): RegressionReportMode {
-  if (mode === 'gate' || mode === 'replay') {
+  if (mode === 'gate' || mode === 'gate-agents' || mode === 'replay') {
     return mode;
   }
   throw new NotFoundException(`Unsupported regression mode: ${mode}`);

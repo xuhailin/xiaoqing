@@ -111,7 +111,7 @@ export interface ToolResultContext {
   metaFilterPolicy?: string | null;
   /** 用户认可的首选昵称（来自 ip.nickname.primary claim） */
   preferredNickname?: string | null;
-  toolKind?: 'weather' | 'book_download' | 'general_action' | 'timesheet' | 'reminder' | 'openclaw';
+  toolKind?: 'weather' | 'book_download' | 'general_action' | 'timesheet' | 'reminder' | 'page_screenshot' | 'openclaw';
   userInput: string;
   toolResult: string | null;
   toolError: string | null;
@@ -166,12 +166,6 @@ export class PromptRouterService {
       worldStatePart = lines.join('\n');
     }
 
-    let intentPart = '';
-    if (ctx.intentState) {
-      const s = ctx.intentState;
-      intentPart = `[当前对话意图状态]\n- mode: ${s.mode}\n- seriousness: ${s.seriousness}\n- expectation: ${s.expectation}\n- agency: ${s.agency}\n- requiresTool: ${s.requiresTool}\n- taskIntent: ${s.taskIntent}\n- escalation: ${s.escalation}\n- confidence: ${s.confidence}`;
-    }
-
     const cognitivePart = this.buildCognitivePolicy(ctx.cognitiveState);
     const growthPart = this.buildGrowthPolicy(ctx.growthContext);
     const boundaryPart = this.buildBoundaryPolicy(ctx.boundaryPrompt);
@@ -184,20 +178,8 @@ export class PromptRouterService {
     const socialRelationPart = this.buildSocialRelationPart(ctx.socialRelationSignals);
     const collaborationPart = this.buildCollaborationContextPrompt(ctx.collaborationContext);
 
-    // 决策上下文：优先使用 DecisionSummaryBuilder 生成的摘要，降级为内联构建
-    let decisionContextPart = '';
-    if (ctx.decisionSummaryText) {
-      decisionContextPart = ctx.decisionSummaryText;
-    } else if (ctx.actionDecision) {
-      const lines = ['[决策上下文]'];
-      lines.push(`- 当前行动：${ctx.actionDecision.action}`);
-      if (ctx.actionDecision.capability) {
-        lines.push(`- 选定能力：${ctx.actionDecision.capability}`);
-      }
-      lines.push(`- 决策理由：${ctx.actionDecision.reason}`);
-      lines.push('请基于此决策上下文生成回复，保持一致性，但不要向用户暴露内部系统机制。');
-      decisionContextPart = lines.join('\n');
-    }
+    // 决策上下文：仅使用 DecisionSummaryBuilder 的摘要（若为空则不注入）
+    const decisionContextPart = ctx.decisionSummaryText ?? '';
 
     let actionHintPart = '';
     if (ctx.handoffDevHint) {
@@ -268,7 +250,6 @@ export class PromptRouterService {
       userProfilePart,
       worldStatePart,
       collaborationPart,
-      intentPart,
       growthPart,
       claimPart,
       sessionStatePart,
@@ -430,7 +411,7 @@ export class PromptRouterService {
   }
 
   /**
-   * 构建表达策略段落（voiceStyle + adaptiveRules + silencePermission + 动态 hint）。
+   * 构建表达策略段落（expressionRules）。
    * 放在 system prompt 末尾、紧邻对话历史，确保模型对输出约束的遵从度最高。
    */
   buildExpressionPolicy(

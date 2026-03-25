@@ -52,18 +52,10 @@ export class ReminderMessageService {
       conversationId = session?.conversationId ?? null;
     }
 
-    // 如果没有关联会话，尝试找最近的会话
     if (!conversationId) {
-      const recent = await this.prisma.conversation.findFirst({
-        orderBy: { updatedAt: 'desc' },
-        select: { id: true },
-      });
-      conversationId = recent?.id ?? null;
-    }
-
-    if (!conversationId) {
-      this.logger.warn(`No conversation found for reminder ${reminder.id}, skipping delivery`);
-      return;
+      const errMsg = `No conversation found for reminder ${reminder.id}, cannot deliver`;
+      this.logger.error(errMsg);
+      throw new Error(errMsg);
     }
 
     // 持久化为 assistant 消息

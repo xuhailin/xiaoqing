@@ -40,6 +40,7 @@ export interface PageHandle {
   locator(selector: string): LocatorHandle;
   once?(event: 'dialog', handler: (dialog: DialogHandle) => void): void;
   screenshot?(opts?: { path?: string; fullPage?: boolean }): Promise<Buffer>;
+  evaluate?(pageFunction: string, arg?: unknown): Promise<unknown>;
 }
 
 /** Playwright storageState JSON 格式 */

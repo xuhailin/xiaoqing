@@ -207,6 +207,10 @@ function normalizeCapability(value: string): CanonicalCapability | null {
       return 'openclaw';
     case 'local-skill':
       return 'local-skill';
+    case 'page_screenshot':
+    case 'page-screenshot':
+    case 'pageScreenshot':
+      return 'page-screenshot';
     default:
       return null;
   }

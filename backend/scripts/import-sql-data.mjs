@@ -73,13 +73,15 @@ async function main() {
     await run(`
       INSERT INTO public."Persona" (
         id, "evolutionAllowed", "evolutionForbidden", "createdAt", "updatedAt",
-        "isActive", version, "adaptiveRules", "behaviorForbidden", identity, personality,
-        "silencePermission", "valueBoundary", "voiceStyle", "metaFilterPolicy"
+        "isActive", version, "behaviorForbidden", identity, personality,
+        "valueBoundary", "expressionRules", "metaFilterPolicy"
       )
       SELECT
         id, "evolutionAllowed", "evolutionForbidden", "createdAt", "updatedAt",
-        "isActive", version, "adaptiveRules", "behaviorForbidden", identity, personality,
-        "silencePermission", "valueBoundary", "voiceStyle", "metaFilterPolicy"
+        "isActive", version, "behaviorForbidden", identity, personality,
+        "valueBoundary",
+        concat_ws('\\n', "voiceStyle", "adaptiveRules", "silencePermission") AS "expressionRules",
+        "metaFilterPolicy"
       FROM public."Persona_import"
       ON CONFLICT (id) DO UPDATE SET
         "evolutionAllowed" = EXCLUDED."evolutionAllowed",
@@ -88,13 +90,11 @@ async function main() {
         "updatedAt" = EXCLUDED."updatedAt",
         "isActive" = EXCLUDED."isActive",
         version = EXCLUDED.version,
-        "adaptiveRules" = EXCLUDED."adaptiveRules",
         "behaviorForbidden" = EXCLUDED."behaviorForbidden",
         identity = EXCLUDED.identity,
         personality = EXCLUDED.personality,
-        "silencePermission" = EXCLUDED."silencePermission",
         "valueBoundary" = EXCLUDED."valueBoundary",
-        "voiceStyle" = EXCLUDED."voiceStyle",
+        "expressionRules" = EXCLUDED."expressionRules",
         "metaFilterPolicy" = EXCLUDED."metaFilterPolicy";
     `, 'Persona upsert');
     await run('DROP TABLE IF EXISTS public."Persona_import";', 'Persona_import drop');

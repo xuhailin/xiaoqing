@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Patch, Delete } from '@nestjs/common';
+import { Body, Controller, Get, Post, Patch, Delete, Query } from '@nestjs/common';
 import { PrismaService } from '../../infra/prisma.service';
 import {
   PersonaService,
@@ -22,8 +22,8 @@ export class PersonaController {
   ) {}
 
   @Get()
-  async get() {
-    return this.persona.getOrCreate();
+  async get(@Query('personaKey') personaKey?: string) {
+    return this.persona.getOrCreate(personaKey);
   }
 
   @Get('options')
@@ -45,6 +45,7 @@ export class PersonaController {
       preferredVoiceStyle?: string;
       praisePreference?: string;
       responseRhythm?: string;
+      preferredPersonaKey?: string;
       impressionCore?: string | null;
       impressionDetail?: string | null;
       pendingImpressionCore?: string | null;
@@ -67,8 +68,32 @@ export class PersonaController {
       evolutionAllowed?: string;
       evolutionForbidden?: string;
     },
+    @Query('personaKey') personaKey?: string,
   ) {
-    return this.persona.update(body);
+    return this.persona.update(body, personaKey);
+  }
+
+  /**
+   * 获取所有激活的 persona（每个 personaKey 仅保留一个 isActive=true 版本）
+   * 用于配置页切换人格。
+   */
+  @Get('list')
+  listActive() {
+    return this.persona.listActivePersonas();
+  }
+
+  /**
+   * 创建一个新的 personaKey（默认从当前 preferred persona 复制一份内容）
+   */
+  @Post('create')
+  create(
+    @Body()
+    body: {
+      personaKey?: string;
+      basePersonaKey?: string;
+    },
+  ) {
+    return this.persona.createPersonaSlot(body?.personaKey, body?.basePersonaKey);
   }
 
   @Post('evolve/suggest')

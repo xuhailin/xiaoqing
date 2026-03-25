@@ -1,4 +1,5 @@
 import { Injectable, computed, signal } from '@angular/core';
+import { Subscription } from 'rxjs';
 import {
   DevAgentService,
   DevRun,
@@ -8,6 +9,11 @@ import {
   DevWorkspaceTreeEntry,
 } from '../core/services/dev-agent.service';
 import {
+  ConversationService,
+  type ConversationWorkItem,
+  type DevRunStream,
+} from '../core/services/conversation.service';
+import {
   buildChatMessages,
   buildRunState,
   buildWorkspaceOptions,
@@ -15,7 +21,7 @@ import {
 
 @Injectable()
 export class DevAgentPageStore {
-  private static readonly TERMINAL_STATUSES = new Set(['success', 'failed', 'cancelled']);
+  private static readonly TERMINAL_STATUSES = new Set(['success', 'failed', 'cancelled', 'waiting_input']);
   private static readonly POLL_INTERVAL_MS = 1500;
 
   sessions = signal<DevSession[]>([]);
@@ -72,10 +78,18 @@ export class DevAgentPageStore {
 
   /** 默认使用固定 conversationId 走 dev 通道 */
   private devConversationId = '';
+  private devWorkItemStreamSub: Subscription | null = null;
+  private devWorkItemStreamConversationId: string | null = null;
+  private finalReplyOverride: { runId: string; text: string; done: boolean } | null = null;
+  private progressOverride: { runId: string; lastEvent?: string; currentStepId?: string | null } | null = null;
   private runPollTimer: ReturnType<typeof setTimeout> | null = null;
   private noticeTimer: ReturnType<typeof setTimeout> | null = null;
+  private loadSessionsSeq = 0;
 
-  constructor(private readonly devAgent: DevAgentService) {}
+  constructor(
+    private readonly devAgent: DevAgentService,
+    private readonly conversation: ConversationService,
+  ) {}
 
   init(options?: {
     preferredSessionId?: string | null;
@@ -96,6 +110,124 @@ export class DevAgentPageStore {
   destroy() {
     this.clearRunPolling();
     this.clearNoticeTimer();
+    this.devWorkItemStreamSub?.unsubscribe();
+    this.devWorkItemStreamSub = null;
+    this.devWorkItemStreamConversationId = null;
+    this.finalReplyOverride = null;
+    this.progressOverride = null;
+  }
+
+  private ensureDevWorkItemStream(conversationId: string) {
+    const normalized = conversationId.trim();
+    if (!normalized) return;
+    if (
+      this.devWorkItemStreamSub
+      && this.devWorkItemStreamConversationId === normalized
+    ) {
+      return;
+    }
+
+    this.devWorkItemStreamSub?.unsubscribe();
+    this.devWorkItemStreamSub = this.conversation
+      .streamWorkItems(normalized)
+      .subscribe({
+        next: (item) => this.handleDevWorkItemStreamItem(item),
+        error: () => {
+          // 保持轻量：失败则回到轮询；稍后会在下一次 applySelectedSession 时重新订阅
+          this.devWorkItemStreamSub = null;
+          this.devWorkItemStreamConversationId = null;
+        },
+      });
+    this.devWorkItemStreamConversationId = normalized;
+  }
+
+  private handleDevWorkItemStreamItem(item: ConversationWorkItem) {
+    const devRunStream = item.devRunStream;
+    if (!devRunStream) return;
+    if (item.executorType !== 'dev_run') return;
+
+    const runId = item.sourceRefId;
+    if (!runId) return;
+
+    const last = this.lastResult();
+    if (!last?.run?.id || last.run.id !== runId) return;
+
+    const stream = devRunStream as DevRunStream;
+    const nowIso = new Date().toISOString();
+
+    if (stream.kind === 'progress') {
+      const patch: Record<string, unknown> = { updatedAt: nowIso };
+      const meta = stream.meta ?? {};
+
+      if (stream.phase === 'plan') {
+        const round = typeof meta['round'] === 'number' ? (meta['round'] as number) : null;
+        patch['lastEvent'] = round != null ? `第 ${round} 轮规划完成` : '规划完成';
+        patch['currentStepId'] = null;
+      } else if (stream.phase === 'execute') {
+        const stepId = typeof meta['stepId'] === 'string' ? (meta['stepId'] as string) : null;
+        const success = meta['success'] === true;
+        if (stepId) {
+          patch['lastEvent'] = success
+            ? `步骤 ${stepId} 执行成功`
+            : `步骤 ${stepId} 执行失败`;
+          patch['currentStepId'] = stepId;
+        }
+      } else if (stream.phase === 'evaluate') {
+        const stepId = typeof meta['stepId'] === 'string' ? (meta['stepId'] as string) : null;
+        const reason = typeof meta['reason'] === 'string' ? (meta['reason'] as string) : null;
+        if (stepId) patch['currentStepId'] = stepId;
+        patch['lastEvent'] = reason ? `评估完成：${reason}` : '评估完成';
+      } else if (stream.phase === 'replan') {
+        const stepId = typeof meta['stepId'] === 'string' ? (meta['stepId'] as string) : null;
+        if (stepId) {
+          patch['currentStepId'] = stepId;
+          patch['lastEvent'] = `步骤 ${stepId} 触发自动重规划`;
+        }
+      }
+
+      const shouldOverride = typeof patch['lastEvent'] === 'string'
+        || Object.prototype.hasOwnProperty.call(patch, 'currentStepId');
+      if (shouldOverride) {
+        this.progressOverride = {
+          runId,
+          ...(typeof patch['lastEvent'] === 'string' ? { lastEvent: patch['lastEvent'] } : {}),
+          ...(Object.prototype.hasOwnProperty.call(patch, 'currentStepId')
+            ? { currentStepId: patch['currentStepId'] as string | null }
+            : {}),
+        };
+      }
+
+      const prevResult = this.asRecord(last.run.result);
+      const nextResult = { ...(prevResult ?? {}), ...patch };
+      this.lastResult.set({
+        ...last,
+        run: {
+          ...last.run,
+          result: nextResult,
+        },
+      });
+    }
+
+    if (stream.kind === 'final_reply') {
+      this.finalReplyOverride = {
+        runId,
+        text: stream.text,
+        done: stream.done,
+      };
+      const nextResult = {
+        ...(this.asRecord(last.run.result) ?? {}),
+        finalReply: stream.text,
+        updatedAt: nowIso,
+      };
+
+      this.lastResult.set({
+        ...last,
+        run: {
+          ...last.run,
+          result: nextResult,
+        },
+      });
+    }
   }
 
   setWorkspaceRootInput(value: string) {
@@ -134,6 +266,8 @@ export class DevAgentPageStore {
     this.selectedSessionId.set(null);
     this.selectedRunId.set(null);
     this.lastResult.set(null);
+    this.finalReplyOverride = null;
+    this.progressOverride = null;
     this.clearRunPolling();
   }
 
@@ -171,7 +305,11 @@ export class DevAgentPageStore {
         this.selectedSessionId.set(result.session.id);
         this.selectedRunId.set(result.run.id);
         this.setWorkspaceRootInput(result.run.workspace?.workspaceRoot ?? workspaceRoot ?? '');
-        this.pollRun(result.run.id, result.session.id);
+        if (result.run.id) {
+          this.pollRun(result.run.id, result.session.id);
+        } else {
+          this.clearRunPolling();
+        }
         this.sending.set(false);
         this.loadSessions(result.session.id);
         options?.onSuccess?.(result);
@@ -385,8 +523,12 @@ export class DevAgentPageStore {
   }
 
   private loadSessions(preferredSessionId?: string, preferredRunId?: string) {
+    const seq = ++this.loadSessionsSeq;
     this.devAgent.listSessions().subscribe({
       next: (sessions) => {
+        if (seq !== this.loadSessionsSeq) {
+          return;
+        }
         this.sessions.set(sessions);
 
         if (this.draftSessionActive() && !preferredSessionId && !preferredRunId) {
@@ -419,6 +561,10 @@ export class DevAgentPageStore {
       this.devConversationId = session.conversationId;
     } else if (!this.devConversationId) {
       this.devConversationId = 'dev-default';
+    }
+
+    if (this.devConversationId) {
+      this.ensureDevWorkItemStream(this.devConversationId);
     }
     const nextRoot = session.workspaceRoot ?? this.workspaceRootInput();
     if (nextRoot !== this.workspaceRootInput()) {
@@ -505,7 +651,48 @@ export class DevAgentPageStore {
             this.schedulePoll(pollOnce);
             return;
           }
-          this.lastResult.set(this.mapRunToTaskResult(run));
+          const mapped = this.mapRunToTaskResult(run);
+
+          const record = this.asRecord(mapped.run.result) ?? {};
+          const finalOverride = this.finalReplyOverride;
+          const progressOverride = this.progressOverride;
+
+          const shouldMergeFinal = !!(
+            finalOverride && mapped.run.id === finalOverride.runId
+          );
+          const shouldMergeProgress = !!(
+            progressOverride && mapped.run.id === progressOverride.runId
+          );
+
+          if (shouldMergeFinal || shouldMergeProgress) {
+            const nowIso = new Date().toISOString();
+            const patch: Record<string, unknown> = {};
+            patch['updatedAt'] = nowIso;
+            if (shouldMergeFinal && finalOverride) {
+              patch['finalReply'] = finalOverride.text;
+            }
+            if (shouldMergeProgress && progressOverride) {
+              if (typeof progressOverride.lastEvent === 'string') {
+                patch['lastEvent'] = progressOverride.lastEvent;
+              }
+              if (progressOverride.currentStepId !== undefined) {
+                patch['currentStepId'] = progressOverride.currentStepId;
+              }
+            }
+
+            this.lastResult.set({
+              ...mapped,
+              run: {
+                ...mapped.run,
+                result: {
+                  ...record,
+                  ...patch,
+                },
+              },
+            });
+          } else {
+            this.lastResult.set(mapped);
+          }
           this.selectedRunId.set(run.id);
           this.updateSessionRun(run);
           if (this.isTerminalStatus(run.status)) {

@@ -65,4 +65,34 @@ export interface ConversationWorkItemDto {
   healthSummary: string | null;
   createdAt: Date;
   updatedAt: Date;
+  /**
+   * DevAgent SSE stream payload (in-memory, non-persistent).
+   * Only present for DevAgent runs on the same work-item SSE channel.
+   */
+  devRunStream?: DevRunStream | null;
 }
+
+export type DevRunStreamKind = 'progress' | 'final_reply';
+
+export type DevRunStreamPhase = 'plan' | 'execute' | 'evaluate' | 'replan' | 'report';
+
+export interface DevRunStreamProgress {
+  kind: 'progress';
+  phase: DevRunStreamPhase;
+  meta?: Record<string, unknown>;
+  at?: string;
+}
+
+export interface DevRunStreamFinalReply {
+  kind: 'final_reply';
+  /**
+   * `text` is the full text so far (for progressive rendering on client).
+   * For `done=true`, `text` should contain the full final reply.
+   */
+  text: string;
+  chunk?: string;
+  done: boolean;
+  at?: string;
+}
+
+export type DevRunStream = DevRunStreamProgress | DevRunStreamFinalReply;

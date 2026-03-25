@@ -325,6 +325,8 @@ model SessionState {
 // Phase2: 人格双池（结构化版）。支持版本化：保存时新建一条、旧条停用（isActive=false）
 model Persona {
   id                 String   @id @default(uuid())
+  /// Persona 插槽标识：同一 personaKey 会有版本（version+isActive），用于支持“多个独立人格可切换”
+  personaKey         String   @default("default")
 
   // ── 人格层（稳定注入，几乎不变） ──
   identity          String   @default("") @db.Text // 身份定位：我是谁、与用户的关系
@@ -333,11 +335,8 @@ model Persona {
   behaviorForbidden String   @default("") @db.Text // 行为禁止项（替代 constraintKeys）
 
   // ── 表达调度层（常驻但独立，允许更频繁微调） ──
-  /// @deprecated 表达纪律已迁移至 PersonaRule 表；保留列用于向后兼容与表空 fallback
-  expressionRules   String   @default("") @db.Text // 表达纪律（合并自 voiceStyle/adaptiveRules/silencePermission）
-  voiceStyle        String   @default("") @db.Text // @deprecated 旧字段，迁移后由 expressionRules 承载
-  adaptiveRules     String   @default("") @db.Text // @deprecated 旧字段，迁移后由 expressionRules 承载
-  silencePermission String   @default("") @db.Text // @deprecated 旧字段，迁移后由 expressionRules 承载
+  /// 表达纪律（注入到 system prompt 的表达策略段落）；支持“编辑当前默认人格来升级表达风格”
+  expressionRules   String   @default("") @db.Text
   metaFilterPolicy  String   @default("") @db.Text // 元过滤规则：禁止暴露内部策略/逻辑
 
   // ── 进化约束 ──
@@ -346,9 +345,11 @@ model Persona {
 
   // ── 元数据 ──
   version            Int      @default(1) // 版本号，保存时递增
-  isActive           Boolean  @default(true) // 是否当前启用；仅一条为 true
+  isActive           Boolean  @default(true) // 是否当前启用；同一 personaKey 下仅一条为 true
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+
+  @@index([personaKey, isActive, updatedAt])
 
   evolutionLogs      PersonaEvolutionLog[]
 }
@@ -413,6 +414,8 @@ model UserProfile {
   preferredVoiceStyle   String   @default("") @db.Text
   praisePreference      String   @default("") @db.Text
   responseRhythm        String   @default("") @db.Text
+  /// 默认使用哪个 personaKey（配置页可切换）
+  preferredPersonaKey  String   @default("default") @db.Text
   impressionCore        String?  @db.Text // 核心印象，固定注入 system prompt，≤150 token
   impressionDetail      String?  @db.Text // 可选细节，按需补充，≤500 token
   pendingImpressionCore String?  @db.Text // 待确认核心印象
@@ -855,6 +858,51 @@ enum ReminderScope {
   dev
   system
   chat
+}
+
+// ── Design Agent: 设计审查对话 ───────────────────────────────
+
+enum DesignConversationStatus {
+  active
+  completed
+  archived
+}
+
+enum DesignMessageRole {
+  user
+  assistant
+  system
+}
+
+/// 设计审查对话：一次连续的设计协作会话
+model DesignConversation {
+  id          String                   @id @default(uuid())
+  title       String?
+  status      DesignConversationStatus @default(active)
+  pageName    String?                  // 审查目标页面名称
+  pageType    String?                  // chat | workbench | memory
+  pageUrl     String?                  // 页面 URL
+  preset      String?                  // 设计预设
+  workspaceRoot String?                // 工作区路径
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  messages    DesignMessage[]
+
+  @@index([status, updatedAt])
+}
+
+/// 设计审查消息：对话中的单条消息
+model DesignMessage {
+  id             String             @id @default(uuid())
+  conversationId String
+  conversation   DesignConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           DesignMessageRole
+  content        String             @db.Text
+  // 结构化数据：审查结果、图片、修改方案等
+  metadata       Json?
+  createdAt      DateTime           @default(now())
+
+  @@index([conversationId, createdAt])
 }
 
 // ─── Plan / Task 核心域 ────────────────────────────────────

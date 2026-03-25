@@ -11,8 +11,16 @@ import type {
   ResolvedScenarioModel,
 } from './model-config.types';
 
-const SCENARIOS: ModelScenario[] = ['chat', 'dev', 'python', 'reasoning', 'summary'];
-const ROUTING_KEYS: ModelRoutingKey[] = ['chatModel', 'devModel', 'pythonModel', 'reasoningModel', 'summaryModel'];
+const SCENARIOS: ModelScenario[] = ['chat', 'dev', 'devPlanner', 'python', 'reasoning', 'summary', 'fast'];
+const ROUTING_KEYS: ModelRoutingKey[] = [
+  'chatModel',
+  'devModel',
+  'devPlannerModel',
+  'pythonModel',
+  'reasoningModel',
+  'summaryModel',
+  'fastModel',
+];
 
 @Injectable()
 export class ModelConfigService {
@@ -103,12 +111,20 @@ export class ModelConfigService {
         ],
       },
       {
-        flow: 'Dev 任务规划与最终汇报',
+        flow: 'Dev 任务最终汇报（Executor 层，保持重型模型）',
         scenario: 'dev',
         routingKey: routingFor('dev'),
         entrypoints: [
-          'DevTaskPlanner.planTask',
           'DevFinalReportGenerator.generateReport',
+        ],
+      },
+      {
+        flow: 'Dev 规划与进度评估（Planner/Evaluator，可用轻量模型）',
+        scenario: 'devPlanner',
+        routingKey: routingFor('devPlanner'),
+        entrypoints: [
+          'DevTaskPlanner.planTask',
+          'DevProgressEvaluator.evaluateTaskProgress',
         ],
       },
       {
@@ -119,7 +135,6 @@ export class ModelConfigService {
           'MessageRouterService.classifyIntent',
           'IntentService.recognize',
           'PromptRouterService.rankMemoriesByRelevance',
-          'DevProgressEvaluator.evaluateTaskProgress',
           'PersonaService.suggestEvolution/validateAgainstPool',
         ],
       },
@@ -138,6 +153,12 @@ export class ModelConfigService {
         routingKey: routingFor('python'),
         entrypoints: ['当前无独立 Python 链路，先归属 Dev 链路语义'],
         note: 'pythonModel 已可配置并可展示；执行流程暂由 Dev 通道承载。',
+      },
+      {
+        flow: 'Design Agent 意图识别（轻量 JSON 分类）',
+        scenario: 'fast',
+        routingKey: routingFor('fast'),
+        entrypoints: ['DesignIntentClassifier.classify'],
       },
     ];
   }
@@ -281,17 +302,21 @@ export class ModelConfigService {
     };
 
     const chatModel = pick('chatModel', firstEnabled);
-    const devModel = pick('devModel', chatModel);
+    const devModel = process.env.DEV_AGENT_EXECUTOR_MODEL?.trim() || pick('devModel', chatModel);
+    const devPlannerModel = process.env.DEV_AGENT_PLANNER_MODEL?.trim() || pick('devPlannerModel', devModel);
     const pythonModel = pick('pythonModel', devModel);
     const reasoningModel = pick('reasoningModel', chatModel);
     const summaryModel = pick('summaryModel', chatModel);
+    const fastModel = pick('fastModel', chatModel);
 
     return {
       chatModel,
       devModel,
+      devPlannerModel,
       pythonModel,
       reasoningModel,
       summaryModel,
+      fastModel,
     };
   }
 
@@ -309,9 +334,11 @@ export class ModelConfigService {
     return {
       chat: pick('chat', 'chatModel'),
       dev: pick('dev', 'devModel'),
+      devPlanner: pick('devPlanner', 'devPlannerModel'),
       python: pick('python', 'pythonModel'),
       reasoning: pick('reasoning', 'reasoningModel'),
       summary: pick('summary', 'summaryModel'),
+      fast: pick('fast', 'fastModel'),
     };
   }
 

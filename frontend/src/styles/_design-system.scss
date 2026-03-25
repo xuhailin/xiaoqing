@@ -23,6 +23,17 @@
   }
 }
 
+// Page shell background — for workspace-style pages (workbench, reminder, plan)
+.ui-page-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: var(--space-3) var(--space-4);
+  gap: var(--space-3);
+  // background: var(--page-shell-background);
+}
+
 .ui-page-header,
 .ui-section-header {
   display: flex;

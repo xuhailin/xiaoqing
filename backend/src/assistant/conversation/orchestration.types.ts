@@ -188,7 +188,7 @@ export interface SendMessageResult {
   assistantMessage: ConversationMessageDto;
   injectedMemories: Array<{ id: string; type: string; content: string }>;
   openclawUsed?: boolean;
-  localSkillUsed?: 'weather' | 'book_download' | 'general_action' | 'timesheet' | 'reminder';
+  localSkillUsed?: 'weather' | 'book_download' | 'general_action' | 'timesheet' | 'reminder' | 'page_screenshot';
   dailyMoment?: {
     mode: 'entry';
     record?: DailyMomentRecord;

@@ -50,6 +50,7 @@ export const regressionScenarioSchema = z.object({
   tags: z.array(z.string()).optional(),
   severity: z.enum(['critical', 'high', 'medium', 'low']),
   releaseGate: z.boolean(),
+  gateSuite: z.enum(['core', 'agents']).optional(),
   transcript: z.array(scenarioTurnSchema).min(1),
   expectations: z.object({
     mustHappen: z.array(expectationRuleSchema),

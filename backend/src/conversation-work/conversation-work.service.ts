@@ -15,6 +15,10 @@ import type {
   ConversationWorkHealthState,
   ConversationWorkItemDto,
   ConversationWorkProjectionType,
+  DevRunStream,
+  DevRunStreamFinalReply,
+  DevRunStreamPhase,
+  DevRunStreamProgress,
 } from './conversation-work.types';
 
 const DEFAULT_DEV_TIMEOUT_MS = 15 * 60 * 1000;
@@ -27,6 +31,19 @@ const RUNNING_STALLED_MS = 6 * 60 * 1000;
 export class ConversationWorkService {
   private readonly logger = new Logger(ConversationWorkService.name);
   private readonly updates$ = new Subject<ConversationWorkItemDto>();
+  /**
+   * DevAgent runId -> stream state.
+   * Used for in-memory SSE emission on top of work-items SSE channel.
+   */
+  private readonly devRunStreamState = new Map<
+    string,
+    {
+      base: ConversationWorkItemDto;
+      finalReplyDone: boolean;
+      terminal: boolean;
+      cleanupTimer: ReturnType<typeof setTimeout> | null;
+    }
+  >();
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -461,6 +478,12 @@ export class ConversationWorkService {
       },
     });
 
+    // SSE: if no streaming has started for this run, emit final reply once.
+    if (!this.devRunStreamState.has(runId)) {
+      await this.emitDevRunFinalReplyChunk(runId, { text: reply, done: true });
+    }
+    this.markDevRunStreamTerminal(runId);
+
     return this.publish(this.toDto(updated));
   }
 
@@ -510,6 +533,11 @@ export class ConversationWorkService {
       },
     });
 
+    if (!this.devRunStreamState.has(runId)) {
+      await this.emitDevRunFinalReplyChunk(runId, { text: reply, done: true });
+    }
+    this.markDevRunStreamTerminal(runId);
+
     return this.publish(this.toDto(updated));
   }
 
@@ -558,6 +586,11 @@ export class ConversationWorkService {
         resultMessageId: resultMessage.id,
       },
     });
+
+    if (!this.devRunStreamState.has(runId)) {
+      await this.emitDevRunFinalReplyChunk(runId, { text: reply, done: true });
+    }
+    this.markDevRunStreamTerminal(runId);
 
     return this.publish(this.toDto(updated));
   }
@@ -775,6 +808,136 @@ export class ConversationWorkService {
     return this.updates$.pipe(
       filter((item) => item.conversationId === conversationId),
     );
+  }
+
+  /** In-memory SSE: emit dev-run progress (plan/execute/evaluate/replan). */
+  async emitDevRunProgress(
+    runId: string,
+    payload: {
+      phase: DevRunStreamPhase;
+      meta?: Record<string, unknown>;
+    },
+  ): Promise<void> {
+    const state = await this.getOrLoadDevRunStreamState(runId);
+    if (!state) return;
+
+    const progress: DevRunStreamProgress = {
+      kind: 'progress',
+      phase: payload.phase,
+      meta: payload.meta,
+      at: new Date().toISOString(),
+    };
+
+    this.updates$.next({
+      ...state.base,
+      devRunStream: progress,
+    });
+  }
+
+  /**
+   * In-memory SSE: emit final reply chunks for progressive rendering.
+   * `text` should be full text so far (or full final text when done=true).
+   */
+  async emitDevRunFinalReplyChunk(
+    runId: string,
+    payload: {
+      text: string;
+      chunk?: string;
+      done: boolean;
+    },
+  ): Promise<void> {
+    const state = await this.getOrLoadDevRunStreamState(runId);
+    if (!state) return;
+
+    if (payload.done && state.finalReplyDone) {
+      return;
+    }
+
+    const finalReply: DevRunStreamFinalReply = {
+      kind: 'final_reply',
+      text: payload.text,
+      chunk: payload.chunk,
+      done: payload.done,
+      at: new Date().toISOString(),
+    };
+
+    this.updates$.next({
+      ...state.base,
+      devRunStream: finalReply,
+    });
+
+    if (payload.done) {
+      state.finalReplyDone = true;
+      this.clearCleanupTimer(runId, state);
+      if (state.terminal) {
+        this.clearDevRunStreamState(runId);
+      }
+    }
+  }
+
+  /** Mark run as terminal; cleanup stream state when possible. */
+  markDevRunStreamTerminal(runId: string): void {
+    const state = this.devRunStreamState.get(runId);
+    if (!state) return;
+
+    state.terminal = true;
+
+    if (state.finalReplyDone) {
+      this.clearDevRunStreamState(runId);
+      return;
+    }
+
+    // Safety TTL: avoid memory leak when final chunk never arrives.
+    const ttlMs = 120_000;
+    this.clearCleanupTimer(runId, state);
+    state.cleanupTimer = setTimeout(() => {
+      this.clearDevRunStreamState(runId);
+    }, ttlMs);
+  }
+
+  private async getOrLoadDevRunStreamState(
+    runId: string,
+  ): Promise<{
+    base: ConversationWorkItemDto;
+    finalReplyDone: boolean;
+    terminal: boolean;
+    cleanupTimer: ReturnType<typeof setTimeout> | null;
+  } | null> {
+    const existing = this.devRunStreamState.get(runId);
+    if (existing) return existing;
+
+    const workItem = await this.findBySourceRef(ConversationWorkExecutorType.dev_run, runId);
+    if (!workItem) return null;
+
+    const base = this.toDto(workItem);
+    const state = {
+      base,
+      finalReplyDone: false,
+      terminal: false,
+      cleanupTimer: null as ReturnType<typeof setTimeout> | null,
+    };
+    this.devRunStreamState.set(runId, state);
+    return state;
+  }
+
+  private clearCleanupTimer(
+    runId: string,
+    state: {
+      cleanupTimer: ReturnType<typeof setTimeout> | null;
+    },
+  ) {
+    if (state.cleanupTimer) {
+      clearTimeout(state.cleanupTimer);
+      state.cleanupTimer = null;
+    }
+  }
+
+  private clearDevRunStreamState(runId: string) {
+    const state = this.devRunStreamState.get(runId);
+    if (state?.cleanupTimer) {
+      clearTimeout(state.cleanupTimer);
+    }
+    this.devRunStreamState.delete(runId);
   }
 
   async findLatestWaitingInputByConversation(conversationId: string): Promise<ConversationWorkItemDto | null> {

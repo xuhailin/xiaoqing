@@ -48,7 +48,7 @@ export class MemoryHubComponent {
   protected readonly currentView = () => {
     const url = this.router.url;
     if (url.startsWith('/memory/relations')) return 'relations';
-    if (url.startsWith('/memory/persona')) return 'persona';
+    if (url.startsWith('/memory/settings/persona')) return 'persona';
     return 'understanding';
   };
 }

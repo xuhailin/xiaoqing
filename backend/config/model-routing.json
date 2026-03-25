@@ -28,15 +28,19 @@
   "routing": {
     "chatModel": "gpt-5.2",
     "devModel": "gpt-5.2",
+    "devPlannerModel": "gpt-5.2",
     "pythonModel": "gpt-5.2",
     "reasoningModel": "gpt-5.2",
-    "summaryModel": "gpt-5.2"
+    "summaryModel": "gpt-5.2",
+    "fastModel": "gpt-5-mini"
   },
   "scenarioRouting": {
     "chat": "chatModel",
     "dev": "devModel",
+    "devPlanner": "devPlannerModel",
     "python": "pythonModel",
     "reasoning": "reasoningModel",
-    "summary": "summaryModel"
+    "summary": "summaryModel",
+    "fast": "fastModel"
   }
 }

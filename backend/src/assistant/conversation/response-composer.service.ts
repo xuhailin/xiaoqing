@@ -26,6 +26,7 @@ type ToolKind =
   | 'general_action'
   | 'timesheet'
   | 'reminder'
+  | 'page_screenshot'
   | 'openclaw';
 
 interface ProfilePromptOptions {

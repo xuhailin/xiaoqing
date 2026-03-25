@@ -30,17 +30,13 @@ const RELATION_ORDER: SocialRelation[] = [
   'other',
 ];
 
-const RELATION_META: Record<SocialRelation, {
-  label: string;
-  dot: string;
-  hint: string;
-}> = {
-  family: { label: '家人', dot: '#f29b77', hint: '更贴近长期稳定的陪伴关系。' },
-  friend: { label: '朋友', dot: '#68a8ff', hint: '日常陪伴与情绪支持通常会落在这里。' },
-  colleague: { label: '同事', dot: '#6fc1a6', hint: '和工作、协作相关的人物。' },
-  romantic: { label: '亲密关系', dot: '#d977b5', hint: '恋爱或暧昧关系相关人物。' },
-  pet: { label: '宠物', dot: '#c8a354', hint: '宠物和日常照料对象。' },
-  other: { label: '其他', dot: '#8a96b6', hint: '暂时还没分到更明确类型的人物。' },
+const RELATION_META: Record<SocialRelation, { label: string; hint: string }> = {
+  family: { label: '家人', hint: '更贴近长期稳定的陪伴关系。' },
+  friend: { label: '朋友', hint: '日常陪伴与情绪支持通常会落在这里。' },
+  colleague: { label: '同事', hint: '和工作、协作相关的人物。' },
+  romantic: { label: '亲密关系', hint: '恋爱或暧昧关系相关人物。' },
+  pet: { label: '宠物', hint: '宠物和日常照料对象。' },
+  other: { label: '其他', hint: '暂时还没分到更明确类型的人物。' },
 };
 
 @Component({
@@ -103,7 +99,7 @@ const RELATION_META: Record<SocialRelation, {
               @if (relationFilter() === 'all') {
                 <div class="entity-group__header">
                   <div class="entity-group__title">
-                    <span class="entity-dot" [style.background]="relationMeta(group.relation).dot"></span>
+                    <span class="entity-dot" [class]="'entity-dot--' + group.relation"></span>
                     <span>{{ group.label }}</span>
                   </div>
                   <div class="entity-group__meta">{{ relationMeta(group.relation).hint }}</div>
@@ -116,7 +112,6 @@ const RELATION_META: Record<SocialRelation, {
                     class="entity-card"
                     [ngClass]="cardClasses(entity)"
                     [style.--mention-weight]="mentionWeight(entity)"
-                    [style.--relation-accent]="relationMeta(entity.relation).dot"
                   >
                     <div class="entity-card__header">
                       <div class="entity-card__title">
@@ -299,6 +294,31 @@ const RELATION_META: Record<SocialRelation, {
       height: 10px;
       border-radius: 50%;
       flex-shrink: 0;
+      background: color-mix(in srgb, var(--color-text-muted) 55%, var(--color-surface));
+    }
+
+    .entity-dot--family {
+      background: color-mix(in srgb, var(--color-warning) 65%, var(--color-surface));
+    }
+
+    .entity-dot--friend {
+      background: color-mix(in srgb, var(--color-primary) 55%, var(--color-surface));
+    }
+
+    .entity-dot--colleague {
+      background: color-mix(in srgb, var(--color-success) 50%, var(--color-surface));
+    }
+
+    .entity-dot--romantic {
+      background: color-mix(in srgb, var(--color-error) 40%, var(--color-primary));
+    }
+
+    .entity-dot--pet {
+      background: color-mix(in srgb, var(--color-warning) 45%, var(--color-success));
+    }
+
+    .entity-dot--other {
+      background: color-mix(in srgb, var(--color-text-muted) 65%, var(--color-primary));
     }
 
     .entity-grid {
@@ -307,6 +327,8 @@ const RELATION_META: Record<SocialRelation, {
     }
 
     .entity-card {
+      --relation-surface-mix-target: var(--color-surface);
+      --relation-accent: var(--color-text-muted);
       display: flex;
       flex-direction: column;
       gap: var(--space-3);
@@ -315,6 +337,30 @@ const RELATION_META: Record<SocialRelation, {
       border-top: 1px solid var(--color-border-light);
       background: transparent;
       min-height: 0;
+    }
+
+    .entity-card--family {
+      --relation-accent: color-mix(in srgb, var(--color-warning) 65%, var(--color-primary));
+    }
+
+    .entity-card--friend {
+      --relation-accent: color-mix(in srgb, var(--color-primary) 55%, var(--color-surface));
+    }
+
+    .entity-card--colleague {
+      --relation-accent: color-mix(in srgb, var(--color-success) 55%, var(--color-surface));
+    }
+
+    .entity-card--romantic {
+      --relation-accent: color-mix(in srgb, var(--color-error) 38%, var(--color-primary));
+    }
+
+    .entity-card--pet {
+      --relation-accent: color-mix(in srgb, var(--color-warning) 48%, var(--color-success));
+    }
+
+    .entity-card--other {
+      --relation-accent: color-mix(in srgb, var(--color-text-muted) 70%, var(--color-primary));
     }
 
     .entity-grid > .entity-card:first-child {

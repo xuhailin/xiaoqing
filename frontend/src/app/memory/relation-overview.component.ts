@@ -206,14 +206,14 @@ const CATEGORY_LABELS: Record<string, string> = {
 
     .relationship-hero {
       overflow: hidden;
-      border-radius: calc(var(--radius-2xl) + 4px);
-      background:
-        linear-gradient(140deg,
-          color-mix(in srgb, var(--color-primary-soft) 70%, white) 0%,
-          color-mix(in srgb, var(--color-surface-elevated) 88%, white) 48%,
-          color-mix(in srgb, var(--color-info-soft-bg) 52%, white) 100%);
-      border: 1px solid color-mix(in srgb, var(--color-border) 70%, white);
-      box-shadow: 0 24px 60px color-mix(in srgb, var(--color-shadow-rgb) 12%, transparent);
+      border-radius: var(--radius-2xl);
+      background: linear-gradient(
+        140deg,
+        color-mix(in srgb, var(--color-primary-soft) 35%, var(--color-surface)) 0%,
+        var(--color-surface) 100%
+      );
+      border: 1px solid var(--color-border-light);
+      box-shadow: var(--shadow-sm);
     }
 
     .relationship-hero__content {
@@ -354,7 +354,7 @@ const CATEGORY_LABELS: Record<string, string> = {
     .relationship-chip {
       display: inline-flex;
       align-items: center;
-      gap: 0.45rem;
+      gap: var(--space-2);
       padding: 0.5rem 0.7rem;
       border-radius: 999px;
       background: color-mix(in srgb, var(--color-primary-soft) 48%, white);

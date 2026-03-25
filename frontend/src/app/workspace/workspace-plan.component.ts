@@ -8,12 +8,11 @@ import {
   type PlanRecord,
   type TaskOccurrenceRecord,
 } from '../core/services/plan.service';
+import { ConversationService } from '../core/services/conversation.service';
 import { SystemOverviewService } from '../core/services/system-overview.service';
 import { AppBadgeComponent } from '../shared/ui/app-badge.component';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
-import { AppPanelComponent } from '../shared/ui/app-panel.component';
-import { AppSectionHeaderComponent } from '../shared/ui/app-section-header.component';
-import { AppStateComponent } from '../shared/ui/app-state.component';
+import { AppIconComponent } from '../shared/ui/app-icon.component';
 
 type PlanFormDispatchType = 'notify' | 'action' | 'noop';
 type DispatchFilter = 'all' | PlanDispatchType;
@@ -25,295 +24,248 @@ type DispatchFilter = 'all' | PlanDispatchType;
     FormsModule,
     AppBadgeComponent,
     AppButtonComponent,
-    AppPanelComponent,
-    AppSectionHeaderComponent,
-    AppStateComponent,
+    AppIconComponent,
   ],
   template: `
-    <div class="workspace-page">
-      <div class="workspace-grid">
-        <app-panel variant="workbench" class="workspace-card">
-          <app-section-header class="workspace-section-header" title="新增安排" />
+    <div class="ui-page-shell pl">
+      <!-- 顶部栏 -->
+      <header class="pl-topbar">
+        <div class="pl-topbar__brand">
+          <h1 class="pl-topbar__title">调度</h1>
+          <p class="pl-topbar__subtitle">管理自动执行的任务和提醒</p>
+        </div>
+        <div class="pl-topbar__actions">
+          <app-button
+            [variant]="showCreateForm() ? 'primary' : 'ghost'"
+            size="sm"
+            (click)="toggleCreateForm()"
+          >
+            @if (showCreateForm()) {
+              <app-icon name="x" size="0.85rem" />
+              <span>收起</span>
+            } @else {
+              <app-icon name="plus" size="0.85rem" />
+              <span>新建</span>
+            }
+          </app-button>
+        </div>
+      </header>
 
-          <label class="field">
-            <span>标题</span>
-            <input
-              class="ui-input"
-              [ngModel]="title()"
-              (ngModelChange)="title.set($event)"
-              placeholder="例如：工作日晚间提醒收工"
-            />
-          </label>
-
-          <label class="field">
-            <span>说明</span>
-            <textarea
-              class="ui-textarea"
-              rows="4"
-              [ngModel]="description()"
-              (ngModelChange)="description.set($event)"
-              placeholder="补充安排说明"
-            ></textarea>
-          </label>
-
-          <div class="field-row">
-            <label class="field">
-              <span>类型</span>
-              <select
-                class="ui-select"
-                [ngModel]="dispatchType()"
-                (ngModelChange)="setDispatchType($event)"
-              >
+      <!-- 折叠创建表单 -->
+      @if (showCreateForm()) {
+        <div class="pl-create">
+          <div class="pl-create__form">
+            <div class="pl-create__row">
+              <input
+                class="ui-input"
+                [ngModel]="title()"
+                (ngModelChange)="title.set($event)"
+                placeholder="标题，例如：工作日晚间提醒收工"
+              />
+            </div>
+            <div class="pl-create__row">
+              <select class="ui-select ui-select--sm" [ngModel]="dispatchType()" (ngModelChange)="setDispatchType($event)">
                 <option value="notify">仅提醒</option>
                 <option value="action">执行能力</option>
                 <option value="noop">noop</option>
               </select>
-            </label>
-
-            <label class="field">
-              <span>作用域</span>
-              <select class="ui-select" [ngModel]="scope()" (ngModelChange)="setScope($event)">
+              <select class="ui-select ui-select--sm" [ngModel]="scope()" (ngModelChange)="setScope($event)">
                 <option value="chat">chat</option>
                 <option value="system">system</option>
                 <option value="dev">dev</option>
               </select>
-            </label>
-          </div>
-
-          @if (dispatchType() === 'action') {
-            <div class="field-row">
-              <label class="field">
-                <span>能力</span>
-                <select
-                  class="ui-select"
-                  [ngModel]="capability()"
-                  (ngModelChange)="capability.set($event)"
-                >
-                  <option value="">请选择能力</option>
+              <select class="ui-select ui-select--sm" [ngModel]="recurrence()" (ngModelChange)="setRecurrence($event)">
+                <option value="once">一次</option>
+                <option value="daily">每天</option>
+                <option value="weekday">工作日</option>
+                <option value="weekly">每周</option>
+              </select>
+            </div>
+            @if (dispatchType() === 'action') {
+              <div class="pl-create__row">
+                <select class="ui-select ui-select--sm" [ngModel]="capability()" (ngModelChange)="capability.set($event)">
+                  <option value="">选择能力</option>
                   @for (item of capabilityOptions(); track item) {
                     <option [value]="item">{{ item }}</option>
                   }
                 </select>
-              </label>
-
-              <label class="field">
-                <span>模式</span>
-                <input class="ui-input" value="execute" disabled />
-              </label>
-            </div>
-
-            <label class="field">
-              <span>参数 JSON（可选）</span>
-              <textarea
-                class="ui-textarea"
-                rows="4"
-                [ngModel]="actionParamsJson()"
-                (ngModelChange)="actionParamsJson.set($event)"
-                placeholder='例如：{"city":"Shanghai"}'
-              ></textarea>
-            </label>
-          }
-
-          <label class="field">
-            <span>周期</span>
-            <select
-              class="ui-select"
-              [ngModel]="recurrence()"
-              (ngModelChange)="setRecurrence($event)"
-            >
-              <option value="once">一次</option>
-              <option value="daily">每天</option>
-              <option value="weekday">工作日</option>
-              <option value="weekly">每周</option>
-            </select>
-          </label>
-
-          @if (recurrence() === 'once') {
-            <label class="field">
-              <span>执行时间</span>
-              <input
-                class="ui-input"
-                type="datetime-local"
-                [ngModel]="runAt()"
-                (ngModelChange)="runAt.set($event)"
-              />
-            </label>
-          } @else {
-            <div class="field-row">
-              <label class="field">
-                <span>执行时间</span>
                 <input
-                  class="ui-input"
+                  class="ui-input ui-input--sm"
+                  [ngModel]="actionParamsJson()"
+                  (ngModelChange)="actionParamsJson.set($event)"
+                  placeholder='参数 JSON（可选）'
+                />
+              </div>
+            }
+            <div class="pl-create__row">
+              @if (recurrence() === 'once') {
+                <input
+                  class="ui-input ui-input--sm"
+                  type="datetime-local"
+                  [ngModel]="runAt()"
+                  (ngModelChange)="runAt.set($event)"
+                />
+              } @else {
+                <input
+                  class="ui-input ui-input--sm"
                   type="time"
                   [ngModel]="timeOfDay()"
                   (ngModelChange)="timeOfDay.set($event)"
                 />
-              </label>
-
-              @if (recurrence() === 'weekly') {
-                <label class="field">
-                  <span>星期</span>
-                  <select
-                    class="ui-select"
-                    [ngModel]="weekday()"
-                    (ngModelChange)="weekday.set($event)"
-                  >
+                @if (recurrence() === 'weekly') {
+                  <select class="ui-select ui-select--sm" [ngModel]="weekday()" (ngModelChange)="weekday.set($event)">
                     @for (option of weekdayOptions; track option.value) {
                       <option [value]="option.value">{{ option.label }}</option>
                     }
                   </select>
-                </label>
+                }
+              }
+              <app-button variant="primary" size="sm" [disabled]="saving()" (click)="createPlan()">
+                {{ saving() ? '创建中...' : '创建' }}
+              </app-button>
+            </div>
+            @if (notice()) {
+              <span class="pl-create__notice">{{ notice() }}</span>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- 主体：列表 + 触发记录 -->
+      <div class="pl-body">
+        <!-- 左侧：安排列表 -->
+        <main class="pl-main">
+          <div class="pl-main__header">
+            <h2 class="pl-main__title">自动安排</h2>
+            <div class="pl-main__filter">
+              <select
+                class="ui-select ui-select--sm"
+                [ngModel]="dispatchFilter()"
+                (ngModelChange)="setDispatchFilter($event)"
+              >
+                <option value="all">全部</option>
+                <option value="notify">notify</option>
+                <option value="action">action</option>
+                <option value="dev_run">dev_run</option>
+                <option value="noop">noop</option>
+              </select>
+              <app-badge tone="info">{{ visiblePlans().length }}</app-badge>
+            </div>
+          </div>
+
+          @if (loading()) {
+            <div class="pl-loading">
+              <app-icon name="sparkles" size="0.9rem" />
+              <span>加载中...</span>
+            </div>
+          } @else if (!visiblePlans().length) {
+            <div class="pl-empty">
+              <div class="pl-empty__icon">
+                <app-icon name="calendarCheck" size="1.5rem" />
+              </div>
+              <h3 class="pl-empty__title">还没有安排</h3>
+              <p class="pl-empty__desc">点上方「新建」创建自动执行的安排。</p>
+            </div>
+          } @else {
+            <div class="pl-list">
+              @for (plan of visiblePlans(); track plan.id) {
+                <div
+                  class="pl-item"
+                  [class.pl-item--active]="selectedPlanId() === plan.id"
+                  [class.pl-item--paused]="plan.status === 'paused'"
+                  (click)="selectPlan(plan.id)"
+                >
+                  <div class="pl-item__main">
+                    <div class="pl-item__header">
+                      <span class="pl-item__title">{{ plan.title || plan.description || '未命名安排' }}</span>
+                      <app-badge [tone]="statusTone(plan.status)" size="sm">{{ statusLabel(plan.status) }}</app-badge>
+                    </div>
+                    <div class="pl-item__meta">
+                      <app-badge [tone]="dispatchTone(plan.dispatchType)" appearance="outline" size="sm">
+                        {{ plan.dispatchType }}
+                      </app-badge>
+                      <app-badge tone="neutral" appearance="outline" size="sm">{{ plan.scope }}</app-badge>
+                      @if (plan.nextRunAt) {
+                        <span class="pl-item__next">下次：{{ formatDateTime(plan.nextRunAt) }}</span>
+                      }
+                      @if (planActionLabel(plan); as actionLabel) {
+                        <span>{{ actionLabel }}</span>
+                      }
+                    </div>
+                  </div>
+                  <div class="pl-item__actions" (click)="$event.stopPropagation()">
+                    @if (plan.status === 'active') {
+                      <app-button variant="ghost" size="xs" (click)="lifecycle(plan.id, 'pause')">暂停</app-button>
+                    } @else if (plan.status === 'paused') {
+                      <app-button variant="ghost" size="xs" (click)="lifecycle(plan.id, 'resume')">恢复</app-button>
+                    }
+                    <app-button variant="ghost" size="xs" (click)="lifecycle(plan.id, 'archive')">归档</app-button>
+                  </div>
+                </div>
               }
             </div>
           }
+        </main>
 
-          <div class="form-actions">
-            <app-button variant="primary" size="sm" [disabled]="saving()" (click)="createPlan()">
-              {{ saving() ? '创建中...' : '创建安排' }}
-            </app-button>
-            @if (notice()) {
-              <span class="notice">{{ notice() }}</span>
-            }
-          </div>
-        </app-panel>
-
-        <div class="workspace-stack">
-          <app-panel variant="workbench" class="workspace-card">
-            <app-section-header class="workspace-section-header" title="自动安排">
-              <div actions class="card-toolbar">
-                <select
-                  class="ui-select ui-select--compact"
-                  [ngModel]="dispatchFilter()"
-                  (ngModelChange)="setDispatchFilter($event)"
-                >
-                  <option value="all">全部</option>
-                  <option value="notify">notify</option>
-                  <option value="action">action</option>
-                  <option value="dev_run">dev_run</option>
-                  <option value="noop">noop</option>
-                </select>
-                <app-badge tone="info">{{ visiblePlans().length }}</app-badge>
-              </div>
-            </app-section-header>
-
-            @if (loading()) {
-              <app-state [compact]="true" kind="loading" title="安排加载中..." />
-            } @else if (!visiblePlans().length) {
-              <app-state
-                [compact]="true"
-                title="还没有安排"
-                description="左侧可以直接创建提醒型、执行型或 noop 安排。"
-              />
-            } @else {
-              <div class="item-list">
-                @for (plan of visiblePlans(); track plan.id) {
-                  <div
-                    class="ui-list-card item-card"
-                    [class.is-active]="selectedPlanId() === plan.id"
-                    (click)="selectPlan(plan.id)"
-                  >
-                    <div class="item-main">
-                      <div class="item-title">
-                        {{ plan.title || plan.description || '未命名安排' }}
-                      </div>
-                      <div class="item-meta">
-                        <app-badge [tone]="statusTone(plan.status)">{{ plan.status }}</app-badge>
-                        <app-badge [tone]="dispatchTone(plan.dispatchType)" appearance="outline">{{
-                          plan.dispatchType
-                        }}</app-badge>
-                        <app-badge tone="neutral" appearance="outline">{{ plan.scope }}</app-badge>
-                        @if (plan.nextRunAt) {
-                          <span>下次：{{ formatDateTime(plan.nextRunAt) }}</span>
-                        }
-                        @if (planActionLabel(plan); as actionLabel) {
-                          <span>能力：{{ actionLabel }}</span>
-                        }
-                      </div>
-                    </div>
-
-                    <div class="item-actions" (click)="$event.stopPropagation()">
-                      @if (plan.status === 'active') {
-                        <app-button variant="ghost" size="xs" (click)="lifecycle(plan.id, 'pause')"
-                          >暂停</app-button
-                        >
-                      } @else if (plan.status === 'paused') {
-                        <app-button variant="ghost" size="xs" (click)="lifecycle(plan.id, 'resume')"
-                          >恢复</app-button
-                        >
-                      }
-                      <app-button variant="danger" size="xs" (click)="lifecycle(plan.id, 'archive')"
-                        >归档</app-button
-                      >
-                    </div>
-                  </div>
-                }
-              </div>
-            }
-          </app-panel>
-
-          <app-panel variant="workbench" class="workspace-card">
-            <app-section-header class="workspace-section-header" title="最近触发" />
+        <!-- 右侧：触发记录 -->
+        <aside class="pl-aux">
+          <h3 class="pl-aux__title">最近触发</h3>
+          <div class="pl-aux__content">
             @if (selectedPlan(); as plan) {
-              <div class="occurrence-header">
-                <div>
-                  <div class="occurrence-title">
-                    {{ plan.title || plan.description || plan.id }}
-                  </div>
-                  <div class="occurrence-meta">
-                    <app-badge [tone]="dispatchTone(plan.dispatchType)" appearance="outline">{{
-                      plan.dispatchType
-                    }}</app-badge>
-                    <app-badge tone="neutral" appearance="outline">{{ plan.recurrence }}</app-badge>
-                  </div>
+              <div class="pl-aux__selected">
+                <div class="pl-aux__selected-title">{{ plan.title || plan.description || plan.id }}</div>
+                <div class="pl-aux__selected-meta">
+                  <app-badge [tone]="dispatchTone(plan.dispatchType)" appearance="outline" size="sm">
+                    {{ plan.dispatchType }}
+                  </app-badge>
+                  <app-badge tone="neutral" appearance="outline" size="sm">{{ plan.recurrence }}</app-badge>
                 </div>
               </div>
 
               @if (occurrenceLoading()) {
-                <app-state [compact]="true" kind="loading" title="记录加载中..." />
+                <div class="pl-aux__loading">加载中...</div>
               } @else if (!occurrences().length) {
-                <app-state
-                  [compact]="true"
-                  title="暂无触发记录"
-                  description="安排创建后，这里会显示最近的 TaskOccurrence。"
-                />
+                <div class="pl-aux__empty">
+                  <p>暂无触发记录</p>
+                  <span>安排创建后，这里会显示最近的执行记录</span>
+                </div>
               } @else {
-                <div class="occurrence-list">
+                <div class="pl-aux__list">
                   @for (item of occurrences(); track item.id) {
-                    <div class="ui-list-card occurrence-card">
-                      <div class="occurrence-row">
-                        <div>
-                          <div class="occurrence-title">{{ formatDateTime(item.scheduledAt) }}</div>
-                          <div class="occurrence-meta">
-                            <app-badge [tone]="occurrenceTone(item.status)">{{
-                              item.status
-                            }}</app-badge>
-                            <app-badge tone="neutral" appearance="outline">{{
-                              item.mode
-                            }}</app-badge>
-                            <span>{{ item.action || plan.dispatchType }}</span>
-                            @if (item.resultRef) {
-                              <span>{{ item.resultRef }}</span>
-                            }
-                          </div>
+                    <div class="pl-occ">
+                      <div class="pl-occ__marker pl-occ__marker--{{ occurrenceTone(item.status) }"></div>
+                      <div class="pl-occ__body">
+                        <div class="pl-occ__head">
+                          <span class="pl-occ__time">{{ formatDateTime(item.scheduledAt) }}</span>
+                          <app-badge [tone]="occurrenceTone(item.status)" appearance="outline" size="sm">
+                            {{ item.status }}
+                          </app-badge>
                         </div>
+                        <div class="pl-occ__meta">
+                          <span>{{ item.action || plan.dispatchType }}</span>
+                          @if (item.resultRef) {
+                            <span>{{ item.resultRef }}</span>
+                          }
+                        </div>
+                        @if (item.resultPayload) {
+                          <details class="pl-occ__payload">
+                            <summary>详情</summary>
+                            <pre>{{ formatJson(item.resultPayload) }}</pre>
+                          </details>
+                        }
                       </div>
-
-                      @if (item.resultPayload) {
-                        <pre class="payload-block">{{ formatJson(item.resultPayload) }}</pre>
-                      }
                     </div>
                   }
                 </div>
               }
             } @else {
-              <app-state
-                [compact]="true"
-                title="选择一条安排"
-                description="右侧会显示该安排最近的 TaskOccurrence。"
-              />
+              <div class="pl-aux__placeholder">
+                <app-icon name="info" size="1rem" />
+                <p>选择一条安排查看触发记录</p>
+              </div>
             }
-          </app-panel>
-        </div>
+          </div>
+        </aside>
       </div>
     </div>
   `,
@@ -321,169 +273,429 @@ type DispatchFilter = 'all' | PlanDispatchType;
     `
       :host {
         display: block;
-        min-height: 100%;
-      }
-
-      .workspace-page {
-        padding: var(--workbench-shell-padding);
-        display: flex;
-        flex-direction: column;
-        gap: var(--workbench-stack-gap);
-        min-height: 100%;
-      }
-
-      .workspace-grid {
-        display: grid;
-        grid-template-columns: minmax(320px, 400px) minmax(0, 1fr);
-        gap: var(--workbench-section-gap);
+        height: 100%;
         min-height: 0;
       }
 
-      .workspace-stack {
-        display: grid;
-        grid-template-rows: minmax(0, 1fr) minmax(260px, 320px);
-        gap: var(--workbench-section-gap);
-        min-height: 0;
-      }
-
-      .workspace-card {
-        gap: var(--space-4);
-        min-height: 0;
-      }
-
-      .card-toolbar,
-      .occurrence-row {
+      /* ═══════════════════════════════════════════════════════════════
+         顶部栏
+      ═══════════════════════════════════════════════════════════════ */
+      .pl-topbar {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: var(--space-3);
-      }
-
-      .workspace-section-header {
+        flex-shrink: 0;
         padding-bottom: var(--space-2);
         border-bottom: 1px solid var(--color-border-light);
       }
 
-      .field,
-      .field-row {
+      .pl-topbar__brand {
         display: flex;
+        align-items: baseline;
         gap: var(--space-3);
       }
 
-      .field {
-        flex-direction: column;
-        font-size: var(--font-size-xs);
-        color: var(--color-text-secondary);
-      }
-
-      .field-row > .field {
-        flex: 1 1 0;
-        min-width: 0;
-      }
-
-      .form-actions {
-        display: flex;
-        align-items: center;
-        gap: var(--space-3);
-        flex-wrap: wrap;
-      }
-
-      .notice {
-        font-size: var(--font-size-xs);
-        color: var(--color-text-secondary);
-      }
-
-      .item-list,
-      .occurrence-list {
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-2);
-        min-height: 0;
-        overflow: auto;
-      }
-
-      .item-card,
-      .occurrence-card {
-        width: 100%;
-        padding: var(--workbench-card-padding);
-        text-align: left;
-      }
-
-      .item-card.is-active {
-        border-color: var(--color-surface-highlight-border);
-        background: var(--color-surface-highlight);
-        box-shadow: var(--color-surface-highlight-shadow);
-      }
-
-      .item-main {
-        min-width: 0;
-      }
-
-      .item-title,
-      .occurrence-title {
-        font-size: var(--font-size-sm);
+      .pl-topbar__title {
+        margin: 0;
+        font-size: var(--font-size-lg);
         font-weight: var(--font-weight-semibold);
         color: var(--color-text);
       }
 
-      .item-meta,
-      .occurrence-meta {
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--space-2);
-        margin-top: var(--space-2);
-        font-size: var(--font-size-xs);
+      .pl-topbar__subtitle {
+        margin: 0;
+        font-size: var(--font-size-sm);
         color: var(--color-text-secondary);
       }
 
-      .item-actions {
+      .pl-topbar__actions {
         display: flex;
+        align-items: center;
         gap: var(--space-2);
-        margin-top: var(--space-3);
       }
 
-      .occurrence-header {
+      /* ═══════════════════════════════════════════════════════════════
+         创建表单（折叠式）
+      ═══════════════════════════════════════════════════════════════ */
+      .pl-create {
+        flex-shrink: 0;
+        padding: var(--space-3);
+        background: var(--color-surface);
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--color-border-light);
+      }
+
+      .pl-create__form {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+      }
+
+      .pl-create__row {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        flex-wrap: wrap;
+      }
+
+      .pl-create__notice {
+        font-size: var(--font-size-xs);
+        color: var(--color-text-muted);
+      }
+
+      /* ═══════════════════════════════════════════════════════════════
+         主体布局
+      ═══════════════════════════════════════════════════════════════ */
+      .pl-body {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 280px;
+        gap: var(--space-3);
+        flex: 1;
+        min-height: 0;
+      }
+
+      /* 主区 */
+      .pl-main {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .pl-main__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-shrink: 0;
+        margin-bottom: var(--space-2);
+      }
+
+      .pl-main__title {
+        margin: 0;
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-semibold);
+        color: var(--color-text-muted);
+      }
+
+      .pl-main__filter {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+      }
+
+      .pl-loading {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        padding: var(--space-4);
+        color: var(--color-text-secondary);
+        font-size: var(--font-size-sm);
+      }
+
+      /* 空态 */
+      .pl-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: var(--space-8);
+        text-align: center;
+      }
+
+      .pl-empty__icon {
+        width: 4rem;
+        height: 4rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: var(--space-3);
+        background: var(--color-primary-light);
+        border-radius: 50%;
+        color: var(--color-primary);
+      }
+
+      .pl-empty__title {
+        margin: 0 0 var(--space-2);
+        font-size: var(--font-size-md);
+        font-weight: var(--font-weight-semibold);
+        color: var(--color-text);
+      }
+
+      .pl-empty__desc {
+        margin: 0;
+        font-size: var(--font-size-sm);
+        color: var(--color-text-secondary);
+      }
+
+      /* 列表 */
+      .pl-list {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+      }
+
+      .pl-item {
         display: flex;
         align-items: flex-start;
         justify-content: space-between;
         gap: var(--space-3);
-      }
-
-      .payload-block {
-        margin: var(--space-3) 0 0;
-        padding: var(--space-3);
+        padding: var(--space-3) var(--space-4);
+        background: var(--color-surface);
         border-radius: var(--radius-md);
-        background: var(--color-surface-muted);
+        border: 1px solid var(--color-border-light);
+        cursor: pointer;
+        transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+      }
+
+      .pl-item:hover {
+        border-color: var(--color-border);
+      }
+
+      .pl-item--active {
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-primary) 20%, transparent);
+      }
+
+      .pl-item--paused {
+        opacity: 0.65;
+      }
+
+      .pl-item__main {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .pl-item__header {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        margin-bottom: var(--space-1);
+      }
+
+      .pl-item__title {
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-medium);
+        color: var(--color-text);
+      }
+
+      .pl-item__meta {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        flex-wrap: wrap;
+        font-size: var(--font-size-xs);
+        color: var(--color-text-muted);
+      }
+
+      .pl-item__next {
         color: var(--color-text-secondary);
-        font-size: var(--font-size-xxs);
-        line-height: 1.5;
-        overflow: auto;
+      }
+
+      .pl-item__actions {
+        display: flex;
+        gap: var(--space-1);
+        flex-shrink: 0;
+      }
+
+      /* ═══════════════════════════════════════════════════════════════
+         辅助区
+      ═══════════════════════════════════════════════════════════════ */
+      .pl-aux {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        background: var(--color-surface);
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--color-border-light);
+        overflow: hidden;
+      }
+
+      .pl-aux__title {
+        margin: 0;
+        padding: var(--space-3);
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-semibold);
+        color: var(--color-text-muted);
+        border-bottom: 1px solid var(--color-border-light);
+        flex-shrink: 0;
+      }
+
+      .pl-aux__content {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding: var(--space-3);
+      }
+
+      .pl-aux__selected {
+        padding-bottom: var(--space-3);
+        margin-bottom: var(--space-3);
+        border-bottom: 1px solid var(--color-border-light);
+      }
+
+      .pl-aux__selected-title {
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-medium);
+        color: var(--color-text);
+        margin-bottom: var(--space-1);
+      }
+
+      .pl-aux__selected-meta {
+        display: flex;
+        gap: var(--space-2);
+      }
+
+      .pl-aux__loading {
+        padding: var(--space-3);
+        font-size: var(--font-size-sm);
+        color: var(--color-text-muted);
+        text-align: center;
+      }
+
+      .pl-aux__empty {
+        padding: var(--space-4);
+        text-align: center;
+      }
+
+      .pl-aux__empty p {
+        margin: 0 0 var(--space-1);
+        font-size: var(--font-size-sm);
+        color: var(--color-text);
+      }
+
+      .pl-aux__empty span {
+        font-size: var(--font-size-xs);
+        color: var(--color-text-muted);
+      }
+
+      .pl-aux__placeholder {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--space-2);
+        padding: var(--space-4);
+        text-align: center;
+        color: var(--color-text-muted);
+        font-size: var(--font-size-sm);
+      }
+
+      .pl-aux__list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-3);
+      }
+
+      /* 触发记录时间线 */
+      .pl-occ {
+        display: flex;
+        gap: var(--space-2);
+      }
+
+      .pl-occ__marker {
+        flex-shrink: 0;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-top: 0.35rem;
+        background: var(--color-border);
+      }
+
+      .pl-occ__marker--success { background: var(--color-success); }
+      .pl-occ__marker--warning { background: var(--color-warning); }
+      .pl-occ__marker--danger { background: var(--color-error); }
+      .pl-occ__marker--info { background: var(--color-primary); }
+      .pl-occ__marker--neutral { background: var(--color-text-muted); }
+
+      .pl-occ__body {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .pl-occ__head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-2);
+        margin-bottom: var(--space-1);
+      }
+
+      .pl-occ__time {
+        font-size: var(--font-size-xs);
+        font-weight: var(--font-weight-medium);
+        color: var(--color-text);
+      }
+
+      .pl-occ__meta {
+        display: flex;
+        gap: var(--space-2);
+        font-size: var(--font-size-xs);
+        color: var(--color-text-muted);
+      }
+
+      .pl-occ__payload {
+        margin-top: var(--space-2);
+        font-size: 0.65rem;
+      }
+
+      .pl-occ__payload summary {
+        cursor: pointer;
+        color: var(--color-text-muted);
+      }
+
+      .pl-occ__payload pre {
+        margin: var(--space-1) 0 0;
+        padding: var(--space-2);
+        background: var(--color-bg);
+        border-radius: var(--radius-sm);
+        font-size: 0.6rem;
+        overflow-x: auto;
         white-space: pre-wrap;
-        word-break: break-word;
+        word-break: break-all;
+        max-height: 6rem;
       }
 
-      .ui-select--compact {
-        min-width: 120px;
+      /* ═══════════════════════════════════════════════════════════════
+         辅助
+      ═══════════════════════════════════════════════════════════════ */
+      .ui-select--sm,
+      .ui-input--sm {
+        font-size: var(--font-size-sm);
+        padding: var(--space-1) var(--space-2);
       }
 
-      @media (max-width: 980px) {
-        .workspace-page {
-          padding: var(--workbench-shell-padding-mobile);
+      /* ═══════════════════════════════════════════════════════════════
+         响应式
+      ═══════════════════════════════════════════════════════════════ */
+      @media (max-width: 960px) {
+        .pl {
+          padding: var(--space-2) var(--space-3);
         }
 
-        .workspace-grid {
+        .pl-topbar__subtitle {
+          display: none;
+        }
+
+        .pl-body {
           grid-template-columns: 1fr;
+          grid-template-rows: minmax(0, 1fr) minmax(200px, 300px);
         }
 
-        .workspace-stack {
-          grid-template-rows: auto auto;
-        }
-
-        .field-row,
-        .card-toolbar,
-        .occurrence-row {
-          align-items: stretch;
+        .pl-create__row {
           flex-direction: column;
+          align-items: stretch;
+        }
+
+        .pl-item {
+          flex-direction: column;
+        }
+
+        .pl-item__actions {
+          margin-top: var(--space-2);
+          padding-top: var(--space-2);
+          border-top: 1px solid var(--color-border-light);
         }
       }
     `,
@@ -492,6 +704,7 @@ type DispatchFilter = 'all' | PlanDispatchType;
 export class WorkspacePlanComponent implements OnInit {
   private readonly plans = inject(PlanApiService);
   private readonly systemOverview = inject(SystemOverviewService);
+  private readonly conversations = inject(ConversationService);
 
   readonly allPlans = signal<PlanRecord[]>([]);
   readonly occurrences = signal<TaskOccurrenceRecord[]>([]);
@@ -500,6 +713,7 @@ export class WorkspacePlanComponent implements OnInit {
   readonly saving = signal(false);
   readonly occurrenceLoading = signal(false);
   readonly notice = signal<string | null>(null);
+  readonly showCreateForm = signal(false);
 
   readonly capabilityOptions = signal<string[]>([]);
 
@@ -555,6 +769,11 @@ export class WorkspacePlanComponent implements OnInit {
     }
   }
 
+  toggleCreateForm() {
+    this.showCreateForm.update((v) => !v);
+    this.notice.set(null);
+  }
+
   async createPlan() {
     const trimmedTitle = this.title().trim();
     const trimmedDescription = this.description().trim();
@@ -563,17 +782,23 @@ export class WorkspacePlanComponent implements OnInit {
       return;
     }
 
+    const dispatchType = this.dispatchType();
     const request: CreatePlanRequest = {
       title: trimmedTitle || trimmedDescription,
       description: trimmedDescription || trimmedTitle,
       scope: this.scope(),
-      dispatchType: this.dispatchType(),
+      dispatchType,
       recurrence: this.recurrence(),
       timezone: 'Asia/Shanghai',
       ...this.buildSchedulePayload(),
     };
 
-    if (this.dispatchType() === 'action') {
+    if (dispatchType === 'notify') {
+      const currentConv = await firstValueFrom(this.conversations.getOrCreateCurrent('xiaoqing'));
+      request.conversationId = currentConv.id;
+    }
+
+    if (dispatchType === 'action') {
       const capability = this.capability().trim();
       if (!capability) {
         this.notice.set('请选择要执行的能力。');
@@ -639,6 +864,13 @@ export class WorkspacePlanComponent implements OnInit {
     if (status === 'paused') return 'warning';
     if (status === 'archived') return 'neutral';
     return 'neutral';
+  }
+
+  statusLabel(status: string): string {
+    if (status === 'active') return '运行中';
+    if (status === 'paused') return '已暂停';
+    if (status === 'archived') return '已归档';
+    return status;
   }
 
   dispatchTone(

@@ -7,6 +7,13 @@ import { DevAgentService, type DevRun } from './dev-agent.service';
 export type DesignPageType = 'chat' | 'workbench' | 'memory';
 export type DesignPreset = 'warm-tech' | 'serious-workbench' | 'quiet-personal';
 export type DesignAuditMode = 'code' | 'visual' | 'full';
+export type DesignMessageRole = 'user' | 'assistant' | 'system';
+
+export interface DesignImageInput {
+  base64: string;
+  mimeType: 'image/png' | 'image/jpeg' | 'image/webp';
+  annotation?: string;
+}
 
 export interface DesignAuditRequest {
   pageName: string;
@@ -63,11 +70,126 @@ export interface RunDesignAuditResultDto {
   costUsd: number;
 }
 
+// ── 对话相关类型 ────────────────────────────────
+
+export interface DesignConversationMessage {
+  id: string;
+  conversationId: string;
+  role: DesignMessageRole;
+  content: string;
+  metadata?: {
+    images?: DesignImageInput[];
+    auditResult?: DesignAuditResultDto;
+    proposedChanges?: ProposedChange[];
+    executionResult?: {
+      success: boolean;
+      changedFiles: string[];
+      error?: string;
+    };
+  };
+  createdAt: string;
+}
+
+export interface ProposedChange {
+  filePath: string;
+  changeType: 'edit' | 'create' | 'delete';
+  description: string;
+  diff?: string;
+}
+
+export interface DesignConversationDto {
+  id: string;
+  title?: string;
+  status: 'active' | 'completed' | 'archived';
+  pageName?: string;
+  pageType?: string;
+  pageUrl?: string;
+  preset?: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: DesignConversationMessage[];
+}
+
+export interface CreateConversationRequest {
+  title?: string;
+  pageName?: string;
+  pageType?: DesignPageType;
+  pageUrl?: string;
+  preset?: DesignPreset;
+  workspaceRoot?: string;
+  initialMessage?: string;
+}
+
+export interface SendMessageRequest {
+  content: string;
+  images?: DesignImageInput[];
+  auditParams?: {
+    pageName: string;
+    pageType: DesignPageType;
+    mode?: DesignAuditMode;
+    targetFiles?: string[];
+  };
+}
+
 @Injectable({ providedIn: 'root' })
 export class DesignAgentService {
   private readonly http = inject(HttpClient);
   private readonly base = `${environment.apiUrl}/design-agent`;
   private readonly devAgent = inject(DevAgentService);
+
+  // ── 对话 API ────────────────────────────────────
+
+  /** 创建新对话 */
+  createConversation(request: CreateConversationRequest): Observable<DesignConversationDto> {
+    return this.http.post<DesignConversationDto>(`${this.base}/conversations`, request);
+  }
+
+  /** 获取对话列表 */
+  listConversations(): Observable<DesignConversationDto[]> {
+    return this.http.get<DesignConversationDto[]>(`${this.base}/conversations`);
+  }
+
+  /** 获取对话详情 */
+  getConversation(id: string): Observable<DesignConversationDto> {
+    return this.http.get<DesignConversationDto>(`${this.base}/conversations/${id}`);
+  }
+
+  /** 发送消息 */
+  sendMessage(conversationId: string, request: SendMessageRequest): Observable<DesignConversationDto> {
+    return this.http.post<DesignConversationDto>(
+      `${this.base}/conversations/${conversationId}/messages`,
+      request,
+    );
+  }
+
+  /** 应用修改 */
+  applyChanges(conversationId: string, changeIds?: string[], notes?: string): Observable<{
+    success: boolean;
+    changedFiles: string[];
+    error?: string;
+  }> {
+    return this.http.post<{
+      success: boolean;
+      changedFiles: string[];
+      error?: string;
+    }>(`${this.base}/conversations/${conversationId}/apply`, { changeIds, notes });
+  }
+
+  /** 预览修改 */
+  previewChanges(conversationId: string, changeIds?: string[]): Observable<{
+    diffs: Array<{ filePath: string; diff: string }>;
+  }> {
+    return this.http.post<{
+      diffs: Array<{ filePath: string; diff: string }>;
+    }>(`${this.base}/conversations/${conversationId}/preview`, { changeIds });
+  }
+
+  /** 删除对话 */
+  deleteConversation(id: string): Observable<{ success: boolean }> {
+    return this.http.delete<{ success: boolean }>(`${this.base}/conversations/${id}`);
+  }
+
+  // ── 原有审查 API（向后兼容）────────────────────────
 
   runAudit(body: DesignAuditRequest): Observable<RunDesignAuditResultDto> {
     return this.http.post<{ sessionId: string; runId: string }>(`${this.base}/audits/run`, body).pipe(

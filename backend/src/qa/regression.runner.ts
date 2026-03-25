@@ -251,6 +251,8 @@ export class RegressionRunner {
         return 'timesheet';
       case 'reminder':
         return 'reminder';
+      case 'page_screenshot':
+        return 'page-screenshot';
       default:
         break;
     }

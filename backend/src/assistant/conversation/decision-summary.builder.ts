@@ -27,6 +27,9 @@ export class DecisionSummaryBuilder {
         if (intent.taskIntent === 'device_screenshot') {
           parts.push('这是设备侧执行请求，当前无法直接替用户截屏，需说明限制并引导');
         }
+        if (intent.taskIntent === 'page_screenshot') {
+          parts.push('将调用网页截图能力，截取指定 URL 的完整页面内容');
+        }
       }
     }
 
@@ -73,6 +76,7 @@ export class DecisionSummaryBuilder {
       set_reminder: '设置提醒',
       timesheet: '工时管理',
       device_screenshot: '设备截图请求',
+      page_screenshot: '网页截图',
     };
     return map[taskIntent] ?? taskIntent;
   }

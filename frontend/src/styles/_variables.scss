@@ -68,6 +68,12 @@
     radial-gradient(circle at 80% 18%, rgba(196, 181, 253, 0.16), transparent 36%),
     radial-gradient(circle at 52% 68%, rgba(186, 230, 253, 0.14), transparent 40%),
     linear-gradient(180deg, #fffdfd 0%, #fff7fb 42%, #f6f7ff 100%);
+  --page-shell-background:
+    linear-gradient(165deg,
+      color-mix(in srgb, var(--color-primary-light) 40%, var(--color-bg)) 0%,
+      var(--color-bg) 35%,
+      var(--color-bg) 100%
+    );
   --workbench-header-background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(252, 248, 255, 0.56));
   --workbench-surface-gradient:
@@ -516,6 +522,12 @@
     radial-gradient(circle at 78% 18%, rgba(168, 85, 247, 0.16), transparent 32%),
     radial-gradient(circle at 50% 70%, rgba(56, 189, 248, 0.1), transparent 40%),
     linear-gradient(180deg, #0b1020 0%, #11182b 42%, #161d33 100%);
+  --page-shell-background:
+    linear-gradient(165deg,
+      color-mix(in srgb, var(--color-primary) 12%, var(--color-bg)) 0%,
+      var(--color-bg) 30%,
+      var(--color-bg) 100%
+    );
   --workbench-header-background:
     linear-gradient(180deg, rgba(18, 25, 42, 0.68), rgba(22, 29, 51, 0.52));
   --workbench-surface-gradient:

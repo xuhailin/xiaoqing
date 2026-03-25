@@ -27,9 +27,6 @@ export type PersonaField =
   | 'behaviorForbidden'
   | 'expressionRules';
 
-/** @deprecated 旧字段名，进化分析器/前端可能仍使用，映射到 expressionRules */
-export type LegacyExpressionField = 'voiceStyle' | 'adaptiveRules' | 'silencePermission';
-
 export const PERSONA_FIELDS: PersonaField[] = [
   'identity',
   'personality',
@@ -38,11 +35,9 @@ export const PERSONA_FIELDS: PersonaField[] = [
   'expressionRules',
 ];
 
-/** 旧三字段 → expressionRules 的映射集 */
-const LEGACY_EXPRESSION_FIELD_SET = new Set<string>(['voiceStyle', 'adaptiveRules', 'silencePermission']);
-
 export interface PersonaDto {
   id: string;
+  personaKey: string;
   identity: string;
   personality: string;
   valueBoundary: string;
@@ -52,6 +47,15 @@ export interface PersonaDto {
   evolutionAllowed: string;
   evolutionForbidden: string;
   version: number;
+}
+
+export interface PersonaSlotDto {
+  id: string;
+  personaKey: string;
+  identity: string;
+  personality: string;
+  version: number;
+  updatedAt: string;
 }
 
 export interface ExpressionFields {
@@ -195,15 +199,22 @@ export class PersonaService {
     private readonly personaRules: PersonaRuleService,
   ) {}
 
-  async getOrCreate(): Promise<PersonaDto> {
+  private async resolvePreferredPersonaKey(): Promise<string> {
+    const profile = await this.userProfile.getOrCreate();
+    return profile.preferredPersonaKey?.trim() || 'default';
+  }
+
+  async getOrCreate(personaKey?: string): Promise<PersonaDto> {
+    const resolvedKey = (personaKey?.trim() ? personaKey.trim() : await this.resolvePreferredPersonaKey());
     const existing = await this.prisma.persona.findFirst({
-      where: { isActive: true },
+      where: { personaKey: resolvedKey, isActive: true },
       orderBy: { version: 'desc' },
     });
     if (existing) return this.toDto(existing);
 
     const created = await this.prisma.persona.create({
       data: {
+        personaKey: resolvedKey,
         identity: DEFAULT_IDENTITY,
         personality: DEFAULT_PERSONALITY,
         valueBoundary: DEFAULT_VALUE_BOUNDARY,
@@ -228,8 +239,8 @@ export class PersonaService {
     metaFilterPolicy?: string;
     evolutionAllowed?: string;
     evolutionForbidden?: string;
-  }): Promise<PersonaDto> {
-    const current = await this.getOrCreate();
+  }, personaKey?: string): Promise<PersonaDto> {
+    const current = await this.getOrCreate(personaKey);
 
     const merged = {
       identity: data.identity ?? current.identity,
@@ -246,13 +257,13 @@ export class PersonaService {
       this.prisma.persona.create({
         data: {
           ...merged,
+          personaKey: current.personaKey,
           version: current.version + 1,
           isActive: true,
         },
       }),
-      this.prisma.persona.update({
+      this.prisma.persona.delete({
         where: { id: current.id },
-        data: { isActive: false },
       }),
     ]);
 
@@ -396,13 +407,13 @@ ${persona.evolutionForbidden}
             metaFilterPolicy: persona.metaFilterPolicy,
             evolutionAllowed: persona.evolutionAllowed,
             evolutionForbidden: persona.evolutionForbidden,
+            personaKey: persona.personaKey,
             version: newVersion,
             isActive: true,
           },
         }),
-        this.prisma.persona.update({
+        this.prisma.persona.delete({
           where: { id: persona.id },
-          data: { isActive: false },
         }),
       ]);
       finalPersona = this.toDto(created);
@@ -509,7 +520,7 @@ ${persona.evolutionForbidden}
 
   /**
    * 构建人格层 prompt 文本（identity + personality + valueBoundary + behaviorForbidden）。
-   * voiceStyle 已移至表达策略层（靠近对话历史，遵从度更高）。
+   * 表达纪律已独立为 expressionRules（靠近对话历史，遵从度更高）。
    */
   buildPersonaPrompt(dto: PersonaDto): string {
     const sections: string[] = [];
@@ -586,22 +597,14 @@ ${forbidden}`,
   }
 
   private toDto(p: Persona): PersonaDto {
-    // 迁移兼容：若新字段 expressionRules 为空，从旧三字段合并
-    let expressionRules = (p as any).expressionRules as string | undefined;
-    if (!expressionRules) {
-      const legacy = [p.voiceStyle, p.adaptiveRules, p.silencePermission]
-        .filter(Boolean)
-        .join('\n');
-      expressionRules = legacy || DEFAULT_EXPRESSION_RULES;
-    }
-
     return {
       id: p.id,
+      personaKey: p.personaKey,
       identity: p.identity || DEFAULT_IDENTITY,
       personality: p.personality || DEFAULT_PERSONALITY,
       valueBoundary: p.valueBoundary || DEFAULT_VALUE_BOUNDARY,
       behaviorForbidden: p.behaviorForbidden || DEFAULT_BEHAVIOR_FORBIDDEN,
-      expressionRules,
+      expressionRules: p.expressionRules || DEFAULT_EXPRESSION_RULES,
       metaFilterPolicy: p.metaFilterPolicy || DEFAULT_META_FILTER_POLICY,
       evolutionAllowed: p.evolutionAllowed,
       evolutionForbidden: p.evolutionForbidden,
@@ -763,7 +766,7 @@ ${forbidden}`,
       const rec = item as Record<string, unknown>;
       const field = rec.field;
       if (typeof field !== 'string') continue;
-      if (!PERSONA_FIELDS.includes(field as PersonaField) && !LEGACY_EXPRESSION_FIELD_SET.has(field)) {
+      if (!PERSONA_FIELDS.includes(field as PersonaField)) {
         continue;
       }
 
@@ -810,10 +813,7 @@ ${forbidden}`,
 
   private normalizeEvolutionChanges(changes: EvolutionChange[]): EvolutionChange[] {
     return changes
-      .filter((change) =>
-        PERSONA_FIELDS.includes(change.field as PersonaField)
-        || LEGACY_EXPRESSION_FIELD_SET.has(change.field),
-      )
+      .filter((change) => PERSONA_FIELDS.includes(change.field as PersonaField))
       .map((change) => this.classifyEvolutionChange(change))
       .filter(
         (change) =>
@@ -847,10 +847,7 @@ ${forbidden}`,
     const reason = (change.reason || '').trim();
     const combined = `${content} ${reason}`;
 
-    // 旧三字段统一映射到 expressionRules
-    const field = LEGACY_EXPRESSION_FIELD_SET.has(change.field)
-      ? 'expressionRules' as PersonaField
-      : change.field;
+    const field = change.field;
 
     if (this.shouldRouteToExpression(field, combined)) {
       const isPreference = this.isUserPreferenceSignal(combined);
@@ -896,6 +893,70 @@ ${forbidden}`,
       CORE_PERSONA_FIELDS.has(field)
       && /口语|短句|gpt味|GPT味|规整|模板|结构化|连接词|像助手|更像朋友|确认一句|只确认|少展开|不额外展开|留白|等待她下一步|不多说|不延展|彩虹屁|嘴甜|夸赞|被哄|轻量|情绪价值|接住/.test(text)
     );
+  }
+
+  /**
+   * 获取所有激活 persona（每个 personaKey 只会保留一个 isActive=true 的版本）
+   * 用于配置页切换人格。
+   */
+  async listActivePersonas(): Promise<PersonaSlotDto[]> {
+    const rows = await this.prisma.persona.findMany({
+      where: { isActive: true },
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true,
+        personaKey: true,
+        identity: true,
+        personality: true,
+        version: true,
+        updatedAt: true,
+      },
+    });
+
+    return rows.map((r) => ({
+      id: r.id,
+      personaKey: r.personaKey,
+      identity: r.identity,
+      personality: r.personality,
+      version: r.version,
+      updatedAt: r.updatedAt.toISOString(),
+    }));
+  }
+
+  /**
+   * 创建一个新的 personaKey，并从 basePersonaKey 复制当前人格内容。
+   */
+  async createPersonaSlot(personaKey?: string, basePersonaKey?: string): Promise<PersonaDto> {
+    const newKey = (personaKey?.trim() || `persona_${Date.now().toString(36)}`).trim();
+    const baseKey = (basePersonaKey?.trim() || await this.resolvePreferredPersonaKey()).trim();
+
+    const existing = await this.prisma.persona.findFirst({
+      where: { personaKey: newKey, isActive: true },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new Error(`personaKey already exists and isActive=true: ${newKey}`);
+    }
+
+    const base = await this.getOrCreate(baseKey);
+
+    const created = await this.prisma.persona.create({
+      data: {
+        personaKey: newKey,
+        identity: base.identity,
+        personality: base.personality,
+        valueBoundary: base.valueBoundary,
+        behaviorForbidden: base.behaviorForbidden,
+        expressionRules: base.expressionRules,
+        metaFilterPolicy: base.metaFilterPolicy,
+        evolutionAllowed: base.evolutionAllowed,
+        evolutionForbidden: base.evolutionForbidden,
+        version: 1,
+        isActive: true,
+      },
+    });
+
+    return this.toDto(created);
   }
 
   private defaultLayerForField(field: PersonaField): EvolutionLayer {
