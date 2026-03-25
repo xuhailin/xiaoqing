@@ -123,6 +123,18 @@ export interface ToolResultContext {
 export class PromptRouterService {
   constructor(private llm: LlmService) {}
 
+  private isDebugPromptEnabled(): boolean {
+    // 与现有仓库约定对齐：FEATURE_DEBUG_META 默认 false，仅在显式开启时输出日志
+    return process.env.FEATURE_DEBUG_META === 'true';
+  }
+
+  private countBullets(blockText: string): number {
+    return blockText
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.startsWith('- ')).length;
+  }
+
   buildNicknameHint(nickname?: string | null): string {
     const name = nickname?.trim();
     if (!name) return '';
@@ -167,15 +179,15 @@ export class PromptRouterService {
     }
 
     const cognitivePart = this.buildCognitivePolicy(ctx.cognitiveState);
-    const growthPart = this.buildGrowthPolicy(ctx.growthContext);
+    const longTermSummaryPart = this.buildLongTermSummaryPart(ctx.growthContext, ctx.claimPolicyText);
     const boundaryPart = this.buildBoundaryPolicy(ctx.boundaryPrompt);
-    const claimPart = ctx.claimPolicyText ?? '';
-    const sessionStatePart = ctx.sessionStateText ?? '';
-    const sharedExperiencePart = this.buildSharedExperiencePart(ctx.sharedExperiences);
-    const rhythmObservationPart = this.buildRhythmObservationPart(ctx.rhythmObservations);
-    const socialEntityPart = this.buildSocialEntityPart(ctx.socialEntities);
-    const socialInsightPart = this.buildSocialInsightPart(ctx.socialInsights);
-    const socialRelationPart = this.buildSocialRelationPart(ctx.socialRelationSignals);
+    const socialSummaryPart = this.buildSocialContextSummaryPart({
+      sharedExperiences: ctx.sharedExperiences,
+      rhythmObservations: ctx.rhythmObservations,
+      socialEntities: ctx.socialEntities,
+      socialInsights: ctx.socialInsights,
+      socialRelationSignals: ctx.socialRelationSignals,
+    });
     const collaborationPart = this.buildCollaborationContextPrompt(ctx.collaborationContext);
 
     // 决策上下文：仅使用 DecisionSummaryBuilder 的摘要（若为空则不注入）
@@ -250,14 +262,8 @@ export class PromptRouterService {
       userProfilePart,
       worldStatePart,
       collaborationPart,
-      growthPart,
-      claimPart,
-      sessionStatePart,
-      sharedExperiencePart,
-      rhythmObservationPart,
-      socialEntityPart,
-      socialInsightPart,
-      socialRelationPart,
+      longTermSummaryPart,
+      socialSummaryPart,
       boundaryPart,
       cognitivePart,
       reflectionPart,
@@ -268,6 +274,43 @@ export class PromptRouterService {
       expressionPart,
     ].filter(Boolean);
 
+    if (this.isDebugPromptEnabled()) {
+      const longTermBulletCount = this.countBullets(longTermSummaryPart);
+      const socialBulletCount = this.countBullets(socialSummaryPart);
+      // 注意：不打印正文，只打印 block 名称/存在性/条数/字符数，用于观察收敛是否生效
+      // eslint-disable-next-line no-console
+      console.debug('[PromptInjectObs]', {
+        blocks: {
+          longTermSummaryPart: {
+            injected: longTermSummaryPart.trim().length > 0,
+            bullets: longTermBulletCount,
+            chars: longTermSummaryPart.length,
+          },
+          socialSummaryPart: {
+            injected: socialSummaryPart.trim().length > 0,
+            bullets: socialBulletCount,
+            chars: socialSummaryPart.length,
+          },
+          sessionStatePart: { injected: false }, // chat 主路径不再直接注入
+          boundaryPart: { injected: boundaryPart.trim().length > 0 },
+          cognitivePart: { injected: cognitivePart.trim().length > 0 },
+        },
+        // 明确指出旧多块来源在 chat 主路径已关闭
+        oldPromptParts: {
+          growthPartInjected: false,
+          claimPartInjected: false,
+          sessionStatePartInjected: false,
+          socialMultiBlocksInjected: {
+            sharedExperiencePart: false,
+            rhythmObservationPart: false,
+            socialEntityPart: false,
+            socialInsightPart: false,
+            socialRelationPart: false,
+          },
+        },
+      });
+    }
+
     const system: OpenAI.Chat.ChatCompletionMessageParam = {
       role: 'system',
       content: parts.join('\n\n'),
@@ -276,6 +319,161 @@ export class PromptRouterService {
       (m) => ({ role: m.role, content: m.content }),
     );
     return [system, ...history];
+  }
+
+  /**
+   * 长期画像摘要：合并原有 growthPart + claimPart 的信息入口，只在 chat prompt 中注入这一处。
+   * 规则：以 stable/core 的 claims 为主，少量补充 growth 的趋势/关系/边界提示；最终 3~5 条 bullets。
+   */
+  private buildLongTermSummaryPart(
+    growth?: PersistedGrowthContext,
+    claimPolicyText?: string | null,
+  ): string {
+    const maxBullets = 5;
+    const maxFromGrowth = 2;
+    const maxFromClaim = maxBullets - maxFromGrowth;
+    const minStableConf = 0.7;
+
+    const stripBulletPrefix = (line: string) =>
+      line.replace(/^([-*•]|\d+\.)\s*/u, '').trim();
+
+    // claimPolicyText 的 bullet 格式目前在 assembler 中会以 "- " 起头，但为了防御格式轻微变化，
+    // 这里直接从包含 "conf=" 的行抽取候选，避免依赖 startsWith('- ').
+    const claimCandidates = (claimPolicyText ?? '')
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0 && l.includes('conf='))
+      .map((l) => {
+        const content = stripBulletPrefix(l);
+        const confMatch = content.match(/\(conf=([0-9.]+)\)/);
+        const conf = confMatch ? Number(confMatch[1]) : null;
+        return { content, conf };
+      })
+      .filter((c) => c.content.length > 0);
+
+    const growthBullets = this.buildGrowthPolicy(growth)
+      .split('\n')
+      .map((l) => l.trim())
+      // buildGrowthPolicy 的 bullet 行通常以 "- " 开头；这里同样用 stripBulletPrefix + bullet 前缀判断做防御
+      .filter((l) => /^([-*•]|\d+\.)\s*/u.test(l))
+      .map((l) => stripBulletPrefix(l));
+
+    const seen = new Set<string>();
+    const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+    const addUnique = (list: string[], content: string) => {
+      const t = content?.trim();
+      if (!t) return;
+      const key = normalize(t);
+      if (seen.has(key)) return;
+      seen.add(key);
+      list.push(t);
+    };
+
+    const stableClaimPick: string[] = [];
+    const fallbackClaimPick: string[] = [];
+
+    for (const c of claimCandidates) {
+      if (c.content.length === 0) continue;
+      if (c.conf != null && !Number.isNaN(c.conf) && c.conf >= minStableConf) {
+        addUnique(stableClaimPick, c.content);
+      } else {
+        addUnique(fallbackClaimPick, c.content);
+      }
+      if (stableClaimPick.length >= maxFromClaim) break;
+    }
+
+    const pickClaim = stableClaimPick.length >= maxFromClaim
+      ? stableClaimPick.slice(0, maxFromClaim)
+      : [...stableClaimPick, ...fallbackClaimPick].slice(0, maxFromClaim);
+
+    const growthPick: string[] = [];
+    for (const g of growthBullets) {
+      if (growthPick.length >= maxFromGrowth) break;
+      addUnique(growthPick, g);
+    }
+
+    const combined = [...pickClaim, ...growthPick];
+    // 若总条数过少，用 claims 继续补齐（更稳定），避免出现“长期画像块因抽取失败而突然为空”的情况
+    if (combined.length < 3 && claimCandidates.length > 0) {
+      for (const c of claimCandidates) {
+        if (combined.length >= maxBullets) break;
+        addUnique(combined as string[], c.content);
+      }
+    }
+
+    const final = combined.slice(0, maxBullets).filter((b) => b.trim().length > 0);
+    if (final.length === 0) return '';
+
+    return ['[长期画像摘要]', ...final.map((b) => `- ${b}`)].join('\n');
+  }
+
+  /**
+   * 社会互动摘要：用 3 条 bullets 把原本多块 social/relationship pieces 收敛成一个 summary block。
+   */
+  private buildSocialContextSummaryPart(input: {
+    sharedExperiences?: SharedExperienceRecord[];
+    rhythmObservations?: string[];
+    socialEntities?: SocialEntityRecord[];
+    socialInsights?: SocialInsightRecord[];
+    socialRelationSignals?: RelevantSocialRelationEdgeRecord[];
+  }): string {
+    const maxBullets = 3;
+    const bullets: string[] = [];
+    const seen = new Set<string>();
+    const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+    const add = (b: string) => {
+      const t = b.trim();
+      if (!t) return;
+      const key = normalize(t);
+      if (seen.has(key)) return;
+      seen.add(key);
+      bullets.push(t.replace(/\s+/g, ' '));
+    };
+
+    const relation = input.socialRelationSignals?.[0];
+    if (relation) {
+      const entityName = relation.entityName?.trim();
+      const trend = relation.trend?.toString().trim();
+      const qualityNum = typeof relation.quality === 'number' ? relation.quality : Number(relation.quality);
+      if (entityName && trend && Number.isFinite(qualityNum)) {
+        const note = relation.notes?.trim();
+        const notePart = note ? ` | note=${note.slice(0, 40)}` : '';
+        add(
+          `关键关系：${entityName}（trend=${trend}，quality=${qualityNum.toFixed(2)})${notePart}`,
+        );
+      }
+    } else {
+      const entity = input.socialEntities?.[0];
+      const name = entity?.name?.trim();
+      if (name) {
+        const desc = entity?.description?.trim();
+        const descPart = desc ? ` | ${desc.slice(0, 40)}` : '';
+        add(`关注的人物：${name}${descPart}`);
+      }
+    }
+
+    const insight = input.socialInsights?.[0];
+    const insightText = insight?.content?.trim();
+    if (insightText) {
+      add(`社会洞察：${insightText.slice(0, 80)}`);
+    } else {
+      const shared = input.sharedExperiences?.[0];
+      const title = shared?.title?.trim();
+      if (title) {
+        const summary = shared?.summary?.trim();
+        const summaryPart = summary ? ` | ${summary.slice(0, 80)}` : '';
+        add(`共同背景：${title}${summaryPart}`);
+      }
+    }
+
+    const rhythm = input.rhythmObservations?.[0];
+    const rhythmText = rhythm?.trim();
+    if (rhythmText) {
+      add(`互动节奏：${rhythmText.slice(0, 80)}`);
+    }
+
+    if (bullets.length === 0) return '';
+    return ['[社会互动摘要]', ...bullets.slice(0, maxBullets).map((b) => `- ${b}`)].join('\n');
   }
 
   buildCognitivePolicy(state?: CognitiveTurnState): string {
@@ -345,6 +543,10 @@ export class PromptRouterService {
     return lines.join('\n');
   }
 
+  /**
+   * @deprecated chat prompt 注入路径已由 `buildSocialContextSummaryPart` 统一替代；
+   * 该方法保留仅用于向后兼容/调试，不再作为主路径输出。
+   */
   private buildSharedExperiencePart(items?: SharedExperienceRecord[]): string {
     if (!items?.length) return '';
 
@@ -355,6 +557,10 @@ export class PromptRouterService {
     return lines.join('\n');
   }
 
+  /**
+   * @deprecated chat prompt 注入路径已由 `buildSocialContextSummaryPart` 统一替代；
+   * 该方法保留仅用于向后兼容/调试，不再作为主路径输出。
+   */
   private buildRhythmObservationPart(notes?: string[]): string {
     if (!notes?.length) return '';
 
@@ -364,6 +570,10 @@ export class PromptRouterService {
     ].join('\n');
   }
 
+  /**
+   * @deprecated chat prompt 注入路径已由 `buildSocialContextSummaryPart` 统一替代；
+   * 该方法保留仅用于向后兼容/调试，不再作为主路径输出。
+   */
   private buildSocialInsightPart(insights?: SocialInsightRecord[]): string {
     if (!insights?.length) return '';
 
@@ -373,6 +583,10 @@ export class PromptRouterService {
     ].join('\n');
   }
 
+  /**
+   * @deprecated chat prompt 注入路径已由 `buildSocialContextSummaryPart` 统一替代；
+   * 该方法保留仅用于向后兼容/调试，不再作为主路径输出。
+   */
   private buildSocialEntityPart(items?: SocialEntityRecord[]): string {
     if (!items?.length) return '';
 
@@ -382,6 +596,10 @@ export class PromptRouterService {
     ].join('\n');
   }
 
+  /**
+   * @deprecated chat prompt 注入路径已由 `buildSocialContextSummaryPart` 统一替代；
+   * 该方法保留仅用于向后兼容/调试，不再作为主路径输出。
+   */
   private buildSocialRelationPart(items?: RelevantSocialRelationEdgeRecord[]): string {
     if (!items?.length) return '';
 

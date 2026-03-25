@@ -101,17 +101,32 @@ export class TurnContextAssembler {
       defaultWorldState,
       anchorCity,
     });
-    const fullWorldState = await this.worldState.get(input.conversationId);
+
+    const resolvedIntent = intentCtx.mergedIntentState ?? intentCtx.intentState;
+    const actionDecision = this.actionReasoner.decide(resolvedIntent ?? null, input.userInput);
+    const fullWorldState = intentCtx.worldState ?? storedWorldState;
     const claimCtx = await this.buildClaimAndSessionContext(input.conversationId);
-    const relationshipCtx = await this.buildRelationshipContext({
-      conversationId: input.conversationId,
-      userInput: input.userInput,
-      recentMessages,
-    });
-    const socialCtx = await this.buildSocialContext({
-      userInput: input.userInput,
-      recentMessages,
-    });
+
+    const shouldSkipSocialRelationship = actionDecision.toolPolicy.action === 'run_capability';
+
+    let relationshipCtx: TurnContext['relationship'];
+    let socialCtx: TurnContext['social'];
+
+    if (shouldSkipSocialRelationship) {
+      // tool/capability (run_capability) reply prompt doesn't consume these blocks.
+      relationshipCtx = { sharedExperiences: [], rhythmObservations: [] };
+      socialCtx = { entities: [], insights: [], relationSignals: [] };
+    } else {
+      relationshipCtx = await this.buildRelationshipContext({
+        conversationId: input.conversationId,
+        userInput: input.userInput,
+        recentMessages,
+      });
+      socialCtx = await this.buildSocialContext({
+        userInput: input.userInput,
+        recentMessages,
+      });
+    }
 
     // 读取上一轮的反思结果
     let previousReflection: { quality: 'good' | 'suboptimal' | 'failed'; adjustmentHint: string; timestamp: Date } | undefined;
@@ -131,9 +146,6 @@ export class TurnContextAssembler {
     } catch (err) {
       this.logger.warn(`Failed to load previous reflection: ${String(err)}`);
     }
-
-    const resolvedIntent = intentCtx.mergedIntentState ?? intentCtx.intentState;
-    const actionDecision = this.actionReasoner.decide(resolvedIntent ?? null, input.userInput);
 
     const personaExpressionFields = this.persona.getExpressionFields(personaDto);
     const fromRules = personaExpressionFields.expressionRules.trim() ? null : await this.personaRules.buildExpressionPrompt();
@@ -287,11 +299,19 @@ export class TurnContextAssembler {
     recentMessages: Array<{ role: string; content: string }>;
     defaultWorldState: TurnContext['world']['defaultWorldState'];
     anchorCity?: string;
-  }): Promise<{ intentState: DialogueIntentState | null; mergedIntentState: DialogueIntentState | null }> {
+  }): Promise<{
+    intentState: DialogueIntentState | null;
+    mergedIntentState: DialogueIntentState | null;
+    /** resolveIntent 期望返回更新后的最新 worldState（DB persisted state，不含 fallback） */
+    worldState: TurnContext['world']['fullWorldState'];
+  }> {
     const hasAnyChatCapability =
       this.flags.featureOpenClaw ||
       this.capabilityRegistry.listExposed('chat', { surface: 'assistant' }).length > 0;
-    if (!hasAnyChatCapability) return { intentState: null, mergedIntentState: null };
+    if (!hasAnyChatCapability) {
+      const worldState = await this.worldState.get(input.conversationId);
+      return { intentState: null, mergedIntentState: null, worldState };
+    }
 
     try {
       const capabilityPrompt = this.capabilityRegistry.buildExposedCapabilityPrompt('chat', {
@@ -311,16 +331,17 @@ export class TurnContextAssembler {
         await this.writeIdentityUpdate(intentState.identityUpdate);
       }
 
-      const { merged } = await this.worldState.mergeSlots(
+      const { merged, worldState } = await this.worldState.mergeSlots(
         input.conversationId,
         intentState,
         input.anchorCity ? { city: input.anchorCity } : null,
       );
 
-      return { intentState, mergedIntentState: merged };
+      return { intentState, mergedIntentState: merged, worldState };
     } catch (err) {
       this.logger.warn(`Intent recognition failed in assembler: ${String(err)}`);
-      return { intentState: null, mergedIntentState: null };
+      const worldState = await this.worldState.get(input.conversationId);
+      return { intentState: null, mergedIntentState: null, worldState };
     }
   }
 

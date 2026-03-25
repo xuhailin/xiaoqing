@@ -63,7 +63,12 @@ export class WorldStateService {
     conversationId: string,
     intent: DialogueIntentState,
     fallbackWorldState?: Partial<WorldState> | null,
-  ): Promise<{ merged: DialogueIntentState; filledFromWorldState: string[] }> {
+  ): Promise<{
+    merged: DialogueIntentState;
+    filledFromWorldState: string[];
+    /** mergeSlots 内部已读取的最新世界状态（DB persisted state，不含 fallback） */
+    worldState: WorldState | null;
+  }> {
     const world = await this.get(conversationId);
     const effectiveWorld: Partial<WorldState> = {
       ...(fallbackWorldState ?? {}),
@@ -77,6 +82,7 @@ export class WorldStateService {
       return {
         merged: { ...intent, slots, missingParams },
         filledFromWorldState,
+        worldState: world,
       };
     }
 
@@ -94,6 +100,7 @@ export class WorldStateService {
     return {
       merged: { ...intent, slots, missingParams },
       filledFromWorldState,
+      worldState: world,
     };
   }
 
