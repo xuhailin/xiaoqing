@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma.service';
 import { LlmService } from '../../infra/llm/llm.service';
-import { CHAT_PROMPT_VERSION } from '../prompt-router/prompt-router.service';
 import { MemoryDecayService } from '../memory/memory-decay.service';
 import { PersonaDto } from '../persona/persona.service';
 import type { DialogueIntentState } from '../intent/intent.types';
@@ -10,7 +9,6 @@ import { TaskFormatterService } from '../../openclaw/task-formatter.service';
 import { CapabilityRegistry } from '../../action/capability-registry.service';
 import { WeatherSkillService } from '../../action/skills/weather/weather-skill.service';
 import { PetService } from '../pet/pet.service';
-import type { CognitiveTurnState } from '../cognitive-pipeline/cognitive-pipeline.types';
 import { estimateTokens } from '../../infra/token-estimator';
 import { TraceCollector } from '../../infra/trace/trace-collector';
 import { adaptLegacyTraceToTurnEvents } from '../../infra/trace/turn-trace.adapter';
@@ -19,15 +17,15 @@ import type {
   ChatCompletionResult,
   ConversationMessageKind,
   ConversationMessageMetadata,
+  ExecutionResult,
   SendMessageResult,
+  ToolKind,
   ToolPolicyDecision,
   TurnContext,
 } from './orchestration.types';
 import { ToolExecutorRegistry } from '../../action/tools/tool-executor-registry.service';
-import type { PostTurnPlan } from '../post-turn/post-turn.types';
 import { SkillRunner } from '../../action/local-skills/skill-runner.service';
 import { FeatureFlagConfig } from './feature-flag.config';
-import { ResponseComposer } from './response-composer.service';
 import { toConversationMessageDto } from './message.dto';
 
 type PipelineStepName = 'cognition' | 'decision' | 'expression';
@@ -97,7 +95,6 @@ export class ChatCompletionEngine {
     private dailyMoment: DailyMomentService,
     private toolRegistry: ToolExecutorRegistry,
     private localSkillRunner: SkillRunner,
-    private responseComposer: ResponseComposer,
     flags: FeatureFlagConfig,
   ) {
     this.lastNRounds = flags.lastNRounds;
@@ -525,32 +522,10 @@ export class ChatCompletionEngine {
         slotsLocation: intentState.slots.location ?? null,
         geoResolved,
         reason,
-        fallback: 'openclaw',
+        fallback: context.runtime.actionDecision?.fallbackPolicy?.fallback ?? 'chat',
       });
-      this.logger.debug(`Weather: ${reason}, fallback to OpenClaw`);
-      this.advancePipelineState(pipelineState, 'decision');
-      if (!this.featureOpenClaw) {
-        trace.add('policy-decision', '策略决策', 'success', {
-          decisionRoute: 'chat',
-          reason: 'OpenClaw 已关闭，回退聊天',
-          pipeline: this.buildPipelineSnapshot(pipelineState),
-        });
-        return this.buildToolReplyAndSave(
-          context,
-          conversationId,
-          userMsg,
-          userInput,
-          personaDto,
-          null,
-          '天气地点解析失败，且 OpenClaw 已关闭，暂无法代为查询',
-          intentState,
-          {},
-          trace,
-          pipelineState,
-          recent,
-        );
-      }
-      return this.handleOpenClawTask(
+      this.logger.debug(`Weather: ${reason}, apply unified fallback policy`);
+      return this.applyCapabilityFallback(
         context,
         conversationId,
         userMsg,
@@ -560,6 +535,10 @@ export class ChatCompletionEngine {
         personaDto,
         trace,
         pipelineState,
+        {
+          defaultChatError: '天气地点解析失败，暂无法代为查询',
+          fallbackReason: reason,
+        },
       );
     }
 
@@ -587,31 +566,9 @@ export class ChatCompletionEngine {
       'weather',
     );
 
-    if (!result.result.assistantMessage.content || result.result.assistantMessage.content.includes('失败')) {
-      this.advancePipelineState(pipelineState, 'decision');
-      trace.add('policy-decision', '策略决策', 'success', {
-        decisionRoute: 'run_openclaw',
-        reason: '本地 weather 执行失败，回退 OpenClaw',
-        pipeline: this.buildPipelineSnapshot(pipelineState),
-      });
-      this.logger.debug('Weather skill failed, fallback to OpenClaw');
-      if (!this.featureOpenClaw) {
-        return this.buildToolReplyAndSave(
-          context,
-          conversationId,
-          userMsg,
-          userInput,
-          personaDto,
-          null,
-          '本地天气查询失败，且 OpenClaw 已关闭，暂无法代为查询',
-          intentState,
-          {},
-          trace,
-          pipelineState,
-          recent,
-        );
-      }
-      return this.handleOpenClawTask(
+    if (result.executionResult?.status === 'failed') {
+      this.logger.debug('Weather skill failed, apply unified fallback policy');
+      return this.applyCapabilityFallback(
         context,
         conversationId,
         userMsg,
@@ -621,6 +578,10 @@ export class ChatCompletionEngine {
         personaDto,
         trace,
         pipelineState,
+        {
+          defaultChatError: '本地天气查询失败，暂无法代为查询',
+          fallbackReason: result.executionResult.toolError ?? 'weather skill returned failure-like reply',
+        },
       );
     }
 
@@ -644,28 +605,7 @@ export class ChatCompletionEngine {
         skill: 'book_download',
         reason: '意图未抽取 bookName 槽位',
       });
-      if (!this.featureOpenClaw) {
-        trace.add('policy-decision', '策略决策', 'success', {
-          decisionRoute: 'chat',
-          reason: 'OpenClaw 已关闭，回退聊天',
-          pipeline: this.buildPipelineSnapshot(pipelineState),
-        });
-        return this.buildToolReplyAndSave(
-          context,
-          conversationId,
-          userMsg,
-          userInput,
-          personaDto,
-          null,
-          '意图未抽取书名，且 OpenClaw 已关闭，暂无法代为下载',
-          intentState,
-          {},
-          trace,
-          pipelineState,
-          recent,
-        );
-      }
-      return this.handleOpenClawTask(
+      return this.applyCapabilityFallback(
         context,
         conversationId,
         userMsg,
@@ -675,6 +615,10 @@ export class ChatCompletionEngine {
         personaDto,
         trace,
         pipelineState,
+        {
+          defaultChatError: '意图未抽取书名，暂无法代为下载',
+          fallbackReason: '意图未抽取 bookName 槽位',
+        },
       );
     }
 
@@ -741,30 +685,7 @@ export class ChatCompletionEngine {
       );
     }
 
-    this.advancePipelineState(pipelineState, 'decision');
-    trace.add('policy-decision', '策略决策', 'success', {
-      decisionRoute: this.featureOpenClaw ? 'run_openclaw' : 'chat',
-      reason: this.featureOpenClaw ? '本地 book_download 执行失败，回退 OpenClaw' : 'OpenClaw 已关闭，回退聊天',
-      fallbackReason: result.error ?? 'book_download skill returned empty content',
-      pipeline: this.buildPipelineSnapshot(pipelineState),
-    });
-    if (!this.featureOpenClaw) {
-      return this.buildToolReplyAndSave(
-        context,
-        conversationId,
-        userMsg,
-        userInput,
-        personaDto,
-        null,
-        '本地电子书下载失败，且 OpenClaw 已关闭，暂无法代为下载',
-        intentState,
-        {},
-        trace,
-        pipelineState,
-        recent,
-      );
-    }
-    return this.handleOpenClawTask(
+    return this.applyCapabilityFallback(
       context,
       conversationId,
       userMsg,
@@ -774,6 +695,10 @@ export class ChatCompletionEngine {
       personaDto,
       trace,
       pipelineState,
+      {
+        defaultChatError: '本地电子书下载失败，暂无法代为下载',
+        fallbackReason: result.error ?? 'book_download skill returned empty content',
+      },
     );
   }
 
@@ -841,7 +766,7 @@ export class ChatCompletionEngine {
     return null;
   }
 
-  /** 根据工具执行结果构建小晴转述并保存消息，供 OpenClaw 与本地 Skill 共用 */
+  /** 根据工具执行结果返回结构化 ExecutionResult，最终回复由 Orchestrator 组织。 */
   private async buildToolReplyAndSave(
     context: TurnContext,
     conversationId: string,
@@ -861,118 +786,14 @@ export class ChatCompletionEngine {
     pipelineState?: PipelineTraceState,
     recentMessages?: { role: string; content: string }[],
   ): Promise<ChatCompletionResult> {
+    void context;
+    void conversationId;
+    void userMsg;
+    void userInput;
+    void personaDto;
+    void intentState;
+    void recentMessages;
     const path = opts.openclawUsed ? 'tool-openclaw' : opts.localSkillUsed ?? 'tool-local';
-    const composition = await (trace
-      ? trace.wrap('llm-generate', '生成回复', async () => {
-          const result = await this.responseComposer.composeToolReply({
-            context,
-            userInput,
-            recentMessages,
-            personaDto,
-            intentState,
-            toolResult,
-            toolError,
-            toolKind: opts.openclawUsed ? 'openclaw' : (opts.localSkillUsed ?? 'general_action'),
-            profilePrompt: {
-              includeImpressionCore: this.featureImpressionCore,
-              includeImpressionDetail: true,
-            },
-            toolWasActuallyUsed: !!opts.openclawUsed || !!opts.localSkillUsed,
-          });
-          return {
-            status: 'success' as const,
-            detail: {
-              model: this.llm.getModelInfo({ scenario: 'chat' }),
-              inputMessages: result.promptMessages.length,
-              mode: 'tool-wrap',
-            },
-            result,
-          };
-        })
-      : this.responseComposer.composeToolReply({
-          context,
-          userInput,
-          recentMessages,
-          personaDto,
-          intentState,
-          toolResult,
-          toolError,
-          toolKind: opts.openclawUsed ? 'openclaw' : (opts.localSkillUsed ?? 'general_action'),
-          profilePrompt: {
-            includeImpressionCore: this.featureImpressionCore,
-            includeImpressionDetail: true,
-          },
-          toolWasActuallyUsed: !!opts.openclawUsed || !!opts.localSkillUsed,
-        }));
-    if (trace && pipelineState) {
-      this.recordPipelineStep(trace, pipelineState, 'cognition', {
-        path,
-        situation: composition.cognitiveState.situation.kind,
-        userEmotion: composition.cognitiveState.userState.emotion,
-        userNeedMode: composition.cognitiveState.userState.needMode,
-        responseStrategy: composition.cognitiveState.responseStrategy,
-        rhythm: composition.cognitiveState.rhythm,
-        safety: composition.cognitiveState.safety,
-      });
-      this.recordPipelineStep(trace, pipelineState, 'expression', {
-        path,
-        phase: 'pre-llm',
-        inputMessages: composition.promptMessages.length,
-        model: this.llm.getModelInfo({ scenario: 'chat' }),
-      });
-      this.recordPipelineStep(trace, pipelineState, 'expression', {
-        path,
-        phase: 'post-llm',
-        rawLength: composition.rawReplyContent.length,
-        filteredLength: composition.filteredReplyContent.length,
-        finalLength: composition.replyContent.length,
-        metaAdjusted: composition.rawReplyContent !== composition.filteredReplyContent,
-        boundaryAdjusted: composition.boundaryReview.adjusted,
-        boundaryReasons: composition.boundaryReview.reasons,
-      });
-    }
-    if (composition.boundaryReview.adjusted) {
-      trace?.add('boundary-governance', '边界治理复核', 'success', {
-        adjusted: true,
-        reasons: composition.boundaryReview.reasons,
-        path,
-      });
-    }
-
-    this.pet.setStateWithAutoIdle('speaking', 3000);
-
-    const assistantMsg = await this.persistAssistantMessage(
-      conversationId,
-      composition.replyContent,
-      {
-        kind: opts.messageKind ?? 'tool',
-        metadata: {
-          source: 'tool',
-          toolKind: opts.openclawUsed ? 'openclaw' : (opts.localSkillUsed ?? 'general_action'),
-          toolName: opts.openclawUsed ? 'openclaw' : (opts.localSkillUsed ?? 'general_action'),
-          success: !toolError,
-          summary: this.firstLine(composition.replyContent) ?? undefined,
-          ...(opts.messageMetadata ?? {}),
-        },
-      },
-    );
-    const postPlan = this.buildPostTurnPlan({
-      conversationId,
-      userMsg,
-      assistantMsg,
-      userInput,
-      intentState,
-      cognitiveState: composition.cognitiveState,
-      beforeReturn: [],
-      afterReturn: [
-        { type: 'life_record_sync' },
-        { type: 'record_growth' },
-        { type: 'summarize_trigger', trigger: this.resolveSummarizeTrigger(userInput) },
-        { type: 'record_cognitive_observation' },
-        { type: 'session_reflection' },
-      ],
-    });
-
     const debugMeta = this.featureDebugMeta && pipelineState
       ? {
           pipeline: this.buildPipelineSnapshot(pipelineState),
@@ -987,15 +808,22 @@ export class ChatCompletionEngine {
         }
       : undefined;
 
-    return this.wrapResult({
-      userMessage: toConversationMessageDto(userMsg),
-      assistantMessage: toConversationMessageDto(assistantMsg),
-      injectedMemories: [],
-      ...(opts.openclawUsed !== undefined && { openclawUsed: opts.openclawUsed }),
-      ...(opts.localSkillUsed !== undefined && { localSkillUsed: opts.localSkillUsed }),
-      ...(debugMeta && { debugMeta }),
-      ...(trace && { trace: trace.getTrace() }),
-    }, postPlan);
+    const executionResult: ExecutionResult = {
+      status: toolError ? 'failed' : 'success',
+      path: 'tool',
+      toolKind: (opts.openclawUsed ? 'openclaw' : (opts.localSkillUsed ?? 'general_action')) as ToolKind,
+      toolResult,
+      toolError,
+      toolWasActuallyUsed: !!opts.openclawUsed || !!opts.localSkillUsed,
+      ...(opts.openclawUsed !== undefined ? { openclawUsed: opts.openclawUsed } : {}),
+      ...(opts.localSkillUsed !== undefined ? { localSkillUsed: opts.localSkillUsed } : {}),
+      ...(opts.messageKind ? { messageKind: opts.messageKind } : {}),
+      ...(opts.messageMetadata ? { messageMetadata: opts.messageMetadata } : {}),
+      ...(debugMeta ? { debugMeta } : {}),
+      ...(trace ? { trace: trace.getTrace() } : {}),
+    };
+
+    return { executionResult };
   }
 
   // ── 通用 Capability 执行 ─────────────────────────────────────
@@ -1138,6 +966,66 @@ export class ChatCompletionEngine {
     );
   }
 
+  private async applyCapabilityFallback(
+    context: TurnContext,
+    conversationId: string,
+    userMsg: { id: string; role: string; content: string; createdAt: Date },
+    recent: Array<{ role: string; content: string }>,
+    userInput: string,
+    intentState: DialogueIntentState,
+    personaDto: PersonaDto,
+    trace: TraceCollector,
+    pipelineState: PipelineTraceState,
+    opts: {
+      defaultChatError: string;
+      fallbackReason: string;
+    },
+  ): Promise<ChatCompletionResult> {
+    this.advancePipelineState(pipelineState, 'decision');
+
+    const fallbackPolicy = context.runtime.actionDecision?.fallbackPolicy;
+    const fallbackTarget = fallbackPolicy?.condition === 'skill_fail'
+      ? fallbackPolicy.fallback
+      : 'chat';
+    const reason = fallbackPolicy?.reason ?? '未配置统一 fallbackPolicy，回退聊天';
+
+    trace.add('policy-decision', '策略决策', 'success', {
+      decisionRoute: fallbackTarget === 'openclaw' ? 'run_openclaw' : 'chat',
+      reason,
+      fallbackReason: opts.fallbackReason,
+      pipeline: this.buildPipelineSnapshot(pipelineState),
+    });
+
+    if (fallbackTarget === 'openclaw') {
+      return this.handleOpenClawTask(
+        context,
+        conversationId,
+        userMsg,
+        recent,
+        userInput,
+        intentState,
+        personaDto,
+        trace,
+        pipelineState,
+      );
+    }
+
+    return this.buildToolReplyAndSave(
+      context,
+      conversationId,
+      userMsg,
+      userInput,
+      personaDto,
+      null,
+      opts.defaultChatError,
+      intentState,
+      {},
+      trace,
+      pipelineState,
+      recent,
+    );
+  }
+
   // ── OpenClaw 任务处理 ─────────────────────────────────────
   private async handleOpenClawTask(
     context: TurnContext,
@@ -1208,96 +1096,28 @@ export class ChatCompletionEngine {
     trace: TraceCollector,
     pipelineState: PipelineTraceState,
   ): Promise<ChatCompletionResult> {
-    const composition = await trace.wrap('llm-generate', '生成追问回复', async () => {
-      const result = await this.responseComposer.composeMissingParamsReply({
-        context,
-        userInput,
-        missingParams,
-        personaDto,
-        intentState,
-        profilePrompt: {
-          includeImpressionCore: this.featureImpressionCore,
-          includeImpressionDetail: true,
-        },
-      });
-      return {
-        status: 'success' as const,
-        detail: {
-          model: this.llm.getModelInfo({ scenario: 'chat' }),
-          inputMessages: result.promptMessages.length,
-          mode: 'missing-params-followup',
-        },
-        result,
-      };
-    });
-
+    void context;
+    void conversationId;
+    void userMsg;
+    void personaDto;
     trace.add('missing-params', '缺失参数追问', 'success', {
       missingParams,
-      paramLabels: composition.missingParamLabels,
+      paramLabels: missingParams,
     });
-    this.recordPipelineStep(trace, pipelineState, 'cognition', {
-      path: 'missing-params',
-      situation: composition.cognitiveState.situation.kind,
-      userEmotion: composition.cognitiveState.userState.emotion,
-      userNeedMode: composition.cognitiveState.userState.needMode,
-      responseStrategy: composition.cognitiveState.responseStrategy,
-      rhythm: composition.cognitiveState.rhythm,
-      safety: composition.cognitiveState.safety,
-      missingParams,
-    });
-    this.recordPipelineStep(trace, pipelineState, 'expression', {
-      path: 'missing-params',
-      phase: 'pre-llm',
-      inputMessages: composition.promptMessages.length,
-      model: this.llm.getModelInfo({ scenario: 'chat' }),
-    });
-    if (composition.boundaryReview.adjusted) {
-      trace.add('boundary-governance', '边界治理复核', 'success', {
-        adjusted: true,
-        reasons: composition.boundaryReview.reasons,
-        path: 'missing-params',
-      });
-    }
-    this.recordPipelineStep(trace, pipelineState, 'expression', {
-      path: 'missing-params',
-      phase: 'post-llm',
-      rawLength: composition.rawReplyContent.length,
-      filteredLength: composition.filteredReplyContent.length,
-      finalLength: composition.replyContent.length,
-      metaAdjusted: composition.rawReplyContent !== composition.filteredReplyContent,
-      boundaryAdjusted: composition.boundaryReview.adjusted,
-      boundaryReasons: composition.boundaryReview.reasons,
-    });
-
-    const assistantMsg = await this.persistAssistantMessage(conversationId, composition.replyContent);
 
     const debugMeta = this.featureDebugMeta
       ? { pipeline: this.buildPipelineSnapshot(pipelineState) }
       : undefined;
 
-    const postPlan = this.buildPostTurnPlan({
-      conversationId,
-      userMsg,
-      assistantMsg,
-      userInput,
-      intentState,
-      cognitiveState: composition.cognitiveState,
-      beforeReturn: [],
-      afterReturn: [
-        { type: 'life_record_sync' },
-        { type: 'record_growth' },
-        { type: 'record_cognitive_observation' },
-        { type: 'session_reflection' },
-      ], // no summarize_trigger here
-    });
-
-    return this.wrapResult({
-      userMessage: toConversationMessageDto(userMsg),
-      assistantMessage: toConversationMessageDto(assistantMsg),
-      injectedMemories: [],
-      ...(debugMeta && { debugMeta }),
-      trace: trace.getTrace(),
-    }, postPlan);
+    return {
+      executionResult: {
+        status: 'need_clarification',
+        path: 'missing_params',
+        missingParams,
+        ...(debugMeta ? { debugMeta } : {}),
+        trace: trace.getTrace(),
+      },
+    };
   }
 
   // ── 原有聊天路径（提取为独立方法）──────────────────────────
@@ -1311,11 +1131,11 @@ export class ChatCompletionEngine {
     pipelineState: PipelineTraceState,
     intentState?: DialogueIntentState | null,
   ): Promise<ChatCompletionResult> {
-    const userProfile = context.user.userProfile;
-    const memoryBudget = context.memory.memoryBudgetTokens;
     const finalMemories = context.memory.injectedMemories;
-    const needDetail = context.memory.needDetail;
-    const candidatesCount = context.memory.candidatesCount;
+    void conversationId;
+    void userMsg;
+    void personaDto;
+    void intentState;
 
     // ── 记录命中 + 获取身份锚定 ────────────────────────────
     const hitIds = finalMemories.map((m) => m.id);
@@ -1324,228 +1144,26 @@ export class ChatCompletionEngine {
         this.logger.warn(`Failed to record memory hits: ${err}`),
       );
     }
-    const composition = await trace.wrap('llm-generate', '生成回复', async () => {
-      const result = await this.responseComposer.composeChatReply({
-        context,
-        recentMessages: recent,
-        personaDto,
-        intentState,
-        maxContextTokens: this.maxContextTokens,
-        profilePrompt: {
-          includeImpressionCore: this.featureImpressionCore,
-          includeImpressionDetail: this.featureImpressionDetail && needDetail,
-        },
-      });
-      return {
-        status: 'success' as const,
-        detail: {
-          model: this.llm.getModelInfo({ scenario: 'chat' }),
-          inputMessages: result.promptMessages.length,
-          mode: 'chat',
-        },
-        result,
-      };
-    });
-    const claimCtx = context.claims;
-    const systemSelfInjectedCapabilitiesCount = context.system.systemSelf.capabilities
-      .filter((capability) => capability.visibility !== 'hidden')
-      .length;
-    const systemSelfInjectedAgentsCount = context.system.systemSelf.agents
-      .filter((agent) => agent.active)
-      .length;
-
-    trace.add('cognitive-pipeline', '认知管道', 'success', {
-      phase1: composition.cognitiveState.phasePlan.phase1,
-      phase2: composition.cognitiveState.phasePlan.phase2,
-      phase3: composition.cognitiveState.phasePlan.phase3,
-      situation: composition.cognitiveState.situation.kind,
-      userEmotion: composition.cognitiveState.userState.emotion,
-      userNeedMode: composition.cognitiveState.userState.needMode,
-      responseStrategy: composition.cognitiveState.responseStrategy,
-      rhythm: composition.cognitiveState.rhythm,
-      safety: composition.cognitiveState.safety,
-      growthContext: context.growth.growthContext,
-      boundaryPreflight: composition.boundaryPreflight,
-    });
-    this.recordPipelineStep(trace, pipelineState, 'cognition', {
-      path: 'chat',
-      phasePlan: composition.cognitiveState.phasePlan,
-      situation: composition.cognitiveState.situation,
-      userState: composition.cognitiveState.userState,
-      responseStrategy: composition.cognitiveState.responseStrategy,
-      rhythm: composition.cognitiveState.rhythm,
-      safety: composition.cognitiveState.safety,
-      boundaryPreflight: composition.boundaryPreflight,
-    });
-    const actionDecision = composition.actionDecision;
-    if (actionDecision) {
-      this.logger.debug(`[Decision Context] action=${actionDecision.action}, capability=${actionDecision.capability ?? 'none'}, reason=${actionDecision.reason}`);
-    }
-    trace.add('prompt-build', 'Prompt 构建', 'success', {
-      promptVersion: CHAT_PROMPT_VERSION,
-      systemPromptTokens: estimateTokens(composition.promptMessages[0]?.content as string ?? ''),
-      historyRounds: this.lastNRounds,
-      actualMessagesUsed: recent.length,
-      estimatedTotalTokens: composition.estimatedTokens,
-      maxContextTokens: this.maxContextTokens,
-      truncated: composition.truncated,
-      systemPromptPreview: this.previewText(String(composition.promptMessages[0]?.content ?? ''), 480),
-      impressionCoreInjected: this.featureImpressionCore && !!userProfile.impressionCore,
-      impressionDetailInjected: this.featureImpressionDetail && needDetail && !!userProfile.impressionDetail,
-      systemSelfInjectedCapabilitiesCount,
-      systemSelfInjectedAgentsCount,
-      decisionContextInjected: !!actionDecision,
-      actionDecisionSummary: actionDecision ? {
-        action: actionDecision.action,
-        capability: actionDecision.capability ?? null,
-        reason: actionDecision.reason.slice(0, 100),
-      } : null,
-    });
-    this.recordPipelineStep(trace, pipelineState, 'expression', {
-      path: 'chat',
-      phase: 'pre-llm',
-      promptVersion: CHAT_PROMPT_VERSION,
-      systemPromptTokens: estimateTokens(composition.promptMessages[0]?.content as string ?? ''),
-      inputMessages: composition.promptMessages.length,
-      estimatedTotalTokens: composition.estimatedTokens,
-      truncated: composition.truncated,
-      model: this.llm.getModelInfo({ scenario: 'chat' }),
-    });
-    if (composition.boundaryReview.adjusted) {
-      trace.add('boundary-governance', '边界治理复核', 'success', {
-        adjusted: true,
-        reasons: composition.boundaryReview.reasons,
-      });
-    }
-    this.recordPipelineStep(trace, pipelineState, 'expression', {
-      path: 'chat',
-      phase: 'post-llm',
-      rawLength: composition.rawReplyContent.length,
-      filteredLength: composition.filteredReplyContent.length,
-      finalLength: composition.replyContent.length,
-      metaAdjusted: composition.rawReplyContent !== composition.filteredReplyContent,
-      boundaryAdjusted: composition.boundaryReview.adjusted,
-      boundaryReasons: composition.boundaryReview.reasons,
-    });
-
-    this.pet.setStateWithAutoIdle('speaking', 3000);
-
-    const assistantMsg = await this.persistAssistantMessage(conversationId, composition.replyContent);
-
-    const postPlan = this.buildPostTurnPlan({
-      conversationId,
-      userMsg,
-      assistantMsg,
-      userInput: userMsg.content,
-      intentState: intentState ?? null,
-      cognitiveState: composition.cognitiveState,
-      isImportantIssueInProgress:
-        composition.cognitiveState.situation.kind === 'decision_support' ||
-        composition.cognitiveState.situation.kind === 'advice_request' ||
-        composition.cognitiveState.situation.kind === 'task_execution',
-      beforeReturn: [],
-      afterReturn: [
-        { type: 'life_record_sync' },
-        { type: 'record_growth' },
-        { type: 'summarize_trigger', trigger: this.resolveSummarizeTrigger(userMsg.content) },
-        { type: 'record_cognitive_observation' },
-        { type: 'session_reflection' },
-      ],
-    });
-
-    // ── Debug Meta（保留兼容）─────────────────────────────
-    const debugMeta = this.featureDebugMeta ? {
-      model: this.llm.getModelInfo({ scenario: 'chat' }),
-      context: {
-        historyRounds: this.lastNRounds,
-        actualMessagesUsed: recent.length,
-        estimatedTokens: composition.estimatedTokens,
-        maxContextTokens: this.maxContextTokens,
-        truncated: composition.truncated,
-      },
-      memory: {
-        featureFlags: {
-          keywordPrefilter: this.featureKeywordPrefilter,
-          llmRank: this.featureLlmRank,
-          dynamicTopK: this.featureDynamicTopK,
-          impressionCore: this.featureImpressionCore,
-          impressionDetail: this.featureImpressionDetail,
-        },
-        candidatesCount,
-        injectedCount: finalMemories.length,
-        memoryBudgetTokens: memoryBudget,
-        needDetail,
-        claimInjectedCount: claimCtx.claimSignals.length,
-        sessionStateInjected: !!claimCtx.sessionState,
-        claimsInjected: claimCtx.injectedClaimsDebug.slice(0, 30),
-        draftClaimsObserved: claimCtx.draftClaimsDebug.slice(0, 30),
-      },
-      prompt: {
-        version: CHAT_PROMPT_VERSION,
-        systemPromptTokens: estimateTokens(composition.promptMessages[0]?.content as string ?? ''),
-        systemPromptPreview: this.previewText(String(composition.promptMessages[0]?.content ?? ''), 1400),
-        systemSelfInjectedCapabilitiesCount,
-        systemSelfInjectedAgentsCount,
-        messagePreview: composition.promptMessages.slice(0, 6).map((m) => ({
-          role: String(m.role),
-          content: this.previewText(String(m.content ?? ''), 240),
-        })),
-      },
-      pipeline: this.buildPipelineSnapshot(pipelineState),
-      turnTraceEvents: adaptLegacyTraceToTurnEvents({
-        traceId: userMsg.id,
-        conversationId,
-        turnId: userMsg.id,
-        steps: trace.getTrace(),
-      }),
-    } : undefined;
-
-    return this.wrapResult({
-      userMessage: toConversationMessageDto(userMsg),
-      assistantMessage: toConversationMessageDto(assistantMsg),
-      injectedMemories: finalMemories,
-      ...(debugMeta && { debugMeta }),
-      trace: trace.getTrace(),
-    }, postPlan);
-  }
-
-  private buildPostTurnPlan(input: {
-    conversationId: string;
-    userMsg: { id: string };
-    assistantMsg: { id: string; content: string };
-    userInput: string;
-    intentState?: DialogueIntentState | null;
-    cognitiveState?: CognitiveTurnState;
-    isImportantIssueInProgress?: boolean;
-    beforeReturn: PostTurnPlan['beforeReturn'];
-    afterReturn: PostTurnPlan['afterReturn'];
-  }): PostTurnPlan {
     return {
-      conversationId: input.conversationId,
-      turn: {
-        turnId: input.userMsg.id,
-        userMessageId: input.userMsg.id,
-        assistantMessageId: input.assistantMsg.id,
-        userInput: input.userInput,
-        assistantOutput: input.assistantMsg.content,
-        now: new Date(),
+      executionResult: {
+        status: 'success',
+        path: 'chat',
+        ...(this.featureDebugMeta
+          ? {
+              debugMeta: {
+                pipeline: this.buildPipelineSnapshot(pipelineState),
+                turnTraceEvents: adaptLegacyTraceToTurnEvents({
+                  traceId: context.request.userMessage.id,
+                  conversationId: context.request.conversationId,
+                  turnId: context.request.userMessage.id,
+                  steps: trace.getTrace(),
+                }),
+              },
+            }
+          : {}),
+        trace: trace.getTrace(),
       },
-      context: {
-        intentState: input.intentState ?? null,
-        cognitiveState: input.cognitiveState,
-        isImportantIssueInProgress: input.isImportantIssueInProgress,
-      },
-      beforeReturn: input.beforeReturn,
-      afterReturn: input.afterReturn,
-      opsCollector: { memoryOps: [], claimOps: [], growthOps: [] },
     };
-  }
-
-  private resolveSummarizeTrigger(userInput: string): 'instant' | 'threshold' {
-    return /(?:记住|记一下|别忘|请你记|帮我记|我叫|我姓|我是(?!说|不是|在说)|我今年|我住在|我在(?!说|想|看)|我换了|我的名字)/
-      .test(userInput)
-      ? 'instant'
-      : 'threshold';
   }
 
   private async persistAssistantMessage(
@@ -1586,9 +1204,10 @@ export class ChatCompletionEngine {
 
   private wrapResult(
     result: SendMessageResult,
-    postTurnPlan?: PostTurnPlan,
   ): ChatCompletionResult {
-    return postTurnPlan ? { result, postTurnPlan } : { result };
+    return {
+      result,
+    };
   }
 
   private createPipelineTraceState(): PipelineTraceState {
@@ -1658,10 +1277,4 @@ export class ChatCompletionEngine {
       );
     }
   }
-
-  private previewText(text: string, maxChars: number): string {
-    if (text.length <= maxChars) return text;
-    return `${text.slice(0, maxChars)}…`;
-  }
-
 }

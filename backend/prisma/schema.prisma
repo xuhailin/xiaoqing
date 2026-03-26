@@ -13,6 +13,7 @@ enum ClaimType {
   INTERACTION_PREFERENCE
   EMOTIONAL_TENDENCY
   RELATION_RHYTHM
+  INTERACTION_TUNING
 }
 
 enum ClaimStatus {
@@ -84,6 +85,19 @@ model Message {
 
   @@index([conversationId, createdAt])
   @@index([conversationId, kind, createdAt])
+}
+
+model EmotionSnapshot {
+  id              String   @id @default(cuid())
+  conversationId  String
+  detectedEmotion String
+  fragility       String
+  confidence      Float    @default(0.5)
+  source          String
+  rawInput        String?  @db.VarChar(200)
+  createdAt       DateTime @default(now())
+
+  @@index([conversationId, createdAt])
 }
 
 enum ConversationWorkStatus {
@@ -244,6 +258,8 @@ model Memory {
   shortSummary     String?  @db.Text // 50-100 token 简短摘要，注入时优先使用（Phase3 可选）
   sourceMessageIds String[] // PostgreSQL array for traceability
   confidence       Float    @default(1)
+  /// 语义向量占位。真实启用仍需 pgvector 扩展、迁移与 embeddings service 接入。
+  embedding        Unsupported("vector(1536)")?
 
   // 衰减相关
   hitCount         Int      @default(0)     // 被召回/引用次数

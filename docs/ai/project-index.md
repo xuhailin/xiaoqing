@@ -60,6 +60,7 @@
 | `docs/memory-growth-plan.md`、`docs/cognitive-trace-design.md`、`docs/life-record-design.md` 等 | 模块设计素材，细节多 |
 | `docs/design/*`、`docs/social-relation-plan.md` | 演进计划与设计稿，**可能含未完成项** |
 | `docs/requirements/*`、`docs/plans/*` | PRD、技术需求、OpenClaw 等专项计划 → **阶段性或历史语境** |
+| `docs/0326/*`、`docs/plan/*` | 主链路重构与阶段计划；先看 `docs/plan/README.md` 再决定是否下钻 |
 | `docs/archive/*` | 归档，追溯用 |
 
 ### 3.4 不应作为「当前系统真相」的文档
@@ -109,6 +110,13 @@
 2. `docs/plan-task-scheduler-refactor.md`（含「已落地」说明与历史分析）  
 3. `docs/dev-agent-ui-v2-implementation-plan.md`  
 4. `docs/dev-agent-architecture.md`（Workspace、队列、执行器）
+
+### 主链路重构 / 架构收敛（2026-03 批次）
+
+1. `docs/plan/README.md`（先确认当前执行入口）  
+2. `docs/0326/final-plan.md`（本轮执行总计划）  
+3. `docs/plan/main-pipeline-refactor-master-plan.md`（母计划与全局结构）  
+4. `docs/plan/session-state-model-design.md`（状态模型设计，规划中）
 
 ### UI / 前端视觉
 

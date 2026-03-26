@@ -70,6 +70,13 @@ export const CLAIM_KEYS = {
 
   // ── Boundary norms (bn.*) ──────────────────────────────
   BN_NO_HURTFUL_SPEECH: key('bn.no_hurtful_speech'),
+
+  // ── Persona params (pa.*) ──────────────────────────────
+  // 通过对话学习到的、针对该用户的人格调谐参数
+  PA_WARMTH: key('pa.warmth'),
+  PA_DIRECTNESS: key('pa.directness'),
+  PA_HUMOR: key('pa.humor'),
+  PA_BOND_TONE: key('pa.bond_tone'),
 } as const;
 
 export type ClaimKey = (typeof CLAIM_KEYS)[keyof typeof CLAIM_KEYS];
@@ -85,7 +92,7 @@ const NicknameValue = z.object({
 });
 
 export const ClaimSchemaRegistry = {
-  allowedPrefixes: ['jp.', 'vp.', 'rr.', 'ip.', 'et.', 'bn.', 'draft.jp.', 'draft.vp.', 'draft.rr.', 'draft.ip.', 'draft.et.'] as const,
+  allowedPrefixes: ['jp.', 'vp.', 'rr.', 'ip.', 'et.', 'bn.', 'pa.', 'draft.jp.', 'draft.vp.', 'draft.rr.', 'draft.ip.', 'draft.et.'] as const,
   canonicalKeys: Object.values(CLAIM_KEYS),
   draftKeyMaxLen: 40,
   draftKeyRegex: /^draft\.(ip|jp|vp|rr|et)\.[a-z0-9_.-]+$/i,
@@ -138,6 +145,12 @@ export const ClaimSchemaRegistry = {
 
     // bn.* (level)
     [CLAIM_KEYS.BN_NO_HURTFUL_SPEECH]: LevelValue,
+
+    // pa.* (persona params)
+    [CLAIM_KEYS.PA_WARMTH]: LevelValue,
+    [CLAIM_KEYS.PA_DIRECTNESS]: LevelValue,
+    [CLAIM_KEYS.PA_HUMOR]: LevelValue,
+    [CLAIM_KEYS.PA_BOND_TONE]: z.object({ tone: z.enum(['professional', 'warm', 'close', 'playful']) }),
   } as const satisfies Record<ClaimKey, z.ZodTypeAny>,
 
   isCanonicalKey(input: string): input is CanonicalClaimKey {

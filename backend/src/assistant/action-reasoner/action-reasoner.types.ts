@@ -9,6 +9,18 @@ export type ActionMode =
   | 'handoff_dev'        // 建议移交开发代理
   | 'suggest_reminder';  // 建议设置提醒（不自动创建）
 
+export interface ActionFallbackPolicy {
+  condition: 'skill_fail';
+  fallback: 'openclaw' | 'chat';
+  reason?: string;
+}
+
+export interface ActionWorkItemPolicy {
+  shouldCapture: boolean;
+  kind: 'idea' | 'todo' | 'none';
+  createPlan?: boolean;
+}
+
 export interface ActionDecision {
   action: ActionMode;
   /** run_capability 时指定能力名 */
@@ -22,6 +34,10 @@ export interface ActionDecision {
   targetKind?: DialogueTargetKind;
   /** 是否需要补 Plan 调度层 */
   planIntent?: PlanIntentFromIntent;
+  /** 本地执行失败时的统一降级策略 */
+  fallbackPolicy?: ActionFallbackPolicy;
+  /** 结构化产出策略，由 Orchestrator 直接执行 */
+  workItemPolicy?: ActionWorkItemPolicy;
   /** suggest_reminder 时的描述 */
   reminderHint?: string;
   /** 任务规划结果（如果生成） */

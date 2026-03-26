@@ -12,6 +12,7 @@ import type {
 } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma.service';
 import { stringSimilarity } from './persona-rule-similarity';
+import { migrateExpressionRulesToPersonaRule } from './migrations/migrate-expression-rules';
 import type {
   PersonaRuleMergeDraft,
   PersonaRuleRecord,
@@ -28,7 +29,7 @@ export class PersonaRuleService {
 
   /**
    * 构建表达纪律正文（仅 bullet 行，不含「你的表达纪律」标题）。
-   * STABLE + CORE，weight 降序。无记录时返回 null，由上层 fallback Persona.expressionRules。
+   * STABLE + CORE，weight 降序。无记录时返回 null。
    */
   async buildExpressionPrompt(): Promise<string | null> {
     try {
@@ -41,6 +42,66 @@ export class PersonaRuleService {
     } catch {
       return null;
     }
+  }
+
+  async ensureInitialized(seedText?: string | null): Promise<void> {
+    const count = await this.prisma.personaRule.count();
+    if (count > 0) {
+      return;
+    }
+
+    const seed = seedText?.trim();
+    if (!seed) {
+      return;
+    }
+
+    await migrateExpressionRulesToPersonaRule(this.prisma, seed);
+  }
+
+  async replaceFromText(
+    text: string,
+    actor: PersonaRuleUpdateActor,
+  ): Promise<string> {
+    const normalizedLines = text
+      .split('\n')
+      .map((line) => line.trim().replace(/^[\-\d\.\s]+/, ''))
+      .filter(Boolean);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.personaRule.updateMany({
+        data: {
+          status: 'DEPRECATED',
+          pendingContent: null,
+        },
+      });
+
+      for (const [index, line] of normalizedLines.entries()) {
+        const key = `manual_rule_${index + 1}`;
+        await tx.personaRule.upsert({
+          where: { key },
+          create: {
+            key,
+            content: line,
+            category: this.inferCategory(line),
+            status: 'STABLE',
+            weight: Math.max(0.4, 0.9 - index * 0.05),
+            source: actor === 'user' ? 'USER' : 'DEFAULT',
+            protectLevel: 'NORMAL',
+          },
+          update: {
+            content: line,
+            category: this.inferCategory(line),
+            status: 'STABLE',
+            weight: Math.max(0.4, 0.9 - index * 0.05),
+            source: actor === 'user' ? 'USER' : 'DEFAULT',
+            protectLevel: 'NORMAL',
+            pendingContent: null,
+          },
+        });
+      }
+    });
+
+    return normalizedLines.map((line) => `- ${line}`).join('\n');
   }
 
   async list(): Promise<PersonaRuleRecord[]> {
@@ -202,5 +263,14 @@ export class PersonaRuleService {
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
     };
+  }
+
+  private inferCategory(text: string): PersonaRuleCategory {
+    if (/简短|简洁|不铺垫|少展开|不延展/.test(text)) return 'BREVITY';
+    if (/口语|语气|温柔|柔和|卖萌|断言/.test(text)) return 'TONE';
+    if (/追问|节奏|停在|留白|等待|确认一句/.test(text)) return 'PACING';
+    if (/边界|拒绝|不要|不该|不做/.test(text)) return 'BOUNDARY';
+    if (/失败|报错|异常|出错/.test(text)) return 'ERROR_HANDLING';
+    return 'TONE';
   }
 }

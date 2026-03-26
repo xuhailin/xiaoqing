@@ -11,23 +11,14 @@ import type {
   BoundaryPromptContext,
   CognitiveTurnState,
 } from '../cognitive-pipeline/cognitive-pipeline.types';
-import { CognitivePipelineService } from '../cognitive-pipeline/cognitive-pipeline.service';
 import type { DialogueIntentState } from '../intent/intent.types';
 import { MetaLayerService } from '../meta-layer/meta-layer.service';
 import { PersonaService, type PersonaDto } from '../persona/persona.service';
 import { UserProfileService, type UserProfileDto } from '../persona/user-profile.service';
 import { PromptRouterService } from '../prompt-router/prompt-router.service';
 import { DecisionSummaryBuilder, type DecisionSummary } from './decision-summary.builder';
-import type { TurnContext } from './orchestration.types';
-
-type ToolKind =
-  | 'weather'
-  | 'book_download'
-  | 'general_action'
-  | 'timesheet'
-  | 'reminder'
-  | 'page_screenshot'
-  | 'openclaw';
+import type { ToolKind, TurnContext } from './orchestration.types';
+import { ExpressionControlService } from './expression-control.service';
 
 interface ProfilePromptOptions {
   includeImpressionCore: boolean;
@@ -58,6 +49,13 @@ export interface MissingParamsReplyComposition extends ReplyComposition {
   missingParamLabels: string[];
 }
 
+export class MissingCognitiveStateError extends Error {
+  constructor() {
+    super('TurnContext.runtime.cognitiveState is required before response composition');
+    this.name = 'MissingCognitiveStateError';
+  }
+}
+
 @Injectable()
 export class ResponseComposer {
   private static readonly PARAM_LABEL: Record<string, string> = {
@@ -70,16 +68,17 @@ export class ResponseComposer {
     to: '收件人',
     subject: '主题',
   };
+  private readonly expressionControlCache = new WeakMap<TurnContext, ReturnType<ExpressionControlService['derive']>>();
 
   constructor(
     private readonly llm: LlmService,
     private readonly router: PromptRouterService,
     private readonly persona: PersonaService,
     private readonly userProfile: UserProfileService,
-    private readonly cognitivePipeline: CognitivePipelineService,
     private readonly boundaryGovernance: BoundaryGovernanceService,
     private readonly metaLayer: MetaLayerService,
     private readonly decisionSummaryBuilder: DecisionSummaryBuilder,
+    private readonly expressionControl: ExpressionControlService,
   ) {}
 
   async composeChatReply(input: {
@@ -95,30 +94,8 @@ export class ResponseComposer {
     const worldState = context.world.fullWorldState;
     const growthContext = context.growth.growthContext;
     const claimCtx = context.claims;
-    const cognitiveState = this.cognitivePipeline.analyzeTurn({
-      userInput: context.request.userMessage.content,
-      recentMessages,
-      intentState: input.intentState ?? null,
-      worldState,
-      growthContext,
-      claimSignals: claimCtx.claimSignals,
-      sessionState: claimCtx.sessionState,
-      socialContext: {
-        insights: context.social.insights.map((item) => ({
-          content: item.content,
-          confidence: item.confidence,
-          relatedEntityIds: item.relatedEntityIds,
-        })),
-        relationSignals: context.social.relationSignals.map((item) => ({
-          entityName: item.entityName,
-          entityAliases: item.entityAliases,
-          relation: item.entityRelation,
-          trend: item.trend,
-          quality: item.quality,
-          note: item.notes,
-        })),
-      },
-    });
+    const cognitiveState = this.requireCognitiveState(context);
+    const expressionControl = this.resolveExpressionControl(context, cognitiveState);
     const boundaryPreflight = this.boundaryGovernance.buildPreflight(cognitiveState);
     const boundaryPrompt: BoundaryPromptContext = {
       preflightText: this.boundaryGovernance.buildPreflightPrompt(boundaryPreflight) || null,
@@ -143,7 +120,6 @@ export class ResponseComposer {
       memories: context.memory.injectedMemories,
       identityAnchor: context.user.anchorText,
       preferredNickname: context.user.preferredNickname,
-      intentState: input.intentState ?? undefined,
       worldState,
       cognitiveState,
       growthContext,
@@ -156,17 +132,13 @@ export class ResponseComposer {
       socialRelationSignals: context.social.relationSignals,
       boundaryPrompt,
       metaFilterPolicy: personaDto.metaFilterPolicy,
-      handoffDevHint: actionDecision?.action === 'handoff_dev',
-      reminderHint:
-        actionDecision?.action === 'suggest_reminder'
-          ? (actionDecision.reminderHint ?? '')
-          : undefined,
       systemSelf: context.system.systemSelf,
       previousReflection: context.runtime.previousReflection,
       taskPlan: actionDecision?.taskPlan,
       actionDecision: actionDecision ?? undefined,
       decisionSummaryText: decisionSummary.text || undefined,
       collaborationContext: context.runtime.collaborationContext ?? undefined,
+      expressionControl,
     });
 
     const estimatedTokens = estimateMessagesTokens(
@@ -215,39 +187,14 @@ export class ResponseComposer {
     toolWasActuallyUsed: boolean;
   }): Promise<ToolReplyComposition> {
     const { context, userInput, recentMessages, personaDto } = input;
-    const worldState = context.world.fullWorldState;
-    const growthContext = context.growth.growthContext;
-    const claimCtx = context.claims;
-    const cognitiveState = this.cognitivePipeline.analyzeTurn({
-      userInput,
-      recentMessages: recentMessages ?? [],
-      intentState: input.intentState ?? null,
-      worldState,
-      growthContext,
-      claimSignals: claimCtx.claimSignals,
-      sessionState: claimCtx.sessionState,
-      socialContext: {
-        insights: context.social.insights.map((item) => ({
-          content: item.content,
-          confidence: item.confidence,
-          relatedEntityIds: item.relatedEntityIds,
-        })),
-        relationSignals: context.social.relationSignals.map((item) => ({
-          entityName: item.entityName,
-          entityAliases: item.entityAliases,
-          relation: item.entityRelation,
-          trend: item.trend,
-          quality: item.quality,
-          note: item.notes,
-        })),
-      },
-    });
+    const cognitiveState = this.requireCognitiveState(context);
+    const expressionControl = this.resolveExpressionControl(context, cognitiveState);
 
     const wrapMessages = this.router.buildToolResultMessages({
       personaText: this.persona.buildPersonaPrompt(personaDto),
       expressionText: this.router.buildExpressionPolicy(
         context.persona.expressionFields,
-        input.intentState ?? undefined,
+        expressionControl,
       ),
       userProfileText: this.buildInjectedUserProfileText(
         context.user.userProfile,
@@ -256,6 +203,7 @@ export class ResponseComposer {
       metaFilterPolicy: personaDto.metaFilterPolicy,
       collaborationContext: context.runtime.collaborationContext ?? undefined,
       preferredNickname: context.user.preferredNickname,
+      expressionControl,
       toolKind: input.toolKind,
       userInput,
       toolResult: input.toolResult,
@@ -293,6 +241,8 @@ export class ResponseComposer {
       (param) => ResponseComposer.PARAM_LABEL[param.toLowerCase()] ?? param,
     );
     const missingParamNames = missingParamLabels.join('、');
+    const cognitiveState = this.requireCognitiveState(input.context);
+    const expressionControl = this.resolveExpressionControl(input.context, cognitiveState);
 
     const systemContent = [
       this.persona.buildPersonaPrompt(input.personaDto),
@@ -300,9 +250,12 @@ export class ResponseComposer {
       '',
       this.router.buildExpressionPolicy(
         input.context.persona.expressionFields,
-        input.intentState ?? undefined,
+        expressionControl,
       ),
-      this.router.buildNicknameHint(input.context.user.preferredNickname),
+      this.router.buildNicknameHint(
+        input.context.user.preferredNickname,
+        expressionControl,
+      ),
       this.buildInjectedUserProfileText(input.context.user.userProfile, input.profilePrompt),
       '',
       this.router.buildMetaFilterPolicy(input.personaDto.metaFilterPolicy),
@@ -315,34 +268,6 @@ export class ResponseComposer {
       { role: 'system', content: systemContent },
       { role: 'user', content: `用户说：${input.userInput}` },
     ];
-
-    const worldState = input.context.world.fullWorldState;
-    const growthContext = input.context.growth.growthContext;
-    const claimCtx = input.context.claims;
-    const cognitiveState = this.cognitivePipeline.analyzeTurn({
-      userInput: input.userInput,
-      recentMessages: [],
-      intentState: input.intentState ?? null,
-      worldState,
-      growthContext,
-      claimSignals: claimCtx.claimSignals,
-      sessionState: claimCtx.sessionState,
-      socialContext: {
-        insights: input.context.social.insights.map((item) => ({
-          content: item.content,
-          confidence: item.confidence,
-          relatedEntityIds: item.relatedEntityIds,
-        })),
-        relationSignals: input.context.social.relationSignals.map((item) => ({
-          entityName: item.entityName,
-          entityAliases: item.entityAliases,
-          relation: item.entityRelation,
-          trend: item.trend,
-          quality: item.quality,
-          note: item.notes,
-        })),
-      },
-    });
 
     const rawReplyContent = await this.llm.generate(messages, { scenario: 'chat' });
     const filteredReplyContent = this.applyMetaLayerFilter(
@@ -379,6 +304,31 @@ export class ResponseComposer {
 
   private applyMetaLayerFilter(content: string, policy: string): string {
     return this.metaLayer.filter(content, policy).content;
+  }
+
+  private requireCognitiveState(context: TurnContext): CognitiveTurnState {
+    if (!context.runtime.cognitiveState) {
+      throw new MissingCognitiveStateError();
+    }
+    return context.runtime.cognitiveState;
+  }
+
+  private resolveExpressionControl(
+    context: TurnContext,
+    cognitiveState: CognitiveTurnState,
+  ) {
+    const cached = this.expressionControlCache.get(context);
+    if (cached) {
+      return cached;
+    }
+
+    const resolved = this.expressionControl.derive({
+      preferredNickname: context.user.preferredNickname,
+      interactionTuning: context.user.interactionTuning,
+      cognitiveState,
+    });
+    this.expressionControlCache.set(context, resolved);
+    return resolved;
   }
 
 }

@@ -16,7 +16,7 @@ export interface ExecutionRecord {
   timestamp: Date;
 }
 
-export interface ExpressionHints {
+export interface ReasonerExpressionHints {
   /** 建议语气 */
   tone?: 'casual' | 'focused' | 'supportive' | 'professional';
   /** 回复重点 */
@@ -31,7 +31,7 @@ export interface ReasoningResult {
   params?: Record<string, any>;
   reasoning?: string;
   /** 表达提示：影响下游 persona 表达层的语气/风格 */
-  expressionHints?: ExpressionHints;
+  expressionHints?: ReasonerExpressionHints;
 }
 
 export interface IReasoner {

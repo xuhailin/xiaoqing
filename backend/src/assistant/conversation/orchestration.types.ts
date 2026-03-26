@@ -6,6 +6,7 @@ import type {
   BoundaryPromptContext,
   ClaimSignal,
   CognitiveTurnState,
+  EmotionTrendSummary,
   PersistedGrowthContext,
   SessionStateSignal,
 } from '../cognitive-pipeline/cognitive-pipeline.types';
@@ -29,6 +30,7 @@ import type {
   ConversationWorkStatus,
 } from '../../conversation-work/conversation-work.types';
 import type { DialogueTargetKind } from '../intent/intent.types';
+import type { QuickRouterOutput } from './quick-intent-router.types';
 
 export type MessageContentType = 'text' | 'markdown';
 export type ConversationMessageKind =
@@ -82,7 +84,18 @@ export interface ConversationMessageDto {
   createdAt: Date;
 }
 
+/**
+ * 从 pa.* (INTERACTION_TUNING) claims 聚合的长期互动调谐偏好。
+ * 表达"面向该用户的互动风格倾向"，与 persona（系统身份）无关。
+ */
+export interface InteractionTuningSignal {
+  key: string;   // e.g. 'pa.warmth', 'pa.directness', 'pa.humor', 'pa.bond_tone'
+  value: unknown;
+  confidence: number;
+}
+
 export interface MemoryRecallPlan {
+  strategy?: 'keyword' | 'vector' | 'hybrid';
   candidatesCount: number;
   selectedCount: number;
   needDetail: boolean;
@@ -130,8 +143,10 @@ export interface TurnContext {
     identityAnchors: AnchorDto[];
     anchorText: string | null;
     anchorCity?: string;
-    /** 用户的首选昵称（来自 ip.nickname.primary claim） */
+    /** 用户的首选昵称（来自 ip.nickname.primary claim，独立处理，不混入 tuning） */
     preferredNickname?: string | null;
+    /** 从 pa.* (INTERACTION_TUNING) claims 聚合的长期互动偏好，由 Assembler 填入 */
+    interactionTuning?: InteractionTuningSignal[];
   };
   world: {
     storedWorldState: WorldState | null;
@@ -139,6 +154,7 @@ export interface TurnContext {
     fullWorldState: WorldState | null;
   };
   memory: {
+    strategy?: 'keyword' | 'vector' | 'hybrid';
     injectedMemories: Array<{ id: string; type: string; content: string }>;
     candidatesCount: number;
     needDetail: boolean;
@@ -173,7 +189,9 @@ export interface TurnContext {
     actionDecision?: ActionDecision;
     memoryRecall?: MemoryRecallPlan;
     collaborationContext?: CollaborationTurnContext | null;
+    quickRoute?: QuickRouterOutput | null;
     cognitiveState?: CognitiveTurnState;
+    emotionTrend?: EmotionTrendSummary | null;
     boundaryPrompt?: BoundaryPromptContext | null;
     previousReflection?: {
       quality: 'good' | 'suboptimal' | 'failed';
@@ -208,8 +226,42 @@ export interface SendMessageResult {
 }
 
 export interface ChatCompletionResult {
-  result: SendMessageResult;
+  result?: SendMessageResult;
   postTurnPlan?: PostTurnPlan;
+  postTurnMeta?: PostTurnBuildMeta;
+  executionResult?: ExecutionResult;
+}
+
+export interface PostTurnBuildMeta {
+  executionPath: 'chat' | 'tool' | 'missing_params';
+  intentState?: DialogueIntentState | null;
+  cognitiveState?: CognitiveTurnState;
+  isImportantIssueInProgress?: boolean;
+}
+
+export type ToolKind =
+  | 'weather'
+  | 'book_download'
+  | 'general_action'
+  | 'timesheet'
+  | 'reminder'
+  | 'page_screenshot'
+  | 'openclaw';
+
+export interface ExecutionResult {
+  status: 'success' | 'failed' | 'need_clarification';
+  path: 'chat' | 'tool' | 'missing_params';
+  toolKind?: ToolKind;
+  toolResult?: string | null;
+  toolError?: string | null;
+  toolWasActuallyUsed?: boolean;
+  missingParams?: string[];
+  openclawUsed?: boolean;
+  localSkillUsed?: 'weather' | 'book_download' | 'general_action' | 'timesheet' | 'reminder' | 'page_screenshot';
+  messageKind?: ConversationMessageKind;
+  messageMetadata?: ConversationMessageMetadata;
+  debugMeta?: Record<string, unknown>;
+  trace?: TraceStep[];
 }
 
 export type ToolPolicyAction =

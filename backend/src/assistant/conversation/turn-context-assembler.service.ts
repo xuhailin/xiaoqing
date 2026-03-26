@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../infra/prisma.service';
 import { PersonaService } from '../persona/persona.service';
 import { PersonaRuleService } from '../persona/persona-rule.service';
@@ -6,9 +6,10 @@ import { UserProfileService } from '../persona/user-profile.service';
 import { IdentityAnchorService } from '../identity-anchor/identity-anchor.service';
 import { WorldStateService } from '../../infra/world-state/world-state.service';
 import { CognitiveGrowthService } from '../cognitive-pipeline/cognitive-growth.service';
+import { EmotionHistoryService } from '../memory/emotion-history.service';
 import { MemoryService, type MemoryCandidate } from '../memory/memory.service';
+import { MEMORY_RECALLER_TOKEN, type IMemoryRecaller } from '../memory/memory-recaller.interface';
 import { PromptRouterService } from '../prompt-router/prompt-router.service';
-import { ActionReasonerService } from '../action-reasoner/action-reasoner.service';
 import { IntentService } from '../intent/intent.service';
 import type { DialogueIntentState } from '../intent/intent.types';
 import { CapabilityRegistry } from '../../action/capability-registry.service';
@@ -25,6 +26,7 @@ import { SocialEntityService } from '../life-record/social-entity/social-entity.
 import { SocialInsightService } from '../life-record/social-insight/social-insight.service';
 import { SocialRelationEdgeService } from '../life-record/social-relation-edge/social-relation-edge.service';
 import type { CollaborationTurnContext } from './orchestration.types';
+import type { QuickRouterOutput } from './quick-intent-router.types';
 
 @Injectable()
 export class TurnContextAssembler {
@@ -45,10 +47,12 @@ export class TurnContextAssembler {
     private readonly identityAnchor: IdentityAnchorService,
     private readonly worldState: WorldStateService,
     private readonly cognitiveGrowth: CognitiveGrowthService,
-    private readonly memory: MemoryService,
+    private readonly emotionHistory: EmotionHistoryService,
+    @Inject(MEMORY_RECALLER_TOKEN)
+    private readonly memoryRecaller: IMemoryRecaller,
+    private readonly memoryService: MemoryService,
     private readonly router: PromptRouterService,
     private readonly intent: IntentService,
-    private readonly actionReasoner: ActionReasonerService,
     private readonly capabilityRegistry: CapabilityRegistry,
     private readonly claimConfig: ClaimEngineConfig,
     private readonly claimSelector: ClaimSelectorService,
@@ -68,6 +72,7 @@ export class TurnContextAssembler {
     userMessage: { id: string; role: 'user'; content: string; createdAt: Date };
     now: Date;
     recentRounds: number;
+    quickRoute?: QuickRouterOutput | null;
     collaborationContext?: CollaborationTurnContext | null;
   }): Promise<TurnContext> {
     const [recentRaw, profile, anchors, storedWorldState, growthContext, systemSelf] = await Promise.all([
@@ -92,22 +97,39 @@ export class TurnContextAssembler {
       ? { ...(storedWorldState ?? {}), city: anchorCity }
       : storedWorldState;
 
-    const preferredNickname = await this.readPreferredNickname();
-    const memoryCtx = await this.recallMemories(recentMessages, personaDto, profile);
+    const [preferredNickname, interactionTuning] = await Promise.all([
+      this.readPreferredNickname(),
+      this.readInteractionTuning(),
+    ]);
+    const memoryCtx = await this.recallMemories(
+      input.conversationId,
+      recentMessages,
+      personaDto,
+      profile,
+      input.quickRoute,
+    );
     const intentCtx = await this.resolveIntent({
       conversationId: input.conversationId,
       userInput: input.userInput,
       recentMessages,
       defaultWorldState,
       anchorCity,
+      quickRoute: input.quickRoute,
+      now: input.now,
     });
 
     const resolvedIntent = intentCtx.mergedIntentState ?? intentCtx.intentState;
-    const actionDecision = this.actionReasoner.decide(resolvedIntent ?? null, input.userInput);
     const fullWorldState = intentCtx.worldState ?? storedWorldState;
-    const claimCtx = await this.buildClaimAndSessionContext(input.conversationId);
-
-    const shouldSkipSocialRelationship = actionDecision.toolPolicy.action === 'run_capability';
+    const [claimCtx, emotionTrend] = await Promise.all([
+      this.buildClaimAndSessionContext(input.conversationId),
+      this.emotionHistory.getRecentTrend(input.conversationId),
+    ]);
+    const assemblyMode = input.quickRoute?.path === 'tool'
+      ? 'tool'
+      : input.quickRoute?.path === 'chat'
+        ? 'chat'
+        : 'full';
+    const shouldSkipSocialRelationship = assemblyMode !== 'full';
 
     let relationshipCtx: TurnContext['relationship'];
     let socialCtx: TurnContext['social'];
@@ -147,9 +169,7 @@ export class TurnContextAssembler {
       this.logger.warn(`Failed to load previous reflection: ${String(err)}`);
     }
 
-    const personaExpressionFields = this.persona.getExpressionFields(personaDto);
-    const fromRules = personaExpressionFields.expressionRules.trim() ? null : await this.personaRules.buildExpressionPrompt();
-    const expressionFields = fromRules != null ? { expressionRules: fromRules } : personaExpressionFields;
+    const expressionFields = await this.resolveExpressionFields(personaDto);
 
     return {
       request: {
@@ -170,6 +190,7 @@ export class TurnContextAssembler {
         anchorText,
         ...(anchorCity ? { anchorCity } : {}),
         preferredNickname,
+        ...(interactionTuning?.length ? { interactionTuning } : {}),
       },
       world: { storedWorldState, defaultWorldState, fullWorldState },
       memory: memoryCtx,
@@ -181,9 +202,11 @@ export class TurnContextAssembler {
       runtime: {
         intentState: intentCtx.intentState,
         mergedIntentState: intentCtx.mergedIntentState,
-        actionDecision,
+        quickRoute: input.quickRoute ?? null,
         collaborationContext: input.collaborationContext ?? null,
+        emotionTrend,
         memoryRecall: {
+          strategy: memoryCtx.strategy,
           candidatesCount: memoryCtx.candidatesCount,
           selectedCount: memoryCtx.injectedMemories.length,
           needDetail: memoryCtx.needDetail,
@@ -199,6 +222,7 @@ export class TurnContextAssembler {
     userMessage: { id: string; role: 'user'; content: string; createdAt: Date };
     now: Date;
     recentRounds: number;
+    quickRoute?: QuickRouterOutput | null;
     collaborationContext?: CollaborationTurnContext | null;
   }): Promise<TurnContext> {
     const [recentRaw, profile, anchors, storedWorldState, growthContext, systemSelf] = await Promise.all([
@@ -223,13 +247,13 @@ export class TurnContextAssembler {
       ? { ...(storedWorldState ?? {}), city: anchorCity }
       : storedWorldState;
 
-    const preferredNickname = await this.readPreferredNickname();
+    const [preferredNickname, interactionTuningFb] = await Promise.all([
+      this.readPreferredNickname(),
+      this.readInteractionTuning(),
+    ]);
 
-    const personaExpressionFieldsFb = this.persona.getExpressionFields(personaDto);
-    const fromRulesFb = personaExpressionFieldsFb.expressionRules.trim()
-      ? null
-      : await this.personaRules.buildExpressionPrompt();
-    const expressionFieldsFb = fromRulesFb != null ? { expressionRules: fromRulesFb } : personaExpressionFieldsFb;
+    const expressionFieldsFb = await this.resolveExpressionFields(personaDto);
+    const fallbackEmotionTrend = await this.emotionHistory.getRecentTrend(input.conversationId);
 
     return {
       request: { ...input },
@@ -245,9 +269,16 @@ export class TurnContextAssembler {
         anchorText,
         ...(anchorCity ? { anchorCity } : {}),
         preferredNickname,
+        ...(interactionTuningFb?.length ? { interactionTuning: interactionTuningFb } : {}),
       },
       world: { storedWorldState, defaultWorldState, fullWorldState: storedWorldState },
-      memory: { injectedMemories: [], candidatesCount: 0, needDetail: false, memoryBudgetTokens: 0 },
+      memory: {
+        strategy: this.memoryRecaller.getStrategyName?.() ?? 'keyword',
+        injectedMemories: [],
+        candidatesCount: 0,
+        needDetail: false,
+        memoryBudgetTokens: 0,
+      },
       growth: { growthContext },
       relationship: { sharedExperiences: [], rhythmObservations: [] },
       social: { entities: [], insights: [], relationSignals: [] },
@@ -261,13 +292,61 @@ export class TurnContextAssembler {
       },
       system: { systemSelf },
       runtime: {
+        quickRoute: input.quickRoute ?? null,
         collaborationContext: input.collaborationContext ?? null,
+        emotionTrend: fallbackEmotionTrend,
+        memoryRecall: {
+          strategy: this.memoryRecaller.getStrategyName?.() ?? 'keyword',
+          candidatesCount: 0,
+          selectedCount: 0,
+          needDetail: false,
+        },
       },
     };
   }
 
   /**
-   * 读取用户“首选昵称”并放宽 Claim 状态过滤，确保首次写入（CANDIDATE）也能立即注入。
+   * 读取 pa.* (INTERACTION_TUNING) claims，产出长期互动调谐信号。
+   * 不走主 claim token budget，独立查询。
+   * 只取成熟态（WEAK / STABLE / CORE）且 confidence >= 0.6 的条目。
+   * CANDIDATE 状态仅用于观察/累积证据，不参与互动调谐派生与表达控制。
+   */
+  private async readInteractionTuning(): Promise<TurnContext['user']['interactionTuning']> {
+    try {
+      const rows = await this.prisma.userClaim.findMany({
+        where: {
+          userKey: 'default-user',
+          type: 'INTERACTION_TUNING',
+          confidence: { gte: 0.6 },
+          status: { in: ['WEAK', 'STABLE', 'CORE'] },
+        },
+        orderBy: { confidence: 'desc' },
+      });
+      if (!rows.length) return undefined;
+      return rows.map((r) => ({
+        key: r.key,
+        value: r.valueJson,
+        confidence: r.confidence,
+      }));
+    } catch (err) {
+      this.logger.warn(`readInteractionTuning failed: ${String(err)}`);
+      return undefined;
+    }
+  }
+
+  private async resolveExpressionFields(
+    personaDto: TurnContext['persona']['personaDto'],
+  ): Promise<TurnContext['persona']['expressionFields']> {
+    await this.personaRules.ensureInitialized(personaDto.expressionRules);
+    const prompt = await this.personaRules.buildExpressionPrompt();
+    if (prompt?.trim()) {
+      return { expressionRules: prompt };
+    }
+    return this.persona.getExpressionFields(personaDto);
+  }
+
+  /**
+   * 读取用户”首选昵称”并放宽 Claim 状态过滤，确保首次写入（CANDIDATE）也能立即注入。
    */
   private async readPreferredNickname(): Promise<string | null> {
     try {
@@ -299,6 +378,8 @@ export class TurnContextAssembler {
     recentMessages: Array<{ role: string; content: string }>;
     defaultWorldState: TurnContext['world']['defaultWorldState'];
     anchorCity?: string;
+    quickRoute?: QuickRouterOutput | null;
+    now: Date;
   }): Promise<{
     intentState: DialogueIntentState | null;
     mergedIntentState: DialogueIntentState | null;
@@ -314,15 +395,27 @@ export class TurnContextAssembler {
     }
 
     try {
-      const capabilityPrompt = this.capabilityRegistry.buildExposedCapabilityPrompt('chat', {
-        surface: 'assistant',
-      });
-      const intentState = await this.intent.recognize(
-        input.recentMessages,
-        input.userInput,
-        input.defaultWorldState,
-        capabilityPrompt || undefined,
-      );
+      const quickRoute = input.quickRoute;
+      const shouldBypassIntentLlm =
+        quickRoute?.path === 'tool'
+        && !!quickRoute.toolHint
+        && quickRoute.confidence >= 0.9;
+
+      const intentState = shouldBypassIntentLlm
+        ? this.intent.fromHint({
+            toolHint: quickRoute.toolHint!,
+            currentUserInput: input.userInput,
+            worldState: input.defaultWorldState,
+            now: input.now,
+          })
+        : await this.intent.recognize(
+            input.recentMessages,
+            input.userInput,
+            input.defaultWorldState,
+            this.capabilityRegistry.buildExposedCapabilityPrompt('chat', {
+              surface: 'assistant',
+            }) || undefined,
+          );
 
       if (intentState.worldStateUpdate && Object.keys(intentState.worldStateUpdate).length > 0) {
         await this.worldState.update(input.conversationId, intentState.worldStateUpdate);
@@ -346,29 +439,79 @@ export class TurnContextAssembler {
   }
 
   private async recallMemories(
+    conversationId: string,
     recentMessages: Array<{ role: string; content: string }>,
     personaDto: TurnContext['persona']['personaDto'],
     profile: TurnContext['user']['userProfile'],
+    quickRoute?: QuickRouterOutput | null,
   ): Promise<TurnContext['memory']> {
     const personaPrompt = this.persona.buildPersonaPrompt(personaDto);
     const personaTokens = estimateTokens(personaPrompt);
     const coreTokens = this.flags.featureImpressionCore ? estimateTokens(profile.impressionCore || '') : 0;
     const memoryBudget = Math.max(200, this.flags.maxSystemTokens - personaTokens - coreTokens);
+    const strategy = this.memoryRecaller.getStrategyName?.() ?? 'keyword';
+    const isLightweightChatPath = quickRoute?.path === 'chat';
+    const isFastToolPath = quickRoute?.path === 'tool';
 
     if (!this.flags.featureKeywordPrefilter) {
-      const injectedMemories = await this.memory.getForInjection(this.flags.memoryMidK);
-      return { injectedMemories, candidatesCount: injectedMemories.length, needDetail: false, memoryBudgetTokens: memoryBudget };
+      const recalled = await this.memoryRecaller.recall({
+        conversationId,
+        recentUserMessages: recentMessages
+          .filter((message) => message.role === 'user')
+          .map((message) => message.content),
+        maxMid: this.flags.memoryMidK,
+        maxLong: this.flags.memoryCandidatesMaxLong,
+      });
+      const injectedMemories = [
+        ...recalled.midMemories,
+        ...recalled.longMemories,
+      ].map((memory) => ({
+        id: memory.id,
+        type: memory.type,
+        content: memory.content,
+      }));
+      return {
+        strategy,
+        injectedMemories,
+        candidatesCount: recalled.candidatesCount,
+        needDetail: false,
+        memoryBudgetTokens: memoryBudget,
+      };
     }
 
-    const candidates = await this.memory.getCandidatesForRecall({
-      recentMessages,
+    const recallCtx = {
+      conversationId,
+      recentUserMessages: recentMessages
+        .filter((message) => message.role === 'user')
+        .map((message) => message.content),
       maxLong: this.flags.memoryCandidatesMaxLong,
       maxMid: this.flags.memoryCandidatesMaxMid,
       minRelevanceScore: this.flags.memoryMinRelevanceScore,
-    });
+    };
+
+    const candidates = this.memoryRecaller.recallCandidates
+      ? await this.memoryRecaller.recallCandidates(recallCtx)
+      : await this.adaptRecallCandidates(recallCtx);
 
     let activeCandidates: MemoryCandidate[] = candidates.filter((c) => !c.deferred);
-    const relatedMemories = await this.memory.getRelatedMemories(activeCandidates.map((c) => c.id), 5);
+    if (isLightweightChatPath || isFastToolPath) {
+      const maxCandidates = isFastToolPath ? 3 : 4;
+      const injectedMemories = this.router.selectMemoriesForInjection(
+        activeCandidates.slice(0, maxCandidates),
+        Math.min(memoryBudget, isFastToolPath ? 420 : 560),
+        this.flags.memoryContentMaxChars,
+        this.flags.featureShortSummary,
+      );
+      return {
+        strategy,
+        injectedMemories,
+        candidatesCount: candidates.length,
+        needDetail: false,
+        memoryBudgetTokens: memoryBudget,
+      };
+    }
+
+    const relatedMemories = await this.memoryService.getRelatedMemories(activeCandidates.map((c) => c.id), 5);
     if (relatedMemories.length > 0) {
       const existingIds = new Set(activeCandidates.map((c) => c.id));
       activeCandidates = [...activeCandidates, ...relatedMemories.filter((m) => !existingIds.has(m.id))];
@@ -397,11 +540,41 @@ export class TurnContextAssembler {
     );
 
     return {
+      strategy,
       injectedMemories,
       candidatesCount: candidates.length,
       needDetail,
       memoryBudgetTokens: memoryBudget,
     };
+  }
+
+  private async adaptRecallCandidates(
+    ctx: {
+      conversationId: string;
+      recentUserMessages: string[];
+      maxLong: number;
+      maxMid: number;
+      minRelevanceScore?: number;
+    },
+  ): Promise<MemoryCandidate[]> {
+    void ctx.minRelevanceScore;
+    const recalled = await this.memoryRecaller.recall({
+      conversationId: ctx.conversationId,
+      recentUserMessages: ctx.recentUserMessages,
+      maxLong: ctx.maxLong,
+      maxMid: ctx.maxMid,
+    });
+
+    return [...recalled.midMemories, ...recalled.longMemories].map((memory) => ({
+      id: memory.id,
+      type: memory.type,
+      category: memory.category,
+      content: memory.content,
+      shortSummary: memory.shortSummary,
+      confidence: memory.confidence,
+      score: memory.confidence,
+      deferred: false,
+    }));
   }
 
   private async buildClaimAndSessionContext(conversationId: string): Promise<TurnContext['claims']> {

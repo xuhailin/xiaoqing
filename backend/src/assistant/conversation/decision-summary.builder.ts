@@ -35,10 +35,10 @@ export class DecisionSummaryBuilder {
 
     // 2. 行动决策摘要（纯决策描述，不指导表达方式）
     if (action) {
-      if (action.targetKind === 'idea') {
+      if (action.workItemPolicy?.kind === 'idea' || action.targetKind === 'idea') {
         parts.push('本轮内容更适合收纳为想法记录');
-      } else if (action.targetKind === 'todo') {
-        parts.push(action.planIntent?.type === 'notify'
+      } else if (action.workItemPolicy?.kind === 'todo' || action.targetKind === 'todo') {
+        parts.push(action.workItemPolicy?.createPlan || action.planIntent?.type === 'notify'
           ? '本轮内容已记为待办并安排了提醒'
           : '本轮内容已记为待办');
       }

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ClaimStoreService } from './claim-store.service';
-import type { ClaimDraft, ClaimStatus } from './claim-engine.types';
+import type { ClaimDraft, ClaimStatus, ClaimType } from './claim-engine.types';
 import { ClaimSchemaRegistry } from './claim-schema.registry';
 
 @Injectable()
@@ -12,6 +12,10 @@ export class ClaimUpdateService {
   private static readonly DRAFT_MAX_PER_TYPE = 30;
 
   async upsertFromDraft(draft: ClaimDraft): Promise<{ claimId: string; status: ClaimStatus; previousStatus?: ClaimStatus }> {
+    return this.upsertWithEvidence(draft);
+  }
+
+  async upsertWithEvidence(draft: ClaimDraft): Promise<{ claimId: string; status: ClaimStatus; previousStatus?: ClaimStatus }> {
     const userKey = draft.userKey ?? 'default-user';
     const validation = ClaimSchemaRegistry.validateAny(draft.key, draft.value);
     if (!validation.ok) {
@@ -41,6 +45,7 @@ export class ClaimUpdateService {
 
     let nextConfidence = this.computeConfidence(existing.confidence, proposedConfidence, draft.evidence.polarity);
     let nextStatus = this.resolveStatus({
+      type: draft.type,
       confidence: nextConfidence,
       evidenceCount: existing.evidenceCount + (draft.evidence.polarity === 'SUPPORT' ? 1 : 0),
       counterEvidenceCount:
@@ -110,10 +115,15 @@ export class ClaimUpdateService {
   }
 
   private resolveStatus(args: {
+    type: ClaimType;
     confidence: number;
     evidenceCount: number;
     counterEvidenceCount: number;
   }): ClaimStatus {
+    if (args.type === 'INTERACTION_TUNING') {
+      return this.resolveInteractionTuningStatus(args);
+    }
+
     const { confidence, evidenceCount, counterEvidenceCount } = args;
     const contradictionRatio =
       evidenceCount + counterEvidenceCount === 0
@@ -124,6 +134,24 @@ export class ClaimUpdateService {
     if (evidenceCount >= 12 && confidence >= 0.85 && contradictionRatio < 0.25) return 'CORE';
     if (evidenceCount >= 6 && confidence >= 0.7 && contradictionRatio < 0.35) return 'STABLE';
     if (evidenceCount >= 3 && confidence >= 0.55 && contradictionRatio < 0.4) return 'WEAK';
+    return 'CANDIDATE';
+  }
+
+  private resolveInteractionTuningStatus(args: {
+    confidence: number;
+    evidenceCount: number;
+    counterEvidenceCount: number;
+  }): ClaimStatus {
+    const { confidence, evidenceCount, counterEvidenceCount } = args;
+    const contradictionRatio =
+      evidenceCount + counterEvidenceCount === 0
+        ? 0
+        : counterEvidenceCount / (evidenceCount + counterEvidenceCount);
+
+    if (contradictionRatio >= 0.6 && confidence < 0.35) return 'DEPRECATED';
+    if (evidenceCount >= 8 && confidence >= 0.82 && contradictionRatio < 0.25) return 'CORE';
+    if (evidenceCount >= 4 && confidence >= 0.7 && contradictionRatio < 0.35) return 'STABLE';
+    if (evidenceCount >= 2 && confidence >= 0.6 && contradictionRatio < 0.4) return 'WEAK';
     return 'CANDIDATE';
   }
 

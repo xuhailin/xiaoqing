@@ -31,6 +31,10 @@ export class ClaimEngineConfig {
     return isFeatureEnabled(this.config, 'claimWriteEmotion');
   }
 
+  get interactionTuningLearningEnabled(): boolean {
+    return isFeatureEnabled(this.config, 'interactionTuningLearning');
+  }
+
   get draftEnabled(): boolean {
     return isFeatureEnabled(this.config, 'claimDraftEnabled');
   }

@@ -1,6 +1,7 @@
 import type { DialogueIntentState } from '../intent/intent.types';
 import type { CognitiveTurnState } from '../cognitive-pipeline/cognitive-pipeline.types';
 import type { MemoryOp, ClaimOp, GrowthOp } from '../cognitive-trace/cognitive-trace.types';
+import type { ActionDecision } from '../action-reasoner/action-reasoner.types';
 
 /** 跨 post-turn 任务的可变数据收集器，由各任务写入、record_cognitive_observation 读取 */
 export interface TurnOpsCollector {
@@ -21,6 +22,7 @@ export interface PostTurnPlan {
   };
   context: {
     intentState?: DialogueIntentState | null;
+    actionDecision?: ActionDecision;
     cognitiveState?: CognitiveTurnState;
     isImportantIssueInProgress?: boolean;
   };
@@ -31,9 +33,13 @@ export interface PostTurnPlan {
 }
 
 export type PostTurnTask =
+  | { type: 'capture_work_item' }
   | { type: 'life_record_sync' }
   | { type: 'record_growth' }
+  | { type: 'record_emotion_snapshot' }
+  | { type: 'interaction_tuning_learning' }
   | { type: 'summarize_trigger'; trigger: 'instant' | 'threshold' | 'flush' }
   | { type: 'auto_evolution_after_summary' }
   | { type: 'record_cognitive_observation' }
-  | { type: 'session_reflection' };
+  | { type: 'session_reflection' }
+  | { type: 'decision_quality_review' };

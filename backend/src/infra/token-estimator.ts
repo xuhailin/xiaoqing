@@ -1,3 +1,5 @@
+import type { LoggerService } from '@nestjs/common';
+
 /**
  * Lightweight token estimator (no external dependency).
  * Approximation: ~4 chars per token for mixed CJK/English text.
@@ -16,6 +18,22 @@ export function estimateMessagesTokens(
     total += estimateTokens(m.role) + estimateTokens(m.content) + 4;
   }
   return total + 2;
+}
+
+export function assertTokenBudget(
+  content: string | null | undefined,
+  budgetTokens: number,
+  blockName: string,
+  logger: LoggerService,
+): string | null {
+  if (!content?.trim()) return null;
+  const estimated = estimateTokens(content);
+  if (estimated > budgetTokens) {
+    logger.warn(
+      `[PromptRouter] Block "${blockName}" exceeds budget: ${estimated}/${budgetTokens} tokens`,
+    );
+  }
+  return content;
 }
 
 /**

@@ -241,13 +241,16 @@ export class PersonaService {
     evolutionForbidden?: string;
   }, personaKey?: string): Promise<PersonaDto> {
     const current = await this.getOrCreate(personaKey);
+    const expressionRulesSnapshot = Object.prototype.hasOwnProperty.call(data, 'expressionRules')
+      ? await this.personaRules.replaceFromText(data.expressionRules ?? '', 'user')
+      : current.expressionRules;
 
     const merged = {
       identity: data.identity ?? current.identity,
       personality: data.personality ?? current.personality,
       valueBoundary: data.valueBoundary ?? current.valueBoundary,
       behaviorForbidden: data.behaviorForbidden ?? current.behaviorForbidden,
-      expressionRules: data.expressionRules ?? current.expressionRules,
+      expressionRules: expressionRulesSnapshot,
       metaFilterPolicy: data.metaFilterPolicy ?? current.metaFilterPolicy,
       evolutionAllowed: data.evolutionAllowed ?? current.evolutionAllowed,
       evolutionForbidden: data.evolutionForbidden ?? current.evolutionForbidden,
@@ -394,7 +397,7 @@ ${persona.evolutionForbidden}
       const newVersion = persona.version + 1;
       const expressionRulesColumn =
         allRuleDrafts.length > 0
-          ? persona.expressionRules
+          ? (await this.personaRules.buildExpressionPrompt()) ?? persona.expressionRules
           : (evolvedFields['expressionRules'] ?? persona.expressionRules);
       const [created] = await this.prisma.$transaction([
         this.prisma.persona.create({
@@ -849,6 +852,19 @@ ${forbidden}`,
 
     const field = change.field;
 
+    if (field === 'expressionRules' && content) {
+      const draft = this.buildExpressionRuleDraft(content, reason);
+      return {
+        ...change,
+        field: 'expressionRules',
+        targetField: 'expressionRules',
+        layer: 'expression',
+        risk: 'medium',
+        reason: reason || 'expression rules',
+        ruleDrafts: [draft],
+      };
+    }
+
     if (this.shouldRouteToExpression(field, combined)) {
       const isPreference = this.isUserPreferenceSignal(combined);
       const preferenceField = this.inferPreferenceField(combined);
@@ -879,6 +895,38 @@ ${forbidden}`,
     if (/偏好|不喜欢|gpt味|GPT味|口语|短句|像助手|像朋友/.test(text)) return 'preferredVoiceStyle';
     if (/彩虹屁|嘴甜|夸赞|被哄|情绪价值/.test(text)) return 'praisePreference';
     return 'responseRhythm';
+  }
+
+  private buildExpressionRuleDraft(
+    content: string,
+    reason: string,
+  ): PersonaRuleMergeDraft {
+    const normalized = content
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 36);
+    const key = normalized ? `evolved_${normalized}` : `evolved_rule_${Date.now().toString(36)}`;
+
+    return {
+      key,
+      content,
+      category: this.inferExpressionRuleCategory(content, reason),
+      reason: reason || 'expression rules',
+    };
+  }
+
+  private inferExpressionRuleCategory(
+    content: string,
+    reason: string,
+  ): PersonaRuleCategory {
+    const text = `${content} ${reason}`;
+    if (/简短|简洁|不铺垫|少展开|不延展/.test(text)) return 'BREVITY';
+    if (/口语|语气|温柔|柔和|卖萌|断言/.test(text)) return 'TONE';
+    if (/追问|节奏|停在|留白|等待|确认一句/.test(text)) return 'PACING';
+    if (/边界|拒绝|不要|不该|不做/.test(text)) return 'BOUNDARY';
+    if (/失败|报错|异常|出错/.test(text)) return 'ERROR_HANDLING';
+    return 'TONE';
   }
 
   private shouldKeepSuggestedChange(change: EvolutionChange): boolean {

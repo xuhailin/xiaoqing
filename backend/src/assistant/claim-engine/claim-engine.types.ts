@@ -3,7 +3,8 @@ export type ClaimType =
   | 'VALUE'
   | 'INTERACTION_PREFERENCE'
   | 'EMOTIONAL_TENDENCY'
-  | 'RELATION_RHYTHM';
+  | 'RELATION_RHYTHM'
+  | 'INTERACTION_TUNING';
 
 export type ClaimStatus =
   | 'CANDIDATE'
@@ -53,6 +54,7 @@ export interface ClaimRecord {
   userKey: string;
   type: ClaimType;
   key: string;
+  valueJson: unknown;
   confidence: number;
   evidenceCount: number;
   counterEvidenceCount: number;

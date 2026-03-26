@@ -2,10 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, PlanDispatchType, ReminderScope } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma.service';
 import { estimateTokens } from '../../infra/token-estimator';
-import { ActionReasonerService } from '../action-reasoner/action-reasoner.service';
+import { FeatureFlagConfig } from './feature-flag.config';
 import { ReflectionService } from '../reflection/reflection.service';
 import { PostTurnPipeline } from '../post-turn/post-turn.pipeline';
 import type { PostTurnPlan, PostTurnTask } from '../post-turn/post-turn.types';
+import { PostTurnPlanBuilder } from '../post-turn/post-turn-plan.builder';
 import { TurnContextAssembler } from './turn-context-assembler.service';
 import { ChatCompletionRunner } from './chat-completion-runner.service';
 import { SummarizeTriggerService } from './summarize-trigger.service';
@@ -16,6 +17,8 @@ import type { TurnCognitiveResult } from '../cognitive-trace/cognitive-trace.typ
 import { RelationshipOverviewService } from '../relationship-overview/relationship-overview.service';
 import { SessionReflectionService } from '../session-reflection/session-reflection.service';
 import type { ReflectionResult } from '../session-reflection/session-reflection.types';
+import { recordEmotionSnapshot } from '../post-turn/tasks/record-emotion-snapshot.task';
+import { InteractionTuningLearner } from '../post-turn/tasks/interaction-tuning-learner.service';
 import { ClaimUpdateService } from '../claim-engine/claim-update.service';
 import { ClaimEngineConfig } from '../claim-engine/claim-engine.config';
 import { ClaimSchemaRegistry } from '../claim-engine/claim-schema.registry';
@@ -25,6 +28,8 @@ import { SocialEntityService } from '../life-record/social-entity/social-entity.
 import { SocialRelationEdgeService } from '../life-record/social-relation-edge/social-relation-edge.service';
 import type {
   CollaborationTurnContext,
+  ConversationMessageKind,
+  ExecutionResult,
   SendMessageResult,
   ToolPolicyDecision,
   TurnContext,
@@ -34,8 +39,13 @@ import { PlanService } from '../../plan/plan.service';
 import { IdeaService } from '../../idea/idea.service';
 import { TodoService } from '../../todo/todo.service';
 import type { TaskIntentItem } from '../intent/intent.types';
+import { ActionReasonerService } from '../action-reasoner/action-reasoner.service';
 import type { ActionDecision } from '../action-reasoner/action-reasoner.types';
 import type { TaskTemplate } from '../../plan/plan.types';
+import { QuickIntentRouterService } from './quick-intent-router.service';
+import type { QuickRouterOutput } from './quick-intent-router.types';
+import { ResponseComposer } from './response-composer.service';
+import { TurnCognitiveStateService } from './turn-cognitive-state.service';
 
 @Injectable()
 export class AssistantOrchestrator {
@@ -43,11 +53,15 @@ export class AssistantOrchestrator {
 
   constructor(
     private readonly assembler: TurnContextAssembler,
-    private readonly actionReasoner: ActionReasonerService,
+    private readonly flags: FeatureFlagConfig,
     private readonly reflectionService: ReflectionService,
     private readonly completionRunner: ChatCompletionRunner,
+    private readonly responseComposer: ResponseComposer,
+    private readonly turnCognitiveState: TurnCognitiveStateService,
     private readonly postTurnPipeline: PostTurnPipeline,
+    private readonly postTurnPlanBuilder: PostTurnPlanBuilder,
     private readonly summarizeTrigger: SummarizeTriggerService,
+    private readonly interactionTuningLearner: InteractionTuningLearner,
     private readonly sessionState: SessionStateService,
     private readonly claimUpdate: ClaimUpdateService,
     private readonly claimConfig: ClaimEngineConfig,
@@ -63,6 +77,8 @@ export class AssistantOrchestrator {
     private readonly ideaService: IdeaService,
     private readonly todoService: TodoService,
     private readonly prisma: PrismaService,
+    private readonly quickRouter: QuickIntentRouterService,
+    private readonly actionReasoner: ActionReasonerService,
   ) {}
 
   async processTurn(input: {
@@ -78,6 +94,18 @@ export class AssistantOrchestrator {
   }): Promise<SendMessageResult> {
     const allowPostTurn = input.runtimePolicy?.allowPostTurn !== false;
     const allowReflection = input.runtimePolicy?.allowReflection !== false;
+
+    // Quick Intent Router: 在加载 Session State 之前分流，不依赖任何上下文
+    let quickRoute: QuickRouterOutput;
+    try {
+      quickRoute = await this.quickRouter.route(input.userInput);
+    } catch {
+      quickRoute = { path: 'chat', confidence: 1.0, source: 'fallback' };
+    }
+    this.logger.debug(
+      `[QuickRouter] path=${quickRoute.path} hint=${quickRoute.toolHint ?? '-'} src=${quickRoute.source}`,
+    );
+
     let context: TurnContext;
     try {
       context = await this.assembler.assemble({
@@ -86,6 +114,7 @@ export class AssistantOrchestrator {
         userMessage: input.userMessage,
         now: new Date(),
         recentRounds: input.recentRounds,
+        quickRoute,
         collaborationContext: input.collaborationContext ?? null,
       });
     } catch (err) {
@@ -96,21 +125,29 @@ export class AssistantOrchestrator {
         userMessage: input.userMessage,
         now: new Date(),
         recentRounds: Math.min(2, input.recentRounds),
+        quickRoute,
         collaborationContext: input.collaborationContext ?? null,
       });
     }
 
+    const resolvedIntent = context.runtime.mergedIntentState ?? context.runtime.intentState ?? null;
+    const cognitiveState = this.turnCognitiveState.analyze(context);
+    const actionDecision = this.actionReasoner.decide(
+      resolvedIntent,
+      input.userInput,
+    );
+    const turnContext: TurnContext = {
+      ...context,
+      runtime: {
+        ...context.runtime,
+        cognitiveState,
+        actionDecision,
+      },
+    };
+
     let policy: ToolPolicyDecision = { action: 'chat', reason: 'intent 未命中，默认聊天路径' };
     try {
-      if (context.runtime.actionDecision) {
-        policy = context.runtime.actionDecision.toolPolicy;
-      } else {
-        const resolvedIntent = context.runtime.mergedIntentState ?? context.runtime.intentState;
-        if (resolvedIntent) {
-          const decision = this.actionReasoner.decide(resolvedIntent);
-          policy = decision.toolPolicy;
-        }
-      }
+      policy = actionDecision.toolPolicy ?? policy;
     } catch (err) {
       this.logger.warn(`resolve policy failed, fallback chat: ${String(err)}`);
     }
@@ -118,9 +155,37 @@ export class AssistantOrchestrator {
     let result: SendMessageResult;
     let postTurnPlan: PostTurnPlan | undefined;
     try {
-      const completion = await this.completionRunner.execute(context, policy);
-      result = completion.result;
-      postTurnPlan = completion.postTurnPlan;
+      const completion = await this.completionRunner.execute(turnContext, policy);
+      if (completion.result) {
+        result = completion.result;
+        postTurnPlan = completion.postTurnPlan
+          ?? (completion.postTurnMeta
+            ? this.postTurnPlanBuilder.build({
+                executionPath: completion.postTurnMeta.executionPath,
+                conversationId: input.conversationId,
+                userMsg: input.userMessage,
+                assistantMsg: {
+                  id: completion.result.assistantMessage.id,
+                  content: completion.result.assistantMessage.content,
+                },
+                userInput: input.userInput,
+                intentState: completion.postTurnMeta.intentState,
+                actionDecision,
+                cognitiveState: completion.postTurnMeta.cognitiveState,
+                isImportantIssueInProgress: completion.postTurnMeta.isImportantIssueInProgress,
+              })
+            : undefined);
+      } else if (completion.executionResult) {
+        const composed = await this.composeExecutionReply(
+          turnContext,
+          input,
+          completion.executionResult,
+        );
+        result = composed.result;
+        postTurnPlan = composed.postTurnPlan;
+      } else {
+        throw new Error('Completion runner returned neither result nor executionResult');
+      }
     } catch (err) {
       this.logger.error(`chat completion failed: ${String(err)}`);
       const fallback = '抱歉，我刚刚处理失败了。请再说一次，我会继续。';
@@ -140,93 +205,179 @@ export class AssistantOrchestrator {
       result = {
         userMessage: toConversationMessageDto(input.userMessage),
         assistantMessage: toConversationMessageDto(assistantMsg),
-        injectedMemories: context.memory.injectedMemories,
+        injectedMemories: turnContext.memory.injectedMemories,
       };
     }
 
     if (postTurnPlan && allowPostTurn) {
       try {
-        result = await this.runBeforeReturnPostTurn(postTurnPlan, result);
+        result = await this.runBeforeReturnPostTurn(postTurnPlan, result, turnContext);
       } catch (err) {
         this.logger.warn(`postTurn beforeReturn failed: ${String(err)}`);
-      }
-    }
-
-    try {
-      result = await this.captureStructuredWorkItem(context, result);
-    } catch (err) {
-      this.logger.warn(`structured work capture failed: ${String(err)}`);
-    }
-
-    // Reflection: 评估本轮决策质量
-    if (allowReflection) {
-      try {
-        const resolvedIntent = context.runtime.mergedIntentState ?? context.runtime.intentState;
-        const reflection = this.reflectionService.reflect({
-          userInput: input.userInput,
-          intentState: resolvedIntent ? {
-            taskIntent: resolvedIntent.taskIntent,
-            confidence: resolvedIntent.confidence,
-            requiresTool: resolvedIntent.requiresTool,
-          } : undefined,
-          actionDecision: context.runtime.actionDecision ? {
-            action: context.runtime.actionDecision.action,
-            reason: context.runtime.actionDecision.reason,
-            confidence: context.runtime.actionDecision.confidence,
-          } : undefined,
-          toolPolicy: { action: policy.action, capability: policy.capability },
-          assistantOutput: result.assistantMessage.content,
-          hasError: false,
-        });
-
-        if (reflection.quality !== 'good') {
-          this.logger.warn(`Reflection: ${reflection.quality} - ${reflection.issues?.join('; ')}`);
-        }
-
-        // 持久化反思结果到 SessionState（如果有 adjustmentHint）
-        if (reflection.adjustmentHint) {
-          try {
-            const userKey = 'default-user'; // 当前系统使用固定 userKey
-            await this.sessionState.upsertState({
-              userKey,
-              sessionId: input.conversationId,
-              state: {
-                lastReflection: {
-                  quality: reflection.quality,
-                  adjustmentHint: reflection.adjustmentHint,
-                  timestamp: new Date(),
-                },
-              },
-              confidence: 0.8,
-              ttlSeconds: 21600, // 6 小时
-              sourceModel: 'reflection-service',
-            });
-          } catch (err) {
-            this.logger.warn(`Failed to persist reflection: ${String(err)}`);
-          }
-        }
-      } catch (err) {
-        this.logger.warn(`reflection failed: ${String(err)}`);
       }
     }
 
     if (postTurnPlan && allowPostTurn) {
       this.postTurnPipeline.runAfterReturn(
         postTurnPlan,
-        async (task, plan) => this.runAfterReturnTask(task, plan),
+        async (task, plan) => this.runAfterReturnTask(task, plan, {
+          toolPolicy: policy,
+          allowReflection,
+        }),
       ).catch((err) => this.logger.warn(`postTurn afterReturn failed: ${String(err)}`));
     }
 
     // 多意图：为延迟动作创建 Plan（异步，不阻塞返回）
-    const actionDecision = context.runtime.actionDecision;
     if (actionDecision?.deferredIntents?.length) {
-      this.createPlansForDeferredIntents(
-        input.conversationId,
-        actionDecision,
-      ).catch((err) => this.logger.warn(`deferred intents plan creation failed: ${String(err)}`));
+      void this.scheduleDeferredIntentPlans(input.conversationId, actionDecision);
     }
 
     return result;
+  }
+
+  private async composeExecutionReply(
+    context: TurnContext,
+    input: {
+      conversationId: string;
+      userInput: string;
+      userMessage: { id: string; role: 'user'; content: string; createdAt: Date };
+    },
+    execution: ExecutionResult,
+  ): Promise<{ result: SendMessageResult; postTurnPlan: PostTurnPlan }> {
+    if (execution.path === 'chat') {
+      const composition = await this.responseComposer.composeChatReply({
+        context,
+        recentMessages: context.conversation.recentMessages,
+        personaDto: context.persona.personaDto,
+        intentState: context.runtime.mergedIntentState ?? context.runtime.intentState ?? null,
+        maxContextTokens: this.flags.maxContextTokens,
+        profilePrompt: {
+          includeImpressionCore: this.flags.featureImpressionCore,
+          includeImpressionDetail: this.flags.featureImpressionDetail && context.memory.needDetail,
+        },
+      });
+
+      const assistantMsg = await this.persistAssistantMessage(
+        input.conversationId,
+        composition.replyContent,
+      );
+      const postTurnPlan = this.postTurnPlanBuilder.build({
+        executionPath: 'chat',
+        conversationId: input.conversationId,
+        userMsg: input.userMessage,
+        assistantMsg,
+        userInput: input.userInput,
+        intentState: context.runtime.mergedIntentState ?? context.runtime.intentState ?? null,
+        actionDecision: context.runtime.actionDecision,
+        cognitiveState: composition.cognitiveState,
+        isImportantIssueInProgress:
+          composition.cognitiveState.situation.kind === 'decision_support' ||
+          composition.cognitiveState.situation.kind === 'advice_request' ||
+          composition.cognitiveState.situation.kind === 'task_execution',
+      });
+
+      return {
+        result: {
+          userMessage: toConversationMessageDto(input.userMessage),
+          assistantMessage: toConversationMessageDto(assistantMsg),
+          injectedMemories: context.memory.injectedMemories,
+          ...(execution.debugMeta ? { debugMeta: execution.debugMeta } : {}),
+          ...(execution.trace ? { trace: execution.trace } : {}),
+        },
+        postTurnPlan,
+      };
+    }
+
+    if (execution.path === 'missing_params') {
+      const composition = await this.responseComposer.composeMissingParamsReply({
+        context,
+        userInput: input.userInput,
+        missingParams: execution.missingParams ?? [],
+        personaDto: context.persona.personaDto,
+        intentState: context.runtime.mergedIntentState ?? context.runtime.intentState ?? null,
+        profilePrompt: {
+          includeImpressionCore: true,
+          includeImpressionDetail: true,
+        },
+      });
+      const assistantMsg = await this.persistAssistantMessage(
+        input.conversationId,
+        composition.replyContent,
+      );
+      const postTurnPlan = this.postTurnPlanBuilder.build({
+        executionPath: 'missing_params',
+        conversationId: input.conversationId,
+        userMsg: input.userMessage,
+        assistantMsg,
+        userInput: input.userInput,
+        intentState: context.runtime.mergedIntentState ?? context.runtime.intentState ?? null,
+        actionDecision: context.runtime.actionDecision,
+        cognitiveState: composition.cognitiveState,
+      });
+      return {
+        result: {
+          userMessage: toConversationMessageDto(input.userMessage),
+          assistantMessage: toConversationMessageDto(assistantMsg),
+          injectedMemories: [],
+          ...(execution.debugMeta ? { debugMeta: execution.debugMeta } : {}),
+          ...(execution.trace ? { trace: execution.trace } : {}),
+        },
+        postTurnPlan,
+      };
+    }
+
+    const composition = await this.responseComposer.composeToolReply({
+      context,
+      userInput: input.userInput,
+      recentMessages: context.conversation.recentMessages,
+      personaDto: context.persona.personaDto,
+      intentState: context.runtime.mergedIntentState ?? context.runtime.intentState ?? null,
+      toolResult: execution.toolResult ?? null,
+      toolError: execution.toolError ?? null,
+      toolKind: execution.toolKind ?? 'general_action',
+      profilePrompt: {
+        includeImpressionCore: true,
+        includeImpressionDetail: true,
+      },
+      toolWasActuallyUsed: execution.toolWasActuallyUsed ?? false,
+    });
+
+    const assistantMsg = await this.persistAssistantMessage(
+      input.conversationId,
+      composition.replyContent,
+      execution.messageKind ?? 'tool',
+      {
+        source: 'tool',
+        toolKind: execution.toolKind ?? 'general_action',
+        toolName: execution.toolKind ?? 'general_action',
+        success: execution.status === 'success' && !execution.toolError,
+        summary: this.firstLine(composition.replyContent) ?? undefined,
+        ...(execution.messageMetadata ?? {}),
+      },
+    );
+    const postTurnPlan = this.postTurnPlanBuilder.build({
+      executionPath: 'tool',
+      conversationId: input.conversationId,
+      userMsg: input.userMessage,
+      assistantMsg,
+      userInput: input.userInput,
+      intentState: context.runtime.mergedIntentState ?? context.runtime.intentState ?? null,
+      actionDecision: context.runtime.actionDecision,
+      cognitiveState: composition.cognitiveState,
+    });
+
+    return {
+      result: {
+        userMessage: toConversationMessageDto(input.userMessage),
+        assistantMessage: toConversationMessageDto(assistantMsg),
+        injectedMemories: [],
+        ...(execution.openclawUsed !== undefined ? { openclawUsed: execution.openclawUsed } : {}),
+        ...(execution.localSkillUsed !== undefined ? { localSkillUsed: execution.localSkillUsed } : {}),
+        ...(execution.debugMeta ? { debugMeta: execution.debugMeta } : {}),
+        ...(execution.trace ? { trace: execution.trace } : {}),
+      },
+      postTurnPlan,
+    };
   }
 
   private async captureStructuredWorkItem(
@@ -234,12 +385,12 @@ export class AssistantOrchestrator {
     result: SendMessageResult,
   ): Promise<SendMessageResult> {
     const decision = context.runtime.actionDecision;
-    const targetKind = decision?.targetKind;
-    if (!decision || !targetKind || targetKind === 'chat' || targetKind === 'task') {
+    const workItemPolicy = decision?.workItemPolicy;
+    if (!decision || !workItemPolicy?.shouldCapture || workItemPolicy.kind === 'none') {
       return result;
     }
 
-    const capture = targetKind === 'idea'
+    const capture = workItemPolicy.kind === 'idea'
       ? await this.captureIdeaFromDecision(context)
       : await this.captureTodoFromDecision(context, result, decision);
 
@@ -556,6 +707,17 @@ export class AssistantOrchestrator {
     }
   }
 
+  private async scheduleDeferredIntentPlans(
+    conversationId: string,
+    decision: ActionDecision,
+  ): Promise<void> {
+    try {
+      await this.createPlansForDeferredIntents(conversationId, decision);
+    } catch (err) {
+      this.logger.warn(`deferred intents plan creation failed: ${String(err)}`);
+    }
+  }
+
   /** 将 TaskIntentItem 映射为 TaskTemplate */
   private intentToTaskTemplate(item: TaskIntentItem): TaskTemplate | null {
     const intentCapabilityMap: Record<string, string> = {
@@ -597,15 +759,60 @@ export class AssistantOrchestrator {
   private async runBeforeReturnPostTurn(
     plan: PostTurnPlan,
     initialResult: SendMessageResult,
+    context: TurnContext,
   ): Promise<SendMessageResult> {
     let result = initialResult;
-    await this.postTurnPipeline.runBeforeReturn(plan, async () => {});
+    await this.postTurnPipeline.runBeforeReturn(plan, async (task, currentPlan) => {
+      result = await this.runBeforeReturnTask(task, currentPlan, result, context);
+    });
     return result;
+  }
+
+  private async runBeforeReturnTask(
+    task: PostTurnTask,
+    plan: PostTurnPlan,
+    result: SendMessageResult,
+    context: TurnContext,
+  ): Promise<SendMessageResult> {
+    if (task.type === 'capture_work_item') {
+      return this.captureStructuredWorkItem(context, result);
+    }
+    return result;
+  }
+
+  private async persistAssistantMessage(
+    conversationId: string,
+    content: string,
+    kind: ConversationMessageKind = 'chat',
+    metadata?: Record<string, unknown>,
+  ) {
+    return this.prisma.message.create({
+      data: {
+        conversationId,
+        role: 'assistant',
+        kind,
+        content,
+        ...(metadata !== undefined
+          ? { metadata: metadata as Prisma.InputJsonValue }
+          : {}),
+        tokenCount: estimateTokens(content),
+      },
+    });
+  }
+
+  private firstLine(text: string | null | undefined): string | undefined {
+    const normalized = String(text ?? '').trim();
+    if (!normalized) return undefined;
+    return normalized.split(/\r?\n/).find((line) => line.trim())?.trim() ?? normalized;
   }
 
   private async runAfterReturnTask(
     task: PostTurnTask,
     plan: PostTurnPlan,
+    runtime?: {
+      toolPolicy?: ToolPolicyDecision;
+      allowReflection?: boolean;
+    },
   ): Promise<void> {
     if (task.type === 'life_record_sync') {
       await this.runLifeRecordSync(plan);
@@ -630,6 +837,35 @@ export class AssistantOrchestrator {
       if (cs.safety.notes.length > 0) {
         plan.opsCollector.growthOps.push({ type: 'boundary', detail: cs.safety.notes.join('; ') });
       }
+      return;
+    }
+
+    if (task.type === 'record_emotion_snapshot') {
+      const cognitiveState = plan.context.cognitiveState;
+      if (!cognitiveState) return;
+
+      const emotionSourceSignal = cognitiveState.userState.signals.find((signal) =>
+        signal.startsWith('emotion-source:'),
+      );
+      const source = emotionSourceSignal?.split(':', 2)[1] ?? 'cognitive_pipeline';
+      const llmConfidence = plan.context.intentState?.detectedEmotion === cognitiveState.userState.emotion
+        ? plan.context.intentState?.confidence
+        : undefined;
+
+      await recordEmotionSnapshot(this.prisma, {
+        conversationId: plan.conversationId,
+        emotion: cognitiveState.userState.emotion,
+        fragility: cognitiveState.userState.fragility,
+        confidence: llmConfidence ?? 0.5,
+        source,
+        rawInput: plan.turn.userInput,
+      });
+      return;
+    }
+
+    if (task.type === 'interaction_tuning_learning') {
+      const result = await this.interactionTuningLearner.learn(plan);
+      plan.opsCollector.claimOps.push(...result.claimOps);
       return;
     }
 
@@ -672,6 +908,67 @@ export class AssistantOrchestrator {
 
     if (task.type === 'session_reflection') {
       await this.runSessionReflection(plan);
+      return;
+    }
+
+    if (task.type === 'decision_quality_review') {
+      if (runtime?.allowReflection === false) return;
+      await this.runDecisionQualityReview(plan, runtime?.toolPolicy);
+    }
+  }
+
+  private async runDecisionQualityReview(
+    plan: PostTurnPlan,
+    toolPolicy?: ToolPolicyDecision,
+  ): Promise<void> {
+    const intentState = plan.context.intentState;
+    const actionDecision = plan.context.actionDecision;
+
+    const reflection = this.reflectionService.reflect({
+      userInput: plan.turn.userInput,
+      intentState: intentState ? {
+        taskIntent: intentState.taskIntent,
+        confidence: intentState.confidence,
+        requiresTool: intentState.requiresTool,
+      } : undefined,
+      actionDecision: actionDecision ? {
+        action: actionDecision.action,
+        reason: actionDecision.reason,
+        confidence: actionDecision.confidence,
+      } : undefined,
+      toolPolicy: toolPolicy
+        ? { action: toolPolicy.action, capability: toolPolicy.capability }
+        : undefined,
+      assistantOutput: plan.turn.assistantOutput,
+      hasError: false,
+    });
+
+    if (reflection.quality !== 'good') {
+      this.logger.warn(`Reflection: ${reflection.quality} - ${reflection.issues?.join('; ')}`);
+    }
+
+    if (!reflection.adjustmentHint) {
+      return;
+    }
+
+    try {
+      const userKey = 'default-user';
+      await this.sessionState.upsertState({
+        userKey,
+        sessionId: plan.conversationId,
+        state: {
+          lastReflection: {
+            quality: reflection.quality,
+            adjustmentHint: reflection.adjustmentHint,
+            timestamp: new Date(),
+          },
+        },
+        confidence: 0.8,
+        ttlSeconds: 21600,
+        sourceModel: 'reflection-service',
+      });
+    } catch (err) {
+      this.logger.warn(`Failed to persist reflection: ${String(err)}`);
     }
   }
 

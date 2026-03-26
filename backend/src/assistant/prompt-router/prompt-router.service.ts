@@ -1,9 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import type { OpenAI } from 'openai';
 import { LlmService } from '../../infra/llm/llm.service';
-import { estimateTokens } from '../../infra/token-estimator';
+import { assertTokenBudget, estimateTokens } from '../../infra/token-estimator';
 import type { MemoryCandidate } from '../memory/memory.service';
-import type { DialogueIntentState } from '../intent/intent.types';
 import type { WorldState } from '../../infra/world-state/world-state.types';
 import type { ExpressionFields } from '../persona/persona.service';
 import type {
@@ -20,6 +19,7 @@ import type { SocialEntityRecord } from '../life-record/social-entity/social-ent
 import type { SocialInsightRecord } from '../life-record/social-insight/social-insight.types';
 import type { RelevantSocialRelationEdgeRecord } from '../life-record/social-relation-edge/social-relation-edge.types';
 import type { CollaborationTurnContext } from '../conversation/orchestration.types';
+import type { ExpressionControlState } from '../conversation/expression-control.types';
 
 export const CHAT_PROMPT_VERSION = 'chat_v6';
 export const SUMMARY_PROMPT_VERSION = 'summary_v2';
@@ -48,7 +48,6 @@ export interface ChatContext {
   identityAnchor?: string | null;
   /** 用户认可的首选昵称（来自 ip.nickname.primary claim），用于“固定称呼”指引注入 */
   preferredNickname?: string | null;
-  intentState?: DialogueIntentState;
   /** 默认世界状态（地点/时区/语言等），用于「几点了」「适合出门吗」等推理前提，不写入记忆 */
   worldState?: WorldState | null;
   /** 认知管道的结构化输出，作为生成前的稳定决策层 */
@@ -71,10 +70,6 @@ export interface ChatContext {
   socialInsights?: SocialInsightRecord[];
   /** A4：当前话题相关的关系变化信号 */
   socialRelationSignals?: RelevantSocialRelationEdgeRecord[];
-  /** 行动决策提示：建议移交开发代理时为 true，回复中可自然建议使用 /dev 前缀 */
-  handoffDevHint?: boolean;
-  /** 行动决策提示：建议提醒时的描述，回复中可自然提议「要不要我帮你记一下」等，不自动创建任务 */
-  reminderHint?: string | null;
   /** 系统自省信息：系统名称、版本、能力列表等 */
   systemSelf?: SystemSelf;
   /** 上一轮反思结果：用于改进本轮决策 */
@@ -91,6 +86,8 @@ export interface ChatContext {
   decisionSummaryText?: string;
   /** 协作上下文：当前是 agent 间委托，而非直接前台聊天 */
   collaborationContext?: CollaborationTurnContext | null;
+  /** 结构化表达控制状态：昵称、节奏、边界等优先从这里读取 */
+  expressionControl?: ExpressionControlState;
 }
 
 export interface SummaryContext {
@@ -111,6 +108,7 @@ export interface ToolResultContext {
   metaFilterPolicy?: string | null;
   /** 用户认可的首选昵称（来自 ip.nickname.primary claim） */
   preferredNickname?: string | null;
+  expressionControl?: ExpressionControlState;
   toolKind?: 'weather' | 'book_download' | 'general_action' | 'timesheet' | 'reminder' | 'page_screenshot' | 'openclaw';
   userInput: string;
   toolResult: string | null;
@@ -119,8 +117,16 @@ export interface ToolResultContext {
   collaborationContext?: CollaborationTurnContext | null;
 }
 
+interface PromptBlock {
+  id: string;
+  priority: number;
+  content: string;
+}
+
 @Injectable()
 export class PromptRouterService {
+  private readonly logger = new Logger(PromptRouterService.name);
+
   constructor(private llm: LlmService) {}
 
   private isDebugPromptEnabled(): boolean {
@@ -135,13 +141,54 @@ export class PromptRouterService {
       .filter((l) => l.startsWith('- ')).length;
   }
 
-  buildNicknameHint(nickname?: string | null): string {
+  buildNicknameHint(
+    nickname?: string | null,
+    expressionControl?: ExpressionControlState,
+  ): string {
     const name = nickname?.trim();
     if (!name) return '';
+    if (expressionControl && !expressionControl.useNickname) return '';
     return `称呼她时请用"${name}"——这是她认可的昵称。如果场景不适合用昵称（如严肃讨论），可以不用，但日常聊天优先使用。`;
   }
 
   buildChatMessages(ctx: ChatContext): OpenAI.Chat.ChatCompletionMessageParam[] {
+    /**
+     * PROMPT BLOCK ARCHITECTURE (chat_v6)
+     *
+     * 五层优先级（越靠后越接近最终输出约束）：
+     *
+     * [Tier 1 - 身份层]
+     * - personaPrompt
+     * - systemSelfPart
+     * - identityAnchorPart
+     *
+     * [Tier 2 - 知识层]
+     * - userProfilePart
+     * - longTermSummaryPart
+     * - memoryPart
+     *
+     * [Tier 3 - 上下文层]
+     * - worldStatePart
+     * - socialSummaryPart
+     * - collaborationPart
+     * - reflectionPart
+     * - taskPlanPart
+     *
+     * [Tier 4 - 决策层]
+     * - cognitivePart
+     * - decisionContextPart
+     * - actionHintPart
+     * - boundaryPart
+     *
+     * [Tier 5 - 表达层]
+     * - expressionPart
+     * - metaPart
+     *
+     * 规则：
+     * - 新增 block 时先声明所属 Tier。
+     * - 同 Tier 内优先保留更稳定、更高约束的信息。
+     * - 表达层只负责“怎么说”，不再承载新的行为决策。
+     */
     const personaPart = ctx.personaPrompt?.trim() ?? '';
 
     // —— 了解区：自然语言引导，无方括号 ——
@@ -151,7 +198,10 @@ export class PromptRouterService {
       identityAnchorPart = `关于她：\n${ctx.identityAnchor}`;
     }
 
-    const nicknamePart = this.buildNicknameHint(ctx.preferredNickname);
+    const nicknamePart = this.buildNicknameHint(
+      ctx.preferredNickname,
+      ctx.expressionControl,
+    );
 
     let memoryPart = '';
     if (ctx.memories?.length) {
@@ -165,7 +215,10 @@ export class PromptRouterService {
     }
 
     // —— 表达策略（一段话，无方括号）——
-    const expressionPart = this.buildExpressionPolicy(ctx.expressionFields, ctx.intentState);
+    const expressionPart = this.buildExpressionPolicy(
+      ctx.expressionFields,
+      ctx.expressionControl,
+    );
     const metaPart = this.buildMetaFilterPolicy(ctx.metaFilterPolicy);
     // —— 背景信号（保留结构化格式，模型需要精确读取）——
 
@@ -194,10 +247,10 @@ export class PromptRouterService {
     const decisionContextPart = ctx.decisionSummaryText ?? '';
 
     let actionHintPart = '';
-    if (ctx.handoffDevHint) {
+    if (ctx.actionDecision?.action === 'handoff_dev') {
       actionHintPart = '[行动提示] 用户本轮可能是开发/编程类任务。若适合交给开发代理，可在回复中自然建议对方使用 /dev 前缀重新发送。';
-    } else if (ctx.reminderHint) {
-      actionHintPart = `[行动提示] 用户提到了将来要做的事（${ctx.reminderHint}）。可在回复中自然提议「要不要我帮你记一下」等，不要自动创建任务。`;
+    } else if (ctx.actionDecision?.action === 'suggest_reminder' && ctx.actionDecision.reminderHint) {
+      actionHintPart = `[行动提示] 用户提到了将来要做的事（${ctx.actionDecision.reminderHint}）。可在回复中自然提议「要不要我帮你记一下」等，不要自动创建任务。`;
     }
 
     let reflectionPart = '';
@@ -251,28 +304,68 @@ export class PromptRouterService {
       }
     }
 
-    // 组装：人格区 → 了解区 → 背景信号 → 表达策略（靠近对话历史，权重更高）
-    const parts = [
-      `[${CHAT_PROMPT_VERSION}]`,
-      personaPart,
-      systemSelfPart,
-      identityAnchorPart,
-      nicknamePart,
-      memoryPart,
-      userProfilePart,
-      worldStatePart,
-      collaborationPart,
-      longTermSummaryPart,
-      socialSummaryPart,
-      boundaryPart,
-      cognitivePart,
-      reflectionPart,
-      taskPlanPart,
-      decisionContextPart,
-      actionHintPart,
-      metaPart,
-      expressionPart,
-    ].filter(Boolean);
+    const tier1Identity = assertTokenBudget(
+      [
+        `[${CHAT_PROMPT_VERSION}]`,
+        personaPart,
+        systemSelfPart,
+        identityAnchorPart,
+      ].filter(Boolean).join('\n\n'),
+      400,
+      'tier1_identity',
+      this.logger,
+    );
+    const tier2Knowledge = assertTokenBudget(
+      [
+        userProfilePart,
+        longTermSummaryPart,
+        memoryPart,
+      ].filter(Boolean).join('\n\n'),
+      300,
+      'tier2_knowledge',
+      this.logger,
+    );
+    const tier3Context = assertTokenBudget(
+      [
+        worldStatePart,
+        socialSummaryPart,
+        collaborationPart,
+        reflectionPart,
+        taskPlanPart,
+      ].filter(Boolean).join('\n\n'),
+      200,
+      'tier3_context',
+      this.logger,
+    );
+    const tier4Decision = assertTokenBudget(
+      [
+        cognitivePart,
+        decisionContextPart,
+        actionHintPart,
+        boundaryPart,
+      ].filter(Boolean).join('\n\n'),
+      250,
+      'tier4_decision',
+      this.logger,
+    );
+    const tier5Expression = assertTokenBudget(
+      [
+        nicknamePart,
+        metaPart,
+        expressionPart,
+      ].filter(Boolean).join('\n\n'),
+      150,
+      'tier5_expression',
+      this.logger,
+    );
+
+    const parts = this.assemblePromptBlocks([
+      { id: 'tier1_identity', priority: 100, content: tier1Identity ?? '' },
+      { id: 'tier2_knowledge', priority: 200, content: tier2Knowledge ?? '' },
+      { id: 'tier3_context', priority: 300, content: tier3Context ?? '' },
+      { id: 'tier4_decision', priority: 400, content: tier4Decision ?? '' },
+      { id: 'tier5_expression', priority: 500, content: tier5Expression ?? '' },
+    ]);
 
     if (this.isDebugPromptEnabled()) {
       const longTermBulletCount = this.countBullets(longTermSummaryPart);
@@ -313,12 +406,19 @@ export class PromptRouterService {
 
     const system: OpenAI.Chat.ChatCompletionMessageParam = {
       role: 'system',
-      content: parts.join('\n\n'),
+      content: parts.join('\n\n---\n\n'),
     };
     const history: OpenAI.Chat.ChatCompletionMessageParam[] = ctx.messages.map(
       (m) => ({ role: m.role, content: m.content }),
     );
     return [system, ...history];
+  }
+
+  private assemblePromptBlocks(blocks: PromptBlock[]): string[] {
+    return blocks
+      .filter((block) => block.content.trim().length > 0)
+      .sort((left, right) => left.priority - right.priority)
+      .map((block) => block.content);
   }
 
   /**
@@ -543,81 +643,6 @@ export class PromptRouterService {
     return lines.join('\n');
   }
 
-  /**
-   * @deprecated chat prompt 注入路径已由 `buildSocialContextSummaryPart` 统一替代；
-   * 该方法保留仅用于向后兼容/调试，不再作为主路径输出。
-   */
-  private buildSharedExperiencePart(items?: SharedExperienceRecord[]): string {
-    if (!items?.length) return '';
-
-    const lines = ['[相关共同经历]'];
-    for (const item of items.slice(0, 2)) {
-      lines.push(`- ${item.title}: ${item.summary}`);
-    }
-    return lines.join('\n');
-  }
-
-  /**
-   * @deprecated chat prompt 注入路径已由 `buildSocialContextSummaryPart` 统一替代；
-   * 该方法保留仅用于向后兼容/调试，不再作为主路径输出。
-   */
-  private buildRhythmObservationPart(notes?: string[]): string {
-    if (!notes?.length) return '';
-
-    return [
-      '[最近节奏观察]',
-      ...notes.slice(0, 3).map((note) => `- ${note}`),
-    ].join('\n');
-  }
-
-  /**
-   * @deprecated chat prompt 注入路径已由 `buildSocialContextSummaryPart` 统一替代；
-   * 该方法保留仅用于向后兼容/调试，不再作为主路径输出。
-   */
-  private buildSocialInsightPart(insights?: SocialInsightRecord[]): string {
-    if (!insights?.length) return '';
-
-    return [
-      '[社会洞察]',
-      ...insights.slice(0, 2).map((item) => `- ${item.content}`),
-    ].join('\n');
-  }
-
-  /**
-   * @deprecated chat prompt 注入路径已由 `buildSocialContextSummaryPart` 统一替代；
-   * 该方法保留仅用于向后兼容/调试，不再作为主路径输出。
-   */
-  private buildSocialEntityPart(items?: SocialEntityRecord[]): string {
-    if (!items?.length) return '';
-
-    return [
-      '[相关人物认知]',
-      ...items.slice(0, 3).map((item) => `- ${item.name}: ${item.description}`),
-    ].join('\n');
-  }
-
-  /**
-   * @deprecated chat prompt 注入路径已由 `buildSocialContextSummaryPart` 统一替代；
-   * 该方法保留仅用于向后兼容/调试，不再作为主路径输出。
-   */
-  private buildSocialRelationPart(items?: RelevantSocialRelationEdgeRecord[]): string {
-    if (!items?.length) return '';
-
-    return [
-      '[近期关系变化]',
-      ...items.slice(0, 2).map((item) => {
-        const normalizedNote = item.notes?.trim() ? item.notes.trim().slice(0, 80) : '';
-        const note = normalizedNote ? ` | note=${normalizedNote}` : '';
-        return `- ${item.entityName} | trend=${item.trend} | quality=${item.quality.toFixed(2)}${note}`;
-      }),
-    ].join('\n');
-  }
-
-  /** @deprecated personaPresenceAnchor 已移除：与 expressionPolicy 内容重复，见 prompt-pipeline-audit */
-  buildPersonaPresenceAnchor(_fields?: ExpressionFields): string {
-    return '';
-  }
-
   buildBoundaryPolicy(boundary?: BoundaryPromptContext | null): string {
     if (!boundary?.preflightText) return '';
     return boundary.preflightText;
@@ -634,15 +659,62 @@ export class PromptRouterService {
    */
   buildExpressionPolicy(
     fields?: ExpressionFields,
-    _intentState?: DialogueIntentState,
+    expressionControl?: ExpressionControlState,
   ): string {
-    if (!fields?.expressionRules) return '';
+    const lines: string[] = [];
 
-    return [
-      '你的表达纪律：',
-      fields.expressionRules,
-      '当结构化表达更清晰时，可使用标准 Markdown（标题、列表、引用、代码块、链接、粗斜体）；普通闲聊保持自然文本，不要为了格式而格式化。',
-    ].join('\n');
+    if (fields?.expressionRules) {
+      lines.push('你的表达纪律：', fields.expressionRules);
+      lines.push('当结构化表达更清晰时，可使用标准 Markdown（标题、列表、引用、代码块、链接、粗斜体）；普通闲聊保持自然文本，不要为了格式而格式化。');
+    }
+
+    if (expressionControl) {
+      const tuningLines: string[] = [];
+      if (expressionControl.warmth <= 0.4) tuningLines.push('- 当前互动保持克制温度，不刻意暖');
+      else if (expressionControl.warmth >= 0.65) tuningLines.push('- 当前互动可以多一些温热感');
+      if (expressionControl.directness >= 0.65) tuningLines.push('- 与ta说话可以直接，少铺垫');
+      else if (expressionControl.directness <= 0.4) tuningLines.push('- 与ta说话适当保留柔和过渡');
+      if (expressionControl.humor === 'high') tuningLines.push('- 幽默感可以多一些');
+      else if (expressionControl.humor === 'low') tuningLines.push('- 幽默感少用，保持平稳');
+      if (expressionControl.bondTone === 'close') tuningLines.push('- 关系基调：比较亲近，不用客气');
+      else if (expressionControl.bondTone === 'playful') tuningLines.push('- 关系基调：轻松，可以小打小闹');
+      else if (expressionControl.bondTone === 'professional') tuningLines.push('- 关系基调：保持专业感');
+
+      if (tuningLines.length > 0) {
+        lines.push('[互动调谐]', ...tuningLines);
+      }
+
+      const controlLines: string[] = [];
+      if (expressionControl.pacing === 'slow_gentle') {
+        controlLines.push('- 这轮节奏放慢一点，轻一点，允许停在自然节点');
+      } else if (expressionControl.pacing === 'direct_quick') {
+        controlLines.push('- 这轮节奏更利落，先给结论，少绕弯');
+      }
+
+      if (expressionControl.followupDepth === 'none') {
+        controlLines.push('- 这轮不主动追问，把空间留给她');
+      } else if (expressionControl.followupDepth === 'deep') {
+        controlLines.push('- 若需要继续展开，可以适度深入一层，但不要像审问');
+      }
+
+      if (expressionControl.verbosity === 'minimal') {
+        controlLines.push('- 回复长度偏短，够用就收');
+      } else if (expressionControl.verbosity === 'elaborated') {
+        controlLines.push('- 信息可以稍展开一点，但仍要保持自然');
+      }
+
+      if (expressionControl.boundaryLevel === 'cautious') {
+        controlLines.push('- 这轮边界感更谨慎，避免过度代入或替她下定义');
+      } else if (expressionControl.boundaryLevel === 'restricted') {
+        controlLines.push('- 这轮严格收边界：先接住，不分析，不推进');
+      }
+
+      if (controlLines.length > 0) {
+        lines.push('[本轮表达控制]', ...controlLines);
+      }
+    }
+
+    return lines.join('\n');
   }
 
   private uniqueLines(items: string[], limit: number): string[] {
@@ -952,7 +1024,7 @@ ${schemaHints}
       this.buildCollaborationContextPrompt(ctx.collaborationContext),
       this.buildMetaFilterPolicy(ctx.metaFilterPolicy),
       ctx.expressionText ?? '',
-      this.buildNicknameHint(ctx.preferredNickname),
+      this.buildNicknameHint(ctx.preferredNickname, ctx.expressionControl),
       ctx.userProfileText ?? '',
       '',
       '你刚才帮用户执行了一个任务（通过工具完成），下面是结果。',

@@ -86,8 +86,6 @@ export interface PlanIntentFromIntent {
 export interface ActionHintFromIntent {
   action: string;
   reason?: string;
-  targetKind?: DialogueTargetKind;
-  planIntent?: PlanIntentFromIntent;
 }
 
 export interface DialogueIntentState {
@@ -108,13 +106,17 @@ export interface DialogueIntentState {
   /** 若推断出工具任务但缺少必要参数（如查天气缺城市），列出缺失参数名 */
   missingParams: string[];
   suggestedTool?: DialogueSuggestedTool | null;
+  /** 本轮内容最适合落到哪里，由语义层产出，供决策层直接消费 */
+  targetKind?: DialogueTargetKind;
+  /** 是否需要进入 Plan（提醒/执行），由语义层产出，供决策层直接消费 */
+  planIntent?: PlanIntentFromIntent;
   /** 长期稳定信息（常住地、默认语言、默认时区），intent_v8+ */
   identityUpdate?: IdentityUpdateFromIntent;
   /** 当前环境信息（当前所在城市、当前时区、当前设备），intent_v8 仅短期状态 */
   worldStateUpdate?: WorldStateUpdateFromIntent;
   /** LLM 推断的用户当前情绪（intent_v9+），用于替代 regex 匹配 */
   detectedEmotion?: UserEmotion;
-  /** LLM 给出的行动建议（intent_v13+） */
+  /** LLM 给出的行动建议（可选参考，不再承载语义字段主入口） */
   actionHint?: ActionHintFromIntent;
 }
 

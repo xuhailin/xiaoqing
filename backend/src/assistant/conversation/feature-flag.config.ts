@@ -22,6 +22,8 @@ export class FeatureFlagConfig {
   readonly featureDynamicTopK: boolean;
   readonly featureShortSummary: boolean;
   readonly featureDebugMeta: boolean;
+  readonly featureEmbeddings: boolean;
+  readonly featureHybridRecall: boolean;
   readonly featureOpenClaw: boolean;
   readonly featureAutoSummarize: boolean;
   readonly autoSummarizeThreshold: number;
@@ -49,6 +51,8 @@ export class FeatureFlagConfig {
     this.featureDynamicTopK = isFeatureEnabled(config, 'dynamicTopK');
     this.featureShortSummary = isFeatureEnabled(config, 'memoryShortSummary');
     this.featureDebugMeta = isFeatureEnabled(config, 'debugMeta');
+    this.featureEmbeddings = isFeatureEnabled(config, 'embeddings');
+    this.featureHybridRecall = isFeatureEnabled(config, 'hybridRecall');
     this.featureOpenClaw = openClawRegistry.hasAny();
     this.featureAutoSummarize = isFeatureEnabled(config, 'autoSummarize');
     this.autoSummarizeThreshold = Number(config.get('AUTO_SUMMARIZE_THRESHOLD')) || 15;

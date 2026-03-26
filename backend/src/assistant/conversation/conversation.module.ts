@@ -9,6 +9,9 @@ import { SummarizeTriggerService } from './summarize-trigger.service';
 import { FeatureFlagConfig } from './feature-flag.config';
 import { DecisionSummaryBuilder } from './decision-summary.builder';
 import { ResponseComposer } from './response-composer.service';
+import { QuickIntentRouterService } from './quick-intent-router.service';
+import { ExpressionControlService } from './expression-control.service';
+import { TurnCognitiveStateService } from './turn-cognitive-state.service';
 import { ActionReasonerModule } from '../action-reasoner/action-reasoner.module';
 import { ReflectionModule } from '../reflection/reflection.module';
 import { LlmModule } from '../../infra/llm/llm.module';
@@ -25,6 +28,8 @@ import { CognitivePipelineModule } from '../cognitive-pipeline/cognitive-pipelin
 import { MetaLayerService } from '../meta-layer/meta-layer.service';
 import { LifeRecordModule } from '../life-record/life-record.module';
 import { PostTurnPipeline } from '../post-turn/post-turn.pipeline';
+import { PostTurnPlanBuilder } from '../post-turn/post-turn-plan.builder';
+import { InteractionTuningLearner } from '../post-turn/tasks/interaction-tuning-learner.service';
 import { SystemSelfModule } from '../../system-self/system-self.module';
 import { CognitiveTraceModule } from '../cognitive-trace/cognitive-trace.module';
 import { RelationshipOverviewModule } from '../relationship-overview/relationship-overview.module';
@@ -47,9 +52,14 @@ import { TodoModule } from '../../todo/todo.module';
     SummarizeTriggerService,
     FeatureFlagConfig,
     PostTurnPipeline,
+    PostTurnPlanBuilder,
+    InteractionTuningLearner,
     MetaLayerService,
     DecisionSummaryBuilder,
     ResponseComposer,
+    QuickIntentRouterService,
+    ExpressionControlService,
+    TurnCognitiveStateService,
   ],
   exports: [ConversationService],
 })

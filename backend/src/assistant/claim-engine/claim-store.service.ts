@@ -24,6 +24,7 @@ export class ClaimStoreService {
         "userKey",
         "type"::TEXT AS "type",
         "key",
+        "valueJson",
         "confidence",
         "evidenceCount",
         "counterEvidenceCount",

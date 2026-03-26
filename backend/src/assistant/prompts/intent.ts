@@ -1,4 +1,4 @@
-export const INTENT_PROMPT_VERSION = 'intent_v19';
+export const INTENT_PROMPT_VERSION = 'intent_v20';
 
 // 意图推导 prompt：单独管理，便于后续直接改文案与字段定义。
 export const INTENT_SYSTEM_PROMPT = `
@@ -175,29 +175,36 @@ export const INTENT_SYSTEM_PROMPT = `
 - 注意：不要只看关键词，要结合上下文语气综合判断。隐晦表达（如反讽、欲言又止、语气突变）也应尝试识别
 - 不确定时输出 calm
 
-14. 行动决策建议（actionDecision，可选）
-- 根据以上意图分析，建议本轮的**行动模式**（仅作建议，最终由后端策略层决定）：
-  · direct_reply：纯聊天 / 情绪支持 / 思考讨论，不需要调用工具；也包括像 device_screenshot 这类当前没有执行面的请求，应明确说明限制
-  · run_capability：需要执行工具/能力（天气、电子书、工时等）
-  · handoff_dev：这是开发/编程任务，应交给开发代理处理
-  · suggest_reminder：用户提到了将来要做的事，可以建议设置提醒
-- 同时输出 targetKind（本轮用户内容最适合落到哪里）：
+14. 内容归属（targetKind）
+- 本轮用户内容最适合落到哪里：
   · chat：只是对话，不落工作对象
   · idea：想法 / 灵感 / 暂不执行的记录
   · todo：用户自己的待办 / 承诺 / 需要跟进的事项
   · task：系统执行型任务
-- 同时输出 planIntent：
-  · type="none"：不需要 Plan
-  · type="notify"：需要提醒型 Plan
-  · type="action"：需要执行型 Plan
 - 判断时优先按**用户视角**理解，而不是工具视角：
   · 「记一下这个想法」→ targetKind="idea"
   · 「周五前我要完成这个」→ targetKind="todo"
   · 「你现在帮我查/做/执行」→ targetKind="task"
-  · 「工作日 18:30 提醒我报工时」→ targetKind="todo"，planIntent.type="notify"
-- 输出 action、reason、targetKind、planIntent，不要只给 action。
+  · 「工作日 18:30 提醒我报工时」→ targetKind="todo"
 
-15. 多意图识别（taskIntents，可选）
+15. Plan 意图（planIntent）
+- 用于表达是否需要额外 Plan：
+  · type="none"：不需要 Plan
+  · type="notify"：需要提醒型 Plan
+  · type="action"：需要执行型 Plan
+- 示例：
+  · 「工作日 18:30 提醒我报工时」→ planIntent.type="notify"
+  · 「之后按这个方案继续做」→ planIntent.type="action"
+
+16. 行动决策建议（actionDecision，可选）
+- 根据以上意图分析，建议本轮的**行动模式**（仅作建议，最终由后端策略层决定；即使不输出也不影响系统路由）：
+  · direct_reply：纯聊天 / 情绪支持 / 思考讨论，不需要调用工具；也包括像 device_screenshot 这类当前没有执行面的请求，应明确说明限制
+  · run_capability：需要执行工具/能力（天气、电子书、工时等）
+  · handoff_dev：这是开发/编程任务，应交给开发代理处理
+  · suggest_reminder：用户提到了将来要做的事，可以建议设置提醒
+- actionDecision 只需要输出 action、reason；targetKind 和 planIntent 请放在顶层字段，不要只塞在 actionDecision 里面。
+
+17. 多意图识别（taskIntents，可选）
 - 当用户一句话**包含多个不同动作**时，输出 taskIntents 数组。
 - 每个元素包含：intent（taskIntent 值）、slots（该动作对应的槽位）、immediate（true=立即执行，false=延迟/定时执行）。
 - taskIntent 字段仍填主意图（第一个或最重要的），taskIntents 包含所有意图。
@@ -229,14 +236,14 @@ export const INTENT_SYSTEM_PROMPT = `
   "slots": {},
   "missingParams": [],
   "suggestedTool": "",
+  "targetKind": "chat",
+  "planIntent": { "type": "none", "reason": "" },
   "identityUpdate": {},
   "worldStateUpdate": {},
   "detectedEmotion": "calm",
   "actionDecision": {
     "action": "direct_reply",
-    "reason": "",
-    "targetKind": "chat",
-    "planIntent": { "type": "none", "reason": "" }
+    "reason": ""
   },
   "taskIntents": []
 }
@@ -244,6 +251,12 @@ export const INTENT_SYSTEM_PROMPT = `
 taskIntent 说明：必须是 "none" | "weather_query" | "book_download" | "timesheet" | "dev_task" | "set_reminder" | "checkin" | "device_screenshot" | "page_screenshot" | "general_tool" 之一。
 
 suggestedTool 说明：查天气时填 "weather"，电子书下载时填 "book_download"，工时上报时填 "timesheet"，设置提醒时填 "reminder"，否则不输出或空字符串。
+
+targetKind 说明：
+- 必须是 "chat" | "idea" | "todo" | "task" 之一。
+
+planIntent 说明：
+- type 必须是 "none" | "notify" | "action" 之一。
 
 confidence 说明：
 - 0.9+：非常确定
@@ -262,10 +275,9 @@ worldStateUpdate 说明：
 detectedEmotion 说明：
 - 用户当前情绪。必须是 "calm" | "happy" | "low" | "anxious" | "irritated" | "tired" | "hurt" | "excited" 之一。不确定时输出 "calm"。
 
-actionDecision 说明（intent_v13）：
-- 建议的行动模式。action 必须是 "direct_reply" | "run_capability" | "handoff_dev" | "suggest_reminder" 之一；reason 为简短原因。
-- targetKind 必须是 "chat" | "idea" | "todo" | "task" 之一。
-- planIntent.type 必须是 "none" | "notify" | "action" 之一。
+actionDecision 说明（intent_v20）：
+- 可选建议字段。action 必须是 "direct_reply" | "run_capability" | "handoff_dev" | "suggest_reminder" 之一；reason 为简短原因。
+- 不要把 targetKind / planIntent 只放在 actionDecision 内，它们应优先出现在顶层字段。
 
 taskIntents 说明（intent_v16）：
 - 多意图数组。仅当用户一句话包含多个不同动作时输出。每个元素：{ "intent": "...", "slots": {...}, "immediate": true/false }。单一意图时输出空数组 []。

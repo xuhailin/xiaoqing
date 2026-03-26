@@ -40,6 +40,9 @@ export class CognitivePipelineService {
       `need=${userState.needMode}`,
       `strategy=${responseStrategy.primaryMode}/${responseStrategy.goal}`,
       `rhythm=${rhythm.pacing}/${rhythm.initiative}`,
+      ...(input.emotionTrend?.dominantEmotion
+        ? [`emotion-trend=${input.emotionTrend.dominantEmotion}/${input.emotionTrend.recentTrend ?? 'stable'}`]
+        : []),
     ];
 
     return {
@@ -219,6 +222,24 @@ export class CognitivePipelineService {
     }
     if (sessionEnergy === 'high' && cognitiveLoad === 'low') {
       signals.push('session-energy-high');
+    }
+
+    if (input.emotionTrend?.fragileRisk && fragility === 'low') {
+      fragility = 'medium';
+      signals.push('emotion-history:fragile-risk');
+    }
+
+    if (
+      emotion === 'calm'
+      && input.emotionTrend?.dominantEmotion
+      && input.emotionTrend.dominantEmotion !== 'calm'
+    ) {
+      signals.push(`emotion-history:dominant-${input.emotionTrend.dominantEmotion}`);
+    }
+
+    if (input.emotionTrend?.recentTrend === 'declining' && fragility === 'low') {
+      fragility = 'medium';
+      signals.push('emotion-history:declining-trend');
     }
 
     return {

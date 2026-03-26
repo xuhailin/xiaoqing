@@ -8,6 +8,7 @@
 
 - **[docs/ai/project-index.md](ai/project-index.md)** — **首选**：分层阅读顺序、模块地图、长期文档 vs 阶段计划、skill 映射。
 - **Skill 收敛层**：`docs/skills/chat-flow-skill.md`、`memory-system-skill.md`、`agent-bus-skill.md`、`workspace-task-skill.md`、`persona-expression-skill.md`（架构向归纳；具体技能配置仍见 `docs/skills/` 下其他文件）。
+- **计划文档入口**：[`docs/plan/README.md`](plan/README.md)（主链路重构计划收敛导航）
 
 ---
 
@@ -73,6 +74,15 @@
 |------|------|
 | [debug-trace-design.md](debug-trace-design.md) | Trace 与调试元数据设计（管线步骤、TraceStep/TurnTraceEvent） |
 | [cognitive-trace-design.md](cognitive-trace-design.md) | 小晴认知溯源（面向用户的认知观测与 L2/L3 演进） |
+
+## 计划与重构路线（执行入口）
+
+| 文档 | 说明 |
+|------|------|
+| [plan/README.md](plan/README.md) | 计划文档治理入口（哪些是当前执行入口，哪些已归档） |
+| [0326/final-plan.md](0326/final-plan.md) | 2026-03-26 执行总计划（阶段化落地） |
+| [plan/main-pipeline-refactor-master-plan.md](plan/main-pipeline-refactor-master-plan.md) | 主链路重构母计划（现状审计 + 长期路线） |
+| [plan/session-state-model-design.md](plan/session-state-model-design.md) | 会话状态模型设计（规划中） |
 
 ## 质量保障
 

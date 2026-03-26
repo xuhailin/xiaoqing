@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CapabilityRegistry } from '../../action/capability-registry.service';
 import { IntentCapabilityMapper } from '../../action/intent-capability-mapper.service';
@@ -6,7 +6,7 @@ import { SystemSelfService } from '../../system-self/system-self.service';
 import { TaskPlannerService } from '../planning/task-planner.service';
 import type { DialogueIntentState } from '../intent/intent.types';
 import type { ToolPolicyAction, ToolPolicyDecision } from '../conversation/orchestration.types';
-import type { ActionDecision, ActionMode } from './action-reasoner.types';
+import type { ActionDecision, ActionMode, ActionWorkItemPolicy } from './action-reasoner.types';
 
 const VALID_ACTION_MODES: ActionMode[] = [
   'direct_reply',
@@ -20,8 +20,13 @@ type RoutedDecisionDraft = ActionDecisionDraft & {
   routeAction?: ToolPolicyAction;
 };
 
+interface DecisionBuildOptions {
+  allowLlmActionHint: boolean;
+}
+
 @Injectable()
 export class ActionReasonerService {
+  private readonly logger = new Logger(ActionReasonerService.name);
   private readonly openclawConfidenceThreshold: number;
   private readonly featureOpenClaw: boolean;
 
@@ -39,7 +44,10 @@ export class ActionReasonerService {
   /**
    * 规则优先，LLM hint 补充。无 intentState 时返回默认 direct_reply。
    */
-  decide(intentState: DialogueIntentState | null, userInput?: string): ActionDecision {
+  decide(
+    intentState: DialogueIntentState | null,
+    userInput?: string,
+  ): ActionDecision {
     if (!intentState) {
       return this.finalizeDecision({
         action: 'direct_reply',
@@ -49,17 +57,37 @@ export class ActionReasonerService {
       });
     }
 
+    const decision = this.buildDecision(intentState, userInput, {
+      allowLlmActionHint: true,
+    });
+
+    if (intentState.actionHint?.action) {
+      const shadowDecision = this.buildDecision(intentState, userInput, {
+        allowLlmActionHint: false,
+      });
+      this.logShadowComparison(intentState, decision, shadowDecision);
+    }
+
+    return decision;
+  }
+
+  private buildDecision(
+    intentState: DialogueIntentState,
+    userInput: string | undefined,
+    options: DecisionBuildOptions,
+  ): ActionDecision {
     let decision: RoutedDecisionDraft;
+
     const semanticHint = {
-      targetKind: intentState.actionHint?.targetKind,
-      planIntent: intentState.actionHint?.planIntent,
+      targetKind: intentState.targetKind,
+      planIntent: intentState.planIntent,
     };
 
     const ruleDecision = this.applyRules(intentState, userInput);
     if (ruleDecision) {
       decision = ruleDecision;
     } else {
-      const llmHint = intentState.actionHint?.action;
+      const llmHint = options.allowLlmActionHint ? intentState.actionHint?.action : undefined;
       if (llmHint && VALID_ACTION_MODES.includes(llmHint as ActionMode)) {
         const mode = llmHint as ActionMode;
         const { capability, routeAction } = this.inferRouteFromAction(mode, intentState);
@@ -67,17 +95,21 @@ export class ActionReasonerService {
           action: mode,
           capability,
           routeAction,
-          reason: intentState.actionHint?.reason ?? `采纳 LLM 建议：${mode}`,
+          reason: this.buildLlmHintReason(mode, intentState),
           confidence: intentState.confidence,
           source: 'llm_hint',
           ...(semanticHint.targetKind ? { targetKind: semanticHint.targetKind } : {}),
           ...(semanticHint.planIntent ? { planIntent: semanticHint.planIntent } : {}),
-          reminderHint: mode === 'suggest_reminder' ? intentState.actionHint?.reason : undefined,
+          reminderHint: mode === 'suggest_reminder'
+            ? this.buildReminderHint(intentState)
+            : undefined,
         };
       } else {
         decision = {
           action: 'direct_reply',
-          reason: '规则与 LLM hint 均未命中，兜底聊天',
+          reason: options.allowLlmActionHint
+            ? '规则与 LLM hint 均未命中，兜底聊天'
+            : '规则未命中，忽略 LLM actionHint 后兜底聊天',
           confidence: intentState.confidence,
           source: 'rule',
         };
@@ -169,7 +201,7 @@ export class ActionReasonerService {
         },
       });
 
-      let hint = intentState.actionHint?.reason ?? '用户表达可转任务，建议设置提醒';
+      let hint = '用户表达了后续要跟进的事项，可自然建议设置提醒';
       if (plan.shouldPlan && plan.steps) {
         hint += `。建议步骤：${plan.steps.join(' → ')}`;
       }
@@ -255,10 +287,56 @@ export class ActionReasonerService {
   }
 
   private finalizeDecision(decision: RoutedDecisionDraft): ActionDecision {
+    const fallbackPolicy = this.buildFallbackPolicy(decision);
+    const workItemPolicy = this.buildWorkItemPolicy(decision);
+
     return {
       ...decision,
       toolPolicy: this.buildToolPolicy(decision),
+      ...(fallbackPolicy ? { fallbackPolicy } : {}),
+      ...(workItemPolicy ? { workItemPolicy } : {}),
     };
+  }
+
+  private buildFallbackPolicy(
+    decision: RoutedDecisionDraft,
+  ): ActionDecision['fallbackPolicy'] | undefined {
+    if (decision.action !== 'run_capability') {
+      return undefined;
+    }
+
+    if (decision.capability === 'weather' || decision.capability === 'book-download') {
+      return {
+        condition: 'skill_fail',
+        fallback: this.featureOpenClaw ? 'openclaw' : 'chat',
+        reason: this.featureOpenClaw
+          ? `本地 ${decision.capability} 执行失败时回退 OpenClaw`
+          : 'OpenClaw 已关闭，执行失败时回退聊天',
+      };
+    }
+
+    return undefined;
+  }
+
+  private buildWorkItemPolicy(
+    decision: RoutedDecisionDraft,
+  ): ActionWorkItemPolicy | undefined {
+    if (decision.targetKind === 'idea') {
+      return {
+        shouldCapture: true,
+        kind: 'idea',
+      };
+    }
+
+    if (decision.targetKind === 'todo') {
+      return {
+        shouldCapture: true,
+        kind: 'todo',
+        createPlan: decision.planIntent?.type === 'notify',
+      };
+    }
+
+    return undefined;
   }
 
   private buildToolPolicy(decision: RoutedDecisionDraft): ToolPolicyDecision {
@@ -282,6 +360,62 @@ export class ActionReasonerService {
       return { action: 'run_openclaw', reason: decision.reason };
     }
     return { action: 'chat', reason: decision.reason };
+  }
+
+  private logShadowComparison(
+    intentState: DialogueIntentState,
+    current: ActionDecision,
+    hintless: ActionDecision,
+  ): void {
+    const currentSnapshot = this.pickShadowSnapshot(current);
+    const hintlessSnapshot = this.pickShadowSnapshot(hintless);
+    const diverged = JSON.stringify(currentSnapshot) !== JSON.stringify(hintlessSnapshot);
+
+    if (!diverged) return;
+
+    this.logger.log(
+      `[Shadow actionHint] taskIntent=${intentState.taskIntent} current=${JSON.stringify(currentSnapshot)} hintless=${JSON.stringify(hintlessSnapshot)}`,
+    );
+  }
+
+  private buildLlmHintReason(
+    mode: ActionMode,
+    intentState: DialogueIntentState,
+  ): string {
+    switch (mode) {
+      case 'handoff_dev':
+        return '采纳语义层建议：当前更适合移交开发代理处理';
+      case 'suggest_reminder':
+        return '采纳语义层建议：用户提到了后续事项，可自然建议设置提醒';
+      case 'run_capability':
+        return intentState.taskIntent !== 'none'
+          ? `采纳语义层建议：${intentState.taskIntent} 更适合走执行链路`
+          : '采纳语义层建议：当前更适合走执行链路';
+      case 'direct_reply':
+      default:
+        return '采纳语义层建议：当前更适合直接回复';
+    }
+  }
+
+  private buildReminderHint(intentState: DialogueIntentState): string {
+    if (intentState.planIntent?.type === 'notify') {
+      return '用户提到了后续需要提醒的事项，可自然建议我帮她记一下。';
+    }
+    if (intentState.targetKind === 'todo') {
+      return '用户提到了后续待办事项，可自然建议设置提醒或记一下。';
+    }
+    return '用户提到了后续要跟进的事项，可自然建议设置提醒。';
+  }
+
+  private pickShadowSnapshot(decision: ActionDecision): Record<string, unknown> {
+    return {
+      action: decision.action,
+      route: decision.toolPolicy.action,
+      capability: decision.capability ?? null,
+      targetKind: decision.targetKind ?? null,
+      planIntent: decision.planIntent?.type ?? null,
+      workItemKind: decision.workItemPolicy?.kind ?? null,
+    };
   }
 
   private inferRouteFromAction(

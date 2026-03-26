@@ -1,3 +1,4 @@
+import type { Memory } from '@prisma/client';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../infra/prisma.service';
 import {
@@ -6,23 +7,49 @@ import {
   MemoryCategory,
   VALID_CATEGORIES,
 } from './memory-category';
+import type { IMemoryRecaller, RecallCandidate, RecallContext, RecallResult } from './memory-recaller.interface';
 
-export interface MemoryCandidate {
-  id: string;
-  type: string;
-  category: string;
-  content: string;
-  shortSummary: string | null;
-  confidence: number;
-  /** 综合得分：confidence + 时间衰减 + 关键词重叠 + category 权重 + decayScore */
-  score: number;
-  /** 与当前对话话题偏差过大，延迟注入 */
-  deferred: boolean;
-}
+export type MemoryCandidate = RecallCandidate;
 
 @Injectable()
-export class MemoryService {
+export class MemoryService implements IMemoryRecaller {
   constructor(private prisma: PrismaService) {}
+
+  isReady(): boolean {
+    return true;
+  }
+
+  getStrategyName(): 'keyword' {
+    return 'keyword';
+  }
+
+  async recall(ctx: RecallContext): Promise<RecallResult> {
+    const candidates = await this.getCandidatesForRecall({
+      recentMessages: ctx.recentUserMessages.map((content) => ({ role: 'user', content })),
+      maxMid: ctx.maxMid,
+      maxLong: ctx.maxLong,
+    });
+
+    const midIds = candidates
+      .filter((candidate) => candidate.type === 'mid')
+      .slice(0, ctx.maxMid)
+      .map((candidate) => candidate.id);
+    const longIds = candidates
+      .filter((candidate) => candidate.type === 'long' && !candidate.deferred)
+      .slice(0, ctx.maxLong)
+      .map((candidate) => candidate.id);
+
+    const [midMemories, longMemories] = await Promise.all([
+      this.findMemoriesInOrder(midIds),
+      this.findMemoriesInOrder(longIds),
+    ]);
+
+    return {
+      midMemories,
+      longMemories,
+      candidatesCount: candidates.length,
+    };
+  }
 
   async list(type?: 'mid' | 'long', category?: string) {
     const where: Record<string, unknown> = {};
@@ -292,6 +319,17 @@ export class MemoryService {
     return [...scoredMid, ...scoredLong];
   }
 
+  async recallCandidates(
+    ctx: RecallContext & { minRelevanceScore?: number },
+  ): Promise<MemoryCandidate[]> {
+    return this.getCandidatesForRecall({
+      recentMessages: ctx.recentUserMessages.map((content) => ({ role: 'user', content })),
+      maxLong: ctx.maxLong,
+      maxMid: ctx.maxMid,
+      minRelevanceScore: ctx.minRelevanceScore,
+    });
+  }
+
   /**
    * C1: 跨对话话题关联 — 基于已召回记忆的 category + keyword 找相关记忆。
    * 用途：补充未被直接关键词命中但话题相关的记忆（如"工作压力"关联"失眠"）。
@@ -377,5 +415,14 @@ export class MemoryService {
       ...orderedMid.map((m) => ({ id: m.id, type: m.type, content: m.content })),
       ...longList.map((m) => ({ id: m.id, type: m.type, content: m.content })),
     ];
+  }
+
+  private async findMemoriesInOrder(ids: string[]): Promise<Memory[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.prisma.memory.findMany({
+      where: { id: { in: ids } },
+    });
+    const rowMap = new Map(rows.map((row) => [row.id, row]));
+    return ids.map((id) => rowMap.get(id)).filter((row): row is Memory => Boolean(row));
   }
 }

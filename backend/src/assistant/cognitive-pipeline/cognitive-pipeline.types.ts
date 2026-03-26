@@ -148,6 +148,17 @@ export interface SocialContextSignal {
   relationSignals: SocialRelationSignal[];
 }
 
+export interface EmotionTrendSummary {
+  dominantEmotion: UserEmotion | null;
+  recentTrend: 'improving' | 'stable' | 'declining' | null;
+  fragileRisk: boolean;
+  recentSnapshots: Array<{
+    emotion: UserEmotion;
+    fragility: FragilityLevel;
+    createdAt: Date;
+  }>;
+}
+
 export interface CognitiveTurnInput {
   userInput: string;
   recentMessages: Array<{ role: string; content: string }>;
@@ -157,6 +168,7 @@ export interface CognitiveTurnInput {
   claimSignals?: ClaimSignal[];
   sessionState?: SessionStateSignal | null;
   socialContext?: SocialContextSignal;
+  emotionTrend?: EmotionTrendSummary | null;
 }
 
 export interface CognitiveTurnState {
