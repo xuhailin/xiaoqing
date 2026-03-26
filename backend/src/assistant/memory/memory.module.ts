@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MemoryController } from './memory.controller';
 import { MemoryService } from './memory.service';
 import { MemoryDecayService } from './memory-decay.service';
@@ -11,8 +11,10 @@ import { VectorMemoryRecallerService } from './vector-memory-recaller.service';
 import { HybridMemoryRecallerService } from './hybrid-memory-recaller.service';
 import { MEMORY_RECALLER_TOKEN } from './memory-recaller.interface';
 import { MemoryRecallerSelectorService } from './memory-recaller-selector.service';
+import { LlmModule } from '../../infra/llm/llm.module';
 
 @Module({
+  imports: [ConfigModule, LlmModule],
   controllers: [MemoryController],
   providers: [
     MemoryService,

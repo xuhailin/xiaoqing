@@ -43,6 +43,7 @@ import { ActionReasonerService } from '../action-reasoner/action-reasoner.servic
 import type { ActionDecision } from '../action-reasoner/action-reasoner.types';
 import type { TaskTemplate } from '../../plan/plan.types';
 import { QuickIntentRouterService } from './quick-intent-router.service';
+import type { PerceptionState } from './perception.types';
 import type { QuickRouterOutput } from './quick-intent-router.types';
 import { ResponseComposer } from './response-composer.service';
 import { TurnCognitiveStateService } from './turn-cognitive-state.service';
@@ -130,12 +131,20 @@ export class AssistantOrchestrator {
       });
     }
 
-    const resolvedIntent = context.runtime.mergedIntentState ?? context.runtime.intentState ?? null;
     const cognitiveState = this.turnCognitiveState.analyze(context);
-    const actionDecision = this.actionReasoner.decide(
-      resolvedIntent,
-      input.userInput,
+    const perceptionState: PerceptionState = {
+      intentState: context.runtime.intentState ?? null,
+      mergedIntentState: context.runtime.mergedIntentState ?? null,
+      quickRoute: context.runtime.quickRoute ?? null,
+      cognitiveState,
+      emotionTrend: context.runtime.emotionTrend ?? null,
+    };
+    this.logger.debug(
+      `[Perception] intent=${perceptionState.mergedIntentState?.taskIntent ?? 'none'} `
+      + `cognitive=${perceptionState.cognitiveState.situation.kind} `
+      + `quickPath=${perceptionState.quickRoute?.path ?? 'chat'}`,
     );
+    const actionDecision = this.actionReasoner.decideFromPerception(perceptionState, input.userInput);
     const turnContext: TurnContext = {
       ...context,
       runtime: {
@@ -914,6 +923,12 @@ export class AssistantOrchestrator {
     if (task.type === 'decision_quality_review') {
       if (runtime?.allowReflection === false) return;
       await this.runDecisionQualityReview(plan, runtime?.toolPolicy);
+      return;
+    }
+
+    if (task.type === 'auto_evolution_after_summary') {
+      // TODO: not yet implemented. 保留类型是为了与 post-turn schema 对齐，当前 runner 显式跳过。
+      this.logger.debug('post-turn task auto_evolution_after_summary is not implemented yet');
     }
   }
 

@@ -5,8 +5,9 @@ import { IntentCapabilityMapper } from '../../action/intent-capability-mapper.se
 import { SystemSelfService } from '../../system-self/system-self.service';
 import { TaskPlannerService } from '../planning/task-planner.service';
 import type { DialogueIntentState } from '../intent/intent.types';
+import type { PerceptionState } from '../conversation/perception.types';
 import type { ToolPolicyAction, ToolPolicyDecision } from '../conversation/orchestration.types';
-import type { ActionDecision, ActionMode, ActionWorkItemPolicy } from './action-reasoner.types';
+import type { ActionDecision, ActionMode, ActionWorkItemPolicy, DecisionState } from './action-reasoner.types';
 
 const VALID_ACTION_MODES: ActionMode[] = [
   'direct_reply',
@@ -69,6 +70,17 @@ export class ActionReasonerService {
     }
 
     return decision;
+  }
+
+  /**
+   * 过渡接口：决策层开始消费感知层结构化对象，而不是直接依赖 TurnContext.runtime 全量对象。
+   */
+  decideFromPerception(
+    perception: PerceptionState,
+    userInput?: string,
+  ): DecisionState {
+    const resolvedIntent = perception.mergedIntentState ?? perception.intentState ?? null;
+    return this.decide(resolvedIntent, userInput);
   }
 
   private buildDecision(

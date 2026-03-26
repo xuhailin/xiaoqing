@@ -11,19 +11,19 @@ import type {
   BoundaryPromptContext,
   CognitiveTurnState,
 } from '../cognitive-pipeline/cognitive-pipeline.types';
-import type { DialogueIntentState } from '../intent/intent.types';
 import { MetaLayerService } from '../meta-layer/meta-layer.service';
-import { PersonaService, type PersonaDto } from '../persona/persona.service';
+import { PersonaService } from '../persona/persona.service';
 import { UserProfileService, type UserProfileDto } from '../persona/user-profile.service';
 import { PromptRouterService } from '../prompt-router/prompt-router.service';
 import { DecisionSummaryBuilder, type DecisionSummary } from './decision-summary.builder';
-import type { ToolKind, TurnContext } from './orchestration.types';
+import type {
+  ChatExpressionParams,
+  MissingParamsExpressionParams,
+  ProfilePromptOptions,
+  ToolExpressionParams,
+} from './expression.types';
+import type { TurnContext } from './orchestration.types';
 import { ExpressionControlService } from './expression-control.service';
-
-interface ProfilePromptOptions {
-  includeImpressionCore: boolean;
-  includeImpressionDetail: boolean;
-}
 
 export interface ReplyComposition {
   promptMessages: OpenAI.Chat.ChatCompletionMessageParam[];
@@ -81,14 +81,7 @@ export class ResponseComposer {
     private readonly expressionControl: ExpressionControlService,
   ) {}
 
-  async composeChatReply(input: {
-    context: TurnContext;
-    recentMessages: Array<{ role: string; content: string }>;
-    personaDto: PersonaDto;
-    intentState?: DialogueIntentState | null;
-    maxContextTokens: number;
-    profilePrompt: ProfilePromptOptions;
-  }): Promise<ChatReplyComposition> {
+  async composeChatReply(input: ChatExpressionParams): Promise<ChatReplyComposition> {
     const { context, recentMessages, personaDto, maxContextTokens } = input;
     const personaPrompt = this.persona.buildPersonaPrompt(personaDto);
     const worldState = context.world.fullWorldState;
@@ -174,18 +167,7 @@ export class ResponseComposer {
     };
   }
 
-  async composeToolReply(input: {
-    context: TurnContext;
-    userInput: string;
-    recentMessages?: Array<{ role: string; content: string }>;
-    personaDto: PersonaDto;
-    intentState?: DialogueIntentState | null;
-    toolResult: string | null;
-    toolError: string | null;
-    toolKind: ToolKind;
-    profilePrompt: ProfilePromptOptions;
-    toolWasActuallyUsed: boolean;
-  }): Promise<ToolReplyComposition> {
+  async composeToolReply(input: ToolExpressionParams): Promise<ToolReplyComposition> {
     const { context, userInput, recentMessages, personaDto } = input;
     const cognitiveState = this.requireCognitiveState(context);
     const expressionControl = this.resolveExpressionControl(context, cognitiveState);
@@ -229,14 +211,9 @@ export class ResponseComposer {
     };
   }
 
-  async composeMissingParamsReply(input: {
-    context: TurnContext;
-    userInput: string;
-    missingParams: string[];
-    personaDto: PersonaDto;
-    intentState?: DialogueIntentState | null;
-    profilePrompt: ProfilePromptOptions;
-  }): Promise<MissingParamsReplyComposition> {
+  async composeMissingParamsReply(
+    input: MissingParamsExpressionParams,
+  ): Promise<MissingParamsReplyComposition> {
     const missingParamLabels = input.missingParams.map(
       (param) => ResponseComposer.PARAM_LABEL[param.toLowerCase()] ?? param,
     );

@@ -184,15 +184,40 @@ export interface TurnContext {
     systemSelf: SystemSelf;
   };
   runtime: {
+    /**
+     * 原始意图识别结果；过渡期与 PerceptionState.intentState 并存。
+     * @deprecated 决策链路请优先通过显式传递的 PerceptionState 读取。
+     */
     intentState?: DialogueIntentState | null;
+    /**
+     * 融合补全后的意图结果；过渡期与 PerceptionState.mergedIntentState 并存。
+     * @deprecated 决策链路请优先通过显式传递的 PerceptionState 读取。
+     */
     mergedIntentState?: DialogueIntentState | null;
+    /** 决策层的唯一主动作输出。 */
     actionDecision?: ActionDecision;
+    /** 记忆召回统计，仅供 trace / debug / prompt 策略使用。 */
     memoryRecall?: MemoryRecallPlan;
+    /** Agent 协作场景下的入站委托上下文。 */
     collaborationContext?: CollaborationTurnContext | null;
+    /**
+     * Quick Router 的轻量分流结果；过渡期与 PerceptionState.quickRoute 并存。
+     * @deprecated 决策链路请优先通过显式传递的 PerceptionState 读取。
+     */
     quickRoute?: QuickRouterOutput | null;
+    /**
+     * 本回合认知状态；过渡期与 PerceptionState.cognitiveState 并存。
+     * @deprecated 新的结构化边界请优先通过显式传递的 PerceptionState 读取。
+     */
     cognitiveState?: CognitiveTurnState;
+    /**
+     * 最近情绪趋势摘要；过渡期与 PerceptionState.emotionTrend 并存。
+     * @deprecated 决策链路请优先通过显式传递的 PerceptionState 读取。
+     */
     emotionTrend?: EmotionTrendSummary | null;
+    /** 表达层边界提示上下文。 */
     boundaryPrompt?: BoundaryPromptContext | null;
+    /** 上一轮反思结果，供当前轮表达微调。 */
     previousReflection?: {
       quality: 'good' | 'suboptimal' | 'failed';
       adjustmentHint: string;
@@ -225,6 +250,10 @@ export interface SendMessageResult {
   workItems?: ConversationWorkItemDto[];
 }
 
+/**
+ * ChatCompletionEngine 内部返回的执行产物。
+ * 该类型可直接携带已持久化结果，也可以只返回 executionResult 交给 Orchestrator 继续组织回复。
+ */
 export interface ChatCompletionResult {
   result?: SendMessageResult;
   postTurnPlan?: PostTurnPlan;
@@ -248,15 +277,23 @@ export type ToolKind =
   | 'page_screenshot'
   | 'openclaw';
 
+/**
+ * Orchestrator 视角的执行结果。
+ *
+ * 生产者是 ChatCompletionEngine，消费者是 AssistantOrchestrator.composeExecutionReply。
+ * 与引擎层内部的 ChatCompletionResult 不同，这里只描述执行路径与可用于回复组织的结果摘要。
+ */
 export interface ExecutionResult {
   status: 'success' | 'failed' | 'need_clarification';
   path: 'chat' | 'tool' | 'missing_params';
+  /** 面向回复组织层的语义化工具分类，用于选择表达模板。 */
   toolKind?: ToolKind;
   toolResult?: string | null;
   toolError?: string | null;
   toolWasActuallyUsed?: boolean;
   missingParams?: string[];
   openclawUsed?: boolean;
+  /** 面向前端/消息元数据的本地技能字面标记，不等价于表达层使用的 toolKind。 */
   localSkillUsed?: 'weather' | 'book_download' | 'general_action' | 'timesheet' | 'reminder' | 'page_screenshot';
   messageKind?: ConversationMessageKind;
   messageMetadata?: ConversationMessageMetadata;

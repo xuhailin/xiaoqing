@@ -7,21 +7,25 @@ import type { PostTurnPlan } from './post-turn.types';
 
 export type PostTurnExecutionPath = 'chat' | 'tool' | 'missing_params';
 
+export interface PostTurnPlanBuildInput {
+  executionPath: PostTurnExecutionPath;
+  conversationId: string;
+  userMsg: { id: string };
+  assistantMsg: { id: string; content: string };
+  userInput: string;
+  intentState?: DialogueIntentState | null;
+  /** 显式传入本回合 ActionDecision，避免后处理层重新从散乱字段推断主动作。 */
+  actionDecision?: ActionDecision;
+  /** 显式传入本回合 CognitiveTurnState，供 growth / observation / reflection 任务复用。 */
+  cognitiveState?: CognitiveTurnState;
+  isImportantIssueInProgress?: boolean;
+}
+
 @Injectable()
 export class PostTurnPlanBuilder {
   constructor(private readonly claimConfig: ClaimEngineConfig) {}
 
-  build(input: {
-    executionPath: PostTurnExecutionPath;
-    conversationId: string;
-    userMsg: { id: string };
-    assistantMsg: { id: string; content: string };
-    userInput: string;
-    intentState?: DialogueIntentState | null;
-    actionDecision?: ActionDecision;
-    cognitiveState?: CognitiveTurnState;
-    isImportantIssueInProgress?: boolean;
-  }): PostTurnPlan {
+  build(input: PostTurnPlanBuildInput): PostTurnPlan {
     return {
       conversationId: input.conversationId,
       turn: {

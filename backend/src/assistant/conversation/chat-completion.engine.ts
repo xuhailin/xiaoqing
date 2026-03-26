@@ -44,6 +44,13 @@ interface PersistedAssistantMessageOptions {
   metadata?: ConversationMessageMetadata;
 }
 
+/**
+ * ChatCompletionEngine 是当前主链路中的过渡保留层。
+ *
+ * 它仍承接部分执行编排与回复组织逻辑，用来兼容既有 chat/tool 路径；
+ * 但后续新增能力不应继续堆叠在这里，而应优先下沉到 executor / registry
+ * 或上移到更清晰的 orchestrator / decision 边界中。
+ */
 @Injectable()
 export class ChatCompletionEngine {
   // ── 基础参数 ──────────────────────────────────────────────
@@ -131,6 +138,9 @@ export class ChatCompletionEngine {
     context: TurnContext,
     forcedPolicy: ToolPolicyDecision,
   ): Promise<ChatCompletionResult> {
+    // 过渡总入口：这里只继续承接既有分支编排，不再扩张新职责。
+    // 新增执行能力请优先走 CapabilityRegistry / ToolExecutorRegistry / executor 模式，
+    // 不要继续在这里追加新的 if-else 分支。
     const { conversationId, userInput: content, userMessage: userMsg } = context.request;
     const trace = new TraceCollector(this.featureDebugMeta);
     const pipelineState = this.createPipelineTraceState();
@@ -140,6 +150,8 @@ export class ChatCompletionEngine {
     const recent = context.conversation.recentMessages;
     const personaDto = context.persona.personaDto;
     const now = context.request.now;
+
+    // 分支 1：显式本地技能命令，属于执行层捷径。
     const localSkillName = this.parseLocalSkillCommand(content);
     if (localSkillName) {
       return this.handleLocalSkillCommand(
@@ -151,6 +163,7 @@ export class ChatCompletionEngine {
       );
     }
 
+    // 分支 2：特殊业务入口（daily moment），保留在本过渡层编排。
     const dailyMomentIntent = await this.dailyMoment.detectUserTriggerIntent(
       conversationId,
       content,
@@ -200,8 +213,7 @@ export class ChatCompletionEngine {
       });
     }
 
-    // Claw 为被动工具层，仅工具型请求才调用；闲聊/思考/情绪不经过 Claw。
-    // ── 意图识别 + OpenClaw 分流 ──────────────────────────
+    // 分支 3：消费既有决策结果，进入缺参追问、能力执行或 OpenClaw。
     const intentState: DialogueIntentState | null =
       context.runtime.mergedIntentState
       ?? context.runtime.intentState
@@ -300,7 +312,7 @@ export class ChatCompletionEngine {
       this.advancePipelineState(pipelineState, 'decision');
     }
 
-    // ── 原有聊天路径 ──────────────────────────────────────
+    // 分支 4：默认聊天回复，作为表达层兜底路径。
     return this.handleChatReply(
       context,
       conversationId,
