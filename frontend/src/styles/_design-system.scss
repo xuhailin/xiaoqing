@@ -104,9 +104,10 @@
 }
 
 .ui-panel--workbench {
-  border-color: var(--color-workbench-border);
-  background: var(--workbench-surface-gradient);
-  box-shadow: var(--workbench-surface-shadow);
+  border-color: var(--chat-panel-border);
+  border-radius: var(--workbench-card-radius);
+  background: var(--workbench-chat-surface-gradient);
+  box-shadow: var(--chat-panel-shadow);
 }
 
 .ui-panel--subtle {
@@ -173,10 +174,10 @@
 
 .ui-workbench-surface,
 [data-ui-surface='workbench'] {
-  border: 1px solid var(--color-workbench-border);
-  border-radius: var(--workbench-panel-radius);
-  background: var(--workbench-surface-gradient);
-  box-shadow: var(--workbench-surface-shadow);
+  border: 1px solid var(--chat-panel-border);
+  border-radius: var(--workbench-card-radius);
+  background: var(--workbench-chat-surface-gradient);
+  box-shadow: var(--chat-panel-shadow);
 }
 
 .ui-workbench-surface--soft {
@@ -193,10 +194,10 @@
 }
 
 .ui-workbench-card {
-  border: 1px solid var(--color-workbench-border);
+  border: 1px solid var(--chat-panel-border);
   border-radius: var(--workbench-card-radius);
   background: var(--sidebar-card-background);
-  box-shadow: var(--workbench-surface-shadow);
+  box-shadow: var(--chat-panel-shadow);
 }
 
 .ui-dialog-backdrop {
@@ -611,10 +612,10 @@
 }
 
 .ui-list-card {
-  border: 1px solid var(--color-workbench-border);
+  border: 1px solid var(--chat-panel-border);
   border-radius: var(--workbench-card-radius);
   background: var(--sidebar-card-background);
-  box-shadow: var(--color-list-card-shadow);
+  box-shadow: var(--chat-panel-shadow);
   transition:
     background var(--transition-fast),
     border-color var(--transition-fast),
@@ -624,7 +625,7 @@
 .ui-list-card:hover {
   background: var(--color-list-card-hover-bg);
   border-color: var(--color-list-card-hover-border);
-  box-shadow: var(--color-list-card-shadow);
+  box-shadow: var(--chat-panel-shadow);
 }
 
 .ui-list-card.is-active {

@@ -647,8 +647,8 @@ type OverlayMode = 'schedule' | 'logs' | null;
         background: var(--color-workbench-panel);
         border-radius: var(--radius-lg);
         border: 1px solid var(--color-workbench-border);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
       }
 
       /* 筛选标签 */
@@ -807,8 +807,8 @@ type OverlayMode = 'schedule' | 'logs' | null;
         background: var(--color-workbench-panel);
         border-radius: var(--radius-lg);
         border: 1px solid var(--color-workbench-border);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
         overflow: hidden;
       }
 
@@ -1024,8 +1024,8 @@ type OverlayMode = 'schedule' | 'logs' | null;
         background: var(--color-workbench-panel);
         border-radius: var(--radius-lg);
         border: 1px solid var(--color-workbench-border);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
         overflow: hidden;
       }
 
