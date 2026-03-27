@@ -20,6 +20,7 @@ cp .env.docker.example .env.docker
 - `ARK_API_KEY` 或 `SEEDDANCE_API_KEY`（如果要用 Seedance）
 
 `XQ_API_URL` 可以留空。留空时前端会自动请求当前机器的 `3000` 端口。
+如果服务器的 `80` 端口已经被占用，把 `FRONTEND_PORT` 改成别的值，比如 `8080`。
 
 ## 2. 首次启动
 
