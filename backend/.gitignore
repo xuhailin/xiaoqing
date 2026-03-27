@@ -12,3 +12,4 @@ dist
 
 # Debug assets (do not commit)
 assets/*-debug/
+assets/video-results/
