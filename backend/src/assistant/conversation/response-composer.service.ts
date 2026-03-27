@@ -56,6 +56,30 @@ export class MissingCognitiveStateError extends Error {
   }
 }
 
+/**
+ * ResponseComposer - 表达层回复组织器
+ *
+ * 所属层：
+ *  - Expression
+ *
+ * 负责：
+ *  - 基于上下文、人格、执行结果组织 chat / tool / 缺参回复
+ *  - 调用 LLM 生成最终文本并做边界审查、元信息过滤
+ *
+ * 不负责：
+ *  - 不重新做意图判断
+ *  - 不决定是否调用工具
+ *  - 不触发 post-turn 写回
+ *
+ * 输入：
+ *  - ExpressionParams、TurnContext、persona、执行结果
+ *
+ * 输出：
+ *  - ReplyComposition 及最终 replyContent
+ *
+ * ⚠️ 约束：
+ *  - 表达层只负责“怎么说”，不得承担新的路由或决策职责
+ */
 @Injectable()
 export class ResponseComposer {
   private static readonly PARAM_LABEL: Record<string, string> = {
@@ -99,7 +123,9 @@ export class ResponseComposer {
     );
 
     const actionDecision = context.runtime.actionDecision ?? null;
-    const resolvedIntent = context.runtime.mergedIntentState ?? context.runtime.intentState ?? null;
+    // 优先使用调用方通过 ChatExpressionParams 显式传入的 intentState，
+    // 不再回退读取 TurnContext.runtime 中的 deprecated 字段。
+    const resolvedIntent = input.intentState ?? null;
     const decisionSummary = this.decisionSummaryBuilder.build({
       intentState: resolvedIntent,
       actionDecision,
@@ -190,6 +216,7 @@ export class ResponseComposer {
       userInput,
       toolResult: input.toolResult,
       toolError: input.toolError,
+      executionStatus: input.executionStatus,
       recentMessages,
     });
 
@@ -303,6 +330,8 @@ export class ResponseComposer {
       preferredNickname: context.user.preferredNickname,
       interactionTuning: context.user.interactionTuning,
       cognitiveState,
+      personaDto: context.persona.personaDto,
+      relationship: cognitiveState.relationship,
     });
     this.expressionControlCache.set(context, resolved);
     return resolved;

@@ -1,6 +1,6 @@
 import type { DialogueIntentState } from '../intent/intent.types';
 import type { PersonaDto } from '../persona/persona.service';
-import type { ToolKind, TurnContext } from './orchestration.types';
+import type { ExecutionResult, ToolKind, TurnContext } from './orchestration.types';
 
 export interface ProfilePromptOptions {
   includeImpressionCore: boolean;
@@ -31,6 +31,8 @@ export interface ToolExpressionParams extends ExpressionBaseParams {
   toolError: string | null;
   toolKind: ToolKind;
   toolWasActuallyUsed: boolean;
+  /** 执行状态：驱动表达层选择不同的结果包装语气 */
+  executionStatus?: ExecutionResult['status'];
 }
 
 export interface MissingParamsExpressionParams extends ExpressionBaseParams {

@@ -284,7 +284,7 @@ export type ToolKind =
  * 与引擎层内部的 ChatCompletionResult 不同，这里只描述执行路径与可用于回复组织的结果摘要。
  */
 export interface ExecutionResult {
-  status: 'success' | 'failed' | 'need_clarification';
+  status: 'success' | 'failed' | 'need_clarification' | 'partial_success' | 'timeout';
   path: 'chat' | 'tool' | 'missing_params';
   /** 面向回复组织层的语义化工具分类，用于选择表达模板。 */
   toolKind?: ToolKind;

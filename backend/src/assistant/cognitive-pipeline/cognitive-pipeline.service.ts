@@ -254,20 +254,38 @@ export class CognitivePipelineService {
   private estimateRelationship(input: CognitiveTurnInput): RelationshipContext {
     const growthHints = input.growthContext?.relationshipNotes ?? [];
     if (growthHints.some((note) => note.includes('steady'))) {
-      return { stage: 'steady', confidence: 0.82, rationale: ['persisted-relationship=steady'] };
+      return { stage: 'steady', confidence: 0.82, rationale: ['persisted-relationship=steady'], closenessScore: this.deriveClosenessScore('steady', 0.82) };
     }
     if (growthHints.some((note) => note.includes('familiar'))) {
-      return { stage: 'familiar', confidence: 0.7, rationale: ['persisted-relationship=familiar'] };
+      return { stage: 'familiar', confidence: 0.7, rationale: ['persisted-relationship=familiar'], closenessScore: this.deriveClosenessScore('familiar', 0.7) };
     }
 
     const userTurns = input.recentMessages.filter((m) => m.role === 'user').length;
     if (userTurns >= 12) {
-      return { stage: 'steady', confidence: 0.75, rationale: ['recent-turns>=12'] };
+      return { stage: 'steady', confidence: 0.75, rationale: ['recent-turns>=12'], closenessScore: this.deriveClosenessScore('steady', 0.75) };
     }
     if (userTurns >= 4) {
-      return { stage: 'familiar', confidence: 0.6, rationale: ['recent-turns>=4'] };
+      return { stage: 'familiar', confidence: 0.6, rationale: ['recent-turns>=4'], closenessScore: this.deriveClosenessScore('familiar', 0.6) };
     }
-    return { stage: 'early', confidence: 0.45, rationale: ['recent-turns<4'] };
+    return { stage: 'early', confidence: 0.45, rationale: ['recent-turns<4'], closenessScore: this.deriveClosenessScore('early', 0.45) };
+  }
+
+  /**
+   * 从关系阶段和置信度派生亲密度代理值（0-1）。
+   * 每个阶段有基础范围，confidence 在范围内插值。
+   * 不访问 DB，纯函数。
+   */
+  private deriveClosenessScore(stage: 'early' | 'familiar' | 'steady', confidence: number): number {
+    // 各阶段基础区间：[min, max]
+    const ranges: Record<'early' | 'familiar' | 'steady', [number, number]> = {
+      early:    [0.15, 0.38],
+      familiar: [0.40, 0.65],
+      steady:   [0.68, 0.92],
+    };
+    const [min, max] = ranges[stage];
+    // confidence 通常在 0.4-0.9 之间，归一化到 [0,1] 用于插值
+    const t = Math.max(0, Math.min(1, (confidence - 0.4) / 0.5));
+    return Math.round((min + t * (max - min)) * 100) / 100;
   }
 
   private planResponseStrategy(

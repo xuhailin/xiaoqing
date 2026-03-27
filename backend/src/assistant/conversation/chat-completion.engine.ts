@@ -45,11 +45,36 @@ interface PersistedAssistantMessageOptions {
 }
 
 /**
- * ChatCompletionEngine 是当前主链路中的过渡保留层。
+ * ChatCompletionEngine - 过渡执行兼容层
  *
- * 它仍承接部分执行编排与回复组织逻辑，用来兼容既有 chat/tool 路径；
- * 但后续新增能力不应继续堆叠在这里，而应优先下沉到 executor / registry
- * 或上移到更清晰的 orchestrator / decision 边界中。
+ * 所属层：
+ *  - Execution（兼容过渡层）
+ *
+ * 负责：
+ *  - 承接历史 chat/tool 兼容执行路径
+ *  - 把既有能力执行结果整理为 ExecutionResult 或兼容返回结果
+ *
+ * 不负责：
+ *  - 不新增感知层逻辑
+ *  - 不新增统一决策职责
+ *  - 不继续扩张表达层能力
+ *
+ * 输入：
+ *  - TurnContext、ToolPolicyDecision
+ *
+ * 输出：
+ *  - ChatCompletionResult / ExecutionResult
+ *
+ * ⚠️ 约束：
+ *  - 不得新增新的主链路职责
+ *  - 不得承担 orchestrator + 分层 schema 应负责的能力
+ *
+ * ⚠️ 过渡层（冻结增责）
+ *
+ * 当前仍承载部分历史逻辑，但：
+ * - 不允许新增职责
+ * - 不允许继续叠加感知/决策/表达逻辑
+ * - 新能力必须接入新主链路（orchestrator + 分层体系）
  */
 @Injectable()
 export class ChatCompletionEngine {
@@ -214,6 +239,8 @@ export class ChatCompletionEngine {
     }
 
     // 分支 3：消费既有决策结果，进入缺参追问、能力执行或 OpenClaw。
+    // 过渡层读取：Engine 作为冻结兼容层，仍从 TurnContext.runtime 读取意图状态。
+    // 不允许在此继续扩张新的感知/决策逻辑；新能力请走 Orchestrator + 分层 schema。
     const intentState: DialogueIntentState | null =
       context.runtime.mergedIntentState
       ?? context.runtime.intentState

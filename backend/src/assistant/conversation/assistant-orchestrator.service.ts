@@ -48,6 +48,31 @@ import type { QuickRouterOutput } from './quick-intent-router.types';
 import { ResponseComposer } from './response-composer.service';
 import { TurnCognitiveStateService } from './turn-cognitive-state.service';
 
+/**
+ * AssistantOrchestrator - 主链路编排说明
+ *
+ * 所属层：
+ *  - Router / Perception / Decision / Execution / Expression / Post-turn 的总编排入口
+ *
+ * 负责：
+ *  - 串联 quick router、上下文组装、感知态补齐、统一决策、执行结果转表达、post-turn 调度
+ *  - 在返回前输出统一的 pipeline / expression / post-turn 验证日志
+ *
+ * 不负责：
+ *  - 不在这里新增具体 capability 业务逻辑
+ *  - 不在这里重做意图识别实现细节
+ *  - 不在这里绕过表达层直接拼接多套最终回复策略
+ *
+ * 输入：
+ *  - 会话 id、用户输入、用户消息、运行时策略
+ *
+ * 输出：
+ *  - 最终 SendMessageResult
+ *
+ * ⚠️ 约束：
+ *  - 新能力优先接到显式分层 schema 与 executor / registry
+ *  - 不得把历史兼容分支继续堆进 orchestrator 形成新的隐式职责
+ */
 @Injectable()
 export class AssistantOrchestrator {
   private readonly logger = new Logger(AssistantOrchestrator.name);
@@ -95,6 +120,7 @@ export class AssistantOrchestrator {
   }): Promise<SendMessageResult> {
     const allowPostTurn = input.runtimePolicy?.allowPostTurn !== false;
     const allowReflection = input.runtimePolicy?.allowReflection !== false;
+    let executionStage = 'pending';
 
     // Quick Intent Router: 在加载 Session State 之前分流，不依赖任何上下文
     let quickRoute: QuickRouterOutput;
@@ -104,7 +130,8 @@ export class AssistantOrchestrator {
       quickRoute = { path: 'chat', confidence: 1.0, source: 'fallback' };
     }
     this.logger.debug(
-      `[QuickRouter] path=${quickRoute.path} hint=${quickRoute.toolHint ?? '-'} src=${quickRoute.source}`,
+      `[QuickRouter] source=${quickRoute.source} path=${quickRoute.path} `
+      + `hint=${quickRoute.toolHint ?? '-'} confidence=${quickRoute.confidence.toFixed(2)}`,
     );
 
     let context: TurnContext;
@@ -167,6 +194,7 @@ export class AssistantOrchestrator {
       const completion = await this.completionRunner.execute(turnContext, policy);
       if (completion.result) {
         result = completion.result;
+        executionStage = this.describeAssistantMessageStage(completion.result.assistantMessage);
         postTurnPlan = completion.postTurnPlan
           ?? (completion.postTurnMeta
             ? this.postTurnPlanBuilder.build({
@@ -185,10 +213,12 @@ export class AssistantOrchestrator {
               })
             : undefined);
       } else if (completion.executionResult) {
+        executionStage = this.describeExecutionStage(completion.executionResult);
         const composed = await this.composeExecutionReply(
           turnContext,
           input,
           completion.executionResult,
+          perceptionState,
         );
         result = composed.result;
         postTurnPlan = composed.postTurnPlan;
@@ -211,6 +241,7 @@ export class AssistantOrchestrator {
           tokenCount: estimateTokens(fallback),
         },
       });
+      executionStage = 'system_fallback';
       result = {
         userMessage: toConversationMessageDto(input.userMessage),
         assistantMessage: toConversationMessageDto(assistantMsg),
@@ -229,10 +260,14 @@ export class AssistantOrchestrator {
     if (postTurnPlan && allowPostTurn) {
       this.postTurnPipeline.runAfterReturn(
         postTurnPlan,
-        async (task, plan) => this.runAfterReturnTask(task, plan, {
-          toolPolicy: policy,
-          allowReflection,
-        }),
+        async (task, plan) => {
+          const snapshot = this.snapshotPostTurnOps(plan);
+          await this.runAfterReturnTask(task, plan, {
+            toolPolicy: policy,
+            allowReflection,
+          });
+          this.logPostTurnTaskCompletion('afterReturn', task, plan, snapshot);
+        },
       ).catch((err) => this.logger.warn(`postTurn afterReturn failed: ${String(err)}`));
     }
 
@@ -240,6 +275,22 @@ export class AssistantOrchestrator {
     if (actionDecision?.deferredIntents?.length) {
       void this.scheduleDeferredIntentPlans(input.conversationId, actionDecision);
     }
+
+    this.logPipelineState({
+      quickRoute,
+      perceptionState,
+      actionDecision,
+      policy,
+      executionStage,
+      result,
+      postTurnPlan,
+      allowPostTurn,
+    });
+    this.logExpressionExit({
+      quickRoute,
+      executionStage,
+      result,
+    });
 
     return result;
   }
@@ -252,13 +303,16 @@ export class AssistantOrchestrator {
       userMessage: { id: string; role: 'user'; content: string; createdAt: Date };
     },
     execution: ExecutionResult,
+    perceptionState: PerceptionState,
   ): Promise<{ result: SendMessageResult; postTurnPlan: PostTurnPlan }> {
+    const resolvedIntentState = perceptionState.mergedIntentState ?? perceptionState.intentState ?? null;
+
     if (execution.path === 'chat') {
       const composition = await this.responseComposer.composeChatReply({
         context,
         recentMessages: context.conversation.recentMessages,
         personaDto: context.persona.personaDto,
-        intentState: context.runtime.mergedIntentState ?? context.runtime.intentState ?? null,
+        intentState: resolvedIntentState,
         maxContextTokens: this.flags.maxContextTokens,
         profilePrompt: {
           includeImpressionCore: this.flags.featureImpressionCore,
@@ -276,7 +330,7 @@ export class AssistantOrchestrator {
         userMsg: input.userMessage,
         assistantMsg,
         userInput: input.userInput,
-        intentState: context.runtime.mergedIntentState ?? context.runtime.intentState ?? null,
+        intentState: resolvedIntentState,
         actionDecision: context.runtime.actionDecision,
         cognitiveState: composition.cognitiveState,
         isImportantIssueInProgress:
@@ -303,7 +357,7 @@ export class AssistantOrchestrator {
         userInput: input.userInput,
         missingParams: execution.missingParams ?? [],
         personaDto: context.persona.personaDto,
-        intentState: context.runtime.mergedIntentState ?? context.runtime.intentState ?? null,
+        intentState: resolvedIntentState,
         profilePrompt: {
           includeImpressionCore: true,
           includeImpressionDetail: true,
@@ -319,7 +373,7 @@ export class AssistantOrchestrator {
         userMsg: input.userMessage,
         assistantMsg,
         userInput: input.userInput,
-        intentState: context.runtime.mergedIntentState ?? context.runtime.intentState ?? null,
+        intentState: resolvedIntentState,
         actionDecision: context.runtime.actionDecision,
         cognitiveState: composition.cognitiveState,
       });
@@ -340,9 +394,10 @@ export class AssistantOrchestrator {
       userInput: input.userInput,
       recentMessages: context.conversation.recentMessages,
       personaDto: context.persona.personaDto,
-      intentState: context.runtime.mergedIntentState ?? context.runtime.intentState ?? null,
+      intentState: resolvedIntentState,
       toolResult: execution.toolResult ?? null,
       toolError: execution.toolError ?? null,
+      executionStatus: execution.status,
       toolKind: execution.toolKind ?? 'general_action',
       profilePrompt: {
         includeImpressionCore: true,
@@ -370,7 +425,7 @@ export class AssistantOrchestrator {
       userMsg: input.userMessage,
       assistantMsg,
       userInput: input.userInput,
-      intentState: context.runtime.mergedIntentState ?? context.runtime.intentState ?? null,
+      intentState: resolvedIntentState,
       actionDecision: context.runtime.actionDecision,
       cognitiveState: composition.cognitiveState,
     });
@@ -772,7 +827,9 @@ export class AssistantOrchestrator {
   ): Promise<SendMessageResult> {
     let result = initialResult;
     await this.postTurnPipeline.runBeforeReturn(plan, async (task, currentPlan) => {
+      const snapshot = this.snapshotPostTurnOps(currentPlan);
       result = await this.runBeforeReturnTask(task, currentPlan, result, context);
+      this.logPostTurnTaskCompletion('beforeReturn', task, currentPlan, snapshot);
     });
     return result;
   }
@@ -813,6 +870,125 @@ export class AssistantOrchestrator {
     const normalized = String(text ?? '').trim();
     if (!normalized) return undefined;
     return normalized.split(/\r?\n/).find((line) => line.trim())?.trim() ?? normalized;
+  }
+
+  private describeExecutionStage(execution: ExecutionResult): string {
+    if (execution.path === 'missing_params') {
+      return 'missing_params';
+    }
+    if (execution.path === 'chat') {
+      return 'chat';
+    }
+
+    const toolKind = execution.toolKind ?? 'general_action';
+    const suffix = execution.status === 'failed' ? ':failed' : ':success';
+    return `tool:${toolKind}${suffix}`;
+  }
+
+  private describeAssistantMessageStage(message: SendMessageResult['assistantMessage']): string {
+    const source = message.metadata?.source ?? 'assistant';
+    const toolKind = message.metadata?.toolKind;
+    return toolKind ? `${source}:${toolKind}` : `${source}:${message.kind}`;
+  }
+
+  private describePostTurnForPipeline(
+    plan: PostTurnPlan | undefined,
+    allowPostTurn: boolean,
+  ): string {
+    if (!allowPostTurn) return 'disabled';
+    if (!plan) return 'none';
+    const before = plan.beforeReturn.map((task) => task.type).join('|') || 'none';
+    const after = plan.afterReturn.map((task) => task.type).join('|') || 'none';
+    return `before:${before};after:${after}`;
+  }
+
+  private logPipelineState(input: {
+    quickRoute: QuickRouterOutput;
+    perceptionState: PerceptionState;
+    actionDecision: ActionDecision;
+    policy: ToolPolicyDecision;
+    executionStage: string;
+    result: SendMessageResult;
+    postTurnPlan?: PostTurnPlan;
+    allowPostTurn: boolean;
+  }): void {
+    this.logger.debug(
+      `[Pipeline] route=${input.quickRoute.path} `
+      + `perception=intent:${input.perceptionState.mergedIntentState?.taskIntent ?? 'none'},`
+      + `cognitive:${input.perceptionState.cognitiveState.situation.kind} `
+      + `decision=${input.actionDecision.action}/${input.policy.action} `
+      + `execution=${input.executionStage} `
+      + `expression=${input.result.assistantMessage.kind}:${input.result.assistantMessage.metadata?.source ?? 'assistant'} `
+      + `postTurn=${this.describePostTurnForPipeline(input.postTurnPlan, input.allowPostTurn)}`,
+    );
+  }
+
+  private logExpressionExit(input: {
+    quickRoute: QuickRouterOutput;
+    executionStage: string;
+    result: SendMessageResult;
+  }): void {
+    this.logger.debug(
+      `[Expression] outlet=assistant-orchestrator route=${input.quickRoute.path} `
+      + `via=${input.executionStage} source=${input.result.assistantMessage.metadata?.source ?? 'assistant'} `
+      + `kind=${input.result.assistantMessage.kind} messageId=${input.result.assistantMessage.id}`,
+    );
+  }
+
+  private snapshotPostTurnOps(plan: PostTurnPlan): {
+    memoryOps: number;
+    claimOps: number;
+    growthOps: number;
+  } {
+    return {
+      memoryOps: plan.opsCollector.memoryOps.length,
+      claimOps: plan.opsCollector.claimOps.length,
+      growthOps: plan.opsCollector.growthOps.length,
+    };
+  }
+
+  private logPostTurnTaskCompletion(
+    phase: 'beforeReturn' | 'afterReturn',
+    task: PostTurnTask,
+    plan: PostTurnPlan,
+    snapshot: {
+      memoryOps: number;
+      claimOps: number;
+      growthOps: number;
+    },
+  ): void {
+    const memoryDelta = plan.opsCollector.memoryOps.length - snapshot.memoryOps;
+    const claimDelta = plan.opsCollector.claimOps.length - snapshot.claimOps;
+    const growthDelta = plan.opsCollector.growthOps.length - snapshot.growthOps;
+    const writes = this.describePostTurnWrites(task, {
+      memoryDelta,
+      claimDelta,
+      growthDelta,
+    });
+
+    this.logger.debug(
+      `[PostTurn] phase=${phase} executed=true task=${task.type} `
+      + `writes=${writes} conversationId=${plan.conversationId}`,
+    );
+  }
+
+  private describePostTurnWrites(
+    task: PostTurnTask,
+    delta: { memoryDelta: number; claimDelta: number; growthDelta: number },
+  ): string {
+    const writes: string[] = [];
+    if (delta.memoryDelta > 0) writes.push(`memory:${delta.memoryDelta}`);
+    if (delta.claimDelta > 0) writes.push(`claim:${delta.claimDelta}`);
+    if (delta.growthDelta > 0) writes.push(`growth:${delta.growthDelta}`);
+
+    if (task.type === 'life_record_sync') writes.push('relation');
+    if (task.type === 'record_emotion_snapshot') writes.push('emotion');
+    if (task.type === 'record_cognitive_observation') writes.push('observation');
+    if (task.type === 'session_reflection') writes.push('relation');
+    if (task.type === 'decision_quality_review') writes.push('reflection');
+    if (task.type === 'capture_work_item') writes.push('work_item');
+
+    return writes.join('|') || 'none';
   }
 
   private async runAfterReturnTask(

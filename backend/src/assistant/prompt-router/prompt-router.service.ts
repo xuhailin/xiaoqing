@@ -113,6 +113,8 @@ export interface ToolResultContext {
   userInput: string;
   toolResult: string | null;
   toolError: string | null;
+  /** 执行状态，用于生成不同语气的结果包装。未提供时按 toolResult 是否存在二元判断。 */
+  executionStatus?: 'success' | 'failed' | 'need_clarification' | 'partial_success' | 'timeout';
   recentMessages?: { role: string; content: string }[];
   collaborationContext?: CollaborationTurnContext | null;
 }
@@ -685,6 +687,17 @@ export class PromptRouterService {
       }
 
       const controlLines: string[] = [];
+
+      // replyMode：决定本轮回复的优先序
+      if (expressionControl.replyMode === 'empathy_first') {
+        controlLines.push('- 先接住情绪，把认可放在前面，方案或结论放后');
+      } else if (expressionControl.replyMode === 'solution_first') {
+        controlLines.push('- 直接给方案或结论，情绪部分点到即止');
+      } else if (expressionControl.replyMode === 'question') {
+        controlLines.push('- 以问题引导为主，帮ta厘清需要什么');
+      }
+      // acknowledge 和 tool_result 是默认/工具路径，不需要额外提示
+
       if (expressionControl.pacing === 'slow_gentle') {
         controlLines.push('- 这轮节奏放慢一点，轻一点，允许停在自然节点');
       } else if (expressionControl.pacing === 'direct_quick') {
@@ -1049,9 +1062,21 @@ ${schemaHints}
           .join('\n') + '\n\n'
       : '';
 
-    const userContent = ctx.toolResult
-      ? `${contextPart}用户说：${ctx.userInput}\n\n执行结果：\n${ctx.toolResult}`
-      : `${contextPart}用户说：${ctx.userInput}\n\n执行失败：${ctx.toolError || '未知错误'}`;
+    const status = ctx.executionStatus ?? (ctx.toolResult ? 'success' : 'failed');
+    let resultLabel: string;
+    if (status === 'partial_success') {
+      resultLabel = '部分执行结果（有内容未完成，以下是已获取的部分）';
+    } else if (status === 'timeout') {
+      resultLabel = '执行超时，以下是超时前的部分结果（如有）';
+    } else if (status === 'failed' || (!ctx.toolResult && status !== 'success')) {
+      resultLabel = `执行失败：${ctx.toolError || '未知错误'}`;
+    } else {
+      resultLabel = '执行结果';
+    }
+
+    const userContent = (status === 'failed' && !ctx.toolResult)
+      ? `${contextPart}用户说：${ctx.userInput}\n\n${resultLabel}`
+      : `${contextPart}用户说：${ctx.userInput}\n\n${resultLabel}：\n${ctx.toolResult ?? ''}`;
 
     return [
       { role: 'system' as const, content: systemContent },

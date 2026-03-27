@@ -67,8 +67,10 @@ export class CognitiveGrowthService {
       this.prisma.$queryRaw<Array<{ summary: string }>>`
         SELECT "summary"
         FROM "RelationshipState"
-        WHERE "isActive" = true AND "status" = 'confirmed'
-        ORDER BY "updatedAt" DESC
+        WHERE "isActive" = true AND "status" IN ('confirmed', 'pending')
+        ORDER BY
+          CASE "status" WHEN 'confirmed' THEN 0 ELSE 1 END,
+          "updatedAt" DESC
         LIMIT 2
       `,
       this.prisma.$queryRaw<Array<{ note: string }>>`

@@ -98,6 +98,12 @@ export interface RelationshipContext {
   stage: 'early' | 'familiar' | 'steady';
   confidence: number;
   rationale: string[];
+  /**
+   * 亲密度代理值（0-1）。
+   * 当有真实 DB 分数时直接传入；否则由认知管线从 stage + confidence 派生。
+   * 用于 ExpressionControl 在同一阶段内做更细粒度的表达调节。
+   */
+  closenessScore?: number;
 }
 
 export interface PersistedGrowthContext {

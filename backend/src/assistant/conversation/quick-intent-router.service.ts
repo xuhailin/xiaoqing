@@ -142,6 +142,30 @@ const CHAT_FALLBACK: QuickRouterOutput = {
   source: 'fallback',
 };
 
+/**
+ * QuickIntentRouterService - 快速分流路由器
+ *
+ * 所属层：
+ *  - Router
+ *
+ * 负责：
+ *  - 在加载重上下文前对输入做 chat / tool 轻量分流
+ *  - 提供 toolHint、source、confidence 供感知层参考
+ *
+ * 不负责：
+ *  - 不读取 memory / claim / messages
+ *  - 不做最终工具决策
+ *  - 不生成最终回复文本
+ *
+ * 输入：
+ *  - userInput
+ *
+ * 输出：
+ *  - QuickRouterOutput
+ *
+ * ⚠️ 约束：
+ *  - 该层只做轻量路由，不得新增感知、决策或表达逻辑
+ */
 @Injectable()
 export class QuickIntentRouterService {
   private readonly logger = new Logger(QuickIntentRouterService.name);
@@ -162,9 +186,7 @@ export class QuickIntentRouterService {
     // 阶段一：规则预筛
     const ruleResult = this.applyRules(userInput);
     if (ruleResult) {
-      this.logger.debug(
-        `[QuickRouter] rule hit: ${ruleResult.toolHint} (${ruleResult.confidence})`,
-      );
+      this.logRoute(ruleResult);
       return ruleResult;
     }
 
@@ -172,15 +194,14 @@ export class QuickIntentRouterService {
     try {
       const llmResult = await this.callLlmWithTimeout(userInput);
       if (llmResult && llmResult.confidence >= this.confidenceThreshold) {
-        this.logger.debug(
-          `[QuickRouter] llm result: path=${llmResult.path} hint=${llmResult.toolHint ?? '-'} conf=${llmResult.confidence}`,
-        );
+        this.logRoute(llmResult);
         return llmResult;
       }
     } catch (err) {
       this.logger.warn(`[QuickRouter] llm failed, fallback chat: ${String(err)}`);
     }
 
+    this.logRoute(CHAT_FALLBACK);
     return CHAT_FALLBACK;
   }
 
@@ -215,6 +236,13 @@ export class QuickIntentRouterService {
 
     const result = await Promise.race([llmCall, timeout]);
     return result;
+  }
+
+  private logRoute(route: QuickRouterOutput): void {
+    this.logger.debug(
+      `[QuickRouter] source=${route.source} path=${route.path} `
+      + `hint=${route.toolHint ?? '-'} confidence=${route.confidence.toFixed(2)}`,
+    );
   }
 
   private parseLlmOutput(raw: string): QuickRouterOutput | null {

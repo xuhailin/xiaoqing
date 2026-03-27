@@ -25,6 +25,31 @@ interface DecisionBuildOptions {
   allowLlmActionHint: boolean;
 }
 
+/**
+ * ActionReasonerService - 统一行动决策器
+ *
+ * 所属层：
+ *  - Decision
+ *
+ * 负责：
+ *  - 基于 PerceptionState 产出本回合唯一主动作 DecisionState
+ *  - 统一生成 tool policy、fallback policy 与 work item policy
+ *
+ * 不负责：
+ *  - 不直接执行 capability / tool
+ *  - 不拼接最终回复文本
+ *  - 不重新组装聊天上下文
+ *
+ * 输入：
+ *  - 感知层结构化状态与必要的用户输入
+ *
+ * 输出：
+ *  - ActionDecision / DecisionState
+ *
+ * ⚠️ 约束：
+ *  - 决策权必须集中在这里，不得把同类行为判断散回其他层
+ *  - 不得承担表达层或执行层职责
+ */
 @Injectable()
 export class ActionReasonerService {
   private readonly logger = new Logger(ActionReasonerService.name);

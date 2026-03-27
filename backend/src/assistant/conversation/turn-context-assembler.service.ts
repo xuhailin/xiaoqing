@@ -28,6 +28,31 @@ import { SocialRelationEdgeService } from '../life-record/social-relation-edge/s
 import type { CollaborationTurnContext } from './orchestration.types';
 import type { QuickRouterOutput } from './quick-intent-router.types';
 
+/**
+ * TurnContextAssembler - 感知层上下文组装器
+ *
+ * 所属层：
+ *  - Perception
+ *
+ * 负责：
+ *  - 汇总消息、记忆、画像、世界状态、社交上下文等感知输入
+ *  - 产出供主链路继续消费的 TurnContext 与意图补全结果
+ *
+ * 不负责：
+ *  - 不做最终行动决策
+ *  - 不执行 capability / tool
+ *  - 不直接生成最终回复文本
+ *
+ * 输入：
+ *  - conversationId、userInput、userMessage、quickRoute、协作上下文
+ *
+ * 输出：
+ *  - TurnContext
+ *
+ * ⚠️ 约束：
+ *  - 只负责感知态组装，不得继续承接决策或表达逻辑
+ *  - chat 上下文读取边界必须遵守 docs/context-boundary.md
+ */
 @Injectable()
 export class TurnContextAssembler {
   private readonly logger = new Logger(TurnContextAssembler.name);
