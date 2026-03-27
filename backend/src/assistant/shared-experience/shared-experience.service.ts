@@ -131,8 +131,8 @@ export class SharedExperienceService {
     };
   }
 
-  async list(query?: SharedExperienceQuery): Promise<SharedExperienceRecord[]> {
-    const where: Record<string, unknown> = {};
+  async list(userId: string, query?: SharedExperienceQuery): Promise<SharedExperienceRecord[]> {
+    const where: Record<string, unknown> = { userId };
     if (query?.category) where.category = query.category;
     if (typeof query?.minSignificance === 'number') {
       where.significance = { gte: this.clampSignificance(query.minSignificance) };
@@ -147,8 +147,9 @@ export class SharedExperienceService {
     return rows.map((row) => this.toRecord(row));
   }
 
-  async findRelevant(context: string, limit = 3): Promise<SharedExperienceRecord[]> {
+  async findRelevant(userId: string, context: string, limit = 3): Promise<SharedExperienceRecord[]> {
     const rows = await this.prisma.sharedExperience.findMany({
+      where: { userId },
       orderBy: [{ significance: 'desc' }, { happenedAt: 'desc' }],
       take: 100,
     });

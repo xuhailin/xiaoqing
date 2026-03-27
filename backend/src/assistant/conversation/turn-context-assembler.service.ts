@@ -93,6 +93,7 @@ export class TurnContextAssembler {
 
   async assemble(input: {
     conversationId: string;
+    userId: string;
     userInput: string;
     userMessage: { id: string; role: 'user'; content: string; createdAt: Date };
     now: Date;
@@ -106,10 +107,10 @@ export class TurnContextAssembler {
         orderBy: { createdAt: 'desc' },
         take: Math.max(0, input.recentRounds) * 2,
       }),
-      this.userProfile.getOrCreate(),
-      this.identityAnchor.getActiveAnchors(),
+      this.userProfile.getOrCreate(input.userId),
+      this.identityAnchor.getActiveAnchors(input.userId),
       this.worldState.get(input.conversationId),
-      this.cognitiveGrowth.getGrowthContext(),
+      this.cognitiveGrowth.getGrowthContext(input.userId),
       this.systemSelf.getSystemSelf('chat'),
     ]);
 
@@ -123,11 +124,12 @@ export class TurnContextAssembler {
       : storedWorldState;
 
     const [preferredNickname, interactionTuning] = await Promise.all([
-      this.readPreferredNickname(),
-      this.readInteractionTuning(),
+      this.readPreferredNickname(input.userId),
+      this.readInteractionTuning(input.userId),
     ]);
     const memoryCtx = await this.recallMemories(
       input.conversationId,
+      input.userId,
       recentMessages,
       personaDto,
       profile,
@@ -135,6 +137,7 @@ export class TurnContextAssembler {
     );
     const intentCtx = await this.resolveIntent({
       conversationId: input.conversationId,
+      userId: input.userId,
       userInput: input.userInput,
       recentMessages,
       defaultWorldState,
@@ -146,7 +149,7 @@ export class TurnContextAssembler {
     const resolvedIntent = intentCtx.mergedIntentState ?? intentCtx.intentState;
     const fullWorldState = intentCtx.worldState ?? storedWorldState;
     const [claimCtx, emotionTrend] = await Promise.all([
-      this.buildClaimAndSessionContext(input.conversationId),
+      this.buildClaimAndSessionContext(input.userId, input.conversationId),
       this.emotionHistory.getRecentTrend(input.conversationId),
     ]);
     const assemblyMode = input.quickRoute?.path === 'tool'
@@ -166,10 +169,12 @@ export class TurnContextAssembler {
     } else {
       relationshipCtx = await this.buildRelationshipContext({
         conversationId: input.conversationId,
+        userId: input.userId,
         userInput: input.userInput,
         recentMessages,
       });
       socialCtx = await this.buildSocialContext({
+        userId: input.userId,
         userInput: input.userInput,
         recentMessages,
       });
@@ -178,8 +183,7 @@ export class TurnContextAssembler {
     // 读取上一轮的反思结果
     let previousReflection: { quality: 'good' | 'suboptimal' | 'failed'; adjustmentHint: string; timestamp: Date } | undefined;
     try {
-      const userKey = 'default-user'; // 当前系统使用固定 userKey
-      const sessionState = await this.sessionStateStore.getFreshState(userKey, input.conversationId);
+      const sessionState = await this.sessionStateStore.getFreshState(input.userId, input.conversationId);
       if (sessionState?.stateJson?.lastReflection) {
         const lr = sessionState.stateJson.lastReflection as any;
         if (lr.quality && lr.adjustmentHint && lr.timestamp) {
@@ -199,6 +203,7 @@ export class TurnContextAssembler {
     return {
       request: {
         conversationId: input.conversationId,
+        userId: input.userId,
         now: input.now,
         userInput: input.userInput,
         userMessage: input.userMessage,
@@ -243,6 +248,7 @@ export class TurnContextAssembler {
 
   async assembleFallback(input: {
     conversationId: string;
+    userId: string;
     userInput: string;
     userMessage: { id: string; role: 'user'; content: string; createdAt: Date };
     now: Date;
@@ -256,10 +262,10 @@ export class TurnContextAssembler {
         orderBy: { createdAt: 'desc' },
         take: Math.max(0, input.recentRounds) * 2,
       }),
-      this.userProfile.getOrCreate(),
-      this.identityAnchor.getActiveAnchors(),
+      this.userProfile.getOrCreate(input.userId),
+      this.identityAnchor.getActiveAnchors(input.userId),
       this.worldState.get(input.conversationId),
-      this.cognitiveGrowth.getGrowthContext(),
+      this.cognitiveGrowth.getGrowthContext(input.userId),
       this.systemSelf.getSystemSelf('chat'),
     ]);
 
@@ -273,8 +279,8 @@ export class TurnContextAssembler {
       : storedWorldState;
 
     const [preferredNickname, interactionTuningFb] = await Promise.all([
-      this.readPreferredNickname(),
-      this.readInteractionTuning(),
+      this.readPreferredNickname(input.userId),
+      this.readInteractionTuning(input.userId),
     ]);
 
     const expressionFieldsFb = await this.resolveExpressionFields(personaDto);
@@ -336,11 +342,11 @@ export class TurnContextAssembler {
    * 只取成熟态（WEAK / STABLE / CORE）且 confidence >= 0.6 的条目。
    * CANDIDATE 状态仅用于观察/累积证据，不参与互动调谐派生与表达控制。
    */
-  private async readInteractionTuning(): Promise<TurnContext['user']['interactionTuning']> {
+  private async readInteractionTuning(userId: string): Promise<TurnContext['user']['interactionTuning']> {
     try {
       const rows = await this.prisma.userClaim.findMany({
         where: {
-          userKey: 'default-user',
+          userKey: userId,
           type: 'INTERACTION_TUNING',
           confidence: { gte: 0.6 },
           status: { in: ['WEAK', 'STABLE', 'CORE'] },
@@ -373,11 +379,11 @@ export class TurnContextAssembler {
   /**
    * 读取用户”首选昵称”并放宽 Claim 状态过滤，确保首次写入（CANDIDATE）也能立即注入。
    */
-  private async readPreferredNickname(): Promise<string | null> {
+  private async readPreferredNickname(userId: string): Promise<string | null> {
     try {
       const claim = await this.prisma.userClaim.findFirst({
         where: {
-          userKey: 'default-user',
+          userKey: userId,
           type: 'INTERACTION_PREFERENCE',
           key: 'ip.nickname.primary',
           confidence: { gte: 0.7 },
@@ -399,6 +405,7 @@ export class TurnContextAssembler {
 
   private async resolveIntent(input: {
     conversationId: string;
+    userId: string;
     userInput: string;
     recentMessages: Array<{ role: string; content: string }>;
     defaultWorldState: TurnContext['world']['defaultWorldState'];
@@ -446,7 +453,7 @@ export class TurnContextAssembler {
         await this.worldState.update(input.conversationId, intentState.worldStateUpdate);
       }
       if (intentState.identityUpdate && Object.keys(intentState.identityUpdate).length > 0) {
-        await this.writeIdentityUpdate(intentState.identityUpdate);
+        await this.writeIdentityUpdate(input.userId, intentState.identityUpdate);
       }
 
       const { merged, worldState } = await this.worldState.mergeSlots(
@@ -465,6 +472,7 @@ export class TurnContextAssembler {
 
   private async recallMemories(
     conversationId: string,
+    userId: string,
     recentMessages: Array<{ role: string; content: string }>,
     personaDto: TurnContext['persona']['personaDto'],
     profile: TurnContext['user']['userProfile'],
@@ -481,6 +489,7 @@ export class TurnContextAssembler {
     if (!this.flags.featureKeywordPrefilter) {
       const recalled = await this.memoryRecaller.recall({
         conversationId,
+        userId,
         recentUserMessages: recentMessages
           .filter((message) => message.role === 'user')
           .map((message) => message.content),
@@ -506,6 +515,7 @@ export class TurnContextAssembler {
 
     const recallCtx = {
       conversationId,
+      userId,
       recentUserMessages: recentMessages
         .filter((message) => message.role === 'user')
         .map((message) => message.content),
@@ -536,7 +546,7 @@ export class TurnContextAssembler {
       };
     }
 
-    const relatedMemories = await this.memoryService.getRelatedMemories(activeCandidates.map((c) => c.id), 5);
+    const relatedMemories = await this.memoryService.getRelatedMemories(userId, activeCandidates.map((c) => c.id), 5);
     if (relatedMemories.length > 0) {
       const existingIds = new Set(activeCandidates.map((c) => c.id));
       activeCandidates = [...activeCandidates, ...relatedMemories.filter((m) => !existingIds.has(m.id))];
@@ -576,6 +586,7 @@ export class TurnContextAssembler {
   private async adaptRecallCandidates(
     ctx: {
       conversationId: string;
+      userId: string;
       recentUserMessages: string[];
       maxLong: number;
       maxMid: number;
@@ -585,6 +596,7 @@ export class TurnContextAssembler {
     void ctx.minRelevanceScore;
     const recalled = await this.memoryRecaller.recall({
       conversationId: ctx.conversationId,
+      userId: ctx.userId,
       recentUserMessages: ctx.recentUserMessages,
       maxLong: ctx.maxLong,
       maxMid: ctx.maxMid,
@@ -602,7 +614,7 @@ export class TurnContextAssembler {
     }));
   }
 
-  private async buildClaimAndSessionContext(conversationId: string): Promise<TurnContext['claims']> {
+  private async buildClaimAndSessionContext(userId: string, conversationId: string): Promise<TurnContext['claims']> {
     const claimSignals: TurnContext['claims']['claimSignals'] = [];
     let claimPolicyText = '';
     let sessionState: TurnContext['claims']['sessionState'] = null;
@@ -611,7 +623,7 @@ export class TurnContextAssembler {
     let draftClaimsDebug: TurnContext['claims']['draftClaimsDebug'] = [];
 
     if (this.claimConfig.readNewEnabled && this.claimConfig.injectionEnabled) {
-      const rows = await this.claimSelector.getInjectableClaims('default-user', {
+      const rows = await this.claimSelector.getInjectableClaims(userId, {
         JUDGEMENT_PATTERN: 3,
         VALUE: 3,
         INTERACTION_PREFERENCE: 6,
@@ -642,7 +654,7 @@ export class TurnContextAssembler {
     }
 
     if (this.claimConfig.readNewEnabled && this.claimConfig.sessionStateInjectionEnabled) {
-      const fresh = await this.sessionStateStore.getFreshState('default-user', conversationId);
+      const fresh = await this.sessionStateStore.getFreshState(userId, conversationId);
       if (fresh && typeof fresh.stateJson === 'object') {
         const data = fresh.stateJson;
         sessionState = {
@@ -666,7 +678,7 @@ export class TurnContextAssembler {
     }
 
     if (this.flags.featureDebugMeta && this.claimConfig.readNewEnabled) {
-      const rows = await this.claimSelector.getDraftClaimsForDebug('default-user', { perTypeLimit: 6, totalLimit: 60 });
+      const rows = await this.claimSelector.getDraftClaimsForDebug(userId, { perTypeLimit: 6, totalLimit: 60 });
       draftClaimsDebug = rows.map((r) => ({ type: r.type, key: r.key, confidence: r.confidence, status: r.status }));
     }
 
@@ -675,6 +687,7 @@ export class TurnContextAssembler {
 
   private async buildRelationshipContext(input: {
     conversationId: string;
+    userId: string;
     userInput: string;
     recentMessages: Array<{ role: string; content: string }>;
   }): Promise<TurnContext['relationship']> {
@@ -686,7 +699,7 @@ export class TurnContextAssembler {
       .join('\n');
 
     const [relevantSharedExperiences, recentReflections] = await Promise.all([
-      this.sharedExperience.findRelevant(contextText, 2),
+      this.sharedExperience.findRelevant(input.userId, contextText, 2),
       this.sessionReflection.list({ limit: 3 }),
     ]);
 
@@ -700,6 +713,7 @@ export class TurnContextAssembler {
   }
 
   private async buildSocialContext(input: {
+    userId: string;
     userInput: string;
     recentMessages: Array<{ role: string; content: string }>;
   }): Promise<TurnContext['social']> {
@@ -711,10 +725,11 @@ export class TurnContextAssembler {
       .join('\n');
 
     const [entities, insights] = await Promise.all([
-      this.socialEntity.findRelevant(contextText, 3),
-      this.socialInsight.findRelevant(contextText, 2),
+      this.socialEntity.findRelevant(input.userId, contextText, 3),
+      this.socialInsight.findRelevant(input.userId, contextText, 2),
     ]);
     const relationSignals = await this.socialRelationEdge.findRelevant(
+      input.userId,
       contextText,
       2,
       [
@@ -731,11 +746,14 @@ export class TurnContextAssembler {
     };
   }
 
-  private async writeIdentityUpdate(update: import('../intent/intent.types').IdentityUpdateFromIntent): Promise<void> {
+  private async writeIdentityUpdate(
+    userId: string,
+    update: import('../intent/intent.types').IdentityUpdateFromIntent,
+  ): Promise<void> {
     const entries = Object.entries(update).filter((e): e is [string, string] => typeof e[1] === 'string' && e[1].length > 0);
     if (entries.length === 0) return;
 
-    const anchors = await this.identityAnchor.getActiveAnchors();
+    const anchors = await this.identityAnchor.getActiveAnchors(userId);
     for (const [key, value] of entries) {
       const label = TurnContextAssembler.IDENTITY_LABEL_MAP[key];
       if (!label) continue;
@@ -743,7 +761,7 @@ export class TurnContextAssembler {
       if (existing && existing.content !== value) {
         await this.identityAnchor.update(existing.id, { content: value });
       } else if (!existing && anchors.length < 5) {
-        await this.identityAnchor.create({ label, content: value });
+        await this.identityAnchor.create({ label, content: value }, userId);
       }
     }
   }

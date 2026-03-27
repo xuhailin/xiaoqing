@@ -2,6 +2,7 @@ import { Controller, Get, Post, Param, Query, Body } from '@nestjs/common';
 import { TracePointService } from './trace-point.service';
 import { TracePointExtractorService } from './trace-point-extractor.service';
 import type { TracePointKind } from './trace-point.types';
+import { UserId } from '../../../infra/user-id.decorator';
 
 @Controller('trace-points')
 export class TracePointController {
@@ -17,8 +18,10 @@ export class TracePointController {
     @Query('until') until?: string,
     @Query('kind') kind?: string,
     @Query('limit') limit?: string,
+    @UserId() userId?: string,
   ) {
     return this.tracePointService.query({
+      userId: userId ?? 'default-user',
       since: since ? new Date(since) : undefined,
       until: until ? new Date(until) : undefined,
       kind: kind as TracePointKind | undefined,
@@ -33,8 +36,10 @@ export class TracePointController {
     @Query('until') until?: string,
     @Query('kind') kind?: string,
     @Query('conversationId') conversationId?: string,
+    @UserId() userId?: string,
   ) {
     const total = await this.tracePointService.count({
+      userId: userId ?? 'default-user',
       conversationId,
       since: since ? new Date(since) : undefined,
       until: until ? new Date(until) : undefined,
@@ -51,8 +56,10 @@ export class TracePointController {
     @Query('until') until?: string,
     @Query('kind') kind?: string,
     @Query('limit') limit?: string,
+    @UserId() userId?: string,
   ) {
     return this.tracePointService.query({
+      userId: userId ?? 'default-user',
       conversationId,
       since: since ? new Date(since) : undefined,
       until: until ? new Date(until) : undefined,
@@ -63,8 +70,14 @@ export class TracePointController {
 
   /** 统计某会话的 trace point 数量 */
   @Get('conversation/:conversationId/count')
-  async countByConversation(@Param('conversationId') conversationId: string) {
-    const count = await this.tracePointService.countByConversation(conversationId);
+  async countByConversation(
+    @Param('conversationId') conversationId: string,
+    @UserId() userId?: string,
+  ) {
+    const count = await this.tracePointService.countByConversation(
+      conversationId,
+      userId ?? 'default-user',
+    );
     return { count };
   }
 
@@ -74,8 +87,10 @@ export class TracePointController {
     @Query('since') since?: string,
     @Query('until') until?: string,
     @Query('conversationId') conversationId?: string,
+    @UserId() userId?: string,
   ) {
     return this.tracePointService.queryByDay({
+      userId: userId ?? 'default-user',
       since: since ? new Date(since) : undefined,
       until: until ? new Date(until) : undefined,
       conversationId: conversationId || undefined,
@@ -84,8 +99,8 @@ export class TracePointController {
 
   /** 获取某天的所有 trace points */
   @Get('day/:dayKey')
-  async getPointsForDay(@Param('dayKey') dayKey: string) {
-    return this.tracePointService.getPointsForDay(dayKey);
+  async getPointsForDay(@Param('dayKey') dayKey: string, @UserId() userId?: string) {
+    return this.tracePointService.getPointsForDay(userId ?? 'default-user', dayKey);
   }
 
   /** 手动触发某会话的批量提取 */
@@ -113,13 +128,13 @@ export class TracePointController {
 
   /** 对某天的碎片去重 */
   @Post('deduplicate/:dayKey')
-  async deduplicateDay(@Param('dayKey') dayKey: string) {
-    return this.tracePointService.deduplicateDay(dayKey);
+  async deduplicateDay(@Param('dayKey') dayKey: string, @UserId() userId?: string) {
+    return this.tracePointService.deduplicateDay(userId ?? 'default-user', dayKey);
   }
 
   /** 批量去重最近 N 天 */
   @Post('deduplicate-recent')
-  async deduplicateRecent(@Body() body?: { days?: number }) {
-    return this.tracePointService.deduplicateRecent(body?.days);
+  async deduplicateRecent(@Body() body?: { days?: number }, @UserId() userId?: string) {
+    return this.tracePointService.deduplicateRecent(userId ?? 'default-user', body?.days);
   }
 }

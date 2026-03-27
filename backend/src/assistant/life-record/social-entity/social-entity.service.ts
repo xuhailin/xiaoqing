@@ -12,7 +12,7 @@ export class SocialEntityService {
    * 从指定的 TracePoint ID 列表中提取 people，增量同步到 SocialEntity。
    * 适合在 TracePoint 提取完成后立即调用。
    */
-  async syncFromTracePointIds(tracePointIds: string[]): Promise<SyncResult> {
+  async syncFromTracePointIds(tracePointIds: string[], userId: string): Promise<SyncResult> {
     if (tracePointIds.length === 0) return { created: 0, updated: 0, total: 0, entityIds: [] };
 
     const points = await this.prisma.tracePoint.findMany({
@@ -21,24 +21,32 @@ export class SocialEntityService {
     });
 
     const peopleMap = this.collectPeopleWithTimestamps(points);
-    return this.upsertEntities(peopleMap);
+    return this.upsertEntities(peopleMap, userId);
   }
 
   /**
    * 从某个时间点之后的所有 TracePoint 同步。适合手动回填。
    */
-  async syncFromTracePoints(since?: Date): Promise<SyncResult> {
+  async syncFromTracePoints(userId: string, since?: Date): Promise<SyncResult> {
     const points = await this.prisma.tracePoint.findMany({
-      where: since ? { createdAt: { gte: since } } : {},
+      where: {
+        ...(since ? { createdAt: { gte: since } } : {}),
+        conversationId: {
+          in: (await this.prisma.conversation.findMany({
+            where: { userId },
+            select: { id: true },
+          })).map((item) => item.id),
+        },
+      },
       select: { people: true, createdAt: true },
     });
 
     const peopleMap = this.collectPeopleWithTimestamps(points);
-    return this.upsertEntities(peopleMap);
+    return this.upsertEntities(peopleMap, userId);
   }
 
-  async list(query?: SocialEntityQuery): Promise<SocialEntityRecord[]> {
-    const where: Record<string, unknown> = {};
+  async list(userId: string, query?: SocialEntityQuery): Promise<SocialEntityRecord[]> {
+    const where: Record<string, unknown> = { userId };
     if (query?.relation) where.relation = query.relation;
 
     const sortBy = query?.sortBy ?? 'mentionCount';
@@ -56,9 +64,10 @@ export class SocialEntityService {
     return rows.map(this.toRecord);
   }
 
-  async findRelevant(context: string, limit = 3): Promise<SocialEntityRecord[]> {
+  async findRelevant(userId: string, context: string, limit = 3): Promise<SocialEntityRecord[]> {
     const rows = await this.prisma.socialEntity.findMany({
       where: {
+        userId,
         description: { not: null },
       },
       orderBy: [{ mentionCount: 'desc' }, { lastSeenAt: 'desc' }],
@@ -152,6 +161,7 @@ export class SocialEntityService {
 
   private async upsertEntities(
     peopleMap: Map<string, { count: number; firstSeen: Date; lastSeen: Date }>,
+    userId: string,
   ): Promise<SyncResult> {
     let created = 0;
     let updated = 0;
@@ -159,7 +169,7 @@ export class SocialEntityService {
 
     for (const [name, info] of peopleMap) {
       // 先尝试按 name 或 aliases 匹配已有实体
-      const existing = await this.findByNameOrAlias(name);
+      const existing = await this.findByNameOrAlias(userId, name);
 
       if (existing) {
         const row = await this.prisma.socialEntity.update({
@@ -175,6 +185,7 @@ export class SocialEntityService {
       } else {
         const row = await this.prisma.socialEntity.create({
           data: {
+            userId,
             name,
             firstSeenAt: info.firstSeen,
             lastSeenAt: info.lastSeen,
@@ -190,14 +201,16 @@ export class SocialEntityService {
     return { created, updated, total: created + updated, entityIds: [...new Set(entityIds)] };
   }
 
-  private async findByNameOrAlias(name: string) {
+  private async findByNameOrAlias(userId: string, name: string) {
     // 先精确匹配 name
-    const byName = await this.prisma.socialEntity.findUnique({ where: { name } });
+    const byName = await this.prisma.socialEntity.findUnique({
+      where: { userId_name: { userId, name } },
+    });
     if (byName) return byName;
 
     // 再搜索 aliases 包含此名字
     const byAlias = await this.prisma.socialEntity.findFirst({
-      where: { aliases: { has: name } },
+      where: { userId, aliases: { has: name } },
     });
     return byAlias;
   }

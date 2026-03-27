@@ -27,14 +27,18 @@ export class SummarizeTriggerService {
     private readonly flags: FeatureFlagConfig,
   ) {}
 
-  async maybeAutoSummarize(conversationId: string, userInput: string): Promise<SummarizeTriggerOpsResult> {
+  async maybeAutoSummarize(
+    conversationId: string,
+    userInput: string,
+    userId: string,
+  ): Promise<SummarizeTriggerOpsResult> {
     const empty: SummarizeTriggerOpsResult = { memoryOps: [], claimOps: [] };
     if (this.summarizingConversations.has(conversationId)) return empty;
 
     const useInstant = this.flags.featureInstantSummarize
       && SummarizeTriggerService.INSTANT_SUMMARIZE_RE.test(userInput);
     if (useInstant) {
-      return this.summarizeDelta(conversationId, userInput.slice(0, 30));
+      return this.summarizeDelta(conversationId, userInput.slice(0, 30), userId);
     }
 
     if (!this.flags.featureAutoSummarize) return empty;
@@ -54,10 +58,10 @@ export class SummarizeTriggerService {
     });
 
     if (newUserMessages < this.flags.autoSummarizeThreshold) return empty;
-    return this.summarizeDelta(conversationId, `threshold:${newUserMessages}`);
+    return this.summarizeDelta(conversationId, `threshold:${newUserMessages}`, userId);
   }
 
-  async flushSummarize(conversationId: string): Promise<{ flushed: boolean }> {
+  async flushSummarize(conversationId: string, userId: string): Promise<{ flushed: boolean }> {
     const conv = await this.prisma.conversation.findUnique({
       where: { id: conversationId },
       select: { summarizedAt: true },
@@ -73,14 +77,18 @@ export class SummarizeTriggerService {
     });
     if (unsummarizedCount < 5) return { flushed: false };
 
-    this.summarizeDelta(conversationId, `flush:${unsummarizedCount}`).catch((err: Error) =>
+    this.summarizeDelta(conversationId, `flush:${unsummarizedCount}`, userId).catch((err: Error) =>
       this.logger.warn(`Flush-summarize failed: ${err.message}`),
     );
 
     return { flushed: true };
   }
 
-  private async summarizeDelta(conversationId: string, reason: string): Promise<SummarizeTriggerOpsResult> {
+  private async summarizeDelta(
+    conversationId: string,
+    reason: string,
+    userId: string,
+  ): Promise<SummarizeTriggerOpsResult> {
     const empty: SummarizeTriggerOpsResult = { memoryOps: [], claimOps: [] };
     if (this.summarizingConversations.has(conversationId)) return empty;
     this.summarizingConversations.add(conversationId);
@@ -101,9 +109,9 @@ export class SummarizeTriggerService {
           })).map((m) => m.id)
         : undefined;
 
-      const result = await this.summarizer.summarize(conversationId, newMessageIds);
+      const result = await this.summarizer.summarize(conversationId, userId, newMessageIds);
       if (result.created > 0) {
-        await this.triggerAutoEvolution(conversationId);
+        await this.triggerAutoEvolution(conversationId, userId);
       }
 
       return this.extractOps(result);
@@ -132,7 +140,7 @@ export class SummarizeTriggerService {
     return { memoryOps, claimOps };
   }
 
-  private async triggerAutoEvolution(conversationId: string): Promise<void> {
+  private async triggerAutoEvolution(conversationId: string, userId: string): Promise<void> {
     const messages = await this.prisma.message.findMany({
       where: { conversationId },
       orderBy: { createdAt: 'desc' },
@@ -155,7 +163,7 @@ export class SummarizeTriggerService {
     }
 
     if (personaChanges.length === 0) return;
-    this.evolutionScheduler.setPendingSuggestion({
+    this.evolutionScheduler.setPendingSuggestion(userId, {
       changes: personaChanges,
       triggerReason: '自动总结后触发',
       createdAt: new Date(),

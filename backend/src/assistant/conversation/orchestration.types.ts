@@ -121,6 +121,7 @@ export interface CollaborationTurnContext {
 export interface TurnContext {
   request: {
     conversationId: string;
+    userId: string;
     now: Date;
     userInput: string;
     userMessage: {

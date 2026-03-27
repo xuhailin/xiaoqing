@@ -19,6 +19,7 @@ export class AssistantAgentAdapter implements IAgent {
     const result = await this.conversation.sendMessage(
       req.conversationId,
       req.content,
+      req.userId,
     );
 
     return {

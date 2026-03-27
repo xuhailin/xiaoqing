@@ -1,10 +1,13 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { HttpException, HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { MessageRouterService } from '../gateway/message-router.service';
 import { PrismaService } from '../infra/prisma.service';
 import { ConversationLockService } from './conversation-lock.service';
 import { ConversationWorkService } from '../conversation-work/conversation-work.service';
 import type { IAgent, AgentRequest, AgentResult } from './agent.interface';
 import { AGENT_TOKEN } from './agent.interface';
+import { isFeatureEnabled } from '../config/feature-flags';
+import { getAppUserMode } from '../infra/user-mode.config';
 import {
   DEFAULT_ENTRY_AGENT_ID,
   type EntryAgentId,
@@ -25,12 +28,14 @@ import {
 export class DispatcherService {
   private readonly logger = new Logger(DispatcherService.name);
   private readonly agentMap: Map<MessageChannel, IAgent>;
+  private readonly appUserMode: string;
 
   constructor(
     private readonly router: MessageRouterService,
     private readonly lock: ConversationLockService,
     private readonly prisma: PrismaService,
     private readonly conversationWork: ConversationWorkService,
+    private readonly config: ConfigService,
     @Inject(AGENT_TOKEN) agents: IAgent[],
   ) {
     // 构建 channel → agent 映射
@@ -38,6 +43,7 @@ export class DispatcherService {
     this.logger.log(
       `Dispatcher initialized with agents: [${[...this.agentMap.keys()].join(', ')}]`,
     );
+    this.appUserMode = getAppUserMode(config);
   }
 
   /**
@@ -52,6 +58,7 @@ export class DispatcherService {
     mode?: MessageChannel,
     metadata?: SendMessageMetadata,
     entryAgentId?: EntryAgentId,
+    userId: string = 'default-user',
   ): Promise<AgentResult> {
     const resumeTarget = await this.conversationWork.findLatestWaitingInputByConversation(conversationId);
     const shouldResumeDevWork = !mode
@@ -66,6 +73,15 @@ export class DispatcherService {
     this.logger.log(
       `Dispatch: conv=${conversationId} channel=${decision.channel} reason="${decision.reason}"`,
     );
+
+    if (decision.channel === 'dev') {
+      if (this.appUserMode === 'multi') {
+        throw new HttpException('DevAgent is not available in multi-user mode', HttpStatus.FORBIDDEN);
+      }
+      if (!isFeatureEnabled(this.config, 'devAgent')) {
+        throw new HttpException('DevAgent is disabled', HttpStatus.FORBIDDEN);
+      }
+    }
 
     // 2. 查找 agent
     const agent = this.agentMap.get(decision.channel);
@@ -82,6 +98,7 @@ export class DispatcherService {
       const req: AgentRequest = {
         conversationId,
         content: decision.content,
+        userId,
         mode: decision.channel,
         entryAgentId: resolvedEntryAgentId,
         metadata: shouldResumeDevWork && resumeTarget

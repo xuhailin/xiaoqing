@@ -25,7 +25,13 @@ export class TracePointService {
   async count(q: TracePointQuery): Promise<number> {
     const where: Record<string, unknown> = {};
 
-    if (q.conversationId) where.conversationId = q.conversationId;
+    if (q.userId) {
+      where.conversationId = {
+        in: await this.resolveConversationIds(q.userId, q.conversationId),
+      };
+    } else if (q.conversationId) {
+      where.conversationId = q.conversationId;
+    }
     if (q.kind) where.kind = q.kind;
 
     const dateFilter: Record<string, Date> = {};
@@ -69,7 +75,13 @@ export class TracePointService {
   async query(q: TracePointQuery): Promise<TracePointRecord[]> {
     const where: Record<string, unknown> = {};
 
-    if (q.conversationId) where.conversationId = q.conversationId;
+    if (q.userId) {
+      where.conversationId = {
+        in: await this.resolveConversationIds(q.userId, q.conversationId),
+      };
+    } else if (q.conversationId) {
+      where.conversationId = q.conversationId;
+    }
     if (q.kind) where.kind = q.kind;
 
     const dateFilter: Record<string, Date> = {};
@@ -93,20 +105,35 @@ export class TracePointService {
     return count > 0;
   }
 
-  async countByConversation(conversationId: string): Promise<number> {
-    return this.prisma.tracePoint.count({ where: { conversationId } });
+  async countByConversation(conversationId: string, userId?: string): Promise<number> {
+    if (!userId) {
+      return this.prisma.tracePoint.count({ where: { conversationId } });
+    }
+
+    const conversationIds = await this.resolveConversationIds(userId, conversationId);
+    if (conversationIds.length === 0) return 0;
+    return this.prisma.tracePoint.count({
+      where: { conversationId: { in: conversationIds } },
+    });
   }
 
   /**
    * 按天分组返回 TracePoints。
    */
   async queryByDay(options?: {
+    userId?: string;
     since?: Date;
     until?: Date;
     conversationId?: string;
   }): Promise<TracePointDayGroup[]> {
     const where: Record<string, unknown> = {};
-    if (options?.conversationId) where.conversationId = options.conversationId;
+    if (options?.userId) {
+      where.conversationId = {
+        in: await this.resolveConversationIds(options.userId, options.conversationId),
+      };
+    } else if (options?.conversationId) {
+      where.conversationId = options.conversationId;
+    }
 
     const dateFilter: Record<string, Date> = {};
     if (options?.since) dateFilter.gte = options.since;
@@ -140,12 +167,18 @@ export class TracePointService {
   /**
    * 获取某一天的所有 TracePoints。
    */
-  async getPointsForDay(dayKey: string): Promise<TracePointRecord[]> {
+  async getPointsForDay(userId: string, dayKey: string): Promise<TracePointRecord[]> {
     const start = new Date(`${dayKey}T00:00:00`);
     const end = new Date(`${dayKey}T23:59:59.999`);
+    const conversationIds = await this.resolveConversationIds(userId);
+
+    if (conversationIds.length === 0) {
+      return [];
+    }
 
     const rows = await this.prisma.tracePoint.findMany({
       where: {
+        conversationId: { in: conversationIds },
         OR: [
           { happenedAt: { gte: start, lte: end } },
           { happenedAt: null, createdAt: { gte: start, lte: end } },
@@ -161,8 +194,8 @@ export class TracePointService {
    * 对某天的碎片做去重：同 kind + 文本相似度 > 0.8 → 标记重复项 confidence=0。
    * 保留 content 最长的一条。
    */
-  async deduplicateDay(dayKey: string): Promise<DeduplicateResult> {
-    const points = await this.getPointsForDay(dayKey);
+  async deduplicateDay(userId: string, dayKey: string): Promise<DeduplicateResult> {
+    const points = await this.getPointsForDay(userId, dayKey);
     const result: DeduplicateResult = {
       dayKey,
       total: points.length,
@@ -218,7 +251,10 @@ export class TracePointService {
   /**
    * 批量去重最近 N 天。
    */
-  async deduplicateRecent(days: number = 7): Promise<{ results: DeduplicateResult[]; totalMarked: number }> {
+  async deduplicateRecent(
+    userId: string,
+    days: number = 7,
+  ): Promise<{ results: DeduplicateResult[]; totalMarked: number }> {
     const results: DeduplicateResult[] = [];
     let totalMarked = 0;
 
@@ -226,7 +262,7 @@ export class TracePointService {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dayKey = this.toDayKey(d);
-      const result = await this.deduplicateDay(dayKey);
+      const result = await this.deduplicateDay(userId, dayKey);
       if (result.duplicatesMarked > 0) {
         results.push(result);
         totalMarked += result.duplicatesMarked;
@@ -234,6 +270,21 @@ export class TracePointService {
     }
 
     return { results, totalMarked };
+  }
+
+  private async resolveConversationIds(
+    userId: string,
+    conversationId?: string,
+  ): Promise<string[]> {
+    const rows = await this.prisma.conversation.findMany({
+      where: {
+        userId,
+        ...(conversationId ? { id: conversationId } : {}),
+      },
+      select: { id: true },
+    });
+
+    return rows.map((row) => row.id);
   }
 
   /**

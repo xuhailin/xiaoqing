@@ -2,6 +2,7 @@ import type { Memory } from '@prisma/client';
 
 export interface RecallContext {
   conversationId: string;
+  userId: string;
   recentUserMessages: string[];
   maxMid: number;
   maxLong: number;

@@ -42,13 +42,14 @@ export class DailyMomentService {
    * 合并后管线：TracePoints → DailySummaryGenerator → DailyMomentRecord
    */
   async generateMomentEntry(input: {
+    userId: string;
     conversationId: string;
     now: Date;
     triggerMode: DailyMomentTriggerMode;
   }): Promise<{ record: DailyMomentRecord; renderedText: string }> {
     const dayKey = this.dayKey(input.now);
 
-    const summary = await this.dailySummaryService.generateForDay(dayKey);
+    const summary = await this.dailySummaryService.generateForDay(input.userId, dayKey);
 
     const record: DailyMomentRecord = {
       id: this.newId('dmr'),

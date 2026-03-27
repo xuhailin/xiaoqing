@@ -27,6 +27,7 @@ export interface TracePointRecord {
 }
 
 export interface TracePointQuery {
+  userId?: string;
   conversationId?: string;
   since?: Date;
   until?: Date;

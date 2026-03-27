@@ -45,15 +45,22 @@ export class MemorySchedulerService {
     if (!this.enabled) return;
 
     this.logger.log('Daily decay recalculation started');
-    const updated = await this.decay.recalcAll();
-    this.logger.log(`Decay recalculated: ${updated} memories updated`);
+    const users = await this.prisma.memory.groupBy({ by: ['userId'] });
+    let updated = 0;
+    let softDeleted = 0;
 
-    const candidates = await this.decay.getDecayCandidates();
-    if (candidates.length > 0) {
+    for (const { userId } of users) {
+      updated += await this.decay.recalcAll(userId);
+      const candidates = await this.decay.getDecayCandidates(userId);
       for (const c of candidates) {
         await this.decay.softDelete(c.id);
+        softDeleted++;
       }
-      this.logger.log(`Soft-deleted ${candidates.length} decayed memories`);
+    }
+
+    this.logger.log(`Decay recalculated: ${updated} memories updated`);
+    if (softDeleted > 0) {
+      this.logger.log(`Soft-deleted ${softDeleted} decayed memories`);
     }
   }
 
@@ -63,11 +70,12 @@ export class MemorySchedulerService {
     if (!this.enabled) return;
 
     this.logger.log('Daily promotion/demotion check started');
-    const candidates = await this.getPromotionCandidates();
-    if (candidates.length > 0) {
-      // 自动执行晋升/降级（规则明确，不需要人工确认）
-      let promoted = 0;
-      let demoted = 0;
+    const users = await this.prisma.memory.groupBy({ by: ['userId'] });
+    let promoted = 0;
+    let demoted = 0;
+
+    for (const { userId } of users) {
+      const candidates = await this.getPromotionCandidates(userId);
       for (const c of candidates) {
         const newType = c.direction === 'promote' ? 'long' : 'mid';
         await this.prisma.memory.update({
@@ -77,6 +85,9 @@ export class MemorySchedulerService {
         if (c.direction === 'promote') promoted++;
         else demoted++;
       }
+    }
+
+    if (promoted > 0 || demoted > 0) {
       this.logger.log(
         `Promotion/demotion complete: ${promoted} promoted (mid→long), ${demoted} demoted (long→mid)`,
       );
@@ -89,7 +100,7 @@ export class MemorySchedulerService {
    * 晋升规则（mid → long）：hitCount >= threshold 且存活 >= N 天
    * 降级规则（long → mid）：非 frozen，lastAccessedAt 距今 >= N 天
    */
-  async getPromotionCandidates(): Promise<PromotionCandidate[]> {
+  async getPromotionCandidates(userId?: string): Promise<PromotionCandidate[]> {
     const now = new Date();
     const msPerDay = 86_400_000;
     const candidates: PromotionCandidate[] = [];
@@ -97,6 +108,7 @@ export class MemorySchedulerService {
     // 晋升候选：mid 记忆且命中足够多
     const promoteCandidates = await this.prisma.memory.findMany({
       where: {
+        ...(userId ? { userId } : {}),
         type: 'mid',
         hitCount: { gte: this.promoteMinHits },
         frozen: false,
@@ -128,6 +140,7 @@ export class MemorySchedulerService {
     const demoteThreshold = new Date(now.getTime() - this.demoteInactiveDays * msPerDay);
     const demoteCandidates = await this.prisma.memory.findMany({
       where: {
+        ...(userId ? { userId } : {}),
         type: 'long',
         frozen: false,
         decayScore: { gt: 0 },

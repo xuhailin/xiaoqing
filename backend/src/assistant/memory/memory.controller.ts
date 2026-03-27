@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { MemoryService } from './memory.service';
 import { MemoryDecayService } from './memory-decay.service';
+import { UserId } from '../../infra/user-id.decorator';
 
 @Controller('memories')
 export class MemoryController {
@@ -18,17 +19,18 @@ export class MemoryController {
   ) {}
 
   @Get('for-injection')
-  async forInjection(@Query('midK') midK?: string) {
+  async forInjection(@Query('midK') midK?: string, @UserId() userId?: string) {
     const k = Math.max(0, parseInt(String(midK || '5'), 10) || 5);
-    return this.memory.getForInjection(k);
+    return this.memory.getForInjection(userId ?? 'default-user', k);
   }
 
   @Get()
   async list(
     @Query('type') type?: 'mid' | 'long',
     @Query('category') category?: string,
+    @UserId() userId?: string,
   ) {
-    return this.memory.list(type, category);
+    return this.memory.list(userId ?? 'default-user', type, category);
   }
 
   @Get(':id')
@@ -38,19 +40,19 @@ export class MemoryController {
 
   // --- Decay APIs（须在 Delete(':id') 之前，避免 decay/cleanup 被当作 id）---
   @Post('decay/recalculate')
-  async recalculateDecay() {
-    const updated = await this.decay.recalcAll();
+  async recalculateDecay(@UserId() userId?: string) {
+    const updated = await this.decay.recalcAll(userId);
     return { updated };
   }
 
   @Get('decay/candidates')
-  async getDecayCandidates() {
-    return this.decay.getDecayCandidates();
+  async getDecayCandidates(@UserId() userId?: string) {
+    return this.decay.getDecayCandidates(userId);
   }
 
   @Delete('decay/cleanup')
-  async cleanupDecayed(@Body() body: { memoryIds: string[] }) {
-    const deleted = await this.decay.cleanup(body.memoryIds);
+  async cleanupDecayed(@Body() body: { memoryIds: string[] }, @UserId() userId?: string) {
+    const deleted = await this.decay.cleanup(body.memoryIds, userId);
     return { deleted };
   }
 

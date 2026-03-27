@@ -1,6 +1,7 @@
 import { Body, Controller, Param, Post } from '@nestjs/common';
 import { DispatcherService } from '../orchestrator/dispatcher.service';
 import type { SendMessageBody } from './message-router.types';
+import { UserId } from '../infra/user-id.decorator';
 
 @Controller('conversations')
 export class GatewayController {
@@ -14,6 +15,7 @@ export class GatewayController {
   async sendMessage(
     @Param('id') id: string,
     @Body() body: SendMessageBody,
+    @UserId() userId: string,
   ) {
     if (!body?.content || typeof body.content !== 'string') {
       return { error: 'content is required' };
@@ -25,6 +27,7 @@ export class GatewayController {
       body.mode,
       body.metadata,
       body.entryAgentId,
+      userId,
     );
 
     // 返回 agent 原始 payload，保持前端兼容

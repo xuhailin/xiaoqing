@@ -51,15 +51,17 @@ export class SharedExperienceFollowupService {
   ) {}
 
   async generateFollowupPlans(options?: {
+    userId?: string;
     dryRun?: boolean;
     limit?: number;
     now?: Date;
   }): Promise<SharedExperienceFollowupGenerateResult> {
     const now = options?.now ?? new Date();
     const limit = Math.max(1, options?.limit ?? DEFAULT_LIMIT);
+    const userId = options?.userId ?? 'default-user';
     const decisions: SharedExperienceFollowupDecision[] = [];
-    const recentPlans = await this.loadRecentPlans(now);
-    const candidates = await this.loadCandidates(now);
+    const recentPlans = await this.loadRecentPlans(userId, now);
+    const candidates = await this.loadCandidates(userId, now);
 
     for (const experience of candidates) {
       if (decisions.filter((item) => item.outcome === 'created').length >= limit) break;
@@ -127,7 +129,7 @@ export class SharedExperienceFollowupService {
           experienceId: experience.id,
           title: experience.title,
         },
-      });
+      }, userId);
 
       recentPlans.push(plan);
       decisions.push({
@@ -154,12 +156,13 @@ export class SharedExperienceFollowupService {
     };
   }
 
-  private async loadCandidates(now: Date): Promise<SharedExperienceRecord[]> {
+  private async loadCandidates(userId: string, now: Date): Promise<SharedExperienceRecord[]> {
     const minDate = new Date(now.getTime() - MAX_AGE_DAYS * 86_400_000);
     const maxDate = new Date(now.getTime() - MIN_AGE_DAYS * 86_400_000);
 
     const rows = await this.prisma.sharedExperience.findMany({
       where: {
+        userId,
         significance: { gte: MIN_SIGNIFICANCE },
         happenedAt: {
           gte: minDate,
@@ -185,10 +188,11 @@ export class SharedExperienceFollowupService {
     }));
   }
 
-  private async loadRecentPlans(now: Date): Promise<Plan[]> {
+  private async loadRecentPlans(userId: string, now: Date): Promise<Plan[]> {
     const threshold = new Date(now.getTime() - COOLDOWN_DAYS * 86_400_000);
     return this.prisma.plan.findMany({
       where: {
+        userId,
         scope: ReminderScope.chat,
         dispatchType: PlanDispatchType.notify,
         createdAt: { gte: threshold },

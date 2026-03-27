@@ -27,7 +27,7 @@ export class RelationshipOverviewService {
     private readonly sharedExperience: SharedExperienceService,
   ) {}
 
-  async getOverview(): Promise<RelationshipOverviewDto> {
+  async getOverview(userId: string): Promise<RelationshipOverviewDto> {
     const [
       relationshipState,
       rhythmClaims,
@@ -35,11 +35,11 @@ export class RelationshipOverviewService {
       recentReflections,
       recentSharedMoments,
     ] = await Promise.all([
-      this.getActiveRelationshipState(),
-      this.getRhythmClaims(),
-      this.getMilestones(),
-      this.getRecentReflections(),
-      this.getRecentSharedMoments(),
+      this.getActiveRelationshipState(userId),
+      this.getRhythmClaims(userId),
+      this.getMilestones(userId),
+      this.getRecentReflections(userId),
+      this.getRecentSharedMoments(userId),
     ]);
 
     const stage = (relationshipState?.stage ?? 'early') as RelationshipOverviewDto['stage'];
@@ -68,7 +68,7 @@ export class RelationshipOverviewService {
     };
   }
 
-  private async getActiveRelationshipState(): Promise<{
+  private async getActiveRelationshipState(userId: string): Promise<{
     stage: string;
     trustScore: number;
     closenessScore: number;
@@ -84,7 +84,7 @@ export class RelationshipOverviewService {
     }>>`
       SELECT "stage", "trustScore", "closenessScore", "summary", "updatedAt"
       FROM "RelationshipState"
-      WHERE "isActive" = true AND "status" = 'confirmed'
+      WHERE "userId" = ${userId} AND "isActive" = true AND "status" = 'confirmed'
       ORDER BY "updatedAt" DESC
       LIMIT 1
     `;
@@ -92,7 +92,7 @@ export class RelationshipOverviewService {
     return rows[0] ?? null;
   }
 
-  private async getRhythmClaims(): Promise<RhythmPreferenceDto[]> {
+  private async getRhythmClaims(userId: string): Promise<RhythmPreferenceDto[]> {
     const rows = await this.prisma.$queryRaw<Array<{
       key: string;
       valueJson: unknown;
@@ -100,7 +100,7 @@ export class RelationshipOverviewService {
     }>>`
       SELECT "key", "valueJson", "confidence"
       FROM "UserClaim"
-      WHERE "userKey" = 'default-user'
+      WHERE "userKey" = ${userId}
         AND "type" = 'RELATION_RHYTHM'
         AND "status" IN ('STABLE', 'CORE')
         AND "key" NOT LIKE 'draft.%'
@@ -118,7 +118,7 @@ export class RelationshipOverviewService {
     });
   }
 
-  private async getMilestones(): Promise<MilestoneDto[]> {
+  private async getMilestones(userId: string): Promise<MilestoneDto[]> {
     const [stageChanges, sharedExperiences] = await Promise.all([
       this.prisma.$queryRaw<Array<{
         stage: string;
@@ -126,10 +126,10 @@ export class RelationshipOverviewService {
       }>>`
         SELECT "stage", "createdAt"
         FROM "RelationshipState"
-        WHERE "status" = 'confirmed'
+        WHERE "userId" = ${userId} AND "status" = 'confirmed'
         ORDER BY "createdAt" ASC
       `,
-      this.sharedExperience.list({ limit: 20 }),
+      this.sharedExperience.list(userId, { limit: 20 }),
     ]);
 
     const milestones: MilestoneDto[] = [];
@@ -161,9 +161,15 @@ export class RelationshipOverviewService {
     return milestones.sort((a, b) => a.date.localeCompare(b.date));
   }
 
-  private async getRecentReflections(): Promise<RelationshipReflectionDto[]> {
+  private async getRecentReflections(userId: string): Promise<RelationshipReflectionDto[]> {
+    const conversationIds = await this.getConversationIds(userId);
+    if (conversationIds.length === 0) {
+      return [];
+    }
+
     const rows = await this.prisma.sessionReflection.findMany({
       where: {
+        conversationId: { in: conversationIds },
         OR: [
           { relationImpact: { not: 'neutral' } },
           { sharedMoment: true },
@@ -199,9 +205,9 @@ export class RelationshipOverviewService {
     }));
   }
 
-  private async getRecentSharedMoments(): Promise<RelationshipMomentPreviewDto[]> {
+  private async getRecentSharedMoments(userId: string): Promise<RelationshipMomentPreviewDto[]> {
     const rows = await this.prisma.sharedExperience.findMany({
-      where: { significance: { gte: 0.6 } },
+      where: { userId, significance: { gte: 0.6 } },
       orderBy: [{ happenedAt: 'desc' }, { significance: 'desc' }],
       take: 3,
       select: {
@@ -224,6 +230,14 @@ export class RelationshipOverviewService {
       significance: row.significance,
       happenedAt: row.happenedAt.toISOString(),
     }));
+  }
+
+  private async getConversationIds(userId: string): Promise<string[]> {
+    const rows = await this.prisma.conversation.findMany({
+      where: { userId },
+      select: { id: true },
+    });
+    return rows.map((row) => row.id);
   }
 
   private stageLabel(stage: string): string {

@@ -13,6 +13,7 @@ import {
   UserProfileService,
   UserProfileDto,
 } from '../core/services/user-profile.service';
+import { AuthService } from '../core/services/auth.service';
 import { AppIconComponent } from '../shared/ui/app-icon.component';
 
 const LABEL_OPTIONS: { value: string; text: string }[] = [
@@ -624,6 +625,7 @@ export class IdentityAnchorEditorComponent implements OnInit {
   private conversationService = inject(ConversationService);
   private worldStateService = inject(WorldStateService);
   private userProfileService = inject(UserProfileService);
+  private auth = inject(AuthService);
 
   labelOptions = LABEL_OPTIONS;
   userMemorySections = USER_MEMORY_SECTIONS;
@@ -640,7 +642,7 @@ export class IdentityAnchorEditorComponent implements OnInit {
 
   // User profile
   userProfile = signal<UserProfileDto>({
-    userKey: 'default-user',
+    userKey: this.auth.currentUserId ?? '',
     preferredPersonaKey: 'default',
     preferredVoiceStyle: '',
     praisePreference: '',

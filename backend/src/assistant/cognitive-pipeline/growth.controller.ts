@@ -1,5 +1,6 @@
 import { Controller, Get, Patch, Param, Body, BadRequestException } from '@nestjs/common';
 import { CognitiveGrowthService, type GrowthItemType } from './cognitive-growth.service';
+import { UserId } from '../../infra/user-id.decorator';
 
 @Controller('growth')
 export class GrowthController {
@@ -7,8 +8,8 @@ export class GrowthController {
 
   /** 获取所有待确认的成长记录 */
   @Get('pending')
-  async getPending() {
-    return this.growth.getPending();
+  async getPending(@UserId() userId: string) {
+    return this.growth.getPending(userId);
   }
 
   /** 确认一条成长记录 */
@@ -16,9 +17,10 @@ export class GrowthController {
   async confirm(
     @Param('id') id: string,
     @Body() body: { type: GrowthItemType },
+    @UserId() userId: string,
   ) {
     this.validateType(body?.type);
-    await this.growth.confirmGrowth(id, body.type);
+    await this.growth.confirmGrowth(id, body.type, userId);
     return { ok: true };
   }
 
@@ -27,9 +29,10 @@ export class GrowthController {
   async reject(
     @Param('id') id: string,
     @Body() body: { type: GrowthItemType },
+    @UserId() userId: string,
   ) {
     this.validateType(body?.type);
-    await this.growth.rejectGrowth(id, body.type);
+    await this.growth.rejectGrowth(id, body.type, userId);
     return { ok: true };
   }
 

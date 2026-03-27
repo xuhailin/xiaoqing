@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { isFeatureEnabled } from '../../../config/feature-flags';
 import { SocialEntityClassifierService } from './social-entity-classifier.service';
+import { PrismaService } from '../../../infra/prisma.service';
 
 @Injectable()
 export class SocialEntityClassifierSchedulerService {
@@ -11,6 +12,7 @@ export class SocialEntityClassifierSchedulerService {
 
   constructor(
     private readonly classifier: SocialEntityClassifierService,
+    private readonly prisma: PrismaService,
     config: ConfigService,
   ) {
     this.enabled = isFeatureEnabled(config, 'socialEntityClassifierScheduler');
@@ -22,9 +24,14 @@ export class SocialEntityClassifierSchedulerService {
     if (!this.enabled) return;
 
     try {
-      const result = await this.classifier.classifyPending({ limit: 8 });
-      if (result.classified > 0) {
-        this.logger.log(`Social entity classification: ${result.classified} classified, ${result.merged} merged`);
+      const users = await this.prisma.socialEntity.groupBy({ by: ['userId'] });
+      for (const { userId } of users) {
+        const result = await this.classifier.classifyPending({ userId, limit: 8 });
+        if (result.classified > 0) {
+          this.logger.log(
+            `Social entity classification: user=${userId}, ${result.classified} classified, ${result.merged} merged`,
+          );
+        }
       }
     } catch (err) {
       this.logger.warn(`Social entity classification failed: ${String(err)}`);

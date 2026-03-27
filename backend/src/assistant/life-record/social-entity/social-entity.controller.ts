@@ -2,6 +2,7 @@ import { Controller, Get, Patch, Post, Param, Query, Body } from '@nestjs/common
 import { SocialEntityClassifierService } from './social-entity-classifier.service';
 import { SocialEntityService } from './social-entity.service';
 import type { SocialRelation } from './social-entity.types';
+import { UserId } from '../../../infra/user-id.decorator';
 
 @Controller('social-entities')
 export class SocialEntityController {
@@ -15,8 +16,9 @@ export class SocialEntityController {
     @Query('relation') relation?: string,
     @Query('sortBy') sortBy?: string,
     @Query('limit') limit?: string,
+    @UserId() userId?: string,
   ) {
-    return this.service.list({
+    return this.service.list(userId ?? 'default-user', {
       relation: relation as SocialRelation | undefined,
       sortBy: sortBy as 'mentionCount' | 'lastSeenAt' | 'name' | undefined,
       limit: limit ? Number(limit) : undefined,
@@ -37,18 +39,22 @@ export class SocialEntityController {
   }
 
   @Post('sync')
-  async sync(@Body() body?: { since?: string }) {
+  async sync(@Body() body?: { since?: string }, @UserId() userId?: string) {
     const since = body?.since ? new Date(body.since) : undefined;
-    return this.service.syncFromTracePoints(since);
+    return this.service.syncFromTracePoints(userId ?? 'default-user', since);
   }
 
   @Post('classify')
-  async classify(@Body() body?: { id?: string; limit?: number; force?: boolean; entityIds?: string[] }) {
+  async classify(
+    @Body() body?: { id?: string; limit?: number; force?: boolean; entityIds?: string[] },
+    @UserId() userId?: string,
+  ) {
     if (body?.id) {
       return this.classifier.classifyEntity(body.id, { force: body.force });
     }
 
     return this.classifier.classifyPending({
+      userId: userId ?? 'default-user',
       entityIds: body?.entityIds,
       limit: body?.limit,
       force: body?.force,

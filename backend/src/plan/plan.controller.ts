@@ -11,6 +11,7 @@ import {
 import { PlanService } from './plan.service';
 import { TaskOccurrenceService } from './task-occurrence.service';
 import type { CreatePlanInput, UpdatePlanInput, PlanLifecycleAction, OccurrenceExceptionInput } from './plan.types';
+import { UserId } from '../infra/user-id.decorator';
 
 @Controller('plans')
 export class PlanController {
@@ -22,8 +23,8 @@ export class PlanController {
   // ─── Plan CRUD ─────────────────────────────────────────
 
   @Post()
-  create(@Body() body: CreatePlanInput) {
-    return this.planService.createPlan(body);
+  create(@Body() body: CreatePlanInput, @UserId() userId: string) {
+    return this.planService.createPlan(body, userId);
   }
 
   @Get()
@@ -32,8 +33,9 @@ export class PlanController {
     @Query('status') status?: string,
     @Query('sessionId') sessionId?: string,
     @Query('conversationId') conversationId?: string,
+    @UserId() userId?: string,
   ) {
-    return this.planService.listPlans({
+    return this.planService.listPlans(userId ?? 'default-user', {
       scope: scope as any,
       status: status as any,
       sessionId,
@@ -62,35 +64,35 @@ export class PlanController {
   }
 
   @Get(':id')
-  get(@Param('id') id: string) {
-    return this.planService.getPlan(id);
+  get(@Param('id') id: string, @UserId() userId: string) {
+    return this.planService.getPlan(id, userId);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() body: UpdatePlanInput) {
-    return this.planService.updatePlan(id, body);
+  update(@Param('id') id: string, @Body() body: UpdatePlanInput, @UserId() userId: string) {
+    return this.planService.updatePlan(id, body, userId);
   }
 
   @Delete(':id')
-  delete(@Param('id') id: string) {
-    return this.planService.deletePlan(id);
+  delete(@Param('id') id: string, @UserId() userId: string) {
+    return this.planService.deletePlan(id, userId);
   }
 
   // ─── 生命周期 ──────────────────────────────────────────
 
   @Post(':id/pause')
-  pause(@Param('id') id: string) {
-    return this.planService.lifecycle(id, 'pause');
+  pause(@Param('id') id: string, @UserId() userId: string) {
+    return this.planService.lifecycle(id, 'pause', userId);
   }
 
   @Post(':id/resume')
-  resume(@Param('id') id: string) {
-    return this.planService.lifecycle(id, 'resume');
+  resume(@Param('id') id: string, @UserId() userId: string) {
+    return this.planService.lifecycle(id, 'resume', userId);
   }
 
   @Post(':id/archive')
-  archive(@Param('id') id: string) {
-    return this.planService.lifecycle(id, 'archive');
+  archive(@Param('id') id: string, @UserId() userId: string) {
+    return this.planService.lifecycle(id, 'archive', userId);
   }
 
   // ─── Occurrences ───────────────────────────────────────

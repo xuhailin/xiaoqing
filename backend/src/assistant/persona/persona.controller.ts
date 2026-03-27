@@ -11,6 +11,7 @@ import {
   UserProfileService,
   type UserProfileDto,
 } from './user-profile.service';
+import { UserId } from '../../infra/user-id.decorator';
 
 @Controller('persona')
 export class PersonaController {
@@ -157,14 +158,14 @@ export class PersonaController {
 
   /** B2: 获取记忆密度触发的待确认进化建议 */
   @Get('evolve/pending')
-  getPendingEvolution() {
-    return this.evolutionScheduler.getPendingSuggestion();
+  getPendingEvolution(@UserId() userId: string) {
+    return this.evolutionScheduler.getPendingSuggestion(userId);
   }
 
   /** B2: 清除待确认进化建议（用户已确认或拒绝后调用） */
   @Delete('evolve/pending')
-  clearPendingEvolution() {
-    this.evolutionScheduler.clearPendingSuggestion();
+  clearPendingEvolution(@UserId() userId: string) {
+    this.evolutionScheduler.clearPendingSuggestion(userId);
     return { ok: true };
   }
 }

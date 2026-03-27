@@ -20,8 +20,8 @@ export class EvolutionSchedulerService {
   private readonly densityThreshold: number;
   private readonly logger = new Logger(EvolutionSchedulerService.name);
 
-  /** 待确认的进化建议（用户确认后清空） */
-  private pendingSuggestion: PendingEvolutionSuggestion | null = null;
+  /** 待确认的进化建议（按用户隔离，前端轮询获取） */
+  private pendingSuggestions = new Map<string, PendingEvolutionSuggestion>();
 
   constructor(
     private prisma: PrismaService,
@@ -33,18 +33,18 @@ export class EvolutionSchedulerService {
   }
 
   /** 前端轮询：获取待确认的进化建议 */
-  getPendingSuggestion(): PendingEvolutionSuggestion | null {
-    return this.pendingSuggestion;
+  getPendingSuggestion(userId: string): PendingEvolutionSuggestion | null {
+    return this.pendingSuggestions.get(userId) ?? null;
   }
 
   /** 设置待确认的进化建议（由自动总结触发） */
-  setPendingSuggestion(suggestion: PendingEvolutionSuggestion): void {
-    this.pendingSuggestion = suggestion;
+  setPendingSuggestion(userId: string, suggestion: PendingEvolutionSuggestion): void {
+    this.pendingSuggestions.set(userId, suggestion);
   }
 
   /** 前端操作：清除待确认建议（用户已确认或拒绝） */
-  clearPendingSuggestion(): void {
-    this.pendingSuggestion = null;
+  clearPendingSuggestion(userId: string): void {
+    this.pendingSuggestions.delete(userId);
   }
 
   // ── 每日凌晨 4 点检查记忆密度 → 触发进化建议 ─────────
@@ -54,10 +54,25 @@ export class EvolutionSchedulerService {
 
     this.logger.log('Daily evolution density check started');
 
-    // 统计各认知分类的活跃记忆数
+    const users = await this.prisma.memory.groupBy({
+      by: ['userId'],
+      where: {
+        category: { in: COGNITIVE_CATEGORIES },
+        decayScore: { gt: 0 },
+        type: 'long',
+      },
+    });
+
+    for (const { userId } of users) {
+      await this.handleUserDensityCheck(userId);
+    }
+  }
+
+  private async handleUserDensityCheck(userId: string): Promise<void> {
     const counts = await this.prisma.memory.groupBy({
       by: ['category'],
       where: {
+        userId,
         category: { in: COGNITIVE_CATEGORIES },
         decayScore: { gt: 0 },
         type: 'long',
@@ -66,25 +81,19 @@ export class EvolutionSchedulerService {
     });
 
     const totalCognitive = counts.reduce((sum, c) => sum + c._count, 0);
-
-    // 找出超过密度阈值的分类
     const denseCategories = counts
       .filter((c) => c._count >= this.densityThreshold)
       .map((c) => `${c.category}(${c._count}条)`);
 
     if (denseCategories.length === 0) {
       this.logger.log(
-        `No category exceeds density threshold (${this.densityThreshold}). Total cognitive: ${totalCognitive}`,
+        `No category exceeds density threshold (${this.densityThreshold}) for user=${userId}. Total cognitive: ${totalCognitive}`,
       );
       return;
     }
 
-    this.logger.log(
-      `Dense categories found: ${denseCategories.join(', ')}. Generating evolution suggestion...`,
-    );
-
-    // 取最近活跃对话的最后 20 条消息
     const recentConv = await this.prisma.conversation.findFirst({
+      where: { userId },
       orderBy: { updatedAt: 'desc' },
     });
     if (!recentConv) return;
@@ -102,36 +111,36 @@ export class EvolutionSchedulerService {
     }));
 
     const result = await this.persona.suggestEvolution(recentMessages);
-
-    if (result.changes.length > 0) {
-      const isUserPref = (field: string) =>
-        field === 'preferredVoiceStyle'
-        || field === 'praisePreference'
-        || field === 'responseRhythm';
-      const preferenceChanges = result.changes.filter((c) => isUserPref(c.targetField ?? c.field));
-      const personaChanges = result.changes.filter((c) => !isUserPref(c.targetField ?? c.field));
-
-      if (preferenceChanges.length > 0) {
-        await this.persona.confirmEvolution(preferenceChanges);
-      }
-
-      if (personaChanges.length === 0) {
-        this.logger.log(
-          `Evolution suggestion auto-applied ${preferenceChanges.length} preference changes, no persona confirmation required`,
-        );
-        return;
-      }
-
-      this.pendingSuggestion = {
-        changes: personaChanges,
-        triggerReason: `认知记忆密度触发：${denseCategories.join(', ')}`,
-        createdAt: new Date(),
-      };
-      this.logger.log(
-        `Evolution suggestion generated: ${personaChanges.length} persona changes pending user confirmation (${preferenceChanges.length} preference changes auto-applied)`,
-      );
-    } else {
-      this.logger.log('Evolution suggestion returned no changes');
+    if (result.changes.length === 0) {
+      this.logger.log(`Evolution suggestion returned no changes for user=${userId}`);
+      return;
     }
+
+    const isUserPref = (field: string) =>
+      field === 'preferredVoiceStyle'
+      || field === 'praisePreference'
+      || field === 'responseRhythm';
+    const preferenceChanges = result.changes.filter((c) => isUserPref(c.targetField ?? c.field));
+    const personaChanges = result.changes.filter((c) => !isUserPref(c.targetField ?? c.field));
+
+    if (preferenceChanges.length > 0) {
+      await this.persona.confirmEvolution(preferenceChanges);
+    }
+
+    if (personaChanges.length === 0) {
+      this.logger.log(
+        `Evolution suggestion auto-applied ${preferenceChanges.length} preference changes for user=${userId}, no persona confirmation required`,
+      );
+      return;
+    }
+
+    this.pendingSuggestions.set(userId, {
+      changes: personaChanges,
+      triggerReason: `认知记忆密度触发：${denseCategories.join(', ')}`,
+      createdAt: new Date(),
+    });
+    this.logger.log(
+      `Evolution suggestion generated for user=${userId}: ${personaChanges.length} persona changes pending user confirmation (${preferenceChanges.length} preference changes auto-applied)`,
+    );
   }
 }

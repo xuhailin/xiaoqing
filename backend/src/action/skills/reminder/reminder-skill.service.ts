@@ -4,6 +4,7 @@ import type { ICapability } from '../../capability.interface';
 import type { CapabilityRequest, CapabilityResult } from '../../capability.types';
 import type { MessageChannel } from '../../../gateway/message-router.types';
 import { PlanService } from '../../../plan/plan.service';
+import { PrismaService } from '../../../infra/prisma.service';
 
 interface ReminderParams {
   reminderAction?: 'create' | 'list' | 'cancel';
@@ -32,6 +33,7 @@ export class ReminderSkillService implements ICapability {
 
   constructor(
     private readonly planService: PlanService,
+    private readonly prisma: PrismaService,
   ) {}
 
   isAvailable(): boolean {
@@ -43,15 +45,16 @@ export class ReminderSkillService implements ICapability {
     const action = params.reminderAction ?? 'create';
 
     try {
+      const userId = await this.resolveUserId(request.conversationId);
       switch (action) {
         case 'create':
-          return await this.createReminder(request.conversationId, params);
+          return await this.createReminder(request.conversationId, userId, params);
         case 'list':
-          return await this.listReminders();
+          return await this.listReminders(userId);
         case 'cancel':
-          return await this.cancelReminder(params);
+          return await this.cancelReminder(userId, params);
         default:
-          return await this.createReminder(request.conversationId, params);
+          return await this.createReminder(request.conversationId, userId, params);
       }
     } catch (err) {
       this.logger.error(`Reminder skill failed: ${String(err)}`);
@@ -61,6 +64,7 @@ export class ReminderSkillService implements ICapability {
 
   private async createReminder(
     conversationId: string,
+    userId: string,
     params: ReminderParams,
   ): Promise<CapabilityResult> {
     const reason = params.reminderReason?.trim();
@@ -101,7 +105,7 @@ export class ReminderSkillService implements ICapability {
         runAt: schedule.runAt,
         timezone: 'Asia/Shanghai',
         conversationId,
-      });
+      }, userId);
 
       const scheduleDesc = this.describeSchedule(params);
       return {
@@ -123,8 +127,8 @@ export class ReminderSkillService implements ICapability {
     }
   }
 
-  private async listReminders(): Promise<CapabilityResult> {
-    const plans = await this.planService.listPlans({ scope: ReminderScope.chat, status: 'active' as any });
+  private async listReminders(userId: string): Promise<CapabilityResult> {
+    const plans = await this.planService.listPlans(userId, { scope: ReminderScope.chat, status: 'active' as any });
 
     if (plans.length === 0) {
       return { success: true, content: '目前没有任何提醒。', error: null };
@@ -157,7 +161,7 @@ export class ReminderSkillService implements ICapability {
     };
   }
 
-  private async cancelReminder(params: ReminderParams): Promise<CapabilityResult> {
+  private async cancelReminder(userId: string, params: ReminderParams): Promise<CapabilityResult> {
     const target = params.reminderTarget?.trim();
     if (!target) {
       return {
@@ -167,7 +171,7 @@ export class ReminderSkillService implements ICapability {
       };
     }
 
-    const plans = await this.planService.listPlans({ scope: ReminderScope.chat, status: 'active' as any });
+    const plans = await this.planService.listPlans(userId, { scope: ReminderScope.chat, status: 'active' as any });
     const matched: { id: string; title: string }[] = [];
     for (const p of plans) {
       const title = p.title ?? p.description ?? '';
@@ -186,7 +190,7 @@ export class ReminderSkillService implements ICapability {
 
     if (matched.length === 1) {
       const item = matched[0];
-      await this.planService.lifecycle(item.id, 'archive');
+      await this.planService.lifecycle(item.id, 'archive', userId);
       return {
         success: true,
         content: `已取消提醒「${item.title}」。`,
@@ -258,6 +262,14 @@ export class ReminderSkillService implements ICapability {
     }
 
     return {};
+  }
+
+  private async resolveUserId(conversationId: string): Promise<string> {
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      select: { userId: true },
+    });
+    return conversation?.userId ?? 'default-user';
   }
 
   private parseTimeHHMM(str?: string): { hour: number; minute: number } | null {

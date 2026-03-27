@@ -35,8 +35,8 @@ export class SocialInsightService {
     private readonly llm: LlmService,
   ) {}
 
-  async list(query?: SocialInsightQuery): Promise<SocialInsightRecord[]> {
-    const where: Record<string, unknown> = {};
+  async list(userId: string, query?: SocialInsightQuery): Promise<SocialInsightRecord[]> {
+    const where: Record<string, unknown> = { userId };
     if (query?.scope) where.scope = query.scope;
     if (typeof query?.minConfidence === 'number') {
       where.confidence = { gte: this.clampConfidence(query.minConfidence) };
@@ -51,8 +51,9 @@ export class SocialInsightService {
     return rows.map((row) => this.toRecord(row));
   }
 
-  async findRelevant(context: string, limit = 2): Promise<SocialInsightRecord[]> {
+  async findRelevant(userId: string, context: string, limit = 2): Promise<SocialInsightRecord[]> {
     const rows = await this.prisma.socialInsight.findMany({
+      where: { userId },
       orderBy: [{ confidence: 'desc' }, { createdAt: 'desc' }],
       take: 50,
     });
@@ -72,9 +73,10 @@ export class SocialInsightService {
       .map((item) => this.toRecord(item.row));
   }
 
-  async generate(scope: SocialInsightScope = 'weekly'): Promise<SocialInsightGenerateResult> {
+  async generate(userId: string, scope: SocialInsightScope = 'weekly'): Promise<SocialInsightGenerateResult> {
     const period = this.resolvePeriod(scope);
     const entities = await this.prisma.socialEntity.findMany({
+      where: { userId },
       orderBy: [{ mentionCount: 'desc' }, { lastSeenAt: 'desc' }],
       take: scope === 'weekly' ? 6 : 10,
       select: {
@@ -96,6 +98,12 @@ export class SocialInsightService {
     const [tracePoints, edges] = await Promise.all([
       this.prisma.tracePoint.findMany({
         where: {
+          conversationId: {
+            in: (await this.prisma.conversation.findMany({
+              where: { userId },
+              select: { id: true },
+            })).map((item) => item.id),
+          },
           createdAt: { gte: since },
           people: { hasSome: entityNames },
         },
@@ -112,6 +120,7 @@ export class SocialInsightService {
       }),
       this.prisma.socialRelationEdge.findMany({
         where: {
+          userId,
           toEntityId: { in: entities.map((entity) => entity.id) },
         },
         orderBy: [{ updatedAt: 'desc' }],
@@ -135,7 +144,8 @@ export class SocialInsightService {
 
     const row = await this.prisma.socialInsight.upsert({
       where: {
-        scope_periodKey: {
+        userId_scope_periodKey: {
+          userId,
           scope,
           periodKey: period.periodKey,
         },
@@ -146,6 +156,7 @@ export class SocialInsightService {
         confidence: next.confidence,
       },
       create: {
+        userId,
         scope,
         periodKey: period.periodKey,
         content: next.content,

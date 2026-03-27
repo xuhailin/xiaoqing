@@ -72,6 +72,10 @@ type OverlayMode = 'schedule' | 'logs' | null;
             <app-icon name="check" size="0.85rem" />
             <span>新事项</span>
           </app-button>
+          <app-button variant="ghost" size="sm" (click)="navigateTo('/quick/video')">
+            <app-icon name="sparkles" size="0.85rem" />
+            <span>视频生成</span>
+          </app-button>
           <span class="wb-topbar__sep" aria-hidden="true"></span>
           <app-button variant="ghost" size="sm" (click)="openOverlay('schedule')" title="调度规则">
             <app-icon name="calendarCheck" size="0.85rem" />

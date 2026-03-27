@@ -16,8 +16,8 @@ export class SocialRelationEdgeService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(query?: SocialRelationEdgeQuery): Promise<SocialRelationEdgeRecord[]> {
-    const where: Record<string, unknown> = {};
+  async list(userId: string, query?: SocialRelationEdgeQuery): Promise<SocialRelationEdgeRecord[]> {
+    const where: Record<string, unknown> = { userId };
     if (query?.toEntityId) where.toEntityId = query.toEntityId;
     if (query?.trend) where.trend = query.trend;
 
@@ -31,11 +31,13 @@ export class SocialRelationEdgeService {
   }
 
   async findRelevant(
+    userId: string,
     context: string,
     limit = 2,
     preferredEntityIds: string[] = [],
   ): Promise<RelevantSocialRelationEdgeRecord[]> {
     const rows = await this.prisma.socialRelationEdge.findMany({
+      where: { userId },
       include: {
         toEntity: {
           select: {
@@ -62,12 +64,18 @@ export class SocialRelationEdgeService {
       .map((item) => this.toRelevantRecord(item.row));
   }
 
-  async syncFromTracePoints(since?: Date): Promise<SocialRelationEdgeSyncResult> {
+  async syncFromTracePoints(userId: string, since?: Date): Promise<SocialRelationEdgeSyncResult> {
     const [points, entities] = await Promise.all([
       this.prisma.tracePoint.findMany({
         where: {
           kind: 'relation_event',
           confidence: { gt: 0 },
+          conversationId: {
+            in: (await this.prisma.conversation.findMany({
+              where: { userId },
+              select: { id: true },
+            })).map((item) => item.id),
+          },
           ...(since ? { createdAt: { gte: since } } : {}),
         },
         orderBy: { createdAt: 'asc' },
@@ -77,13 +85,13 @@ export class SocialRelationEdgeService {
           createdAt: true,
         },
       }),
-      this.loadEntities(),
+      this.loadEntities(userId),
     ]);
 
-    return this.syncFromPoints(points, entities);
+    return this.syncFromPoints(points, entities, userId);
   }
 
-  async syncFromTracePointIds(tracePointIds: string[]): Promise<SocialRelationEdgeSyncResult> {
+  async syncFromTracePointIds(tracePointIds: string[], userId: string): Promise<SocialRelationEdgeSyncResult> {
     if (tracePointIds.length === 0) {
       return { created: 0, updated: 0, total: 0 };
     }
@@ -102,14 +110,15 @@ export class SocialRelationEdgeService {
           createdAt: true,
         },
       }),
-      this.loadEntities(),
+      this.loadEntities(userId),
     ]);
 
-    return this.syncFromPoints(points, entities);
+    return this.syncFromPoints(points, entities, userId);
   }
 
-  private async loadEntities() {
+  private async loadEntities(userId: string) {
     return this.prisma.socialEntity.findMany({
+      where: { userId },
       select: {
         id: true,
         name: true,
@@ -131,6 +140,7 @@ export class SocialRelationEdgeService {
       aliases: string[];
       relation: string;
     }>,
+    userId: string,
   ): Promise<SocialRelationEdgeSyncResult> {
     if (points.length === 0 || entities.length === 0) {
       return { created: 0, updated: 0, total: 0 };
@@ -160,7 +170,8 @@ export class SocialRelationEdgeService {
       for (const entity of relatedEntities) {
         const existing = await this.prisma.socialRelationEdge.findUnique({
           where: {
-            fromEntityId_toEntityId: {
+            userId_fromEntityId_toEntityId: {
+              userId,
               fromEntityId: USER_ENTITY_ID,
               toEntityId: entity.id,
             },
@@ -171,7 +182,8 @@ export class SocialRelationEdgeService {
         const nextQuality = this.clampQuality((existing?.quality ?? 0.5) + delta);
         const row = await this.prisma.socialRelationEdge.upsert({
           where: {
-            fromEntityId_toEntityId: {
+            userId_fromEntityId_toEntityId: {
+              userId,
               fromEntityId: USER_ENTITY_ID,
               toEntityId: entity.id,
             },
@@ -184,6 +196,7 @@ export class SocialRelationEdgeService {
             notes: point.content,
           },
           create: {
+            userId,
             fromEntityId: USER_ENTITY_ID,
             toEntityId: entity.id,
             relationType: entity.relation,

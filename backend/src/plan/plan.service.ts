@@ -13,7 +13,7 @@ export class PlanService {
 
   // ─── CRUD ──────────────────────────────────────────────
 
-  async createPlan(input: CreatePlanInput) {
+  async createPlan(input: CreatePlanInput, userId: string = 'default-user') {
     const description = input.description?.trim() || null;
     const title = input.title?.trim() || null;
     if (!title && !description) {
@@ -49,6 +49,7 @@ export class PlanService {
 
     return this.prisma.plan.create({
       data: {
+        userId,
         title,
         description,
         scope,
@@ -68,15 +69,22 @@ export class PlanService {
     });
   }
 
-  async getPlan(id: string) {
+  async getPlan(id: string, userId?: string) {
     const plan = await this.prisma.plan.findUnique({ where: { id } });
     if (!plan) throw new NotFoundException('plan not found');
+    if (userId && plan.userId !== userId) {
+      throw new NotFoundException('plan not found');
+    }
     return plan;
   }
 
-  async listPlans(filters?: { scope?: ReminderScope; status?: PlanStatus; sessionId?: string; conversationId?: string }) {
+  async listPlans(
+    userId: string,
+    filters?: { scope?: ReminderScope; status?: PlanStatus; sessionId?: string; conversationId?: string },
+  ) {
     return this.prisma.plan.findMany({
       where: {
+        userId,
         scope: filters?.scope,
         status: filters?.status,
         sessionId: filters?.sessionId,
@@ -86,8 +94,8 @@ export class PlanService {
     });
   }
 
-  async updatePlan(id: string, input: UpdatePlanInput) {
-    const plan = await this.getPlan(id);
+  async updatePlan(id: string, input: UpdatePlanInput, userId?: string) {
+    const plan = await this.getPlan(id, userId);
 
     const recurrence = (input.recurrence ?? plan.recurrence) as Recurrence;
     if (input.recurrence && !VALID_RECURRENCES.includes(recurrence)) {
@@ -124,16 +132,16 @@ export class PlanService {
     });
   }
 
-  async deletePlan(id: string) {
-    await this.getPlan(id);
+  async deletePlan(id: string, userId?: string) {
+    await this.getPlan(id, userId);
     await this.prisma.plan.delete({ where: { id } });
     return { ok: true };
   }
 
   // ─── 生命周期 ──────────────────────────────────────────
 
-  async lifecycle(id: string, action: PlanLifecycleAction) {
-    const plan = await this.getPlan(id);
+  async lifecycle(id: string, action: PlanLifecycleAction, userId?: string) {
+    const plan = await this.getPlan(id, userId);
 
     switch (action) {
       case 'pause': {

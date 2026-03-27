@@ -25,6 +25,7 @@ export class MemoryService implements IMemoryRecaller {
 
   async recall(ctx: RecallContext): Promise<RecallResult> {
     const candidates = await this.getCandidatesForRecall({
+      userId: ctx.userId,
       recentMessages: ctx.recentUserMessages.map((content) => ({ role: 'user', content })),
       maxMid: ctx.maxMid,
       maxLong: ctx.maxLong,
@@ -51,8 +52,9 @@ export class MemoryService implements IMemoryRecaller {
     };
   }
 
-  async list(type?: 'mid' | 'long', category?: string) {
+  async list(userId: string, type?: 'mid' | 'long', category?: string) {
     const where: Record<string, unknown> = {};
+    where.userId = userId;
     if (type) where.type = type;
     if (category) where.category = category;
     return this.prisma.memory.findMany({
@@ -97,6 +99,7 @@ export class MemoryService implements IMemoryRecaller {
     category?: string;
     frozen?: boolean;
     correctedMemoryId?: string;
+    userId?: string;
   }) {
     const category = data.category ?? MemoryCategory.GENERAL;
     const frozen =
@@ -104,6 +107,7 @@ export class MemoryService implements IMemoryRecaller {
     return this.prisma.memory.create({
       data: {
         type: data.type,
+        userId: data.userId ?? 'default-user',
         category,
         content: data.content,
         sourceMessageIds: data.sourceMessageIds ?? [],
@@ -117,9 +121,10 @@ export class MemoryService implements IMemoryRecaller {
   /**
    * 获取已有长期认知条目（判断模式/价值排序/关系节奏），供记忆分析引擎判似。
    */
-  async getExistingCognitiveMemories(): Promise<Array<{ id: string; content: string }>> {
+  async getExistingCognitiveMemories(userId: string): Promise<Array<{ id: string; content: string }>> {
     const list = await this.prisma.memory.findMany({
       where: {
+        userId,
         type: 'long',
         category: { in: COGNITIVE_CATEGORIES },
         decayScore: { gt: 0 },
@@ -134,10 +139,10 @@ export class MemoryService implements IMemoryRecaller {
   /**
    * 按类别查询记忆。
    */
-  async findByCategory(category: string) {
+  async findByCategory(userId: string, category: string) {
     if (!VALID_CATEGORIES.includes(category)) return [];
     return this.prisma.memory.findMany({
-      where: { category },
+      where: { userId, category },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -232,6 +237,7 @@ export class MemoryService implements IMemoryRecaller {
    * 替代原有 getForInjection 的全量盲注，候选结果交由 PromptRouterService 做精排与 budget 截断。
    */
   async getCandidatesForRecall(opts: {
+    userId: string;
     recentMessages: Array<{ role: string; content: string }>;
     maxLong?: number;
     maxMid?: number;
@@ -253,6 +259,7 @@ export class MemoryService implements IMemoryRecaller {
     const [longList, midList] = await Promise.all([
       this.prisma.memory.findMany({
         where: {
+          userId: opts.userId,
           type: 'long',
           decayScore: { gt: 0 },
         },
@@ -261,6 +268,7 @@ export class MemoryService implements IMemoryRecaller {
       }),
       this.prisma.memory.findMany({
         where: {
+          userId: opts.userId,
           type: 'mid',
           decayScore: { gt: 0 },
         },
@@ -323,6 +331,7 @@ export class MemoryService implements IMemoryRecaller {
     ctx: RecallContext & { minRelevanceScore?: number },
   ): Promise<MemoryCandidate[]> {
     return this.getCandidatesForRecall({
+      userId: ctx.userId,
       recentMessages: ctx.recentUserMessages.map((content) => ({ role: 'user', content })),
       maxLong: ctx.maxLong,
       maxMid: ctx.maxMid,
@@ -335,6 +344,7 @@ export class MemoryService implements IMemoryRecaller {
    * 用途：补充未被直接关键词命中但话题相关的记忆（如"工作压力"关联"失眠"）。
    */
   async getRelatedMemories(
+    userId: string,
     recalledIds: string[],
     maxRelated: number = 5,
   ): Promise<MemoryCandidate[]> {
@@ -342,7 +352,7 @@ export class MemoryService implements IMemoryRecaller {
 
     // 获取已召回记忆的内容和分类
     const recalled = await this.prisma.memory.findMany({
-      where: { id: { in: recalledIds } },
+      where: { id: { in: recalledIds }, userId },
       select: { id: true, category: true, content: true },
     });
     if (recalled.length === 0) return [];
@@ -360,6 +370,7 @@ export class MemoryService implements IMemoryRecaller {
     // 查找相同分类的其他活跃记忆
     const candidates = await this.prisma.memory.findMany({
       where: {
+        userId,
         id: { notIn: recalledIds },
         category: { in: [...categories] },
         decayScore: { gt: 0 },
@@ -396,17 +407,17 @@ export class MemoryService implements IMemoryRecaller {
    * Phase2: 供对话前注入用。最近 K 条 mid + 全部 long。
    * 保留作为 FEATURE_KEYWORD_PREFILTER=false 时的 fallback。
    */
-  async getForInjection(midK: number): Promise<
+  async getForInjection(userId: string, midK: number): Promise<
     Array<{ id: string; type: string; content: string }>
   > {
     const [midList, longList] = await Promise.all([
       this.prisma.memory.findMany({
-        where: { type: 'mid' },
+        where: { userId, type: 'mid' },
         orderBy: { createdAt: 'desc' },
         take: midK,
       }),
       this.prisma.memory.findMany({
-        where: { type: 'long' },
+        where: { userId, type: 'long' },
         orderBy: { createdAt: 'asc' },
       }),
     ]);

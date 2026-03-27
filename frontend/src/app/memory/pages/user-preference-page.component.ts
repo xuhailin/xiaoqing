@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
+import { AuthService } from '../../core/services/auth.service';
 import { UserProfileService, type UserProfileDto } from '../../core/services/user-profile.service';
 import { AppButtonComponent } from '../../shared/ui/app-button.component';
 import { AppPageHeaderComponent } from '../../shared/ui/app-page-header.component';
@@ -251,9 +252,10 @@ import { AppPanelComponent } from '../../shared/ui/app-panel.component';
 })
 export class UserPreferencePageComponent implements OnInit {
   private userProfileService = inject(UserProfileService);
+  private auth = inject(AuthService);
 
   readonly profile = signal<UserProfileDto>({
-    userKey: 'default-user',
+    userKey: this.auth.currentUserId ?? '',
     preferredPersonaKey: 'default',
     preferredVoiceStyle: '',
     praisePreference: '',

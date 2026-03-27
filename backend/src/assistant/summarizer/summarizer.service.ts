@@ -101,6 +101,7 @@ export class SummarizerService {
 
   async summarize(
     conversationId: string,
+    userId: string,
     messageIds?: string[],
   ): Promise<{
     created: number;
@@ -157,7 +158,7 @@ export class SummarizerService {
     }
 
     const ids = messages.map((m) => m.id);
-    const existingCognitive = await this.memory.getExistingCognitiveMemories();
+    const existingCognitive = await this.memory.getExistingCognitiveMemories(userId);
 
     const promptMessages = this.router.buildMemoryAnalysisMessages({
       messages: messages.map((m) => ({
@@ -186,7 +187,7 @@ export class SummarizerService {
     const claimResults: Array<{ claimId: string; status: string; previousStatus?: string }> = [];
 
     if (this.claimConfig.writeDualEnabled) {
-      await this.writeSessionStateIfPresent(conversationId, parsed);
+      await this.writeSessionStateIfPresent(conversationId, userId, parsed);
     }
 
     if (!parsed || !parsed.shouldUpdate || !parsed.updates?.length) {
@@ -281,7 +282,7 @@ export class SummarizerService {
             }
 
             try {
-              const claimResult = await this.writeClaimDraft(conversationId, ids, {
+              const claimResult = await this.writeClaimDraft(conversationId, userId, ids, {
                 type,
                 key: validation.key,
                 valueJson: validation.valueJson,
@@ -344,6 +345,7 @@ export class SummarizerService {
             sourceMessageIds: ids,
             category: memoryType,
             confidence,
+            userId,
           });
           created.push({
             id: mem.id,
@@ -401,7 +403,7 @@ export class SummarizerService {
 
     // ── B1: 总结后自动提取印象更新 ──────────────────────────
     if (this.featureAutoImpression && created.length > 0) {
-      this.extractAndUpdateImpression(messages).catch((err: Error) =>
+      this.extractAndUpdateImpression(messages, userId).catch((err: Error) =>
         this.logger.warn(`Auto-impression failed: ${err.message}`),
       );
     }
@@ -409,7 +411,7 @@ export class SummarizerService {
     // ── B2: 总结后自动提取身份锚定 ──────────────────────────
     // 不以 created.length 为门槛——身份锚点由 LLM 在 extractAndUpdateAnchor 内判断
     if (this.featureAutoAnchor) {
-      this.extractAndUpdateAnchor(messages).catch((err: Error) =>
+      this.extractAndUpdateAnchor(messages, userId).catch((err: Error) =>
         this.logger.warn(`Auto-anchor failed: ${err.message}`),
       );
     }
@@ -436,7 +438,7 @@ export class SummarizerService {
               "updatedAt",
               "lastSeenAt"
             FROM "UserClaim"
-            WHERE "userKey" = 'default-user'
+            WHERE "userKey" = ${userId}
               AND "key" LIKE 'draft.%'
               AND "status" IN ('CANDIDATE', 'WEAK')
               AND "evidenceCount" >= 3
@@ -481,8 +483,9 @@ export class SummarizerService {
    */
   private async extractAndUpdateImpression(
     messages: Array<{ id: string; role: string; content: string }>,
+    userId: string,
   ): Promise<void> {
-    const profile = await this.userProfile.getOrCreate();
+    const profile = await this.userProfile.getOrCreate(userId);
     const dialogue = messages
       .map((m) => `${m.role === 'user' ? '她' : '小晴'}: ${m.content}`)
       .join('\n');
@@ -515,7 +518,7 @@ export class SummarizerService {
         target: 'core',
         content: parsed.core,
         confirmed: !this.featureImpressionRequireConfirm,
-      });
+      }, userId);
       this.logger.log(`Impression updated: ${parsed.core}`);
     } catch (err: unknown) {
       // Token 超预算时静默跳过（印象过长了）
@@ -550,8 +553,9 @@ export class SummarizerService {
    */
   private async extractAndUpdateAnchor(
     messages: Array<{ id: string; role: string; content: string }>,
+    userId: string,
   ): Promise<void> {
-    const activeAnchors = await this.anchor.getActiveAnchors();
+    const activeAnchors = await this.anchor.getActiveAnchors(userId);
     const existingText =
       activeAnchors.length > 0
         ? activeAnchors
@@ -621,7 +625,7 @@ label 类型：
           await this.anchor.update(item.existingId, { content, label });
           this.logger.log(`Anchor updated [${label}]: ${content}`);
         } else {
-          await this.anchor.create({ label, content });
+          await this.anchor.create({ label, content }, userId);
           this.logger.log(`Anchor created [${label}]: ${content}`);
         }
       } catch (err: unknown) {
@@ -639,6 +643,7 @@ label 类型：
     if (nickname) {
       try {
         await this.claimUpdater.upsertFromDraft({
+          userKey: userId,
           type: 'INTERACTION_PREFERENCE',
           key: 'ip.nickname.primary',
           value: { name: nickname, source: 'user_stated' },
@@ -722,6 +727,7 @@ label 类型：
 
   private async writeClaimDraft(
     conversationId: string,
+    userId: string,
     messageIds: string[],
     input: {
       type: string;
@@ -743,6 +749,7 @@ label 类型：
       : 1;
 
     return this.claimUpdater.upsertFromDraft({
+      userKey: userId,
       type: claimType,
       key: input.key,
       value: input.valueJson,
@@ -761,6 +768,7 @@ label 类型：
 
   private async writeSessionStateIfPresent(
     conversationId: string,
+    userId: string,
     parsed: MemoryAnalysisOutput | null,
   ): Promise<void> {
     if (!parsed?.sessionState) return;
@@ -775,6 +783,7 @@ label 类型：
     if (Object.keys(payload).length === 0) return;
 
     await this.sessionState.upsertState({
+      userKey: userId,
       sessionId: conversationId,
       state: payload,
       confidence,

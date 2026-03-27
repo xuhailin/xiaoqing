@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { isFeatureEnabled } from '../../../config/feature-flags';
 import { SocialInsightService } from './social-insight.service';
+import { PrismaService } from '../../../infra/prisma.service';
 
 @Injectable()
 export class SocialInsightSchedulerService {
@@ -11,6 +12,7 @@ export class SocialInsightSchedulerService {
 
   constructor(
     private readonly socialInsight: SocialInsightService,
+    private readonly prisma: PrismaService,
     config: ConfigService,
   ) {
     this.enabled = isFeatureEnabled(config, 'socialInsightScheduler');
@@ -22,13 +24,14 @@ export class SocialInsightSchedulerService {
     if (!this.enabled) return;
 
     try {
-      const result = await this.socialInsight.generate('weekly');
-      if (result.record) {
-        this.logger.log(
-          `Weekly social insight generated: ${result.record.periodKey} (${result.record.confidence.toFixed(2)})`,
-        );
-      } else {
-        this.logger.log('Weekly social insight skipped: no strong pattern detected');
+      const users = await this.prisma.socialEntity.groupBy({ by: ['userId'] });
+      for (const { userId } of users) {
+        const result = await this.socialInsight.generate(userId, 'weekly');
+        if (result.record) {
+          this.logger.log(
+            `Weekly social insight generated: user=${userId}, ${result.record.periodKey} (${result.record.confidence.toFixed(2)})`,
+          );
+        }
       }
     } catch (err) {
       this.logger.warn(`Weekly social insight failed: ${String(err)}`);
@@ -41,13 +44,14 @@ export class SocialInsightSchedulerService {
     if (!this.enabled) return;
 
     try {
-      const result = await this.socialInsight.generate('monthly');
-      if (result.record) {
-        this.logger.log(
-          `Monthly social insight generated: ${result.record.periodKey} (${result.record.confidence.toFixed(2)})`,
-        );
-      } else {
-        this.logger.log('Monthly social insight skipped: no strong pattern detected');
+      const users = await this.prisma.socialEntity.groupBy({ by: ['userId'] });
+      for (const { userId } of users) {
+        const result = await this.socialInsight.generate(userId, 'monthly');
+        if (result.record) {
+          this.logger.log(
+            `Monthly social insight generated: user=${userId}, ${result.record.periodKey} (${result.record.confidence.toFixed(2)})`,
+          );
+        }
       }
     } catch (err) {
       this.logger.warn(`Monthly social insight failed: ${String(err)}`);

@@ -210,7 +210,7 @@ export class InteractionTuningLearner {
     for (const match of matches) {
       try {
         const existing = await this.claimStore.findByTypeAndKey(
-          'default-user',
+          plan.userId,
           'INTERACTION_TUNING',
           match.key,
         );
@@ -282,7 +282,7 @@ export class InteractionTuningLearner {
     const polarity: EvidencePolarity = !existing || isSameValue ? 'SUPPORT' : 'CONTRA';
 
     return {
-      userKey: 'default-user',
+      userKey: plan.userId,
       type: 'INTERACTION_TUNING',
       key: match.key,
       value: !existing || isSameValue ? match.desiredValue : existing.valueJson,

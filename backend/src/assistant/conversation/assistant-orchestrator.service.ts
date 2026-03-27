@@ -109,6 +109,7 @@ export class AssistantOrchestrator {
 
   async processTurn(input: {
     conversationId: string;
+    userId: string;
     userInput: string;
     userMessage: { id: string; role: 'user'; content: string; createdAt: Date };
     recentRounds: number;
@@ -138,6 +139,7 @@ export class AssistantOrchestrator {
     try {
       context = await this.assembler.assemble({
         conversationId: input.conversationId,
+        userId: input.userId,
         userInput: input.userInput,
         userMessage: input.userMessage,
         now: new Date(),
@@ -149,6 +151,7 @@ export class AssistantOrchestrator {
       this.logger.warn(`assemble failed, fallback assembleFallback: ${String(err)}`);
       context = await this.assembler.assembleFallback({
         conversationId: input.conversationId,
+        userId: input.userId,
         userInput: input.userInput,
         userMessage: input.userMessage,
         now: new Date(),
@@ -200,6 +203,7 @@ export class AssistantOrchestrator {
             ? this.postTurnPlanBuilder.build({
                 executionPath: completion.postTurnMeta.executionPath,
                 conversationId: input.conversationId,
+                userId: input.userId,
                 userMsg: input.userMessage,
                 assistantMsg: {
                   id: completion.result.assistantMessage.id,
@@ -273,7 +277,7 @@ export class AssistantOrchestrator {
 
     // 多意图：为延迟动作创建 Plan（异步，不阻塞返回）
     if (actionDecision?.deferredIntents?.length) {
-      void this.scheduleDeferredIntentPlans(input.conversationId, actionDecision);
+      void this.scheduleDeferredIntentPlans(input.conversationId, input.userId, actionDecision);
     }
 
     this.logPipelineState({
@@ -299,6 +303,7 @@ export class AssistantOrchestrator {
     context: TurnContext,
     input: {
       conversationId: string;
+      userId: string;
       userInput: string;
       userMessage: { id: string; role: 'user'; content: string; createdAt: Date };
     },
@@ -327,6 +332,7 @@ export class AssistantOrchestrator {
       const postTurnPlan = this.postTurnPlanBuilder.build({
         executionPath: 'chat',
         conversationId: input.conversationId,
+        userId: input.userId,
         userMsg: input.userMessage,
         assistantMsg,
         userInput: input.userInput,
@@ -370,6 +376,7 @@ export class AssistantOrchestrator {
       const postTurnPlan = this.postTurnPlanBuilder.build({
         executionPath: 'missing_params',
         conversationId: input.conversationId,
+        userId: input.userId,
         userMsg: input.userMessage,
         assistantMsg,
         userInput: input.userInput,
@@ -422,6 +429,7 @@ export class AssistantOrchestrator {
     const postTurnPlan = this.postTurnPlanBuilder.build({
       executionPath: 'tool',
       conversationId: input.conversationId,
+      userId: input.userId,
       userMsg: input.userMessage,
       assistantMsg,
       userInput: input.userInput,
@@ -644,7 +652,7 @@ export class AssistantOrchestrator {
         conversationId: context.request.conversationId,
         sourceTodoId: todoId,
         ...schedule,
-      });
+      }, context.request.userId);
     } catch (err) {
       this.logger.warn(`create notify plan for todo failed: ${String(err)}`);
       return null;
@@ -730,6 +738,7 @@ export class AssistantOrchestrator {
    */
   private async createPlansForDeferredIntents(
     conversationId: string,
+    userId: string,
     decision: ActionDecision,
   ): Promise<void> {
     const deferred = decision.deferredIntents;
@@ -762,7 +771,7 @@ export class AssistantOrchestrator {
             params: template.params ?? {},
           },
           taskTemplates: [template],
-        });
+        }, userId);
 
         this.logger.log(`Created deferred plan for intent=${item.intent}, conversationId=${conversationId}`);
       } catch (err) {
@@ -773,10 +782,11 @@ export class AssistantOrchestrator {
 
   private async scheduleDeferredIntentPlans(
     conversationId: string,
+    userId: string,
     decision: ActionDecision,
   ): Promise<void> {
     try {
-      await this.createPlansForDeferredIntents(conversationId, decision);
+      await this.createPlansForDeferredIntents(conversationId, userId, decision);
     } catch (err) {
       this.logger.warn(`deferred intents plan creation failed: ${String(err)}`);
     }
@@ -1009,7 +1019,7 @@ export class AssistantOrchestrator {
       await this.cognitiveGrowth.recordTurnGrowth(plan.context.cognitiveState, [
         plan.turn.userMessageId,
         plan.turn.assistantMessageId,
-      ]);
+      ], plan.userId);
 
       // 填充 growthOps 到 collector，供后续 record_cognitive_observation 使用
       const cs = plan.context.cognitiveState;
@@ -1054,14 +1064,15 @@ export class AssistantOrchestrator {
       return;
     }
 
-    if (task.type === 'summarize_trigger') {
+      if (task.type === 'summarize_trigger') {
       if (task.trigger === 'flush') {
-        await this.summarizeTrigger.flushSummarize(plan.conversationId);
+        await this.summarizeTrigger.flushSummarize(plan.conversationId, plan.userId);
         return;
       }
       const ops = await this.summarizeTrigger.maybeAutoSummarize(
         plan.conversationId,
         plan.turn.userInput,
+        plan.userId,
       );
       // 填充 memoryOps / claimOps 到 collector
       plan.opsCollector.memoryOps.push(...ops.memoryOps);
@@ -1143,9 +1154,8 @@ export class AssistantOrchestrator {
     }
 
     try {
-      const userKey = 'default-user';
       await this.sessionState.upsertState({
-        userKey,
+        userKey: plan.userId,
         sessionId: plan.conversationId,
         state: {
           lastReflection: {
@@ -1184,7 +1194,7 @@ export class AssistantOrchestrator {
       | undefined;
 
     try {
-      const overview = await this.relationshipOverview.getOverview();
+      const overview = await this.relationshipOverview.getOverview(plan.userId);
       relationshipContext = {
         stage: overview.stage,
         trustScore: overview.trustScore,
@@ -1264,7 +1274,7 @@ export class AssistantOrchestrator {
 
     try {
       await this.claimUpdate.upsertFromDraft({
-        userKey: 'default-user',
+        userKey: plan.userId,
         type: 'RELATION_RHYTHM',
         key: validation.key,
         value: validation.valueJson,
@@ -1332,8 +1342,8 @@ export class AssistantOrchestrator {
 
     try {
       await Promise.all([
-        this.socialEntity.syncFromTracePointIds(createdTracePointIds),
-        this.socialRelationEdge.syncFromTracePointIds(createdTracePointIds),
+        this.socialEntity.syncFromTracePointIds(createdTracePointIds, plan.userId),
+        this.socialRelationEdge.syncFromTracePointIds(createdTracePointIds, plan.userId),
       ]);
     } catch (err) {
       this.logger.warn(`Failed to sync relation events from session reflection: ${String(err)}`);
@@ -1362,6 +1372,7 @@ export class AssistantOrchestrator {
     try {
       const current = await this.prisma.relationshipState.findFirst({
         where: {
+          userId: plan.userId,
           isActive: true,
           status: 'confirmed',
         },
@@ -1404,12 +1415,13 @@ export class AssistantOrchestrator {
 
       const tracePointIds = points.map((point) => point.id);
       const [entitySync] = await Promise.all([
-        this.socialEntity.syncFromTracePointIds(tracePointIds),
-        this.socialRelationEdge.syncFromTracePointIds(tracePointIds),
+        this.socialEntity.syncFromTracePointIds(tracePointIds, plan.userId),
+        this.socialRelationEdge.syncFromTracePointIds(tracePointIds, plan.userId),
       ]);
 
       if (entitySync.entityIds.length > 0) {
         await this.socialEntityClassifier.classifyPending({
+          userId: plan.userId,
           entityIds: entitySync.entityIds,
           limit: Math.min(entitySync.entityIds.length, 4),
         });

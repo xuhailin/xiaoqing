@@ -27,17 +27,17 @@ export class IdentityAnchorService {
   }
 
   /** 返回所有条目（含已停用），按 sortOrder 排序 */
-  async list(): Promise<AnchorDto[]> {
+  async list(userKey: string = this.defaultUserKey): Promise<AnchorDto[]> {
     return this.prisma.identityAnchor.findMany({
-      where: { userKey: this.defaultUserKey },
+      where: { userKey },
       orderBy: { sortOrder: 'asc' },
     });
   }
 
   /** 返回所有 active 条目，始终注入用 */
-  async getActiveAnchors(): Promise<AnchorDto[]> {
+  async getActiveAnchors(userKey: string = this.defaultUserKey): Promise<AnchorDto[]> {
     return this.prisma.identityAnchor.findMany({
-      where: { userKey: this.defaultUserKey, isActive: true },
+      where: { userKey, isActive: true },
       orderBy: { sortOrder: 'asc' },
       take: MAX_ANCHORS,
     });
@@ -61,9 +61,9 @@ export class IdentityAnchorService {
     content: string;
     sortOrder?: number;
     nickname?: string;
-  }): Promise<AnchorDto> {
+  }, userKey: string = this.defaultUserKey): Promise<AnchorDto> {
     const activeCount = await this.prisma.identityAnchor.count({
-      where: { userKey: this.defaultUserKey, isActive: true },
+      where: { userKey, isActive: true },
     });
     if (activeCount >= MAX_ANCHORS) {
       throw new BadRequestException(
@@ -76,7 +76,7 @@ export class IdentityAnchorService {
         content: data.content,
         sortOrder: data.sortOrder ?? 0,
         nickname: data.nickname ?? null,
-        userKey: this.defaultUserKey,
+        userKey,
       },
     });
   }
@@ -125,8 +125,13 @@ export class IdentityAnchorService {
     });
   }
 
-  async getHistory() {
+  async getHistory(userKey: string = this.defaultUserKey) {
+    const anchors = await this.prisma.identityAnchor.findMany({
+      where: { userKey },
+      select: { id: true },
+    });
     return this.prisma.identityAnchorHistory.findMany({
+      where: { anchorId: { in: anchors.map((item) => item.id) } },
       orderBy: { changedAt: 'desc' },
       take: 50,
     });
@@ -136,9 +141,9 @@ export class IdentityAnchorService {
    * 一次性迁移：将 Memory 表中 category='identity_anchor' 的记录迁移到新表。
    * 迁移后将原记录从 Memory 表软删除（decayScore=0）。
    */
-  async migrateFromMemory(): Promise<{ migrated: number }> {
+  async migrateFromMemory(userKey: string = this.defaultUserKey): Promise<{ migrated: number }> {
     const oldRecords = await this.prisma.memory.findMany({
-      where: { category: 'identity_anchor' },
+      where: { category: 'identity_anchor', userId: userKey },
     });
     if (oldRecords.length === 0) return { migrated: 0 };
 
@@ -146,7 +151,7 @@ export class IdentityAnchorService {
     for (const record of oldRecords) {
       await this.prisma.identityAnchor.create({
         data: {
-          userKey: this.defaultUserKey,
+          userKey,
           label: 'basic',
           content: record.content,
           sortOrder: 0,

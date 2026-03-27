@@ -8,14 +8,15 @@ import {
   Post,
 } from '@nestjs/common';
 import { IdentityAnchorService } from './identity-anchor.service';
+import { UserId } from '../../infra/user-id.decorator';
 
 @Controller('identity-anchors')
 export class IdentityAnchorController {
   constructor(private service: IdentityAnchorService) {}
 
   @Get()
-  async list() {
-    return this.service.list();
+  async list(@UserId() userId?: string) {
+    return this.service.list(userId ?? 'default-user');
   }
 
   @Post()
@@ -27,8 +28,9 @@ export class IdentityAnchorController {
       sortOrder?: number;
       nickname?: string;
     },
+    @UserId() userId?: string,
   ) {
-    return this.service.create(body);
+    return this.service.create(body, userId ?? 'default-user');
   }
 
   @Patch(':id')
@@ -51,12 +53,12 @@ export class IdentityAnchorController {
   }
 
   @Get('history')
-  async getHistory() {
-    return this.service.getHistory();
+  async getHistory(@UserId() userId?: string) {
+    return this.service.getHistory(userId ?? 'default-user');
   }
 
   @Post('migrate')
-  async migrateFromMemory() {
-    return this.service.migrateFromMemory();
+  async migrateFromMemory(@UserId() userId?: string) {
+    return this.service.migrateFromMemory(userId ?? 'default-user');
   }
 }

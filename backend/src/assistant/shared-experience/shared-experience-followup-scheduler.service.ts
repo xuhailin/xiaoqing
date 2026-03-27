@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { isFeatureEnabled } from '../../config/feature-flags';
 import { SharedExperienceFollowupService } from './shared-experience-followup.service';
+import { PrismaService } from '../../infra/prisma.service';
 
 @Injectable()
 export class SharedExperienceFollowupSchedulerService {
@@ -11,6 +12,7 @@ export class SharedExperienceFollowupSchedulerService {
 
   constructor(
     private readonly followup: SharedExperienceFollowupService,
+    private readonly prisma: PrismaService,
     config: ConfigService,
   ) {
     this.enabled = isFeatureEnabled(config, 'sharedExperienceFollowupScheduler');
@@ -22,9 +24,14 @@ export class SharedExperienceFollowupSchedulerService {
     if (!this.enabled) return;
 
     try {
-      const result = await this.followup.generateFollowupPlans();
-      if (result.created > 0) {
-        this.logger.log(`Shared experience followups: ${result.created} created, ${result.skipped} skipped`);
+      const users = await this.prisma.sharedExperience.groupBy({ by: ['userId'] });
+      for (const { userId } of users) {
+        const result = await this.followup.generateFollowupPlans({ userId });
+        if (result.created > 0) {
+          this.logger.log(
+            `Shared experience followups: user=${userId}, ${result.created} created, ${result.skipped} skipped`,
+          );
+        }
       }
     } catch (err) {
       this.logger.warn(`Shared experience followup planning failed: ${String(err)}`);

@@ -3,6 +3,7 @@ import { SummarizerService } from './summarizer.service';
 import { PrismaService } from '../../infra/prisma.service';
 import { PersonaService } from '../persona/persona.service';
 import { EvolutionSchedulerService } from '../persona/evolution-scheduler.service';
+import { UserId } from '../../infra/user-id.decorator';
 
 @Controller()
 export class SummarizerController {
@@ -17,8 +18,9 @@ export class SummarizerController {
   async summarize(
     @Param('id') id: string,
     @Body() body?: { messageIds?: string[] },
+    @UserId() userId?: string,
   ) {
-    const result = await this.summarizer.summarize(id, body?.messageIds);
+    const result = await this.summarizer.summarize(id, userId ?? 'default-user', body?.messageIds);
 
     const msgs = await this.prisma.message.findMany({
       where: { conversationId: id },
@@ -42,7 +44,7 @@ export class SummarizerController {
 
       if (personaChanges.length === 0) return result;
 
-      this.evolutionScheduler.setPendingSuggestion({
+      this.evolutionScheduler.setPendingSuggestion(userId ?? 'default-user', {
         changes: personaChanges,
         triggerReason: '手动总结后触发',
         createdAt: new Date(),

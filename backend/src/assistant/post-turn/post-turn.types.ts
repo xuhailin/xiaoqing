@@ -13,6 +13,8 @@ export interface TurnOpsCollector {
 export interface PostTurnPlan {
   /** 当前回合所属会话。 */
   conversationId: string;
+  /** 当前回合所属用户。 */
+  userId: string;
   turn: {
     /** 本回合唯一标识。 */
     turnId: string;

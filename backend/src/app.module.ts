@@ -1,4 +1,4 @@
-import { Global, Module } from '@nestjs/common';
+import { Global, MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
@@ -24,6 +24,8 @@ import { AgentBusModule } from './agent-bus/agent-bus.module';
 import { PlanModule } from './plan/plan.module';
 import { IdeaModule } from './idea/idea.module';
 import { TodoModule } from './todo/todo.module';
+import { SeedanceModule } from './seeddance/seeddance.module';
+import { UserIdMiddleware } from './infra/user-id.middleware';
 
 @Global()
 @Module({
@@ -45,9 +47,14 @@ import { TodoModule } from './todo/todo.module';
     IdeaModule,
     TodoModule,
     WechatWorkBotModule,
+    SeedanceModule,
   ],
   controllers: [AppController, AssetsController, RegressionReportsController, RegressionRunController],
   providers: [AppService, PrismaService, RegressionReportsService, RegressionRunService],
   exports: [PrismaService],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(UserIdMiddleware).forRoutes('*');
+  }
+}

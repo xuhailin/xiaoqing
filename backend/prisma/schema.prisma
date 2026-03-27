@@ -33,6 +33,7 @@ enum EvidencePolarity {
 model Conversation {
   id           String    @id @default(uuid())
   title        String?
+  userId       String    @default("default-user")
   entryAgentId EntryAgentId @default(xiaoqing)
   isInternal   Boolean   @default(false)
   summarizedAt DateTime?
@@ -51,6 +52,7 @@ model Conversation {
 
   @@index([entryAgentId, updatedAt])
   @@index([isInternal, updatedAt])
+  @@index([userId, isInternal, updatedAt])
 }
 
 enum EntryAgentId {
@@ -270,10 +272,12 @@ model Memory {
   // 纠错专用
   correctedMemoryId String? // 若本条是纠错记忆，指向被纠正的原记忆 ID
 
+  userId           String   @default("default-user")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   @@index([category])
+  @@index([userId])
   @@index([decayScore])
 }
 
@@ -471,12 +475,14 @@ model CognitiveProfile {
   sourceMessageIds String[] @default([])
   hitCount         Int      @default(0)
   lastAppliedAt    DateTime @default(now())
+  userId           String   @default("default-user")
   isActive         Boolean  @default(true)
   status           String   @default("pending") // 'pending' | 'confirmed' | 'rejected'
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   @@index([kind, isActive])
+  @@index([userId, kind, isActive])
   @@index([updatedAt])
   @@index([status])
 }
@@ -493,12 +499,14 @@ model RelationshipState {
   sourceMessageIds String[] @default([])
   hitCount         Int      @default(0)
   version          Int      @default(1)
+  userId           String   @default("default-user")
   isActive         Boolean  @default(true)
   status           String   @default("pending") // 'pending' | 'confirmed' | 'rejected'
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   @@index([isActive, updatedAt])
+  @@index([userId, isActive, updatedAt])
   @@index([status])
 }
 
@@ -506,10 +514,12 @@ model RelationshipState {
 model BoundaryEvent {
   id               String   @id @default(uuid())
   note             String   @db.Text
+  userId           String   @default("default-user")
   severity         String   @default("info")
   sourceMessageIds String[] @default([])
   createdAt        DateTime @default(now())
 
+  @@index([userId, createdAt])
   @@index([createdAt])
   @@index([severity])
 }
@@ -606,6 +616,7 @@ model TracePoint {
 
 model SocialEntity {
   id           String   @id @default(uuid())
+  userId       String   @default("default-user")
   name         String           // 主名称（如"妈妈"）
   aliases      String[] @default([]) // 别名（如["老妈", "我妈"]）
   relation     String   @default("other") // family | friend | colleague | romantic | pet | other
@@ -618,15 +629,16 @@ model SocialEntity {
   updatedAt    DateTime @updatedAt
   relationEdges SocialRelationEdge[]
 
-  @@unique([name])
-  @@index([relation])
-  @@index([lastSeenAt])
+  @@unique([userId, name])
+  @@index([userId, relation])
+  @@index([userId, lastSeenAt])
 }
 
 // ── Life Record: Social Insight ────────────────────────────
 
 model SocialInsight {
   id               String   @id @default(uuid())
+  userId           String   @default("default-user")
   scope            String   @default("weekly") // weekly | monthly
   periodKey        String
   content          String   @db.Text
@@ -635,7 +647,8 @@ model SocialInsight {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  @@unique([scope, periodKey])
+  @@unique([userId, scope, periodKey])
+  @@index([userId, scope, createdAt])
   @@index([scope, createdAt])
   @@index([confidence])
 }
@@ -644,6 +657,7 @@ model SocialInsight {
 
 model SocialRelationEdge {
   id           String   @id @default(uuid())
+  userId       String   @default("default-user")
   fromEntityId String
   toEntityId   String
   relationType String
@@ -656,7 +670,8 @@ model SocialRelationEdge {
 
   toEntity     SocialEntity @relation(fields: [toEntityId], references: [id], onDelete: Cascade)
 
-  @@unique([fromEntityId, toEntityId])
+  @@unique([userId, fromEntityId, toEntityId])
+  @@index([userId, trend, updatedAt])
   @@index([trend, updatedAt])
   @@index([toEntityId])
 }
@@ -664,6 +679,7 @@ model SocialRelationEdge {
 // 日摘要：基于当天 TracePoints 生成的一段日总结
 model DailySummary {
   id              String   @id @default(uuid())
+  userId          String   @default("default-user")
   dayKey          String          // 'YYYY-MM-DD'
   title           String
   body            String   @db.Text
@@ -674,7 +690,8 @@ model DailySummary {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  @@unique([dayKey])
+  @@unique([userId, dayKey])
+  @@index([userId, dayKey])
   @@index([dayKey])
 }
 
@@ -683,6 +700,7 @@ model DailySummary {
 // L1: 回合级认知观测，从管线信号中提取有意义的认知事件
 model CognitiveObservation {
   id              String   @id @default(cuid())
+  userId          String   @default("default-user")
   dimension       String   // 'perception' | 'decision' | 'memory' | 'expression' | 'growth'
   kind            String   // 具体类型，按 dimension 细分
   title           String   // 一句话描述
@@ -698,6 +716,7 @@ model CognitiveObservation {
   insight         CognitiveInsight? @relation(fields: [insightId], references: [id])
   relatedTracePointIds String[] @default([])
 
+  @@index([userId, dimension, happenedAt])
   @@index([dimension, happenedAt])
   @@index([kind, happenedAt])
   @@index([conversationId])
@@ -707,6 +726,7 @@ model CognitiveObservation {
 // L2: 日/周级认知洞察，LLM 聚合分析
 model CognitiveInsight {
   id               String   @id @default(cuid())
+  userId           String   @default("default-user")
   scope            String   // 'daily' | 'weekly' | 'monthly'
   periodKey        String   // '2026-03-18' | '2026-W12' | '2026-03'
   dimension        String?  // 聚焦维度，null 表示综合
@@ -719,7 +739,8 @@ model CognitiveInsight {
   createdAt        DateTime @default(now())
   observations     CognitiveObservation[]
 
-  @@unique([scope, periodKey, dimension])
+  @@unique([userId, scope, periodKey, dimension])
+  @@index([userId, scope, periodKey])
   @@index([scope, periodKey])
 }
 
@@ -769,12 +790,15 @@ model SharedExperience {
   category         String   @default("emotional_support")
   emotionalTone    String?
   significance     Float    @default(0.5)
+  userId           String   @default("default-user")
   happenedAt       DateTime
   conversationIds  String[]
   relatedEntityIds String[] @default([])
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  @@index([userId, category])
+  @@index([userId, happenedAt])
   @@index([category])
   @@index([happenedAt])
   @@index([significance])
@@ -949,6 +973,7 @@ enum OccurrenceStatus {
 /// 计划：长期规则定义（一次性或周期性）
 model Plan {
   id             String           @id @default(uuid())
+  userId         String           @default("default-user")
   title          String?
   description    String?          @db.Text
   scope          ReminderScope    @default(chat) // 复用已有 enum：chat | dev | system
@@ -982,6 +1007,7 @@ model Plan {
 
   occurrences    TaskOccurrence[]
 
+  @@index([userId, status, nextRunAt])
   @@index([status, nextRunAt])
   @@index([scope])
   @@index([sessionId])

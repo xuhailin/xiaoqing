@@ -11,6 +11,7 @@ import type { EntryAgentId, MessageChannel, SendMessageMetadata } from '../gatew
 export interface AgentRequest {
   conversationId: string;
   content: string;
+  userId: string;
   /** 原始 mode，仅供 agent 内部参考 */
   mode?: MessageChannel;
   /** 当前会话绑定的前台入口 agent */

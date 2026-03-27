@@ -198,6 +198,7 @@ export class ChatCompletionEngine {
       this.advancePipelineState(pipelineState, 'decision');
 
       const generated = await this.dailyMoment.generateMomentEntry({
+        userId: context.request.userId,
         conversationId,
         now,
         triggerMode: dailyMomentIntent.mode,

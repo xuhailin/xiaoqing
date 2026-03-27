@@ -1,10 +1,12 @@
-import { Component, inject } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { AppButtonComponent } from '../shared/ui/app-button.component';
 import { AppIconComponent, type AppIconName } from '../shared/ui/app-icon.component';
 import { XiaoqingAvatarComponent } from '../shared/ui/xiaoqing-avatar.component';
 import { ThemeService } from '../core/services/theme.service';
 import { PageActionsService } from '../core/services/page-actions.service';
+import { AppModeService } from '../core/services/app-mode.service';
+import { AuthService } from '../core/services/auth.service';
 
 type ChatSubNavItem = {
   value: 'chat' | 'design-agent' | 'dev-agent' | 'xiaoqin';
@@ -77,6 +79,19 @@ type MemorySubNavItem = {
             variant="ghost"
             size="sm"
             class="app-sidebar__utility"
+            (click)="openLogin()"
+            [title]="userSwitcherTitle()"
+          >
+            <span class="app-sidebar__utility-icon">
+              <app-icon name="userCircle" size="0.95rem" />
+            </span>
+          </app-button>
+
+          <app-button
+            type="button"
+            variant="ghost"
+            size="sm"
+            class="app-sidebar__utility"
             (click)="toggleTheme()"
             [title]="themeToggleTitle()"
           >
@@ -106,7 +121,7 @@ type MemorySubNavItem = {
             <div class="app-subnav-wrap">
               @if (currentPrimary() === 'chat') {
                 <nav class="app-subnav" aria-label="对话二级导航">
-                  @for (item of chatSubNavItems; track item.value) {
+                  @for (item of chatSubNavItems(); track item.value) {
                     <button
                       type="button"
                       class="app-subnav__item"
@@ -563,37 +578,50 @@ export class MainLayoutComponent {
   private readonly router = inject(Router);
   protected readonly themeService = inject(ThemeService);
   protected readonly pageActions = inject(PageActionsService);
+  protected readonly appMode = inject(AppModeService);
+  protected readonly auth = inject(AuthService);
   protected readonly mainNavItems = [
     { value: 'chat', label: '对话', hint: '会话与陪伴', icon: 'message' as const },
     { value: 'workspace', label: '工作台', hint: '收纳与执行', icon: 'layoutTemplate' as const },
     { value: 'memory', label: '记忆', hint: '画像与轨迹', icon: 'brain' as const },
   ];
-  protected readonly chatSubNavItems: readonly ChatSubNavItem[] = [
-    {
-      value: 'chat',
-      label: '小晴',
-      icon: 'openai',
-      description: '小晴陪你聊天、记事、提醒，也能自然衔接执行。',
-    },
-    {
-      value: 'design-agent',
-      label: 'designAgent',
-      icon: 'sparkles',
-      description: 'DesignAgent 面板统一发起页面设计审查，查看风险摘要、findings 和原始结果。',
-    },
-    {
-      value: 'dev-agent',
-      label: 'devAgent',
-      icon: 'claude',
-      description: 'DevAgent 面板聚焦执行会话、workspace 上下文和开发协作。',
-    },
-    {
-      value: 'xiaoqin',
-      label: '小勤',
-      icon: 'claw',
-      description: '小勤侧的对话入口用于承接偏执行、排障和协作类工作。',
-    },
-  ];
+  protected readonly chatSubNavItems = computed<readonly ChatSubNavItem[]>(() => {
+    const mode = this.appMode.mode();
+    const multiUserDisabled = mode.userMode === 'multi';
+
+    return [
+      {
+        value: 'chat',
+        label: '小晴',
+        icon: 'openai',
+        description: '小晴陪你聊天、记事、提醒，也能自然衔接执行。',
+      },
+      {
+        value: 'design-agent',
+        label: 'designAgent',
+        icon: 'sparkles',
+        description: multiUserDisabled
+          ? 'multi-user 模式下暂不开放 DesignAgent。'
+          : 'DesignAgent 面板统一发起页面设计审查，查看风险摘要、findings 和原始结果。',
+        disabled: multiUserDisabled || !mode.designAgentEnabled,
+      },
+      {
+        value: 'dev-agent',
+        label: 'devAgent',
+        icon: 'claude',
+        description: multiUserDisabled
+          ? 'multi-user 模式下暂不开放 DevAgent。'
+          : 'DevAgent 面板聚焦执行会话、workspace 上下文和开发协作。',
+        disabled: multiUserDisabled || !mode.devAgentEnabled,
+      },
+      {
+        value: 'xiaoqin',
+        label: '小勤',
+        icon: 'claw',
+        description: '小勤侧的对话入口用于承接偏执行、排障和协作类工作。',
+      },
+    ];
+  });
   protected readonly workspaceSubNavItems: readonly WorkspaceSubNavItem[] = [
     {
       value: '',
@@ -687,6 +715,11 @@ export class MainLayoutComponent {
   }
 
   selectChatSubnav(value: 'chat' | 'design-agent' | 'dev-agent' | 'xiaoqin') {
+    const item = this.chatSubNavItems().find((candidate) => candidate.value === value);
+    if (item?.disabled) {
+      return;
+    }
+
     if (value === 'design-agent') {
       this.router.navigate(['/design-agent']);
       return;
@@ -749,7 +782,7 @@ export class MainLayoutComponent {
   currentPageHeader(): { title: string; description: string } {
     const primary = this.currentPrimary();
     if (primary === 'chat') {
-      return this.findPageHeader('对话', this.chatSubNavItems, this.currentChatSubnav());
+      return this.findPageHeader('对话', this.chatSubNavItems(), this.currentChatSubnav());
     }
     if (primary === 'workspace') {
       return this.findPageHeader(
@@ -765,6 +798,10 @@ export class MainLayoutComponent {
     this.router.navigate(['/settings']);
   }
 
+  openLogin() {
+    this.router.navigate(['/login']);
+  }
+
   currentTheme() {
     return this.themeService.theme();
   }
@@ -775,6 +812,10 @@ export class MainLayoutComponent {
 
   toggleTheme() {
     this.themeService.toggleTheme();
+  }
+
+  userSwitcherTitle() {
+    return `切换用户（当前：${this.auth.currentUserId ?? '未登录'}）`;
   }
 
   private findPageHeader<T extends { value: string; label: string; description: string }>(

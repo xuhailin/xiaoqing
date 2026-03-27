@@ -25,17 +25,18 @@ export class CognitiveGrowthService {
 
   // ── Growth Context (only confirmed records) ────────────
 
-  async getGrowthContext(): Promise<PersistedGrowthContext> {
+  async getGrowthContext(userId: string): Promise<PersistedGrowthContext> {
     const [profiles, judgmentPatterns, valuePriorities, rhythmPatterns, relationships, boundaries] = await Promise.all([
       this.prisma.$queryRaw<Array<{ content: string }>>`
         SELECT "content"
         FROM "CognitiveProfile"
-        WHERE "isActive" = true AND "status" = 'confirmed'
+        WHERE "userId" = ${userId} AND "isActive" = true AND "status" = 'confirmed'
         ORDER BY "updatedAt" DESC
         LIMIT 6
       `,
       this.prisma.memory.findMany({
         where: {
+          userId,
           type: 'long',
           category: MemoryCategory.JUDGMENT_PATTERN,
           decayScore: { gt: 0 },
@@ -46,6 +47,7 @@ export class CognitiveGrowthService {
       }),
       this.prisma.memory.findMany({
         where: {
+          userId,
           type: 'long',
           category: MemoryCategory.VALUE_PRIORITY,
           decayScore: { gt: 0 },
@@ -56,6 +58,7 @@ export class CognitiveGrowthService {
       }),
       this.prisma.memory.findMany({
         where: {
+          userId,
           type: 'long',
           category: MemoryCategory.RHYTHM_PATTERN,
           decayScore: { gt: 0 },
@@ -67,7 +70,7 @@ export class CognitiveGrowthService {
       this.prisma.$queryRaw<Array<{ summary: string }>>`
         SELECT "summary"
         FROM "RelationshipState"
-        WHERE "isActive" = true AND "status" IN ('confirmed', 'pending')
+        WHERE "userId" = ${userId} AND "isActive" = true AND "status" IN ('confirmed', 'pending')
         ORDER BY
           CASE "status" WHEN 'confirmed' THEN 0 ELSE 1 END,
           "updatedAt" DESC
@@ -76,6 +79,7 @@ export class CognitiveGrowthService {
       this.prisma.$queryRaw<Array<{ note: string }>>`
         SELECT "note"
         FROM "BoundaryEvent"
+        WHERE "userId" = ${userId}
         ORDER BY "createdAt" DESC
         LIMIT 5
       `,
@@ -106,7 +110,7 @@ export class CognitiveGrowthService {
     };
 
     // 检查是否满足阶段晋升条件
-    await this.checkStagePromotion();
+    await this.checkStagePromotion(userId);
 
     return context;
   }
@@ -116,6 +120,7 @@ export class CognitiveGrowthService {
   async recordTurnGrowth(
     turnState: CognitiveTurnState,
     sourceMessageIds: string[],
+    userId: string,
   ): Promise<void> {
     if (sourceMessageIds.length === 0) return;
 
@@ -126,6 +131,7 @@ export class CognitiveGrowthService {
         content,
         sourceMessageIds,
         0.72,
+        userId,
       );
     }
 
@@ -133,6 +139,7 @@ export class CognitiveGrowthService {
       await this.writeRelationshipState(
         turnState,
         sourceMessageIds,
+        userId,
       );
     }
 
@@ -143,13 +150,14 @@ export class CognitiveGrowthService {
         content,
         sourceMessageIds,
         turnState.safety.relationalBoundaryRisk ? 'warn' : 'info',
+        userId,
       );
     }
   }
 
   // ── Pending / Confirm / Reject ─────────────────────────
 
-  async getPending(): Promise<PendingGrowthItem[]> {
+  async getPending(userId: string): Promise<PendingGrowthItem[]> {
     const [profiles, relationships] = await Promise.all([
       this.prisma.$queryRaw<Array<{
         id: string;
@@ -161,7 +169,7 @@ export class CognitiveGrowthService {
       }>>`
         SELECT "id", "kind", "content", "status", "sourceMessageIds", "createdAt"
         FROM "CognitiveProfile"
-        WHERE "status" = 'pending' AND "isActive" = true
+        WHERE "userId" = ${userId} AND "status" = 'pending' AND "isActive" = true
         ORDER BY "createdAt" DESC
         LIMIT 20
       `,
@@ -175,7 +183,7 @@ export class CognitiveGrowthService {
       }>>`
         SELECT "id", "stage", "summary", "status", "sourceMessageIds", "createdAt"
         FROM "RelationshipState"
-        WHERE "status" = 'pending' AND "isActive" = true
+        WHERE "userId" = ${userId} AND "status" = 'pending' AND "isActive" = true
         ORDER BY "createdAt" DESC
         LIMIT 10
       `,
@@ -205,34 +213,34 @@ export class CognitiveGrowthService {
     return items.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
-  async confirmGrowth(id: string, type: GrowthItemType): Promise<void> {
+  async confirmGrowth(id: string, type: GrowthItemType, userId: string): Promise<void> {
     if (type === 'cognitive_profile') {
       await this.prisma.$executeRaw`
         UPDATE "CognitiveProfile"
         SET "status" = 'confirmed', "updatedAt" = CURRENT_TIMESTAMP
-        WHERE "id" = ${id} AND "status" = 'pending'
+        WHERE "id" = ${id} AND "userId" = ${userId} AND "status" = 'pending'
       `;
     } else {
       await this.prisma.$executeRaw`
         UPDATE "RelationshipState"
         SET "status" = 'confirmed', "updatedAt" = CURRENT_TIMESTAMP
-        WHERE "id" = ${id} AND "status" = 'pending'
+        WHERE "id" = ${id} AND "userId" = ${userId} AND "status" = 'pending'
       `;
     }
   }
 
-  async rejectGrowth(id: string, type: GrowthItemType): Promise<void> {
+  async rejectGrowth(id: string, type: GrowthItemType, userId: string): Promise<void> {
     if (type === 'cognitive_profile') {
       await this.prisma.$executeRaw`
         UPDATE "CognitiveProfile"
         SET "status" = 'rejected', "isActive" = false, "updatedAt" = CURRENT_TIMESTAMP
-        WHERE "id" = ${id} AND "status" = 'pending'
+        WHERE "id" = ${id} AND "userId" = ${userId} AND "status" = 'pending'
       `;
     } else {
       await this.prisma.$executeRaw`
         UPDATE "RelationshipState"
         SET "status" = 'rejected', "isActive" = false, "updatedAt" = CURRENT_TIMESTAMP
-        WHERE "id" = ${id} AND "status" = 'pending'
+        WHERE "id" = ${id} AND "userId" = ${userId} AND "status" = 'pending'
       `;
     }
   }
@@ -367,7 +375,7 @@ export class CognitiveGrowthService {
     familiar_to_steady: { trustScore: 0.75, closenessScore: 0.7, hitCount: 20 },
   } as const;
 
-  private async checkStagePromotion(): Promise<void> {
+  private async checkStagePromotion(userId: string): Promise<void> {
     const current = await this.prisma.$queryRaw<Array<{
       id: string;
       stage: string;
@@ -377,7 +385,7 @@ export class CognitiveGrowthService {
     }>>`
       SELECT "id", "stage", "trustScore", "closenessScore", "hitCount"
       FROM "RelationshipState"
-      WHERE "isActive" = true AND "status" = 'confirmed'
+      WHERE "userId" = ${userId} AND "isActive" = true AND "status" = 'confirmed'
       ORDER BY "updatedAt" DESC
       LIMIT 1
     `;
@@ -414,7 +422,7 @@ export class CognitiveGrowthService {
     const existingPending = await this.prisma.$queryRaw<Array<{ id: string }>>`
       SELECT "id"
       FROM "RelationshipState"
-      WHERE "isActive" = true AND "status" = 'pending' AND "stage" = ${nextStage}
+      WHERE "userId" = ${userId} AND "isActive" = true AND "status" = 'pending' AND "stage" = ${nextStage}
       LIMIT 1
     `;
 
@@ -425,14 +433,14 @@ export class CognitiveGrowthService {
     await this.prisma.$executeRaw`
       INSERT INTO "RelationshipState" (
         "id", "stage", "summary", "trustScore", "closenessScore",
-        "boundaryNotes", "sourceMessageIds",
+        "boundaryNotes", "sourceMessageIds", "userId",
         "hitCount", "version", "isActive", "status",
         "createdAt", "updatedAt"
       )
       VALUES (
         ${randomUUID()}, ${nextStage}, ${summary},
         ${trustScore}, ${closenessScore},
-        ARRAY[]::TEXT[], ARRAY[]::TEXT[],
+        ARRAY[]::TEXT[], ARRAY[]::TEXT[], ${userId},
         0, 1, true, 'pending',
         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )
@@ -446,12 +454,14 @@ export class CognitiveGrowthService {
     content: string,
     sourceMessageIds: string[],
     confidence: number,
+    userId: string,
   ): Promise<void> {
     // Only bump confirmed duplicates; pending duplicates are left as-is
     const existing = await this.prisma.$queryRaw<Array<{ id: string; status: string }>>`
       SELECT "id", "status"
       FROM "CognitiveProfile"
-      WHERE "isActive" = true
+      WHERE "userId" = ${userId}
+        AND "isActive" = true
         AND "kind" = ${kind}
         AND "content" = ${content}
       ORDER BY "updatedAt" DESC
@@ -478,6 +488,7 @@ export class CognitiveGrowthService {
         "content",
         "confidence",
         "sourceMessageIds",
+        "userId",
         "hitCount",
         "lastAppliedAt",
         "isActive",
@@ -491,6 +502,7 @@ export class CognitiveGrowthService {
         ${content},
         ${confidence},
         ${this.toTextArray(sourceMessageIds)},
+        ${userId},
         1,
         CURRENT_TIMESTAMP,
         true,
@@ -504,6 +516,7 @@ export class CognitiveGrowthService {
   private async writeRelationshipState(
     turnState: CognitiveTurnState,
     sourceMessageIds: string[],
+    userId: string,
   ): Promise<void> {
     const summary = this.buildRelationshipNote(turnState);
     const current = await this.prisma.$queryRaw<Array<{
@@ -517,7 +530,7 @@ export class CognitiveGrowthService {
     }>>`
       SELECT "id", "version", "stage", "summary", "trustScore", "closenessScore", "status"
       FROM "RelationshipState"
-      WHERE "isActive" = true
+      WHERE "userId" = ${userId} AND "isActive" = true
       ORDER BY "updatedAt" DESC
       LIMIT 1
     `;
@@ -563,6 +576,7 @@ export class CognitiveGrowthService {
         "rhythmHint",
         "boundaryNotes",
         "sourceMessageIds",
+        "userId",
         "hitCount",
         "version",
         "isActive",
@@ -579,6 +593,7 @@ export class CognitiveGrowthService {
         ${turnState.rhythm.pacing},
         ${this.toTextArray(turnState.safety.notes)},
         ${this.toTextArray(sourceMessageIds)},
+        ${userId},
         1,
         ${current.length > 0 ? current[0].version + 1 : 1},
         true,
@@ -593,11 +608,13 @@ export class CognitiveGrowthService {
     note: string,
     sourceMessageIds: string[],
     severity: string,
+    userId: string,
   ): Promise<void> {
     await this.prisma.$executeRaw`
       INSERT INTO "BoundaryEvent" (
         "id",
         "note",
+        "userId",
         "severity",
         "sourceMessageIds",
         "createdAt"
@@ -605,6 +622,7 @@ export class CognitiveGrowthService {
       VALUES (
         ${randomUUID()},
         ${note},
+        ${userId},
         ${severity},
         ${this.toTextArray(sourceMessageIds)},
         CURRENT_TIMESTAMP

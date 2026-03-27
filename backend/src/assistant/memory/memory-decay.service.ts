@@ -32,9 +32,12 @@ export class MemoryDecayService {
    * 重算所有非 frozen 记忆的衰减分。
    * 返回更新数量。
    */
-  async recalcAll(): Promise<number> {
+  async recalcAll(userId?: string): Promise<number> {
     const memories = await this.prisma.memory.findMany({
-      where: { frozen: false },
+      where: {
+        frozen: false,
+        ...(userId ? { userId } : {}),
+      },
       select: {
         id: true,
         category: true,
@@ -72,7 +75,7 @@ export class MemoryDecayService {
   /**
    * 获取衰减分低于阈值的候选删除记忆列表。
    */
-  async getDecayCandidates(): Promise<
+  async getDecayCandidates(userId?: string): Promise<
     Array<{
       id: string;
       type: string;
@@ -84,7 +87,10 @@ export class MemoryDecayService {
     }>
   > {
     const memories = await this.prisma.memory.findMany({
-      where: { frozen: false },
+      where: {
+        frozen: false,
+        ...(userId ? { userId } : {}),
+      },
       select: {
         id: true,
         type: true,
@@ -151,10 +157,13 @@ export class MemoryDecayService {
   /**
    * 物理删除一批记忆（用户确认后调用）。
    */
-  async cleanup(memoryIds: string[]): Promise<number> {
+  async cleanup(memoryIds: string[], userId?: string): Promise<number> {
     if (memoryIds.length === 0) return 0;
     const result = await this.prisma.memory.deleteMany({
-      where: { id: { in: memoryIds } },
+      where: {
+        id: { in: memoryIds },
+        ...(userId ? { userId } : {}),
+      },
     });
     return result.count;
   }

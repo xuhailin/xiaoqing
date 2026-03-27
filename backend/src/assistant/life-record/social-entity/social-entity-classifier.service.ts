@@ -38,12 +38,14 @@ export class SocialEntityClassifierService {
   ) {}
 
   async classifyPending(options?: {
+    userId?: string;
     entityIds?: string[];
     limit?: number;
     force?: boolean;
   }): Promise<SocialEntityClassifyBatchResult> {
     const rows = await this.prisma.socialEntity.findMany({
       where: {
+        ...(options?.userId ? { userId: options.userId } : {}),
         ...(options?.entityIds?.length ? { id: { in: options.entityIds } } : {}),
         mentionCount: { gte: 3 },
         ...(options?.force
@@ -168,6 +170,7 @@ export class SocialEntityClassifierService {
   private async tryAutoMerge(
     entity: {
       id: string;
+      userId: string;
       name: string;
       aliases: string[];
       mentionCount: number;
@@ -181,6 +184,7 @@ export class SocialEntityClassifierService {
       const matched = await this.prisma.socialEntity.findFirst({
         where: {
           id: { not: entity.id },
+          userId: entity.userId,
           OR: [
             { name: trimmed },
             { aliases: { has: trimmed } },

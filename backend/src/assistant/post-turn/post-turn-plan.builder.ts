@@ -10,6 +10,7 @@ export type PostTurnExecutionPath = 'chat' | 'tool' | 'missing_params';
 export interface PostTurnPlanBuildInput {
   executionPath: PostTurnExecutionPath;
   conversationId: string;
+  userId: string;
   userMsg: { id: string };
   assistantMsg: { id: string; content: string };
   userInput: string;
@@ -28,6 +29,7 @@ export class PostTurnPlanBuilder {
   build(input: PostTurnPlanBuildInput): PostTurnPlan {
     return {
       conversationId: input.conversationId,
+      userId: input.userId,
       turn: {
         turnId: input.userMsg.id,
         userMessageId: input.userMsg.id,

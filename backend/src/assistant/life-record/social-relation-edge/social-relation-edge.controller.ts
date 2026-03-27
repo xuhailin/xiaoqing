@@ -2,6 +2,7 @@ import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { SocialCarePlannerService } from './social-care-planner.service';
 import { SocialRelationEdgeService } from './social-relation-edge.service';
 import type { SocialRelationTrend } from './social-relation-edge.types';
+import { UserId } from '../../../infra/user-id.decorator';
 
 @Controller('social-relation-edges')
 export class SocialRelationEdgeController {
@@ -15,8 +16,9 @@ export class SocialRelationEdgeController {
     @Query('toEntityId') toEntityId?: string,
     @Query('trend') trend?: string,
     @Query('limit') limit?: string,
+    @UserId() userId?: string,
   ) {
-    return this.service.list({
+    return this.service.list(userId ?? 'default-user', {
       toEntityId,
       trend: trend as SocialRelationTrend | undefined,
       limit: limit ? Number(limit) : undefined,
@@ -24,8 +26,9 @@ export class SocialRelationEdgeController {
   }
 
   @Post('sync')
-  async sync(@Body() body?: { since?: string }) {
+  async sync(@Body() body?: { since?: string }, @UserId() userId?: string) {
     return this.service.syncFromTracePoints(
+      userId ?? 'default-user',
       body?.since ? new Date(body.since) : undefined,
     );
   }

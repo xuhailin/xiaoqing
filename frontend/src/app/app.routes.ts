@@ -15,14 +15,20 @@ import { WorkspaceTodoComponent } from './workspace/workspace-todo.component';
 import { WorkspaceShellComponent } from './workspace/workspace-shell.component';
 import { RelationOverviewComponent } from './memory/relation-overview.component';
 import { SettingsComponent } from './settings/settings.component';
+import { authGuard } from './core/guards/auth.guard';
 
 // Memory page components (lazy-loaded for better performance)
 const memoryPageImports = () => import('./memory/pages').then((m) => m);
 
 export const routes: Routes = [
   {
+    path: 'login',
+    loadComponent: () => import('./auth/login.component').then((m) => m.LoginComponent),
+  },
+  {
     path: '',
     component: MainLayoutComponent,
+    canActivate: [authGuard],
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'chat' },
       { path: 'dev-agent', pathMatch: 'full', redirectTo: 'workspace/dev-agent' },
@@ -45,6 +51,26 @@ export const routes: Routes = [
           import('./design-agent/design-agent-page.component').then(
             (m) => m.DesignAgentPageComponent,
           ),
+      },
+      {
+        path: 'quick',
+        children: [
+          { path: '', pathMatch: 'full', redirectTo: 'video' },
+          {
+            path: 'video',
+            loadComponent: () =>
+              import('./seeddance/pages/quick-home/quick-home.component').then(
+                (m) => m.SeedanceHomeComponent,
+              ),
+          },
+          {
+            path: 'video/create',
+            loadComponent: () =>
+              import('./seeddance/seeddance-quick/seeddance-quick.component').then(
+                (m) => m.SeedanceQuickComponent,
+              ),
+          },
+        ],
       },
       {
         path: 'workspace',
