@@ -10,7 +10,7 @@ RUN npm ci --include=dev
 
 COPY . .
 
-RUN npm run build
+RUN npx prisma generate && npm run build
 
 ENV NODE_ENV=production
 
