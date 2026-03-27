@@ -1,4 +1,6 @@
+import { resolveApiUrl } from './runtime-config';
+
 export const environment = {
   production: false,
-  apiUrl: 'http://localhost:3000',
+  apiUrl: resolveApiUrl(),
 };

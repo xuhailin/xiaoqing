@@ -20,3 +20,5 @@ backend/.sessions/checkin.json
 ### Local dev data (e.g. DevAgent transcript dumps)
 data/
 
+### Docker deployment env
+.env.docker

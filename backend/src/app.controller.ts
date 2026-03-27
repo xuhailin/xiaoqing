@@ -16,6 +16,14 @@ export class AppController {
     return this.appService.getHello();
   }
 
+  @Get('health')
+  getHealth() {
+    return {
+      ok: true,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
   @Get('app/mode')
   getAppMode() {
     return {
