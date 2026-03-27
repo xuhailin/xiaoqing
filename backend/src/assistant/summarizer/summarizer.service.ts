@@ -22,6 +22,11 @@ import { ClaimSchemaRegistry } from '../claim-engine/claim-schema.registry';
 import { isFeatureEnabled } from '../../config/feature-flags';
 
 const COGNITIVE_TYPE_SET = new Set<string>(COGNITIVE_CATEGORIES);
+const MEMORY_ONLY_TYPE_SET = new Set<string>([
+  MemoryCategory.SHARED_FACT,
+  MemoryCategory.COMMITMENT,
+  MemoryCategory.SOFT_PREFERENCE,
+]);
 
 /** 记忆分析引擎 LLM 输出格式 */
 interface MemoryAnalysisOutput {
@@ -304,9 +309,9 @@ export class SummarizerService {
         }
       }
 
-      // Memory write path: only cognitive categories are persisted in Memory table.
-      if (!COGNITIVE_TYPE_SET.has(memoryType)) {
-        // Non-memory update (e.g. interaction_preference / emotional_tendency) ends here.
+      // Memory write path: persist cognitive categories plus memory-only long-term signals.
+      if (!COGNITIVE_TYPE_SET.has(memoryType) && !MEMORY_ONLY_TYPE_SET.has(memoryType)) {
+        // Claim-only update (e.g. interaction_preference / emotional_tendency) ends here.
         continue;
       }
 

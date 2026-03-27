@@ -1,0 +1,25 @@
+.no-panel {
+  border: 1px solid var(--surface-no-panel-border);
+  background: var(--surface-no-panel-bg);
+  box-shadow: var(--surface-no-panel-shadow);
+  backdrop-filter: none;
+}
+
+.panel {
+  border: 1px solid var(--surface-panel-border);
+  background: var(--surface-panel-bg);
+  box-shadow: var(--surface-panel-shadow);
+  backdrop-filter: blur(var(--surface-panel-backdrop-blur));
+}
+
+.sub-panel {
+  border: 1px solid var(--surface-sub-panel-border);
+  background: var(--surface-sub-panel-bg);
+  box-shadow: var(--surface-sub-panel-shadow);
+  backdrop-filter: blur(var(--surface-panel-backdrop-blur));
+}
+
+.main-left-section {
+  border-radius: 22px;
+  padding: var(--space-2);
+}

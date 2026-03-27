@@ -29,6 +29,11 @@ export interface MemoryCategoryStats {
   lowConfidenceCount: number;
 }
 
+interface UserPreferenceStats {
+  fieldCount: number;
+  lineCount: number;
+}
+
 /** 导航分类项 */
 export interface MemoryNavItem {
   key: string;
@@ -49,17 +54,21 @@ export class MemoryStatsService {
     try {
       const results = await Promise.allSettled([
         this.fetchIdentityAnchorCount(),
-        this.fetchUserProfileCount(),
+        this.fetchUserProfileStats(),
         this.fetchMemoryCounts(),
         this.fetchPendingProposalCount(),
         this.fetchLifeTraceCount(),
         this.fetchSocialEntityCount(),
+        this.fetchGrowthContextCount(),
+        this.fetchCommitmentCount(),
       ]);
 
       const identityAnchors =
         results[0].status === 'fulfilled' ? (results[0].value as number) : 0;
-      const userPreferences =
-        results[1].status === 'fulfilled' ? (results[1].value as number) : 0;
+      const userProfileStats =
+        results[1].status === 'fulfilled'
+          ? (results[1].value as UserPreferenceStats)
+          : { fieldCount: 0, lineCount: 0 };
       const memoryCounts: Record<string, number> =
         results[2].status === 'fulfilled'
           ? (results[2].value as Record<string, number>)
@@ -70,17 +79,23 @@ export class MemoryStatsService {
         results[4].status === 'fulfilled' ? (results[4].value as number) : 0;
       const socialEntities =
         results[5].status === 'fulfilled' ? (results[5].value as number) : 0;
+      const growthContextCount =
+        results[6].status === 'fulfilled' ? (results[6].value as number) : 0;
+      const commitmentCount =
+        results[7].status === 'fulfilled' ? (results[7].value as number) : 0;
 
       return {
         identityAnchors,
-        userPreferences,
-        softPreferences: memoryCounts['soft_preference'] ?? 0,
-        cognitiveProfiles:
+        userPreferences: userProfileStats.fieldCount,
+        softPreferences: Math.max(memoryCounts['soft_preference'] ?? 0, userProfileStats.lineCount),
+        cognitiveProfiles: Math.max(
           (memoryCounts['judgment_pattern'] ?? 0) +
           (memoryCounts['value_priority'] ?? 0) +
           (memoryCounts['rhythm_pattern'] ?? 0),
+          growthContextCount,
+        ),
         sharedFacts: memoryCounts['shared_fact'] ?? 0,
-        commitments: memoryCounts['commitment'] ?? 0,
+        commitments: commitmentCount,
         worldStateSet: false, // 需要单独检查
         pendingProposals,
         lifeTracePoints,
@@ -198,19 +213,29 @@ export class MemoryStatsService {
     }
   }
 
-  private async fetchUserProfileCount(): Promise<number> {
+  private async fetchUserProfileStats(): Promise<UserPreferenceStats> {
     try {
       const profile = await firstValueFrom(
         this.http.get<any>(`${this.base}/persona/profile`)
       );
-      if (!profile) return 0;
-      let count = 0;
-      if (profile.preferredVoiceStyle?.trim()) count++;
-      if (profile.praisePreference?.trim()) count++;
-      if (profile.responseRhythm?.trim()) count++;
-      return count;
+      if (!profile) return { fieldCount: 0, lineCount: 0 };
+      let fieldCount = 0;
+      let lineCount = 0;
+      [
+        profile.preferredVoiceStyle,
+        profile.praisePreference,
+        profile.responseRhythm,
+      ].forEach((value) => {
+        if (!value?.trim()) return;
+        fieldCount++;
+        lineCount += value
+          .split('\n')
+          .map((line: string) => line.trim())
+          .filter(Boolean).length;
+      });
+      return { fieldCount, lineCount };
     } catch {
-      return 0;
+      return { fieldCount: 0, lineCount: 0 };
     }
   }
 
@@ -282,6 +307,35 @@ export class MemoryStatsService {
         this.http.get<any[]>(`${this.base}/social-entities`)
       );
       return list?.length ?? 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  private async fetchGrowthContextCount(): Promise<number> {
+    try {
+      const context = await firstValueFrom(
+        this.http.get<any>(`${this.base}/growth/context`)
+      );
+      return (
+        (context?.cognitiveProfiles?.length ?? 0) +
+        (context?.judgmentPatterns?.length ?? 0) +
+        (context?.valuePriorities?.length ?? 0) +
+        (context?.rhythmPatterns?.length ?? 0)
+      );
+    } catch {
+      return 0;
+    }
+  }
+
+  private async fetchCommitmentCount(): Promise<number> {
+    try {
+      const plans = await firstValueFrom(
+        this.http.get<any[]>(`${this.base}/plans`, {
+          params: { status: 'active' },
+        })
+      );
+      return (plans ?? []).filter((item) => item.scope !== 'dev').length;
     } catch {
       return 0;
     }

@@ -12,6 +12,12 @@ export class GrowthController {
     return this.growth.getPending(userId);
   }
 
+  /** 获取当前已生效的成长上下文（供 UI 与 prompt 共用） */
+  @Get('context')
+  async getContext(@UserId() userId: string) {
+    return this.growth.getGrowthContext(userId);
+  }
+
   /** 确认一条成长记录 */
   @Patch(':id/confirm')
   async confirm(

@@ -15,6 +15,7 @@ import {
 } from '../core/services/user-profile.service';
 import { AuthService } from '../core/services/auth.service';
 import { AppIconComponent } from '../shared/ui/app-icon.component';
+import { AppButtonComponent } from '../shared/ui/app-button.component';
 
 const LABEL_OPTIONS: { value: string; text: string }[] = [
   { value: 'basic', text: '基本身份' },
@@ -40,14 +41,16 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
 @Component({
   selector: 'app-identity-anchor-editor',
   standalone: true,
-  imports: [AppIconComponent],
+  imports: [AppIconComponent, AppButtonComponent],
   template: `
     <div class="user-profile">
 
       <!-- ─── 身份锚定 ─── -->
       <section class="profile-section">
-        <div class="section-title">身份锚定</div>
-        <p class="hint">告诉小晴「你是谁」——始终注入对话，不衰减、不遗忘。最多 5 条。</p>
+        <div class="section-header">
+          <div class="section-title">身份锚定</div>
+          <p class="hint">告诉小晴「你是谁」——始终注入对话，不衰减、不遗忘。最多 5 条。</p>
+        </div>
 
         @for (anchor of anchors(); track anchor.id) {
           <div class="anchor-card" [class.inactive]="!anchor.isActive">
@@ -90,16 +93,16 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
                   ></textarea>
                 </div>
                 <div class="edit-actions">
-                  <button class="btn-primary" (click)="saveEdit(anchor.id)" [disabled]="saving()">保存</button>
-                  <button class="btn-ghost" (click)="cancelEdit()">取消</button>
+                  <app-button variant="primary" size="sm" (click)="saveEdit(anchor.id)" [disabled]="saving()">保存</app-button>
+                  <app-button variant="ghost" size="sm" (click)="cancelEdit()">取消</app-button>
                 </div>
               </div>
             } @else {
               <div class="card-content">{{ anchor.content }}</div>
               <div class="card-actions">
-                <button class="btn-ghost" (click)="startEdit(anchor)">编辑</button>
+                <app-button variant="ghost" size="sm" (click)="startEdit(anchor)">编辑</app-button>
                 @if (anchor.isActive) {
-                  <button class="btn-ghost btn-danger" (click)="removeAnchor(anchor.id)">停用</button>
+                  <app-button variant="danger" size="sm" (click)="removeAnchor(anchor.id)">停用</app-button>
                 }
               </div>
             }
@@ -111,7 +114,7 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
         }
 
         @if (showAdd()) {
-          <div class="anchor-card add-card">
+          <div class="anchor-card form-shell">
             <div class="edit-form">
               <div class="form-row">
                 <label>分类</label>
@@ -140,16 +143,16 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
                 ></textarea>
               </div>
               <div class="edit-actions">
-                <button class="btn-primary" (click)="createAnchor()" [disabled]="saving()">添加</button>
-                <button class="btn-ghost" (click)="showAdd.set(false)">取消</button>
+                <app-button variant="primary" size="sm" (click)="createAnchor()" [disabled]="saving()">添加</app-button>
+                <app-button variant="ghost" size="sm" (click)="showAdd.set(false)">取消</app-button>
               </div>
             </div>
           </div>
         } @else {
-          <button class="btn-add" (click)="showAdd.set(true)" [disabled]="activeCount() >= 5">
+          <app-button variant="ghost" size="sm" class="btn-add" (click)="showAdd.set(true)" [disabled]="activeCount() >= 5">
             <app-icon name="plus" size="0.95rem" />
             <span>添加身份锚定</span>
-          </button>
+          </app-button>
         }
 
         @if (msg()) {
@@ -158,14 +161,16 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
       </section>
 
       <section class="profile-section">
-        <div class="section-title">默认用户偏好</div>
-        <p class="hint">稳定的用户画像与回应偏好（由 Claim 自动投影）供系统长期参考；仅展示非 draft 且状态为 STABLE/CORE 的规则。</p>
+        <div class="section-header">
+          <div class="section-title">默认用户偏好</div>
+          <p class="hint">稳定的用户画像与回应偏好（由 Claim 自动投影）供系统长期参考；仅展示非 draft 且状态为 STABLE/CORE 的规则。</p>
+        </div>
 
         <div class="memory-card profile-summary-card">
           <div class="memory-content">{{ userPreferenceSummary() }}</div>
         </div>
 
-        <div class="anchor-card add-card">
+        <div class="anchor-card form-shell">
           <div class="edit-form">
             <div class="form-row">
               <label>偏好语气</label>
@@ -195,10 +200,10 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
               ></textarea>
             </div>
             <div class="edit-actions">
-              <button class="btn-primary" (click)="saveUserProfile()" [disabled]="userProfileSaving()">
+              <app-button variant="primary" size="sm" (click)="saveUserProfile()" [disabled]="userProfileSaving()">
                 {{ userProfileSaving() ? '保存中...' : '保存用户画像' }}
-              </button>
-              <button class="btn-ghost" (click)="reloadUserProfile()" [disabled]="userProfileSaving()">重载</button>
+              </app-button>
+              <app-button variant="ghost" size="sm" (click)="reloadUserProfile()" [disabled]="userProfileSaving()">重载</app-button>
             </div>
           </div>
         </div>
@@ -207,8 +212,8 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
           <div class="memory-card">
             <div class="memory-content">{{ userProfile().pendingImpressionCore }}</div>
             <div class="edit-actions">
-              <button class="btn-primary" (click)="confirmImpression('core')" [disabled]="userProfileSaving()">确认核心印象</button>
-              <button class="btn-ghost btn-danger" (click)="rejectImpression('core')" [disabled]="userProfileSaving()">拒绝</button>
+              <app-button variant="primary" size="sm" (click)="confirmImpression('core')" [disabled]="userProfileSaving()">确认核心印象</app-button>
+              <app-button variant="danger" size="sm" (click)="rejectImpression('core')" [disabled]="userProfileSaving()">拒绝</app-button>
             </div>
           </div>
         }
@@ -217,8 +222,8 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
           <div class="memory-card">
             <div class="memory-content">{{ userProfile().pendingImpressionDetail }}</div>
             <div class="edit-actions">
-              <button class="btn-primary" (click)="confirmImpression('detail')" [disabled]="userProfileSaving()">确认细节印象</button>
-              <button class="btn-ghost btn-danger" (click)="rejectImpression('detail')" [disabled]="userProfileSaving()">拒绝</button>
+              <app-button variant="primary" size="sm" (click)="confirmImpression('detail')" [disabled]="userProfileSaving()">确认细节印象</app-button>
+              <app-button variant="danger" size="sm" (click)="rejectImpression('detail')" [disabled]="userProfileSaving()">拒绝</app-button>
             </div>
           </div>
         }
@@ -227,8 +232,10 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
       <!-- ─── 用户记忆分区（软偏好 / 共识事实 / 承诺） ─── -->
       @for (sec of userMemorySections; track sec.category) {
         <section class="profile-section">
-          <div class="section-title">{{ sec.title }}</div>
-          <p class="hint">{{ sec.hint }}</p>
+          <div class="section-header">
+            <div class="section-title">{{ sec.title }}</div>
+            <p class="hint">{{ sec.hint }}</p>
+          </div>
           @if (memoryMap()[sec.category]; as items) {
             @if (items.length) {
               @for (m of items; track m.id) {
@@ -252,8 +259,10 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
       <!-- ─── 长期认知（判断模式 / 价值排序 / 关系节奏） ─── -->
       @if (hasCognitive()) {
         <section class="profile-section">
-          <div class="section-title">长期认知</div>
-          <p class="hint">由记忆分析引擎自动提取的深层用户特征。</p>
+          <div class="section-header">
+            <div class="section-title">长期认知</div>
+            <p class="hint">由记忆分析引擎自动提取的深层用户特征。</p>
+          </div>
           @for (sec of cognitiveSections; track sec.category) {
             @if (memoryMap()[sec.category]; as items) {
               @if (items.length) {
@@ -273,11 +282,13 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
 
       <!-- ─── World State（会话级默认前提） ─── -->
       <section class="profile-section">
-        <div class="section-title">默认世界状态</div>
-        <p class="hint">会话级默认前提，用于地点、时区、语言等补全，不写入长期记忆。</p>
+        <div class="section-header">
+          <div class="section-title">默认世界状态</div>
+          <p class="hint">会话级默认前提，用于地点、时区、语言等补全，不写入长期记忆。</p>
+        </div>
 
         @if (currentConversationId()) {
-          <div class="anchor-card add-card">
+          <div class="anchor-card form-shell">
             <div class="edit-form">
               <div class="form-row">
                 <label>地点</label>
@@ -329,10 +340,10 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
                 </select>
               </div>
               <div class="edit-actions">
-                <button class="btn-primary" (click)="saveWorldState()" [disabled]="worldStateSaving()">
+                <app-button variant="primary" size="sm" (click)="saveWorldState()" [disabled]="worldStateSaving()">
                   {{ worldStateSaving() ? '保存中...' : '保存默认状态' }}
-                </button>
-                <button class="btn-ghost" (click)="reloadWorldState()" [disabled]="worldStateSaving()">重载</button>
+                </app-button>
+                <app-button variant="ghost" size="sm" (click)="reloadWorldState()" [disabled]="worldStateSaving()">重载</app-button>
               </div>
             </div>
           </div>
@@ -360,17 +371,27 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
     }
 
     .user-profile {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
       padding: var(--space-1) 0;
     }
 
     .profile-section {
-      margin-bottom: var(--space-4);
+      border: 1px solid var(--color-border-light);
+      border-radius: var(--radius-md);
+      background: var(--color-surface);
+      padding: var(--space-3);
+    }
+
+    .section-header {
+      margin-bottom: var(--space-3);
     }
 
     .section-title {
       font-size: var(--font-size-xs);
       font-weight: var(--font-weight-semibold);
-      color: var(--color-text-muted);
+      color: var(--color-text-secondary);
       text-transform: uppercase;
       letter-spacing: 0.06em;
       margin-bottom: var(--space-1);
@@ -378,7 +399,7 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
 
     .hint {
       font-size: var(--font-size-xs);
-      color: var(--color-text-muted);
+      color: var(--color-text-secondary);
       margin-bottom: var(--space-3);
       line-height: 1.5;
     }
@@ -386,14 +407,20 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
     /* ── 身份锚定卡片（可编辑） ── */
     .anchor-card {
       background: var(--color-surface);
-      border: 1px solid var(--color-border);
+      border: 1px solid var(--color-border-light);
       border-radius: var(--radius-md);
       padding: var(--space-3);
       margin-bottom: var(--space-2);
       transition: border-color var(--transition-fast);
 
-      &:hover { border-color: var(--color-primary); }
+      &:hover { border-color: var(--color-border); }
       &.inactive { opacity: 0.5; }
+    }
+
+    .form-shell {
+      background: var(--color-surface-highlight);
+      border-color: var(--color-surface-highlight-border);
+      box-shadow: var(--color-surface-highlight-shadow);
     }
 
     .card-header {
@@ -426,7 +453,7 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
 
     .card-content {
       font-size: var(--font-size-sm);
-      color: var(--color-text-secondary);
+      color: var(--color-text);
       line-height: 1.6;
       white-space: pre-wrap;
     }
@@ -440,7 +467,7 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
     /* ── 记忆卡片（只读） ── */
     .memory-card {
       background: var(--color-surface);
-      border: 1px solid var(--color-border);
+      border: 1px solid var(--color-border-light);
       border-radius: var(--radius-md);
       padding: var(--space-2) var(--space-3);
       margin-bottom: var(--space-2);
@@ -453,7 +480,7 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
 
     .memory-content {
       font-size: var(--font-size-sm);
-      color: var(--color-text-secondary);
+      color: var(--color-text);
       line-height: 1.5;
       white-space: pre-wrap;
     }
@@ -497,7 +524,7 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
       label {
         font-size: var(--font-size-xs);
         font-weight: var(--font-weight-medium);
-        color: var(--color-text-secondary);
+        color: var(--color-text);
       }
     }
 
@@ -530,74 +557,13 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
       margin-top: var(--space-1);
     }
 
-    .btn-primary {
-      padding: var(--space-1) var(--space-3);
-      border-radius: var(--radius-md);
-      border: none;
-      background: var(--color-button-primary-bg);
-      color: var(--color-button-primary-text);
-      cursor: pointer;
-      font-size: var(--font-size-xs);
-      font-family: var(--font-family);
-      font-weight: var(--font-weight-medium);
-      transition: background var(--transition-fast), box-shadow var(--transition-fast);
-
-      &:not(:disabled):hover {
-        background: var(--color-button-primary-hover-bg);
-        box-shadow: var(--color-button-primary-shadow);
-      }
-      &:disabled { opacity: 0.45; cursor: not-allowed; }
-    }
-
-    .btn-ghost {
-      padding: var(--space-1) var(--space-2);
-      border-radius: var(--radius-md);
-      border: 1px solid var(--color-border);
-      background: transparent;
-      cursor: pointer;
-      font-size: var(--font-size-xs);
-      font-family: var(--font-family);
-      color: var(--color-text-secondary);
-      transition: all var(--transition-fast);
-
-      &:hover {
-        border-color: var(--color-primary);
-        color: var(--color-primary);
-      }
-    }
-
-    .btn-danger:hover {
-      border-color: var(--color-error);
-      color: var(--color-error);
-    }
-
-    .btn-add {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: var(--space-2);
+    app-button.btn-add {
       width: 100%;
-      padding: var(--space-2);
-      border: 1px dashed var(--color-border);
-      border-radius: var(--radius-md);
-      background: transparent;
-      cursor: pointer;
-      font-size: var(--font-size-sm);
-      font-family: var(--font-family);
-      color: var(--color-text-muted);
-      transition: all var(--transition-fast);
-
-      &:hover:not(:disabled) {
-        border-color: var(--color-primary);
-        color: var(--color-primary);
-      }
-      &:disabled { opacity: 0.4; cursor: not-allowed; }
     }
 
     .empty {
       font-size: var(--font-size-sm);
-      color: var(--color-text-muted);
-      font-style: italic;
+      color: var(--color-text-secondary);
       text-align: center;
       padding: var(--space-3) 0;
     }
@@ -613,9 +579,9 @@ const COGNITIVE_SECTIONS: { category: string; title: string }[] = [
 
     .profile-summary-card {
       margin-bottom: var(--space-3);
-      background: color-mix(in srgb, var(--color-surface-hover) 55%, var(--color-surface));
-      border-color: color-mix(in srgb, var(--color-primary-soft) 45%, var(--color-border-light));
-      box-shadow: var(--chat-panel-shadow);
+      background: var(--color-panel-subtle-bg);
+      border-color: var(--color-border-light);
+      box-shadow: none;
     }
   `],
 })

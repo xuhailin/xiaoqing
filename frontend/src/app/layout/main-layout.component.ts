@@ -23,6 +23,13 @@ type WorkspaceSubNavItem = {
   disabled?: boolean;
 };
 
+type VideoSubNavItem = {
+  value: 'create' | 'history' | 'assets';
+  label: string;
+  description: string;
+  icon: AppIconName;
+  disabled?: boolean;
+};
 
 type MemorySubNavItem = {
   value: 'understanding' | 'relations' | 'settings';
@@ -134,6 +141,23 @@ type MemorySubNavItem = {
                       [class.app-subnav__item--active]="currentWorkspaceSubnav() === item.value"
                       [disabled]="item.disabled"
                       (click)="selectWorkspaceSubnav(item.value)"
+                    >
+                      <app-icon class="app-subnav__icon" [name]="item.icon" size="0.95rem" />
+                      <span>{{ item.label }}</span>
+                    </button>
+                  }
+                </nav>
+              }
+
+              @if (currentPrimary() === 'video') {
+                <nav class="app-subnav" aria-label="视频二级导航">
+                  @for (item of videoSubNavItems; track item.value) {
+                    <button
+                      type="button"
+                      class="app-subnav__item"
+                      [class.app-subnav__item--active]="currentVideoSubnav() === item.value"
+                      [disabled]="item.disabled"
+                      (click)="selectVideoSubnav(item.value)"
                     >
                       <app-icon class="app-subnav__icon" [name]="item.icon" size="0.95rem" />
                       <span>{{ item.label }}</span>
@@ -567,6 +591,7 @@ export class MainLayoutComponent {
   protected readonly appMode = inject(AppModeService);
   protected readonly mainNavItems = [
     { value: 'chat', label: '对话', hint: '会话与陪伴', icon: 'message' as const },
+    { value: 'video', label: '视频', hint: '生成与作品', icon: 'image' as const },
     { value: 'workspace', label: '工作台', hint: '收纳与执行', icon: 'layoutTemplate' as const },
     { value: 'memory', label: '记忆', hint: '画像与轨迹', icon: 'brain' as const },
   ];
@@ -634,6 +659,26 @@ export class MainLayoutComponent {
       description: '查看固定回归与真实回放的最新报告、运行台与逐轮执行日志。',
     },
   ];
+  protected readonly videoSubNavItems: readonly VideoSubNavItem[] = [
+    {
+      value: 'create',
+      label: '创作',
+      icon: 'sparkles',
+      description: '快速进入视频创作首页，从灵感到生成都保持轻量直接。',
+    },
+    {
+      value: 'history',
+      label: '历史',
+      icon: 'route',
+      description: '回看已经生成的视频、分镜项目和最近一次创作状态。',
+    },
+    {
+      value: 'assets',
+      label: '素材包',
+      icon: 'layers',
+      description: '集中管理角色、世界观关键词和可复用的创作素材包。',
+    },
+  ];
   protected readonly memorySubNavItems: readonly MemorySubNavItem[] = [
     {
       value: 'understanding',
@@ -654,9 +699,10 @@ export class MainLayoutComponent {
       description: '身份锚定、用户偏好与长期认知设置。',
     },
   ];
-  currentPrimary(): 'chat' | 'workspace' | 'memory' {
+  currentPrimary(): 'chat' | 'video' | 'workspace' | 'memory' {
     const url = this.router.url;
     if (url.startsWith('/design-agent')) return 'chat';
+    if (url.startsWith('/video')) return 'video';
     if (url.startsWith('/workspace/dev-agent')) return 'chat';
     if (url.startsWith('/workspace')) return 'workspace';
     if (url.startsWith('/memory')) return 'memory';
@@ -664,6 +710,10 @@ export class MainLayoutComponent {
   }
 
   selectPrimary(value: string) {
+    if (value === 'video') {
+      this.router.navigate(['/video']);
+      return;
+    }
     if (value === 'workspace') {
       this.router.navigate(['/workspace']);
       return;
@@ -677,7 +727,7 @@ export class MainLayoutComponent {
 
   shouldShowSubnav(): boolean {
     const primary = this.currentPrimary();
-    return primary === 'chat' || primary === 'workspace' || primary === 'memory';
+    return primary === 'chat' || primary === 'video' || primary === 'workspace' || primary === 'memory';
   }
 
   currentChatSubnav(): 'chat' | 'design-agent' | 'dev-agent' | 'xiaoqin' {
@@ -740,6 +790,29 @@ export class MainLayoutComponent {
     }
   }
 
+  currentVideoSubnav(): 'create' | 'history' | 'assets' {
+    const url = this.router.url;
+    if (url.startsWith('/video/history') || url.startsWith('/video/projects')) {
+      return 'history';
+    }
+    if (url.startsWith('/video/assets')) {
+      return 'assets';
+    }
+    return 'create';
+  }
+
+  selectVideoSubnav(value: 'create' | 'history' | 'assets') {
+    if (value === 'history') {
+      this.router.navigate(['/video/history']);
+      return;
+    }
+    if (value === 'assets') {
+      this.router.navigate(['/video/assets']);
+      return;
+    }
+    this.router.navigate(['/video']);
+  }
+
   currentMemorySubnav(): 'understanding' | 'relations' | 'settings' {
     const url = this.router.url;
     if (url.startsWith('/memory/relations')) return 'relations';
@@ -763,6 +836,9 @@ export class MainLayoutComponent {
     const primary = this.currentPrimary();
     if (primary === 'chat') {
       return this.findPageHeader('对话', this.chatSubNavItems(), this.currentChatSubnav());
+    }
+    if (primary === 'video') {
+      return this.findPageHeader('视频', this.videoSubNavItems, this.currentVideoSubnav());
     }
     if (primary === 'workspace') {
       return this.findPageHeader(

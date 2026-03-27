@@ -47,25 +47,79 @@ export const routes: Routes = [
           ),
       },
       {
-        path: 'quick',
+        path: 'video',
         children: [
-          { path: '', pathMatch: 'full', redirectTo: 'video' },
           {
-            path: 'video',
+            path: '',
             loadComponent: () =>
               import('./seeddance/pages/quick-home/quick-home.component').then(
                 (m) => m.SeedanceHomeComponent,
               ),
           },
           {
-            path: 'video/create',
+            path: 'create',
             loadComponent: () =>
               import('./seeddance/seeddance-quick/seeddance-quick.component').then(
                 (m) => m.SeedanceQuickComponent,
               ),
           },
+          {
+            path: 'history',
+            loadComponent: () =>
+              import('./video-workbench/video-history.page.component').then(
+                (m) => m.VideoHistoryPageComponent,
+              ),
+          },
+          {
+            path: 'assets',
+            loadComponent: () =>
+              import('./video-workbench/video-assets.page.component').then(
+                (m) => m.VideoAssetsPageComponent,
+              ),
+          },
+          {
+            path: 'assets/new',
+            loadComponent: () =>
+              import('./studio/pages/package-editor/package-editor.component').then(
+                (m) => m.PackageEditorComponent,
+              ),
+          },
+          {
+            path: 'assets/:id/edit',
+            loadComponent: () =>
+              import('./studio/pages/package-editor/package-editor.component').then(
+                (m) => m.PackageEditorComponent,
+              ),
+          },
+          {
+            path: 'projects',
+            loadComponent: () =>
+              import('./studio/pages/project-list/project-list.component').then(
+                (m) => m.ProjectListComponent,
+              ),
+          },
+          {
+            path: 'projects/new',
+            loadComponent: () =>
+              import('./studio/pages/project-new/project-new.component').then(
+                (m) => m.ProjectNewComponent,
+              ),
+          },
+          {
+            path: 'projects/:id',
+            loadComponent: () =>
+              import('./studio/pages/project-detail/project-detail.component').then(
+                (m) => m.ProjectDetailComponent,
+              ),
+          },
         ],
       },
+      { path: 'quick', pathMatch: 'full', redirectTo: 'video' },
+      { path: 'quick/video', pathMatch: 'full', redirectTo: 'video' },
+      { path: 'quick/video/create', pathMatch: 'full', redirectTo: 'video/create' },
+      { path: 'quick/video/history', pathMatch: 'full', redirectTo: 'video/history' },
+      { path: 'quick/video/assets', pathMatch: 'full', redirectTo: 'video/assets' },
+      { path: 'quick/video/projects', pathMatch: 'full', redirectTo: 'video/projects' },
       {
         path: 'workspace',
         component: WorkspaceShellComponent,

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { MemoryService, Memory } from '../../core/services/memory.service';
+import { MemoryService } from '../../core/services/memory.service';
+import { GrowthService } from '../../core/services/growth.service';
 import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
 import { AppPageHeaderComponent } from '../../shared/ui/app-page-header.component';
 import { AppPanelComponent } from '../../shared/ui/app-panel.component';
@@ -10,9 +11,18 @@ const COGNITIVE_SECTIONS = [
   { category: 'judgment_pattern', label: '判断模式', hint: '做决定时的习惯思路' },
   { category: 'value_priority', label: '价值排序', hint: '你看重的事情' },
   { category: 'rhythm_pattern', label: '关系节奏', hint: '我们相处的模式' },
+  { category: 'cognitive_profile', label: '认知画像', hint: '成长层确认后的稳定理解' },
 ];
 
-type SectionWithItems = typeof COGNITIVE_SECTIONS[number] & { items: Memory[] };
+interface CognitiveItem {
+  id: string;
+  content: string;
+  confidence?: number;
+  createdAt?: string;
+  source: 'memory' | 'growth';
+}
+
+type SectionWithItems = typeof COGNITIVE_SECTIONS[number] & { items: CognitiveItem[] };
 
 @Component({
   selector: 'app-cognitive-profile-page',
@@ -46,10 +56,17 @@ type SectionWithItems = typeof COGNITIVE_SECTIONS[number] & { items: Memory[] };
                     <div class="cognitive-card">
                       <div class="cognitive-content">{{ item.content }}</div>
                       <div class="cognitive-meta">
-                        <app-badge tone="info" size="sm">
-                          置信 {{ (item.confidence * 100).toFixed(0) }}%
+                        <app-badge [tone]="item.source === 'growth' ? 'success' : 'info'" size="sm">
+                          {{ item.source === 'growth' ? '成长层' : '记忆层' }}
                         </app-badge>
-                        <span class="meta-time">{{ formatDate(item.createdAt) }}</span>
+                        @if (item.confidence !== undefined) {
+                          <app-badge tone="info" size="sm">
+                            置信 {{ (item.confidence * 100).toFixed(0) }}%
+                          </app-badge>
+                        }
+                        @if (item.createdAt) {
+                          <span class="meta-time">{{ formatDate(item.createdAt) }}</span>
+                        }
                       </div>
                     </div>
                   }
@@ -143,6 +160,7 @@ type SectionWithItems = typeof COGNITIVE_SECTIONS[number] & { items: Memory[] };
 })
 export class CognitiveProfilePageComponent implements OnInit {
   private memoryService = inject(MemoryService);
+  private growthService = inject(GrowthService);
 
   readonly sections = signal<SectionWithItems[]>(
     COGNITIVE_SECTIONS.map((s) => ({ ...s, items: [] }))
@@ -155,12 +173,49 @@ export class CognitiveProfilePageComponent implements OnInit {
 
   async load() {
     try {
+      const growthContext = await firstValueFrom(this.growthService.getContext());
       const results = await Promise.all(
         COGNITIVE_SECTIONS.map(async (section) => {
-          const items = await firstValueFrom(
+          if (section.category === 'cognitive_profile') {
+            return {
+              ...section,
+              items: (growthContext?.cognitiveProfiles ?? []).map((content, index) => ({
+                id: `growth-cognitive-profile-${index}`,
+                content,
+                source: 'growth' as const,
+              })),
+            };
+          }
+
+          const memoryItems = await firstValueFrom(
             this.memoryService.list(undefined, section.category)
           );
-          return { ...section, items: items ?? [] };
+          const growthItems = (
+            section.category === 'judgment_pattern'
+              ? growthContext?.judgmentPatterns
+              : section.category === 'value_priority'
+                ? growthContext?.valuePriorities
+                : growthContext?.rhythmPatterns
+          ) ?? [];
+          return {
+            ...section,
+            items: [
+              ...((memoryItems ?? []).map((item) => ({
+                id: item.id,
+                content: item.content,
+                confidence: item.confidence,
+                createdAt: item.createdAt,
+                source: 'memory' as const,
+              }))),
+              ...growthItems
+                .filter((content) => !(memoryItems ?? []).some((item) => item.content === content))
+                .map((content, index) => ({
+                  id: `growth-${section.category}-${index}`,
+                  content,
+                  source: 'growth' as const,
+                })),
+            ],
+          };
         })
       );
       this.sections.set(results);

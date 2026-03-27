@@ -15,6 +15,15 @@ export interface PendingGrowthItem {
   createdAt: string;
 }
 
+export interface GrowthContextDto {
+  cognitiveProfiles: string[];
+  judgmentPatterns: string[];
+  valuePriorities: string[];
+  rhythmPatterns: string[];
+  relationshipNotes: string[];
+  boundaryNotes: string[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class GrowthService {
   private base = `${environment.apiUrl}/growth`;
@@ -23,6 +32,10 @@ export class GrowthService {
 
   getPending() {
     return this.http.get<PendingGrowthItem[]>(`${this.base}/pending`);
+  }
+
+  getContext() {
+    return this.http.get<GrowthContextDto>(`${this.base}/context`);
   }
 
   confirm(id: string, type: GrowthItemType) {

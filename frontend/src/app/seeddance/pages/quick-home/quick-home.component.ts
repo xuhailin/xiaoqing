@@ -1,6 +1,6 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { SeedanceService, type SeedanceHistoryItem } from '../../../core/services/seeddance.service';
+import { VideoService, type VideoTask } from '../../../core/services/video.service';
 
 type VideoMode = 'text' | 'image' | 'keyframe';
 
@@ -124,7 +124,17 @@ interface ModeCard {
           <span class="history__hint">{{ history().length ? history().length + ' 条记录' : '提交任务后会在这里留下记录' }}</span>
         </div>
 
-        @if (history().length === 0) {
+        @if (loadError()) {
+          <div class="history__empty">
+            <p class="empty-text">{{ loadError() }}</p>
+            <p class="empty-sub">稍后刷新页面再试，或重新提交任务。</p>
+          </div>
+        } @else if (loading()) {
+          <div class="history__empty">
+            <p class="empty-text">正在加载历史…</p>
+            <p class="empty-sub">视频记录已切换为服务端持久化。</p>
+          </div>
+        } @else if (history().length === 0) {
           <div class="history__empty">
             <div class="empty-icon">
               <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
@@ -158,7 +168,7 @@ interface ModeCard {
                     </div>
                   } @else {
                     <div class="history-card__status-icon">
-                      @if (item.status === 'failed') {
+                      @if (item.status === 'failed' || item.status === 'cancelled') {
                         <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                           <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.3" opacity="0.5"/>
                           <path d="M10 6v5M10 13v1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -173,7 +183,7 @@ interface ModeCard {
                   <p class="history-card__prompt">{{ item.prompt }}</p>
                   <div class="history-card__meta">
                     <span class="status-badge status-badge--{{ item.status }}">{{ statusLabel(item.status) }}</span>
-                    <span class="history-card__params">{{ item.resolution }} · {{ item.aspectRatio }}</span>
+                    <span class="history-card__params">{{ item.resolution || '默认清晰度' }} · {{ item.aspectRatio || '默认比例' }}</span>
                     <span class="history-card__time">{{ timeAgo(item.createdAt) }}</span>
                   </div>
                 </div>
@@ -620,10 +630,12 @@ interface ModeCard {
 })
 export class SeedanceHomeComponent implements OnInit {
   private readonly router = inject(Router);
-  private readonly seedanceService = inject(SeedanceService);
+  private readonly videoService = inject(VideoService);
 
   protected readonly hoveredMode = signal<VideoMode | null>(null);
-  protected readonly history = signal<SeedanceHistoryItem[]>([]);
+  protected readonly history = signal<VideoTask[]>([]);
+  protected readonly loading = signal(false);
+  protected readonly loadError = signal<string | null>(null);
 
   protected readonly modeCards: ModeCard[] = [
     {
@@ -647,11 +659,11 @@ export class SeedanceHomeComponent implements OnInit {
   ];
 
   ngOnInit(): void {
-    this.history.set(this.seedanceService.getHistory());
+    this.loadHistory();
   }
 
   protected goCreate(mode: VideoMode): void {
-    void this.router.navigate(['/quick/video/create'], {
+    void this.router.navigate(['/video/create'], {
       queryParams: { mode },
     });
   }
@@ -660,12 +672,13 @@ export class SeedanceHomeComponent implements OnInit {
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 
-  protected statusLabel(status: SeedanceHistoryItem['status']): string {
-    const map: Record<SeedanceHistoryItem['status'], string> = {
+  protected statusLabel(status: VideoTask['status']): string {
+    const map: Record<VideoTask['status'], string> = {
       pending: '排队中',
       running: '生成中',
       completed: '已完成',
       failed: '失败',
+      cancelled: '已取消',
     };
     return map[status];
   }
@@ -678,5 +691,31 @@ export class SeedanceHomeComponent implements OnInit {
     const h = Math.floor(m / 60);
     if (h < 24) return `${h} 小时前`;
     return `${Math.floor(h / 24)} 天前`;
+  }
+
+  private loadHistory(): void {
+    this.loading.set(true);
+    this.loadError.set(null);
+
+    this.videoService.listTasks().subscribe({
+      next: (tasks) => {
+        this.history.set(tasks);
+        this.loading.set(false);
+      },
+      error: (err: unknown) => {
+        this.loading.set(false);
+        this.loadError.set(this.describeError(err, '加载历史失败'));
+      },
+    });
+  }
+
+  private describeError(err: unknown, fallback: string): string {
+    if (typeof err === 'string' && err.trim()) return err;
+    if (err && typeof err === 'object') {
+      const e = err as { message?: string; error?: { message?: string } };
+      if (e.error?.message) return e.error.message;
+      if (e.message) return e.message;
+    }
+    return fallback;
   }
 }

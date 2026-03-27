@@ -18,15 +18,11 @@ import {
   imports: [RouterLink, RouterLinkActive, AppIconComponent],
   template: `
     <nav class="memory-nav">
-      <div class="nav-header">
-        <span class="nav-title">认知面板</span>
-      </div>
-
-      <ul class="nav-list">
+      <ul class="nav-list main-left-section sub-panel ui-scrollbar">
         @for (item of navItems(); track item.key) {
           <li>
             <a
-              class="nav-item"
+              class="nav-item panel"
               [routerLink]="['/memory/settings', item.key]"
               routerLinkActive="is-active"
               [routerLinkActiveOptions]="{ exact: true }"
@@ -59,8 +55,8 @@ import {
   styles: [`
     :host {
       display: block;
-      width: 220px;
-      min-width: 220px;
+      width: 232px;
+      min-width: 232px;
       height: 100%;
       overflow: hidden;
     }
@@ -69,28 +65,16 @@ import {
       display: flex;
       flex-direction: column;
       height: 100%;
-      background: var(--sidebar-surface-background);
-      border-right: 1px solid var(--layout-sidebar-divider);
-      box-shadow: var(--sidebar-surface-shadow);
-    }
-
-    .nav-header {
-      padding: var(--space-4) var(--space-4) var(--space-3);
-      border-bottom: 1px solid var(--color-border-light);
-    }
-
-    .nav-title {
-      font-size: var(--font-size-sm);
-      font-weight: var(--font-weight-semibold);
-      color: var(--color-text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
+      background: transparent;
+      border-right: none;
+      box-shadow: none;
+      padding: var(--space-3);
     }
 
     .nav-list {
       flex: 1;
       overflow-y: auto;
-      padding: var(--space-2) 0;
+      padding: var(--space-2);
       margin: 0;
       list-style: none;
     }
@@ -99,24 +83,27 @@ import {
       display: flex;
       align-items: center;
       gap: var(--space-3);
-      padding: var(--space-3) var(--space-4);
+      min-height: 52px;
+      padding: var(--space-2) var(--space-3);
       color: var(--color-text-secondary);
       text-decoration: none;
       transition: all var(--transition-fast);
       cursor: pointer;
-      border-left: 3px solid transparent;
-      margin: 2px var(--space-2);
+      border-radius: 18px;
+      margin-bottom: var(--space-2);
 
       &:hover {
-        background: var(--layout-subnav-item-hover-bg);
+        background: var(--conversation-card-hover-bg);
+        border-color: var(--conversation-card-hover-border);
+        box-shadow: var(--conversation-card-hover-shadow);
         color: var(--color-text);
       }
 
       &.is-active {
-        background: var(--layout-subnav-item-active-bg);
+        background: var(--conversation-card-active-bg);
         color: var(--color-primary);
-        border-left-color: var(--color-primary);
-        border-radius: var(--radius-sm);
+        border-color: var(--conversation-card-active-border);
+        box-shadow: var(--conversation-card-active-shadow);
       }
     }
 
@@ -127,7 +114,7 @@ import {
       width: 28px;
       height: 28px;
       border-radius: var(--radius-sm);
-      background: var(--color-surface-muted);
+      background: var(--color-surface-highlight);
       color: var(--color-text-muted);
       flex-shrink: 0;
 
@@ -188,33 +175,14 @@ import {
       height: 8px;
       border-radius: 50%;
       background: var(--color-warning);
-      animation: pulse 2s infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
+      opacity: 0.9;
     }
 
     .nav-loading {
-      padding: var(--space-3) var(--space-4);
+      padding: var(--space-3) var(--space-2);
       font-size: var(--font-size-xs);
       color: var(--color-text-muted);
       text-align: center;
-    }
-
-    /* Scrollbar */
-    .nav-list::-webkit-scrollbar {
-      width: 4px;
-    }
-
-    .nav-list::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    .nav-list::-webkit-scrollbar-thumb {
-      background: var(--color-border);
-      border-radius: var(--radius-pill);
     }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,

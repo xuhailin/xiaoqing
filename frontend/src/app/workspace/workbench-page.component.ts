@@ -72,7 +72,7 @@ type OverlayMode = 'schedule' | 'logs' | null;
             <app-icon name="check" size="0.85rem" />
             <span>新事项</span>
           </app-button>
-          <app-button variant="ghost" size="sm" (click)="navigateTo('/quick/video')">
+          <app-button variant="ghost" size="sm" (click)="navigateTo('/video')">
             <app-icon name="sparkles" size="0.85rem" />
             <span>视频生成</span>
           </app-button>

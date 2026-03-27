@@ -24,8 +24,9 @@ import { AgentBusModule } from './agent-bus/agent-bus.module';
 import { PlanModule } from './plan/plan.module';
 import { IdeaModule } from './idea/idea.module';
 import { TodoModule } from './todo/todo.module';
-import { SeedanceModule } from './seeddance/seeddance.module';
 import { UserIdMiddleware } from './infra/user-id.middleware';
+import { VideoModule } from './video/video.module';
+import { VideoAgentModule } from './video-agent/video-agent.module';
 
 @Global()
 @Module({
@@ -47,7 +48,8 @@ import { UserIdMiddleware } from './infra/user-id.middleware';
     IdeaModule,
     TodoModule,
     WechatWorkBotModule,
-    SeedanceModule,
+    VideoModule,
+    VideoAgentModule,
   ],
   controllers: [AppController, AssetsController, RegressionReportsController, RegressionRunController],
   providers: [AppService, PrismaService, RegressionReportsService, RegressionRunService],

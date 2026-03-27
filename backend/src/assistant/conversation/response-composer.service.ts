@@ -142,6 +142,7 @@ export class ResponseComposer {
       worldState,
       cognitiveState,
       growthContext,
+      commitments: context.commitments.activeItems,
       claimPolicyText: claimCtx.claimPolicyText,
       sessionStateText: claimCtx.sessionStateText,
       sharedExperiences: context.relationship.sharedExperiences,

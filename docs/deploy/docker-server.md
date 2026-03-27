@@ -57,10 +57,10 @@ curl http://127.0.0.1:3000/health
 curl http://127.0.0.1/
 ```
 
-Seedance 配置接口：
+Video 配置接口：
 
 ```bash
-curl http://127.0.0.1:3000/seeddance/config
+curl http://127.0.0.1:3000/videos/config
 ```
 
 ## 5. 停止与重启

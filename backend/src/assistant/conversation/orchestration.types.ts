@@ -94,6 +94,13 @@ export interface InteractionTuningSignal {
   confidence: number;
 }
 
+export interface CommitmentSignal {
+  planId: string;
+  title: string;
+  summary: string;
+  nextRunAt?: Date;
+}
+
 export interface MemoryRecallPlan {
   strategy?: 'keyword' | 'vector' | 'hybrid';
   candidatesCount: number;
@@ -163,6 +170,9 @@ export interface TurnContext {
   };
   growth: {
     growthContext: PersistedGrowthContext;
+  };
+  commitments: {
+    activeItems: CommitmentSignal[];
   };
   relationship: {
     sharedExperiences: SharedExperienceRecord[];

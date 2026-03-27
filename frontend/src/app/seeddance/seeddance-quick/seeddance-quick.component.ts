@@ -10,11 +10,10 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
 import {
-  SeedanceService,
-  type SeedanceConfig,
-  type SeedanceHistoryItem,
-  type VideoStatus,
-} from '../../core/services/seeddance.service';
+  VideoService,
+  type VideoConfig,
+  type VideoTask,
+} from '../../core/services/video.service';
 import { AppButtonComponent } from '../../shared/ui/app-button.component';
 
 type VideoMode = 'text' | 'image' | 'keyframe';
@@ -41,7 +40,7 @@ const MODE_NAMES: Record<VideoMode, string> = {
       <!-- Header / Breadcrumb -->
       <header class="create-header">
         <nav class="breadcrumb">
-          <a class="breadcrumb__link" routerLink="/quick/video">创作</a>
+          <a class="breadcrumb__link" routerLink="/video">创作</a>
           <span class="breadcrumb__sep">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path d="M4 3l3 3-3 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
@@ -235,18 +234,6 @@ const MODE_NAMES: Record<VideoMode, string> = {
               </div>
             </div>
 
-            <!-- Count -->
-            <div class="field">
-              <span class="field-label">生成数量</span>
-              <div class="count-control">
-                <button type="button" class="count-btn" [disabled]="count() <= 1 || submitting()"
-                  (click)="count.set(count() - 1)">－</button>
-                <span class="count-value">{{ count() }}</span>
-                <button type="button" class="count-btn" [disabled]="count() >= 4 || submitting()"
-                  (click)="count.set(count() + 1)">＋</button>
-              </div>
-            </div>
-
           </div><!-- /left-scroll -->
 
           <!-- Generate button -->
@@ -341,6 +328,19 @@ const MODE_NAMES: Record<VideoMode, string> = {
               <strong>生成失败</strong>
               <p>{{ videoStatus()?.error || '任务执行失败，请重试' }}</p>
               <app-button variant="ghost" size="sm" (click)="retryStatusTracking()">重试</app-button>
+            </div>
+          }
+
+          @if (videoStatus()?.status === 'cancelled') {
+            <div class="result-error">
+              <div class="result-error__icon">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                  <circle cx="16" cy="16" r="13" stroke="currentColor" stroke-width="1.5" opacity="0.6"/>
+                  <path d="M11 11l10 10M21 11L11 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <strong>任务已取消</strong>
+              <p>该生成任务已从队列中移除，你可以调整参数后重新提交。</p>
             </div>
           }
 
@@ -1094,7 +1094,7 @@ const MODE_NAMES: Record<VideoMode, string> = {
   `],
 })
 export class SeedanceQuickComponent implements OnInit, OnDestroy {
-  private readonly seedance = inject(SeedanceService);
+  private readonly videoService = inject(VideoService);
   private readonly route = inject(ActivatedRoute);
   private streamSubscription: Subscription | null = null;
 
@@ -1108,7 +1108,6 @@ export class SeedanceQuickComponent implements OnInit, OnDestroy {
   protected readonly resolution = signal('720p');
   protected readonly duration = signal(5);
   protected readonly durationUnit = signal<'seconds' | 'frames'>('seconds');
-  protected readonly count = signal(1);
 
   // ── Uploads ──
   protected readonly firstFramePreview = signal<string | null>(null);
@@ -1119,7 +1118,7 @@ export class SeedanceQuickComponent implements OnInit, OnDestroy {
   // ── Task state ──
   protected readonly submitting = signal(false);
   protected readonly taskId = signal<string | null>(null);
-  protected readonly videoStatus = signal<VideoStatus | null>(null);
+  protected readonly videoStatus = signal<VideoTask | null>(null);
   protected readonly streamError = signal<string | null>(null);
 
   // ── Config options ──
@@ -1148,7 +1147,7 @@ export class SeedanceQuickComponent implements OnInit, OnDestroy {
       }
     });
 
-    this.seedance.getConfig().subscribe({
+    this.videoService.getConfig().subscribe({
       next: (cfg) => this.applyConfig(cfg),
       error: () => { /* use local defaults */ },
     });
@@ -1181,8 +1180,9 @@ export class SeedanceQuickComponent implements OnInit, OnDestroy {
     const aspectRatio = this.aspectRatio();
     const resolution = this.resolution();
 
-    this.seedance.createVideo({
+    this.videoService.createTask({
       prompt,
+      mode,
       aspectRatio,
       resolution,
       duration: this.duration(),
@@ -1190,19 +1190,10 @@ export class SeedanceQuickComponent implements OnInit, OnDestroy {
       firstFrameImage: this.firstFrameData() ?? undefined,
       lastFrameImage: mode === 'keyframe' ? (this.lastFrameData() ?? undefined) : undefined,
     }).subscribe({
-      next: ({ taskId }) => {
-        this.taskId.set(taskId);
-        const historyItem: SeedanceHistoryItem = {
-          taskId,
-          prompt,
-          mode,
-          status: 'pending',
-          aspectRatio,
-          resolution,
-          createdAt: Date.now(),
-        };
-        this.seedance.addHistory(historyItem);
-        this.startStream(taskId);
+      next: (task) => {
+        this.taskId.set(task.taskId);
+        this.videoStatus.set(task);
+        this.startStream(task.taskId);
       },
       error: (err: unknown) => {
         this.submitting.set(false);
@@ -1212,9 +1203,19 @@ export class SeedanceQuickComponent implements OnInit, OnDestroy {
   }
 
   protected cancel(): void {
-    this.stopStream();
-    this.submitting.set(false);
-    // TODO: call cancel API
+    const id = this.taskId();
+    if (!id) return;
+    this.videoService.cancelTask(id).subscribe({
+      next: (task) => {
+        this.videoStatus.set(task);
+        this.submitting.set(false);
+        this.stopStream();
+      },
+      error: (err: unknown) => {
+        this.submitting.set(false);
+        this.streamError.set(this.describeError(err, '取消失败'));
+      },
+    });
   }
 
   protected refreshStatus(): void {
@@ -1222,10 +1223,10 @@ export class SeedanceQuickComponent implements OnInit, OnDestroy {
     if (!id) return;
     this.submitting.set(true);
     this.streamError.set(null);
-    this.seedance.getVideoStatus(id).subscribe({
+    this.videoService.getTask(id).subscribe({
       next: (s) => {
         this.videoStatus.set(s);
-        if (s.status === 'completed' || s.status === 'failed') {
+        if (s.status === 'completed' || s.status === 'failed' || s.status === 'cancelled') {
           this.submitting.set(false);
           return;
         }
@@ -1311,12 +1312,13 @@ export class SeedanceQuickComponent implements OnInit, OnDestroy {
     };
   }
 
-  protected statusText(s: VideoStatus | null): string {
+  protected statusText(s: VideoTask | null): string {
     switch (s?.status) {
       case 'pending': return '排队中';
       case 'running': return '生成中';
       case 'completed': return '已完成';
       case 'failed': return '失败';
+      case 'cancelled': return '已取消';
       default: return '等待提交';
     }
   }
@@ -1330,12 +1332,11 @@ export class SeedanceQuickComponent implements OnInit, OnDestroy {
   // ── Private ──
   private startStream(taskId: string): void {
     this.stopStream();
-    this.streamSubscription = this.seedance.streamVideoStatus(taskId).subscribe({
+    this.streamSubscription = this.videoService.streamTask(taskId).subscribe({
       next: (s) => {
         this.videoStatus.set(s);
         this.streamError.set(null);
-        if (s.status === 'completed' || s.status === 'failed') {
-          this.seedance.updateHistory(taskId, { status: s.status, videoUrl: s.videoUrl });
+        if (s.status === 'completed' || s.status === 'failed' || s.status === 'cancelled') {
           this.submitting.set(false);
           this.stopStream();
         }
@@ -1393,7 +1394,7 @@ export class SeedanceQuickComponent implements OnInit, OnDestroy {
     reader.readAsDataURL(file);
   }
 
-  private applyConfig(cfg: SeedanceConfig): void {
+  private applyConfig(cfg: VideoConfig): void {
     if (cfg.aspectRatios.length) {
       this.aspectRatioOptions.set(cfg.aspectRatios);
       if (!cfg.aspectRatios.includes(this.aspectRatio())) {

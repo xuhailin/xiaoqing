@@ -75,6 +75,11 @@ frontend/src/styles/_design-system.scss
 7. **Shared Primitives** — 是否使用了 AppPanel/AppButton/AppPageHeader 等共享组件？若手写了同等功能的 HTML/CSS 则为违规
 8. **与 preset 的一致性** — 当前页面的视觉风格是否符合已加载 preset 的期望？
 
+新增必查（容器语义统一）：
+
+9. **Panel 命名统一** — 是否使用 `no-panel / sub-panel / panel` 三层语义，而不是临时命名？
+10. **主区域左侧区域** — 左侧主区域是否命名/实现为 `main-left-section`，且容器使用 `sub-panel`、列表项使用 `panel`？
+
 ### 输出格式
 
 严格按照以下 JSON schema 输出，无多余文字：
@@ -203,6 +208,8 @@ frontend/src/styles/_design-system.scss
 3. 圆角用 `var(--radius-*)` 系列
 4. 优先使用现有 Shared Primitives（AppPanel、AppButton 等）
 5. 最小修改原则，不改无关代码
+6. 主区域左侧区域统一使用 `.main-left-section.sub-panel`；其内部条目统一使用 `.panel`
+7. 不允许把左侧主区域做成灰色整底；应使用 `sub-panel` 语义背景
 
 ---
 

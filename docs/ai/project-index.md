@@ -21,6 +21,7 @@
 | DevAgent | 异步 run、规划/执行/汇报、Workspace | `backend/src/dev-agent/**` |
 | Agent Bus | 多 Agent 委托、回执投影、memory proposal | `backend/src/agent-bus/**` |
 | Plan / 调度 | 提醒与计划调度（与 Dev 历史命名解耦后的核心域） | 见 `docs/plan-task-scheduler-refactor.md` 与代码中 `PlanSchedulerService` 等 |
+| Video / 视频生成 | 独立视频创作入口、任务持久化、provider 适配与资产落盘 | `backend/src/video/**`、`frontend/src/app/seeddance/**`、`frontend/src/app/core/services/video.service.ts` |
 | 前端 | Angular SPA、Dev 面板、认知/人生轨迹 UI | `frontend/src/app/**` |
 
 **重要**：仓库内文档若仍写 `backend/src/xiaoqing/**`，应以 **`backend/src/assistant/**`** 为准（助手域已迁至 `assistant`）。

@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { MemoryService, Memory } from '../../core/services/memory.service';
+import { PlanApiService, type PlanRecord } from '../../core/services/plan.service';
 import { AppBadgeComponent } from '../../shared/ui/app-badge.component';
 import { AppPageHeaderComponent } from '../../shared/ui/app-page-header.component';
 import { AppPanelComponent } from '../../shared/ui/app-panel.component';
@@ -15,7 +15,7 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       <app-page-header
         class="page-container__header"
         title="承诺感知"
-        description="你提到的计划、约定或承诺，我会帮你留意。"
+        description="优先显示仍在生效的 Plan / Task 承诺，而不是只看旧记忆分类。"
       />
 
       <div class="page-content">
@@ -25,17 +25,26 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
           } @else if (items().length === 0) {
             <app-state
               title="暂无承诺记录"
-              description="对话中提到的计划和约定会沉淀到这里。"
+              description="当系统创建了仍在生效的计划或约定后，会优先显示在这里。"
             />
           } @else {
             <div class="commitment-list">
               @for (item of items(); track item.id) {
                 <div class="commitment-card">
-                  <div class="commitment-content">{{ item.content }}</div>
+                  <div class="commitment-content">{{ item.title || item.description || '未命名承诺' }}</div>
                   <div class="commitment-meta">
-                    <app-badge tone="info" size="sm">待追踪</app-badge>
-                    <span class="meta-time">{{ formatDate(item.createdAt) }}</span>
+                    <app-badge [tone]="item.status === 'paused' ? 'neutral' : 'info'" size="sm">
+                      {{ item.status === 'paused' ? '已暂停' : '进行中' }}
+                    </app-badge>
+                    @if (item.nextRunAt) {
+                      <span class="meta-time">下次 {{ formatDate(item.nextRunAt) }}</span>
+                    } @else {
+                      <span class="meta-time">{{ item.recurrence }}</span>
+                    }
                   </div>
+                  @if (item.description) {
+                    <div class="commitment-detail">{{ item.description }}</div>
+                  }
                 </div>
               }
             </div>
@@ -93,6 +102,13 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
       margin-bottom: var(--space-2);
     }
 
+    .commitment-detail {
+      font-size: var(--font-size-xs);
+      color: var(--color-text-muted);
+      line-height: 1.5;
+      margin-top: var(--space-2);
+    }
+
     .commitment-meta {
       display: flex;
       align-items: center;
@@ -107,9 +123,9 @@ import { AppStateComponent } from '../../shared/ui/app-state.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CommitmentPageComponent implements OnInit {
-  private memoryService = inject(MemoryService);
+  private planService = inject(PlanApiService);
 
-  readonly items = signal<Memory[]>([]);
+  readonly items = signal<PlanRecord[]>([]);
   readonly loading = signal(true);
 
   async ngOnInit() {
@@ -118,10 +134,18 @@ export class CommitmentPageComponent implements OnInit {
 
   async load() {
     try {
-      const list = await firstValueFrom(
-        this.memoryService.list(undefined, 'commitment')
-      );
-      this.items.set(list ?? []);
+      const [active, paused] = await Promise.all([
+        firstValueFrom(this.planService.list({ status: 'active' })),
+        firstValueFrom(this.planService.list({ status: 'paused' })),
+      ]);
+      const plans = [...(active ?? []), ...(paused ?? [])]
+        .filter((item) => item.scope !== 'dev')
+        .sort((left, right) => {
+          const leftTime = left.nextRunAt ? new Date(left.nextRunAt).getTime() : Number.MAX_SAFE_INTEGER;
+          const rightTime = right.nextRunAt ? new Date(right.nextRunAt).getTime() : Number.MAX_SAFE_INTEGER;
+          return leftTime - rightTime;
+        });
+      this.items.set(plans);
     } catch {
       this.items.set([]);
     } finally {
@@ -131,6 +155,6 @@ export class CommitmentPageComponent implements OnInit {
 
   formatDate(iso: string): string {
     const d = new Date(iso);
-    return `${d.getMonth() + 1}/${d.getDate()}`;
+    return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   }
 }

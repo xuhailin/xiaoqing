@@ -15,6 +15,7 @@
 - chat 主流区域保持透明或极轻背景
 - message 是基础层，状态块和 work item 才能升级成卡片
 - composer 是工具区，不是页面主视觉
+- 左侧会话区域若作为主区域左侧区域，命名为 `main-left-section`，容器使用 `sub-panel`，会话项使用 `panel`
 
 ### 卡片规则
 
@@ -47,6 +48,7 @@
 - header 可以比 chat 稍强，但仍不能压过主内容
 - 一级区块允许使用 `workbench surface`
 - 列表区、详情区、状态区可以并排，但必须共享同一套 panel 语言
+- 若存在主区域左侧区域，统一使用 `main-left-section + sub-panel`，列表项统一 `panel`
 
 ### 卡片规则
 
@@ -79,6 +81,7 @@
 - header 应明显轻于正文内容
 - 列表、详情、关系内容应更接近阅读器，而不是控制台
 - 重点放在内容块的呼吸感和阅读顺序
+- memory 设置型页面左侧导航区域统一视为 `main-left-section`，应用 `sub-panel`；导航项使用 `panel`
 
 ### 卡片规则
 

@@ -20,6 +20,7 @@ import type { SocialInsightRecord } from '../life-record/social-insight/social-i
 import type { RelevantSocialRelationEdgeRecord } from '../life-record/social-relation-edge/social-relation-edge.types';
 import type { CollaborationTurnContext } from '../conversation/orchestration.types';
 import type { ExpressionControlState } from '../conversation/expression-control.types';
+import type { CommitmentSignal } from '../conversation/orchestration.types';
 
 export const CHAT_PROMPT_VERSION = 'chat_v6';
 export const SUMMARY_PROMPT_VERSION = 'summary_v2';
@@ -54,6 +55,8 @@ export interface ChatContext {
   cognitiveState?: CognitiveTurnState;
   /** 二期成长层：来自长期沉淀的认知画像与关系状态 */
   growthContext?: PersistedGrowthContext;
+  /** 当前仍在生效的计划/约定，来自 Plan / TaskOccurrence 主事实源 */
+  commitments?: CommitmentSignal[];
   /** 三期治理层：生成前边界预检指令 */
   boundaryPrompt?: BoundaryPromptContext | null;
   /** 四期：长期 claim 注入（仅 stable/core） */
@@ -233,6 +236,16 @@ export class PromptRouterService {
       worldStatePart = lines.join('\n');
     }
 
+    let commitmentPart = '';
+    if (ctx.commitments?.length) {
+      const lines = ['[当前活跃承诺/计划]'];
+      ctx.commitments.slice(0, 4).forEach((item) => {
+        const body = item.summary?.trim() || item.title;
+        lines.push(`- ${item.title}${body && body !== item.title ? `：${body}` : ''}`);
+      });
+      commitmentPart = lines.join('\n');
+    }
+
     const cognitivePart = this.buildCognitivePolicy(ctx.cognitiveState);
     const longTermSummaryPart = this.buildLongTermSummaryPart(ctx.growthContext, ctx.claimPolicyText);
     const boundaryPart = this.buildBoundaryPolicy(ctx.boundaryPrompt);
@@ -330,6 +343,7 @@ export class PromptRouterService {
     const tier3Context = assertTokenBudget(
       [
         worldStatePart,
+        commitmentPart,
         socialSummaryPart,
         collaborationPart,
         reflectionPart,
@@ -941,11 +955,16 @@ export class PromptRouterService {
       `- ${CLAIM_KEYS.ET_TIRED_AVOID_COMPLEXITY}`,
       `- ${CLAIM_KEYS.ET_PREFERS_STABILITY}`,
       '',
+      'memory-only categories（写入 Memory，不写 Claim）:',
+      '- shared_fact: 双方已经明确确认、后续仍成立的事实',
+      '- commitment: 用户明确说过会做、要记住或之后再处理的约定与计划',
+      '- soft_preference: 生活习惯、口味、内容偏好等非互动风格偏好',
+      '',
       `（支持的 key 前缀：${ClaimSchemaRegistry.allowedPrefixes.join(' ')}）`,
     ].join('\n');
 
     const schemaHints = [
-      '【valueJson Schema 约束（必须匹配）】',
+      '【valueJson Schema 约束（必须匹配；memory-only categories 可省略 key/valueJson）】',
       '- level: {"level":"low"|"mid"|"high"}',
       '- priority: {"priority":"low"|"mid"|"high"}',
       '- enabled: {"enabled":true|false}',
@@ -973,13 +992,17 @@ export class PromptRouterService {
 3. 不记录表面事实
 4. 只记录具有重复概率的「判断模式」
 5. 优先抽取用户的：决策方式、犹豫模式、情绪触发点、价值排序、自我拉扯结构、关系节奏特征
+6. 只有在用户表达足够明确时，才提取 shared_fact / commitment / soft_preference 这三类 memory-only 信号
 
-你需要输出五类长期信号（type）：
+你需要输出八类长期信号（type）：
 【A. judgment_pattern】判断模式（key 以 jp. 开头）
 【B. value_priority】价值排序（key 以 vp. 开头）
 【C. relation_rhythm】关系节奏特征（key 以 rr. 开头）
 【D. interaction_preference】交互偏好（key 以 ip. 开头）
 【E. emotional_tendency】情绪倾向（key 以 et. 开头）
+【F. shared_fact】双方明确确认的事实（memory-only）
+【G. commitment】未来承诺、计划、约定（memory-only）
+【H. soft_preference】生活/内容偏好（memory-only）
 
 ${keyWhitelist}
 
@@ -990,9 +1013,9 @@ ${schemaHints}
   "shouldUpdate": true 或 false,
   "updates": [
     {
-      "type": "judgment_pattern | value_priority | relation_rhythm | interaction_preference | emotional_tendency",
-      "key": "必须是 canonical 白名单 key；若提出新候选必须用 draft.(ip|jp|vp|rr|et).*",
-      "valueJson": "必须符合该 key 对应的 schema（见上）",
+      "type": "judgment_pattern | value_priority | relation_rhythm | interaction_preference | emotional_tendency | shared_fact | commitment | soft_preference",
+      "key": "claim 类别时必须是 canonical 白名单 key；若提出新候选必须用 draft.(ip|jp|vp|rr|et).*；memory-only 类别可省略",
+      "valueJson": "claim 类别时必须符合该 key 对应的 schema（见上）；memory-only 类别可省略",
       "content": "可选：一条简短自然语言解释（≤30字）",
       "confidence": 0 到 1 之间的小数,
       "mappingConfidence": 0 到 1 之间的小数（越低越应使用 draft.*）,
@@ -1004,7 +1027,7 @@ ${schemaHints}
         "polarity": "SUPPORT | CONTRA | NEUTRAL",
         "weight": 0 到 1.0 之间的小数（可选，默认 1）
       },
-      "mergeTargetId": "仅当与已有长期认知语义相似度>0.85时填写，对应已有条目的 id，否则省略此字段"
+      "mergeTargetId": "仅当与已有长期认知或同类记忆语义相似度>0.85时填写，对应已有条目的 id，否则省略此字段"
     }
   ],
   "sessionState": {

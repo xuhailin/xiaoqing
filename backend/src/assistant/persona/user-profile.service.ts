@@ -106,6 +106,9 @@ export class UserProfileService {
     }
 
     const nonPreferencePatch: {
+      preferredVoiceStyle?: string;
+      praisePreference?: string;
+      responseRhythm?: string;
       preferredPersonaKey?: string;
       impressionCore?: string | null;
       impressionDetail?: string | null;
@@ -113,6 +116,15 @@ export class UserProfileService {
       pendingImpressionDetail?: string | null;
     } = {};
 
+    if (Object.prototype.hasOwnProperty.call(data, 'preferredVoiceStyle')) {
+      nonPreferencePatch.preferredVoiceStyle = data.preferredVoiceStyle ?? '';
+    }
+    if (Object.prototype.hasOwnProperty.call(data, 'praisePreference')) {
+      nonPreferencePatch.praisePreference = data.praisePreference ?? '';
+    }
+    if (Object.prototype.hasOwnProperty.call(data, 'responseRhythm')) {
+      nonPreferencePatch.responseRhythm = data.responseRhythm ?? '';
+    }
     if (Object.prototype.hasOwnProperty.call(data, 'preferredPersonaKey')) {
       nonPreferencePatch.preferredPersonaKey = data.preferredPersonaKey ?? 'default';
     }
@@ -391,6 +403,7 @@ export class UserProfileService {
   }
 
   private async projectFromClaims(userKey: string): Promise<UserProfileDto> {
+    const baseProfile = await this.getProfileRow(userKey);
     const rows = await this.prisma.$queryRaw<Array<{
       key: string;
       valueJson: unknown;
@@ -485,12 +498,36 @@ export class UserProfileService {
     if ((levelOf('rr.dislike_too_pushy') ?? 'low') !== 'low') pushUnique(rhythm, '避免推进过猛');
     if ((levelOf('rr.prefer_companion_mode_when_tired') ?? 'low') !== 'low') pushUnique(rhythm, '疲惫时优先陪伴模式');
 
+    const takeManualFallback = (bucket: string[], raw: string): string[] => {
+      if (bucket.length > 0 || !raw.trim()) return bucket;
+      return raw
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => line.replace(/^[\-\s]+/, ''))
+        .filter(Boolean)
+        .slice(0, 3);
+    };
+
+    const voiceOutput = takeManualFallback(voice, baseProfile.preferredVoiceStyle);
+    const praiseOutput = takeManualFallback(praise, baseProfile.praisePreference);
+    const rhythmOutput = takeManualFallback(rhythm, baseProfile.responseRhythm);
+
     await this.prisma.userProfile.update({
       where: { userKey },
       data: {
-        preferredVoiceStyle: voice.slice(0, USER_PROFILE_LIMITS.preferredVoiceStyle).map((line) => `- ${line}`).join('\n'),
-        praisePreference: praise.slice(0, USER_PROFILE_LIMITS.praisePreference).map((line) => `- ${line}`).join('\n'),
-        responseRhythm: rhythm.slice(0, USER_PROFILE_LIMITS.responseRhythm).map((line) => `- ${line}`).join('\n'),
+        preferredVoiceStyle: voiceOutput
+          .slice(0, USER_PROFILE_LIMITS.preferredVoiceStyle)
+          .map((line) => `- ${line}`)
+          .join('\n'),
+        praisePreference: praiseOutput
+          .slice(0, USER_PROFILE_LIMITS.praisePreference)
+          .map((line) => `- ${line}`)
+          .join('\n'),
+        responseRhythm: rhythmOutput
+          .slice(0, USER_PROFILE_LIMITS.responseRhythm)
+          .map((line) => `- ${line}`)
+          .join('\n'),
       },
     });
     const profile = await this.prisma.userProfile.findUnique({ where: { userKey } });

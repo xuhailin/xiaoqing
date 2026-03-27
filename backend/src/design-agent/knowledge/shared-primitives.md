@@ -106,5 +106,19 @@
 ### _design-system.scss
 位于 `frontend/src/styles/_design-system.scss`，定义了上述组件的 CSS 类（`.ui-panel`、`.ui-button`、`.ui-badge` 等）。业务组件不应重复定义这些类的样式。
 
+### _common.scss
+位于 `frontend/src/styles/_common.scss`，定义全局容器语义类：
+
+- `.no-panel`：透明容器（无边框、无阴影）
+- `.sub-panel`：次级容器（用于 `main-left-section`）
+- `.panel`：标准卡片容器（列表项、详情块）
+- `.main-left-section`：主区域左侧区域的统一容器类
+
+使用规则：
+- 左侧主区域容器（如 memory/chat 左栏）优先使用 `.main-left-section.sub-panel`
+- 左侧列表项优先使用 `.panel`
+- 不要在业务组件中重复手写这三类容器的视觉体系
+
 ### _variables.scss
 位于 `frontend/src/styles/_variables.scss`，是所有 CSS 自定义属性（设计 token）的 source of truth。业务组件中的颜色、间距、圆角、阴影必须引用此文件中的变量。
+

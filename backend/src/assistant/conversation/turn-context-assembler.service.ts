@@ -113,6 +113,7 @@ export class TurnContextAssembler {
       this.cognitiveGrowth.getGrowthContext(input.userId),
       this.systemSelf.getSystemSelf('chat'),
     ]);
+    const activeCommitments = await this.readActiveCommitments(input.userId, input.conversationId);
 
     const personaDto = await this.persona.getOrCreate(profile.preferredPersonaKey);
 
@@ -225,6 +226,7 @@ export class TurnContextAssembler {
       world: { storedWorldState, defaultWorldState, fullWorldState },
       memory: memoryCtx,
       growth: { growthContext },
+      commitments: { activeItems: activeCommitments },
       relationship: relationshipCtx,
       social: socialCtx,
       claims: claimCtx,
@@ -268,6 +270,7 @@ export class TurnContextAssembler {
       this.cognitiveGrowth.getGrowthContext(input.userId),
       this.systemSelf.getSystemSelf('chat'),
     ]);
+    const activeCommitments = await this.readActiveCommitments(input.userId, input.conversationId);
 
     const personaDto = await this.persona.getOrCreate(profile.preferredPersonaKey);
 
@@ -311,6 +314,7 @@ export class TurnContextAssembler {
         memoryBudgetTokens: 0,
       },
       growth: { growthContext },
+      commitments: { activeItems: activeCommitments },
       relationship: { sharedExperiences: [], rhythmObservations: [] },
       social: { entities: [], insights: [], relationSignals: [] },
       claims: {
@@ -683,6 +687,55 @@ export class TurnContextAssembler {
     }
 
     return { claimSignals, claimPolicyText, sessionState, sessionStateText, injectedClaimsDebug, draftClaimsDebug };
+  }
+
+  private async readActiveCommitments(
+    userId: string,
+    conversationId: string,
+  ): Promise<TurnContext['commitments']['activeItems']> {
+    try {
+      const plans = await this.prisma.plan.findMany({
+        where: {
+          userId,
+          status: 'active',
+          scope: { in: ['chat', 'system'] },
+        },
+        orderBy: [
+          { conversationId: 'asc' },
+          { nextRunAt: 'asc' },
+          { createdAt: 'desc' },
+        ],
+        take: 12,
+      });
+
+      const prioritized = plans
+        .sort((left, right) => {
+          const leftScore = left.conversationId === conversationId ? 0 : 1;
+          const rightScore = right.conversationId === conversationId ? 0 : 1;
+          if (leftScore !== rightScore) return leftScore - rightScore;
+          const leftTime = left.nextRunAt?.getTime() ?? Number.MAX_SAFE_INTEGER;
+          const rightTime = right.nextRunAt?.getTime() ?? Number.MAX_SAFE_INTEGER;
+          return leftTime - rightTime;
+        })
+        .slice(0, 4);
+
+      return prioritized.map((plan) => {
+        const title = plan.title?.trim() || plan.description?.trim() || '未命名承诺';
+        const parts = [
+          plan.description?.trim() || null,
+          plan.nextRunAt ? `下次执行 ${plan.nextRunAt.toLocaleString('zh-CN', { hour12: false })}` : null,
+        ].filter(Boolean);
+        return {
+          planId: plan.id,
+          title,
+          summary: parts.join('；') || title,
+          ...(plan.nextRunAt ? { nextRunAt: plan.nextRunAt } : {}),
+        };
+      });
+    } catch (err) {
+      this.logger.warn(`readActiveCommitments failed: ${String(err)}`);
+      return [];
+    }
   }
 
   private async buildRelationshipContext(input: {
