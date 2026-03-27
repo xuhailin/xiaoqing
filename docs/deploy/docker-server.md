@@ -4,7 +4,7 @@
 
 - 前端访问地址：`http://服务器IP/`
 - 后端 API 地址：`http://服务器IP:3000`
-- 数据库由 Docker Compose 内置 PostgreSQL 提供
+- 数据库由 Docker Compose 内置 PostgreSQL 提供，并自动准备 `pgvector` 扩展
 
 ## 1. 准备环境文件
 
