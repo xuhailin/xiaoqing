@@ -37,6 +37,7 @@ export interface SessionReflectionRecord {
 
 export interface SessionReflectionQuery {
   conversationId?: string;
+  conversationIds?: string[];
   relationImpact?: RelationImpact;
   sharedMomentOnly?: boolean;
   since?: Date;

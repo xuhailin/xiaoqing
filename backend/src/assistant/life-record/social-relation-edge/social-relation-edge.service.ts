@@ -65,17 +65,17 @@ export class SocialRelationEdgeService {
   }
 
   async syncFromTracePoints(userId: string, since?: Date): Promise<SocialRelationEdgeSyncResult> {
+    const conversationIds = await this.getConversationIds(userId);
+    if (conversationIds.length === 0) {
+      return { created: 0, updated: 0, total: 0 };
+    }
+
     const [points, entities] = await Promise.all([
       this.prisma.tracePoint.findMany({
         where: {
           kind: 'relation_event',
           confidence: { gt: 0 },
-          conversationId: {
-            in: (await this.prisma.conversation.findMany({
-              where: { userId },
-              select: { id: true },
-            })).map((item) => item.id),
-          },
+          conversationId: { in: conversationIds },
           ...(since ? { createdAt: { gte: since } } : {}),
         },
         orderBy: { createdAt: 'asc' },
@@ -88,11 +88,16 @@ export class SocialRelationEdgeService {
       this.loadEntities(userId),
     ]);
 
-    return this.syncFromPoints(points, entities, userId);
+    return this.syncFromPoints(points, entities, userId, conversationIds);
   }
 
   async syncFromTracePointIds(tracePointIds: string[], userId: string): Promise<SocialRelationEdgeSyncResult> {
     if (tracePointIds.length === 0) {
+      return { created: 0, updated: 0, total: 0 };
+    }
+
+    const conversationIds = await this.getConversationIds(userId);
+    if (conversationIds.length === 0) {
       return { created: 0, updated: 0, total: 0 };
     }
 
@@ -102,6 +107,7 @@ export class SocialRelationEdgeService {
           id: { in: tracePointIds },
           kind: 'relation_event',
           confidence: { gt: 0 },
+          conversationId: { in: conversationIds },
         },
         orderBy: { createdAt: 'asc' },
         select: {
@@ -113,7 +119,7 @@ export class SocialRelationEdgeService {
       this.loadEntities(userId),
     ]);
 
-    return this.syncFromPoints(points, entities, userId);
+    return this.syncFromPoints(points, entities, userId, conversationIds);
   }
 
   private async loadEntities(userId: string) {
@@ -141,6 +147,7 @@ export class SocialRelationEdgeService {
       relation: string;
     }>,
     userId: string,
+    conversationIds: string[],
   ): Promise<SocialRelationEdgeSyncResult> {
     if (points.length === 0 || entities.length === 0) {
       return { created: 0, updated: 0, total: 0 };
@@ -178,7 +185,7 @@ export class SocialRelationEdgeService {
           },
         });
 
-        const trend = await this.computeTrend(entity, point.createdAt);
+        const trend = await this.computeTrend(entity, point.createdAt, conversationIds);
         const nextQuality = this.clampQuality((existing?.quality ?? 0.5) + delta);
         const row = await this.prisma.socialRelationEdge.upsert({
           where: {
@@ -222,11 +229,13 @@ export class SocialRelationEdgeService {
   private async computeTrend(
     entity: { name: string; aliases?: string[] },
     until: Date,
+    conversationIds: string[],
   ): Promise<SocialRelationTrend> {
     const rows = await this.prisma.tracePoint.findMany({
       where: {
         kind: 'relation_event',
         createdAt: { lte: until },
+        conversationId: { in: conversationIds },
         OR: [
           { people: { has: entity.name } },
           ...(entity.aliases ?? []).map((alias) => ({ people: { has: alias } })),
@@ -258,6 +267,14 @@ export class SocialRelationEdgeService {
 
   private clampQuality(value: number): number {
     return Math.max(0, Math.min(1, Math.round(value * 100) / 100));
+  }
+
+  private async getConversationIds(userId: string): Promise<string[]> {
+    const rows = await this.prisma.conversation.findMany({
+      where: { userId },
+      select: { id: true },
+    });
+    return rows.map((row) => row.id);
   }
 
   private computeRelevanceScore(

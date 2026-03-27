@@ -2,7 +2,6 @@ import { Controller, Get } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppService } from './app.service';
 import { isFeatureEnabled } from './config/feature-flags';
-import { getAppUserMode } from './infra/user-mode.config';
 
 @Controller()
 export class AppController {
@@ -27,7 +26,6 @@ export class AppController {
   @Get('app/mode')
   getAppMode() {
     return {
-      userMode: getAppUserMode(this.config),
       devAgentEnabled: isFeatureEnabled(this.config, 'devAgent'),
       designAgentEnabled: isFeatureEnabled(this.config, 'designAgent'),
     };

@@ -39,7 +39,7 @@ export const FEATURE_FLAGS = {
   designAgent: { key: 'FEATURE_DESIGN_AGENT', defaultEnabled: true },
   devAgent: { key: 'FEATURE_DEV_AGENT', defaultEnabled: true },
   planScheduler: { key: 'FEATURE_PLAN_SCHEDULER', defaultEnabled: true },
-  socialCareScheduler: { key: 'FEATURE_SOCIAL_CARE_SCHEDULER', defaultEnabled: true },
+  socialCareScheduler: { key: 'FEATURE_SOCIAL_CARE_SCHEDULER', defaultEnabled: false },
   socialEntityClassifierScheduler: { key: 'FEATURE_SOCIAL_ENTITY_CLASSIFIER_SCHEDULER', defaultEnabled: true },
   socialInsightScheduler: { key: 'FEATURE_SOCIAL_INSIGHT_SCHEDULER', defaultEnabled: true },
   sharedExperienceFollowupScheduler: { key: 'FEATURE_SHARED_EXPERIENCE_FOLLOWUP_SCHEDULER', defaultEnabled: true },

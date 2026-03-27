@@ -51,11 +51,13 @@ export class PlanController {
     @Query('status') status?: string,
     @Query('conversationId') conversationId?: string,
     @Query('limit') limit?: string,
+    @UserId() userId?: string,
   ) {
     const now = new Date();
     const fromDate = this.parseDateOrDefault(from, new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000));
     const toDate = this.parseDateOrDefault(to, new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000));
     return this.occurrenceService.listByTimeRange(fromDate, toDate, {
+      userId: userId ?? 'default-user',
       planId,
       status: status as any,
       conversationId,
@@ -102,38 +104,41 @@ export class PlanController {
     @Param('id') planId: string,
     @Query('limit') limit?: string,
     @Query('status') status?: string,
+    @UserId() userId?: string,
   ) {
-    return this.occurrenceService.listByPlan(planId, {
+    return this.planService.getPlan(planId, userId ?? 'default-user').then(() => this.occurrenceService.listByPlan(planId, {
       limit: limit ? Number(limit) : undefined,
       status: status as any,
-    });
+    }));
   }
 
   @Post(':id/occurrences/skip')
   skipOccurrence(
     @Param('id') planId: string,
     @Body() body: { scheduledAt: string; reason?: string },
+    @UserId() userId?: string,
   ) {
-    return this.occurrenceService.applyException({
+    return this.planService.getPlan(planId, userId ?? 'default-user').then(() => this.occurrenceService.applyException({
       planId,
       scheduledAt: new Date(body.scheduledAt),
       action: 'skip',
       reason: body.reason,
-    });
+    }));
   }
 
   @Post(':id/occurrences/reschedule')
   rescheduleOccurrence(
     @Param('id') planId: string,
     @Body() body: { scheduledAt: string; rescheduledTo: string; reason?: string },
+    @UserId() userId?: string,
   ) {
-    return this.occurrenceService.applyException({
+    return this.planService.getPlan(planId, userId ?? 'default-user').then(() => this.occurrenceService.applyException({
       planId,
       scheduledAt: new Date(body.scheduledAt),
       action: 'reschedule',
       rescheduledTo: new Date(body.rescheduledTo),
       reason: body.reason,
-    });
+    }));
   }
 
   private parseDateOrDefault(value: string | undefined, fallback: Date): Date {

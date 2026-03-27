@@ -6,7 +6,6 @@ import { XiaoqingAvatarComponent } from '../shared/ui/xiaoqing-avatar.component'
 import { ThemeService } from '../core/services/theme.service';
 import { PageActionsService } from '../core/services/page-actions.service';
 import { AppModeService } from '../core/services/app-mode.service';
-import { AuthService } from '../core/services/auth.service';
 
 type ChatSubNavItem = {
   value: 'chat' | 'design-agent' | 'dev-agent' | 'xiaoqin';
@@ -74,19 +73,6 @@ type MemorySubNavItem = {
         </nav>
 
         <div class="app-sidebar__footer">
-          <app-button
-            type="button"
-            variant="ghost"
-            size="sm"
-            class="app-sidebar__utility"
-            (click)="openLogin()"
-            [title]="userSwitcherTitle()"
-          >
-            <span class="app-sidebar__utility-icon">
-              <app-icon name="userCircle" size="0.95rem" />
-            </span>
-          </app-button>
-
           <app-button
             type="button"
             variant="ghost"
@@ -579,7 +565,6 @@ export class MainLayoutComponent {
   protected readonly themeService = inject(ThemeService);
   protected readonly pageActions = inject(PageActionsService);
   protected readonly appMode = inject(AppModeService);
-  protected readonly auth = inject(AuthService);
   protected readonly mainNavItems = [
     { value: 'chat', label: '对话', hint: '会话与陪伴', icon: 'message' as const },
     { value: 'workspace', label: '工作台', hint: '收纳与执行', icon: 'layoutTemplate' as const },
@@ -587,7 +572,6 @@ export class MainLayoutComponent {
   ];
   protected readonly chatSubNavItems = computed<readonly ChatSubNavItem[]>(() => {
     const mode = this.appMode.mode();
-    const multiUserDisabled = mode.userMode === 'multi';
 
     return [
       {
@@ -600,19 +584,15 @@ export class MainLayoutComponent {
         value: 'design-agent',
         label: 'designAgent',
         icon: 'sparkles',
-        description: multiUserDisabled
-          ? 'multi-user 模式下暂不开放 DesignAgent。'
-          : 'DesignAgent 面板统一发起页面设计审查，查看风险摘要、findings 和原始结果。',
-        disabled: multiUserDisabled || !mode.designAgentEnabled,
+        description: 'DesignAgent 面板统一发起页面设计审查，查看风险摘要、findings 和原始结果。',
+        disabled: !mode.designAgentEnabled,
       },
       {
         value: 'dev-agent',
         label: 'devAgent',
         icon: 'claude',
-        description: multiUserDisabled
-          ? 'multi-user 模式下暂不开放 DevAgent。'
-          : 'DevAgent 面板聚焦执行会话、workspace 上下文和开发协作。',
-        disabled: multiUserDisabled || !mode.devAgentEnabled,
+        description: 'DevAgent 面板聚焦执行会话、workspace 上下文和开发协作。',
+        disabled: !mode.devAgentEnabled,
       },
       {
         value: 'xiaoqin',
@@ -798,10 +778,6 @@ export class MainLayoutComponent {
     this.router.navigate(['/settings']);
   }
 
-  openLogin() {
-    this.router.navigate(['/login']);
-  }
-
   currentTheme() {
     return this.themeService.theme();
   }
@@ -812,10 +788,6 @@ export class MainLayoutComponent {
 
   toggleTheme() {
     this.themeService.toggleTheme();
-  }
-
-  userSwitcherTitle() {
-    return `切换用户（当前：${this.auth.currentUserId ?? '未登录'}）`;
   }
 
   private findPageHeader<T extends { value: string; label: string; description: string }>(

@@ -1,8 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PlanDispatchType, ReminderScope, type Plan } from '@prisma/client';
 import { PlanService } from '../../../plan/plan.service';
 import { PrismaService } from '../../../infra/prisma.service';
 import type { SocialCarePlanDecision, SocialCarePlanGenerateResult } from './social-relation-edge.types';
+import { isFeatureEnabled } from '../../../config/feature-flags';
 
 const USER_ENTITY_ID = 'default-user';
 const DEFAULT_LIMIT = 2;
@@ -18,17 +20,25 @@ const DEFAULT_TIMEZONE = 'Asia/Shanghai';
 @Injectable()
 export class SocialCarePlannerService {
   private readonly logger = new Logger(SocialCarePlannerService.name);
+  private readonly enabled: boolean;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly planService: PlanService,
-  ) {}
+    config: ConfigService,
+  ) {
+    this.enabled = isFeatureEnabled(config, 'socialCareScheduler');
+  }
 
   async generateCarePlans(options?: {
     dryRun?: boolean;
     limit?: number;
     now?: Date;
   }): Promise<SocialCarePlanGenerateResult> {
+    if (!this.enabled) {
+      throw new ForbiddenException('Social care planning is disabled');
+    }
+
     const now = options?.now ?? new Date();
     const limit = Math.max(1, options?.limit ?? DEFAULT_LIMIT);
     const decisions: SocialCarePlanDecision[] = [];
@@ -96,6 +106,22 @@ export class SocialCarePlannerService {
         continue;
       }
 
+      const conversation = await this.prisma.conversation.findFirst({
+        where: { userId: 'default-user', isInternal: false, entryAgentId: 'xiaoqing' },
+        orderBy: { updatedAt: 'desc' },
+        select: { id: true },
+      });
+      if (!conversation) {
+        decisions.push({
+          entityId: entity.id,
+          entityName: entity.name,
+          outcome: 'skipped',
+          reason: '当前没有可投递提醒的对话会话，暂不生成主动关怀计划',
+          skipReason: 'missing_conversation',
+        });
+        continue;
+      }
+
       const plan = await this.planService.createPlan({
         description: reason,
         scope: ReminderScope.chat,
@@ -103,6 +129,7 @@ export class SocialCarePlannerService {
         recurrence: 'once',
         runAt: scheduledFor,
         timezone: DEFAULT_TIMEZONE,
+        conversationId: conversation.id,
         actionPayload: {
           kind: CARE_PLAN_KIND,
           entityId: entity.id,
@@ -111,7 +138,7 @@ export class SocialCarePlannerService {
           trend: edge.trend,
           quality: edge.quality,
         },
-      });
+      }, 'default-user');
 
       recentPlans.push(plan);
       decisions.push({
@@ -145,6 +172,7 @@ export class SocialCarePlannerService {
 
     return this.prisma.socialRelationEdge.findMany({
       where: {
+        userId: 'default-user',
         fromEntityId: USER_ENTITY_ID,
         trend: 'declining',
         quality: { lte: QUALITY_THRESHOLD },
@@ -176,6 +204,7 @@ export class SocialCarePlannerService {
     const threshold = new Date(now.getTime() - PLAN_COOLDOWN_DAYS * 86_400_000);
     return this.prisma.plan.findMany({
       where: {
+        userId: 'default-user',
         scope: ReminderScope.chat,
         dispatchType: PlanDispatchType.notify,
         createdAt: { gte: threshold },

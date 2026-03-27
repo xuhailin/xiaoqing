@@ -700,7 +700,10 @@ export class TurnContextAssembler {
 
     const [relevantSharedExperiences, recentReflections] = await Promise.all([
       this.sharedExperience.findRelevant(input.userId, contextText, 2),
-      this.sessionReflection.list({ limit: 3 }),
+      this.sessionReflection.list({
+        conversationId: input.conversationId,
+        limit: 3,
+      }),
     ]);
 
     return {

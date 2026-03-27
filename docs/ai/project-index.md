@@ -35,6 +35,7 @@
 
 | 文档 | 用途 |
 |------|------|
+| `docs/current-system-boundary.md` | **当前生效边界**：单用户运行时、哪些 userId 字段只是预埋、执行域如何收口 |
 | `docs/assistant-architecture-principles.md` | 五能力管线：感知 / 决策 / 执行 / 回复组织 / 回合后处理 |
 | `docs/context-boundary.md` | Chat / DevAgent / Tool 三条硬边界 |
 | `docs/PROJECT-SUMMARY.md` | 全景：目录、API、环境变量、阶段能力 |
@@ -79,9 +80,10 @@
 ### 对话 / chat / routing / intent / 回归
 
 1. `docs/skills/chat-flow-skill.md`  
-2. `docs/context-boundary.md`  
-3. `docs/dialogue-regression-standard.md`、`docs/intent-policy-regression.md`  
-4. 五能力原则：`docs/assistant-architecture-principles.md`
+2. `docs/current-system-boundary.md`  
+3. `docs/context-boundary.md`  
+4. `docs/dialogue-regression-standard.md`、`docs/intent-policy-regression.md`  
+5. 五能力原则：`docs/assistant-architecture-principles.md`
 
 ### 记忆 / trace / preference / identity / persona（数据与后处理）
 
@@ -143,10 +145,11 @@
 ## 6. 修改代码前建议的阅读顺序（默认）
 
 1. 本文件 — 确认需求属于哪一类主题。  
-2. 对应 **skill**（上表）。  
-3. 相关 **长期架构**文档（第三节 3.1）。  
-4. **直接读代码入口**（服务/编排类），再决定是否读计划文档。  
-5. 涉及边界时必读 `docs/context-boundary.md` 与 `docs/dev-agent-architecture.md`（Dev 相关）。
+2. `docs/current-system-boundary.md` — 先确认当前运行时边界。  
+3. 对应 **skill**（上表）。  
+4. 相关 **长期架构**文档（第三节 3.1）。  
+5. **直接读代码入口**（服务/编排类），再决定是否读计划文档。  
+6. 涉及边界时必读 `docs/context-boundary.md` 与 `docs/dev-agent-architecture.md`（Dev 相关）。
 
 ---
 

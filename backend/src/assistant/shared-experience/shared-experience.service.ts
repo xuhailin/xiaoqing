@@ -43,6 +43,7 @@ const PROMOTION_PROMPT = `你是小晴的共同经历提炼器。给定一次 Se
 }`;
 
 interface PromoteCandidate {
+  userId: string;
   title: string;
   summary: string;
   category: SharedExperienceCategory;
@@ -63,8 +64,21 @@ export class SharedExperienceService {
     private readonly sessionReflection: SessionReflectionService,
   ) {}
 
-  async promoteFromReflections(since?: Date): Promise<SharedExperiencePromoteResult> {
-    const reflections = await this.sessionReflection.getSharedMomentCandidates(since);
+  async promoteFromReflections(
+    userId: string,
+    since?: Date,
+  ): Promise<SharedExperiencePromoteResult> {
+    const conversationIds = await this.getConversationIds(userId);
+    if (conversationIds.length === 0) {
+      return { created: 0, updated: 0, skipped: 0, total: 0 };
+    }
+
+    const reflections = await this.sessionReflection.list({
+      conversationIds,
+      sharedMomentOnly: true,
+      since,
+      limit: 200,
+    });
     if (reflections.length === 0) {
       return { created: 0, updated: 0, skipped: 0, total: 0 };
     }
@@ -75,7 +89,10 @@ export class SharedExperienceService {
 
     for (const reflection of reflections) {
       const existingByConversation = await this.prisma.sharedExperience.findFirst({
-        where: { conversationIds: { has: reflection.conversationId } },
+        where: {
+          userId,
+          conversationIds: { has: reflection.conversationId },
+        },
         select: { id: true },
       });
       if (existingByConversation) {
@@ -83,7 +100,7 @@ export class SharedExperienceService {
         continue;
       }
 
-      const candidate = await this.buildCandidate(reflection);
+      const candidate = await this.buildCandidate(reflection, userId);
       if (!candidate) {
         skipped++;
         continue;
@@ -200,6 +217,7 @@ export class SharedExperienceService {
 
   private async buildCandidate(
     reflection: SessionReflectionRecord,
+    userId: string,
   ): Promise<PromoteCandidate | null> {
     const tracePoints = await this.prisma.tracePoint.findMany({
       where: { conversationId: reflection.conversationId },
@@ -215,13 +233,14 @@ export class SharedExperienceService {
 
     const llmResult = await this.extractCandidate(reflection, tracePoints);
     const peopleNames = this.uniq(tracePoints.flatMap((point) => point.people));
-    const relatedEntityIds = await this.resolveRelatedEntityIds(peopleNames);
+    const relatedEntityIds = await this.resolveRelatedEntityIds(userId, peopleNames);
 
     const firstMoment = tracePoints
       .map((point) => point.happenedAt ?? point.createdAt)
       .sort((a, b) => a.getTime() - b.getTime())[0];
 
     return {
+      userId,
       title: llmResult?.title ?? this.buildFallbackTitle(reflection),
       summary: llmResult?.summary ?? reflection.momentHint ?? reflection.summary,
       category: llmResult?.category ?? this.inferFallbackCategory(reflection),
@@ -310,6 +329,7 @@ ${traceSummary || '- 无额外碎片'}
 
     const rows = await this.prisma.sharedExperience.findMany({
       where: {
+        userId: candidate.userId,
         category: candidate.category,
         happenedAt: {
           gte: windowStart,
@@ -350,11 +370,15 @@ ${traceSummary || '- 无额外碎片'}
     return best && best.score >= 1.5 ? best : null;
   }
 
-  private async resolveRelatedEntityIds(names: string[]): Promise<string[]> {
+  private async resolveRelatedEntityIds(
+    userId: string,
+    names: string[],
+  ): Promise<string[]> {
     const rows = await Promise.all(
       names.map((name) =>
         this.prisma.socialEntity.findFirst({
           where: {
+            userId,
             OR: [{ name }, { aliases: { has: name } }],
           },
           select: { id: true },
@@ -363,6 +387,14 @@ ${traceSummary || '- 无额外碎片'}
     );
 
     return this.uniq(rows.map((row) => row?.id).filter((id): id is string => Boolean(id)));
+  }
+
+  private async getConversationIds(userId: string): Promise<string[]> {
+    const rows = await this.prisma.conversation.findMany({
+      where: { userId },
+      select: { id: true },
+    });
+    return rows.map((row) => row.id);
   }
 
   private inferFallbackCategory(reflection: SessionReflectionRecord): SharedExperienceCategory {

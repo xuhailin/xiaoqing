@@ -1,8 +1,10 @@
-import { Body, Controller, Get, Param, Post, Delete, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Delete, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DesignAgentService } from './design-agent.service';
 import { DesignConversationService } from './design-conversation.service';
 import { DesignOrchestratorService } from './design-orchestrator.service';
 import type { DesignAuditRequest, DesignPageType, DesignAuditMode, CreateDesignConversationRequest, SendDesignMessageRequest } from './design-agent.types';
+import { isFeatureEnabled } from '../config/feature-flags';
 
 const VALID_PAGE_TYPES: DesignPageType[] = ['chat', 'workbench', 'memory'];
 const VALID_MODES: DesignAuditMode[] = ['code', 'visual', 'full'];
@@ -13,7 +15,14 @@ export class DesignAgentController {
     private readonly designAgent: DesignAgentService,
     private readonly conversation: DesignConversationService,
     private readonly orchestrator: DesignOrchestratorService,
+    private readonly config: ConfigService,
   ) {}
+
+  private assertEnabled() {
+    if (!isFeatureEnabled(this.config, 'designAgent')) {
+      throw new ForbiddenException('DesignAgent is disabled');
+    }
+  }
 
   // ── 对话 API ────────────────────────────────────
 
@@ -25,6 +34,7 @@ export class DesignAgentController {
   async createConversation(
     @Body() body: CreateDesignConversationRequest & { initialMessage?: string },
   ) {
+    this.assertEnabled();
     return this.orchestrator.startConversation(body);
   }
 
@@ -34,6 +44,7 @@ export class DesignAgentController {
    */
   @Get('conversations')
   async listConversations() {
+    this.assertEnabled();
     return this.conversation.listConversations('default-user');
   }
 
@@ -43,6 +54,7 @@ export class DesignAgentController {
    */
   @Get('conversations/:id')
   async getConversation(@Param('id') id: string) {
+    this.assertEnabled();
     const conversation = await this.conversation.getConversation(id);
     if (!conversation) {
       throw new NotFoundException(`Conversation ${id} not found`);
@@ -59,6 +71,7 @@ export class DesignAgentController {
     @Param('id') conversationId: string,
     @Body() body: SendDesignMessageRequest,
   ) {
+    this.assertEnabled();
     if (!body.content?.trim() && !body.images?.length) {
       throw new BadRequestException('content or images is required');
     }
@@ -75,6 +88,7 @@ export class DesignAgentController {
     @Param('id') conversationId: string,
     @Body() body: { changeIds?: string[]; notes?: string },
   ) {
+    this.assertEnabled();
     return this.orchestrator.applyChanges(conversationId, body.changeIds, body.notes);
   }
 
@@ -87,6 +101,7 @@ export class DesignAgentController {
     @Param('id') conversationId: string,
     @Body() body: { changeIds?: string[] },
   ) {
+    this.assertEnabled();
     return this.orchestrator.previewChanges(conversationId, body.changeIds);
   }
 
@@ -96,6 +111,7 @@ export class DesignAgentController {
    */
   @Delete('conversations/:id')
   async deleteConversation(@Param('id') id: string) {
+    this.assertEnabled();
     await this.conversation.deleteConversation(id);
     return { success: true };
   }
@@ -112,6 +128,7 @@ export class DesignAgentController {
    */
   @Post('audits')
   async runAudit(@Body() body: DesignAuditRequest) {
+    this.assertEnabled();
     if (!body.pageName?.trim()) {
       throw new BadRequestException('pageName is required');
     }
@@ -146,6 +163,7 @@ export class DesignAgentController {
    */
   @Post('audits/run')
   async runAuditViaDevAgent(@Body() body: DesignAuditRequest) {
+    this.assertEnabled();
     if (!body.pageName?.trim()) {
       throw new BadRequestException('pageName is required');
     }

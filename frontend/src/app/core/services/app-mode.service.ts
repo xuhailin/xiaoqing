@@ -5,13 +5,11 @@ import { catchError } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 
 export interface AppModeState {
-  userMode: 'single' | 'multi';
   devAgentEnabled: boolean;
   designAgentEnabled: boolean;
 }
 
 const DEFAULT_MODE: AppModeState = {
-  userMode: 'single',
   devAgentEnabled: true,
   designAgentEnabled: true,
 };
@@ -35,7 +33,6 @@ export class AppModeService {
     );
 
     this._mode.set({
-      userMode: state.userMode === 'multi' ? 'multi' : 'single',
       devAgentEnabled: Boolean(state.devAgentEnabled),
       designAgentEnabled: Boolean(state.designAgentEnabled),
     });

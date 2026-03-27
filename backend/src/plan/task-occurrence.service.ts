@@ -192,6 +192,7 @@ export class TaskOccurrenceService {
     from: Date,
     to: Date,
     options?: {
+      userId?: string;
       conversationId?: string;
       planId?: string;
       status?: OccurrenceStatus;
@@ -203,8 +204,9 @@ export class TaskOccurrenceService {
         scheduledAt: { gte: from, lte: to },
         status: options?.status,
         ...(options?.planId ? { planId: options.planId } : {}),
+        ...(options?.userId ? { plan: { userId: options.userId } } : {}),
         ...(options?.conversationId
-          ? { plan: { conversationId: options.conversationId } }
+          ? { plan: { ...(options?.userId ? { userId: options.userId } : {}), conversationId: options.conversationId } }
           : {}),
       },
       include: {

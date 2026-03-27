@@ -131,7 +131,11 @@ export class SessionReflectionService {
 
   async list(query?: SessionReflectionQuery): Promise<SessionReflectionRecord[]> {
     const where: Record<string, unknown> = {};
-    if (query?.conversationId) where.conversationId = query.conversationId;
+    if (query?.conversationId) {
+      where.conversationId = query.conversationId;
+    } else if (query?.conversationIds?.length) {
+      where.conversationId = { in: query.conversationIds };
+    }
     if (query?.relationImpact) where.relationImpact = query.relationImpact;
     if (query?.sharedMomentOnly) where.sharedMoment = true;
     if (query?.since) where.createdAt = { gte: query.since };

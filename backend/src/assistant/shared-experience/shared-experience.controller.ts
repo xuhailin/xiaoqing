@@ -35,8 +35,9 @@ export class SharedExperienceController {
   }
 
   @Post('promote')
-  async promote(@Body() body?: { since?: string }) {
+  async promote(@Body() body?: { since?: string }, @UserId() userId?: string) {
     return this.service.promoteFromReflections(
+      userId ?? 'default-user',
       body?.since ? new Date(body.since) : undefined,
     );
   }
