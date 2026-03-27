@@ -11,6 +11,12 @@ export function resolveProjectRoot(cwd = process.cwd()): string {
     return parent;
   }
 
+  // Production Docker images only copy the backend directory, so the repo root
+  // needs to be inferred from the backend working directory.
+  if (existsSync(resolve(cwd, 'src')) && existsSync(resolve(cwd, 'prisma')) && existsSync(resolve(cwd, 'package.json'))) {
+    return parent;
+  }
+
   throw new Error(`Unable to resolve project root from cwd: ${cwd}`);
 }
 
